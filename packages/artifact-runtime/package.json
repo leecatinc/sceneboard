@@ -1,0 +1,16 @@
+{
+  "name": "@leecat-board/artifact-runtime",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@leecat-board/board-schema": "0.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "baseUrl": "http://127.0.0.1:3411",
+  "accessTokenRef": "env://LEECAT_BOARD_ACCESS_TOKEN",
+  "authScheme": "bearer",
+  "timeoutMs": 30000,
+  "profile": "local"
+}
