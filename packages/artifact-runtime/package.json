@@ -8,9 +8,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@leecat-board/board-schema": "0.0.0"
+    "@leecat-board/board-schema": "0.0.0",
+    "css-tree": "3.2.1",
+    "parse5": "8.0.1"
   },
   "devDependencies": {
+    "esbuild": "0.25.12",
     "typescript": "^5.6.0"
   }
 }

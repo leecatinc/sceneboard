@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": 1,
+  "algorithm": "Ed25519",
+  "keyId": "leecat-board-dependency-approval-7fa68d2ee6bc8e0f",
+  "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA5uRS9C/a0ZPDeJEl87zi21Fu+wJnGonAroXdr748TfY=\n-----END PUBLIC KEY-----\n"
+}

@@ -10,8 +10,14 @@
     "packages/*"
   ],
   "scripts": {
+    "offline:source:build": "node scripts/build-offline-source.mjs",
+    "offline:registry": "node scripts/offline-registry.mjs",
+    "offline:verify": "node scripts/verify-dependency-approval.mjs",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present"
+  },
+  "devDependencies": {
+    "playwright": "1.59.1"
   },
   "engines": {
     "node": ">=22"
