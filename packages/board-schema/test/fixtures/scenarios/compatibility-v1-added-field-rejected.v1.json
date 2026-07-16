@@ -1,0 +1,1 @@
+{"scenario":"compatibility-v1-added-field-rejected","expectedRelation":"rejected","inputFixture":"invalid/protocol-v1-added-field.v1.json","expected":{"accepted":false,"errorCode":"INVALID_PAYLOAD"}}

@@ -1,0 +1,1 @@
+{"protocolVersion":1,"type":"board.error","code":"HITL_REQUEST_EXPIRED","message":"HITL_REQUEST_EXPIRED","category":"conflict","retryable":false,"httpStatusHint":410,"details":{"hitlRequestId":"hitl_1","expiredAt":"2026-07-16T00:02:00.000Z"}}

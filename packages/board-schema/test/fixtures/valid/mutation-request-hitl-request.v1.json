@@ -1,0 +1,1 @@
+{"protocolVersion":1,"requestId":"request_1","idempotencyKey":"idempotency-key-1","boardId":"board_1","expectedRevisionId":"revision_1","command":{"type":"hitl.request","hitlRequestId":"hitl_1","request":{"kind":"info","title":"Information","body":"Read this.","acknowledgeLabel":"OK"}}}

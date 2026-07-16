@@ -1,0 +1,9 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/board-schema/tsconfig.build.json" },
+    { "path": "./packages/board-sdk/tsconfig.build.json" },
+    { "path": "./packages/board-ui/tsconfig.build.json" },
+    { "path": "./packages/artifact-runtime/tsconfig.build.json" }
+  ]
+}

@@ -1,0 +1,1 @@
+{"scenario":"board-archive-idempotency-replay","expectedRelation":"replay","originalFixture":"valid/operation-envelope-board-archive.v1.json","attemptedPatch":{"request":{"requestId":"request_retry"}},"expected":{"fingerprint":"equal","originalArchivedSummaryReused":true}}

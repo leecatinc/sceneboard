@@ -5,8 +5,9 @@
   "type": "module",
   "exports": "./src/index.ts",
   "scripts": {
+    "build:types": "tsc -b ./tsconfig.build.json",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test test/**/*.test.ts"
+    "test": "tsx --test test/*.test.ts"
   },
   "dependencies": {
     "zod": "3.23.8"

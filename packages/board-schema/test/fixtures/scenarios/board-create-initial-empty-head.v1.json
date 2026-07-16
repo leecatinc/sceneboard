@@ -1,0 +1,1 @@
+{"scenario":"board-create-initial-empty-head","expectedRelation":"initial-head","resultFixture":"valid/operation-result-board-create.v1.json","expected":{"revisionNumber":1,"previousRevisionId":null,"originType":"board.create","sceneRoot":null}}

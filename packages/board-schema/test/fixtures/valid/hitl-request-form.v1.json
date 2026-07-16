@@ -1,0 +1,1 @@
+{"kind":"form","title":"Form","fields":[{"id":"name","type":"text","label":"Name","required":true,"defaultValue":null,"minLength":1,"maxLength":20}],"submitLabel":"Submit"}

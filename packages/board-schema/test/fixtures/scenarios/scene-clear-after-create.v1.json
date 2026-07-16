@@ -1,0 +1,1 @@
+{"scenario":"scene-clear-after-create","expectedRelation":"new-checkpoint","createResultFixture":"valid/operation-result-board-create.v1.json","resultFixture":"valid/mutation-result-scene-clear.v1.json","expected":{"revisionNumber":2,"sceneRoot":null,"headDeleted":false}}

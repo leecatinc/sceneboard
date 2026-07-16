@@ -1,0 +1,1 @@
+{"protocolVersion":1,"type":"board.error","code":"PROTOCOL_VERSION_MISMATCH","message":"PROTOCOL_VERSION_MISMATCH","category":"protocol","retryable":false,"httpStatusHint":409,"details":{"reason":"major","supportedMajor":1,"receivedMajor":2,"field":"protocolVersion"}}

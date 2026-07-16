@@ -1,0 +1,1 @@
+{"protocolVersion":1,"type":"board.error","code":"INVALID_PAYLOAD","message":"INVALID_PAYLOAD","category":"validation","retryable":false,"httpStatusHint":400,"details":{"path":[],"issue":"invalid"}}

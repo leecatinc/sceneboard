@@ -1,0 +1,1 @@
+{"protocolVersion":1,"type":"board.error","code":"IDEMPOTENCY_KEY_REUSED","message":"IDEMPOTENCY_KEY_REUSED","category":"conflict","retryable":false,"httpStatusHint":409,"details":{"scope":"board.mutation","boardId":"board_1","operationType":"scene.clear","reason":"payload_changed"}}

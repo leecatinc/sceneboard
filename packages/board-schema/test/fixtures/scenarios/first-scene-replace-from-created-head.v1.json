@@ -1,0 +1,1 @@
+{"scenario":"first-scene-replace-from-created-head","expectedRelation":"next-revision","createResultFixture":"valid/operation-result-board-create.v1.json","requestFixture":"valid/mutation-request-scene-replace.v1.json","resultFixture":"valid/mutation-result-scene-replace.v1.json","expected":{"expectedRevisionId":"revision_1","revisionNumber":2}}

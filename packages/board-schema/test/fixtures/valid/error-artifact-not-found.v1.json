@@ -1,0 +1,1 @@
+{"protocolVersion":1,"type":"board.error","code":"ARTIFACT_NOT_FOUND","message":"ARTIFACT_NOT_FOUND","category":"not_found","retryable":false,"httpStatusHint":404,"details":{"artifact":{"artifactId":"artifact_1","versionId":"version_1"}}}

@@ -1,0 +1,1 @@
+{"protocolVersion":1,"type":"board.error","code":"DUPLICATE_NODE_ID","message":"DUPLICATE_NODE_ID","category":"validation","retryable":false,"httpStatusHint":422,"details":{"nodeId":"nodeA","firstPath":["root","id"],"duplicatePath":["root","children",0,"node","id"]}}

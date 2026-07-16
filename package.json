@@ -13,6 +13,9 @@
     "offline:source:build": "node scripts/build-offline-source.mjs",
     "offline:registry": "node scripts/offline-registry.mjs",
     "offline:verify": "node scripts/verify-dependency-approval.mjs",
+    "typecheck:contracts": "tsc -b ./tsconfig.json",
+    "test:contracts": "npm run test --workspace @leecat-board/board-schema",
+    "check:contracts": "npm run typecheck:contracts && npm run test:contracts",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present"
   },

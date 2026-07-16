@@ -1,0 +1,1 @@
+{"protocolVersion":1,"type":"board.operation.envelope","request":{"protocolVersion":1,"requestId":"request_1","type":"hitl.read","boardId":"board_1","hitlRequestId":"hitl_1","wait":null},"actor":{"principalKind":"user","principalId":"user_1","grantId":"grant_1","scopes":["board.read"]}}

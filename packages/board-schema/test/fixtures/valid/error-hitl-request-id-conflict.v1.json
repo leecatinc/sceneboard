@@ -1,0 +1,1 @@
+{"protocolVersion":1,"type":"board.error","code":"HITL_REQUEST_ID_CONFLICT","message":"HITL_REQUEST_ID_CONFLICT","category":"conflict","retryable":false,"httpStatusHint":409,"details":{"hitlRequestId":"hitl_1"}}

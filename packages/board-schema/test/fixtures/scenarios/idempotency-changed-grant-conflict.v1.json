@@ -1,0 +1,1 @@
+{"scenario":"idempotency-changed-grant-conflict","expectedRelation":"conflict","originalFixture":"valid/mutation-envelope-scene-clear.v1.json","attemptedPatch":{"actor":{"grantId":"grant_2"}},"expected":{"fingerprint":"different","reason":"grant_changed"}}

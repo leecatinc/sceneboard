@@ -1,0 +1,1 @@
+{"scenario":"snapshot-event-reconnect-watermark","expectedRelation":"inclusive-watermark","eventFixture":"valid/event-board-snapshot.v1.json","duplicateSequences":[0,1],"expected":{"snapshotSequence":1,"firstAcceptedSequence":2,"placedReferencesResolveExactlyOnce":true}}

@@ -1,0 +1,1 @@
+{"protocolVersion":1,"type":"board.error","code":"BOARD_ALREADY_ARCHIVED","message":"BOARD_ALREADY_ARCHIVED","category":"conflict","retryable":false,"httpStatusHint":409,"details":{"boardId":"board_1","archivedAt":"2026-07-16T00:00:00.000Z"}}

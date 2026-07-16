@@ -1,0 +1,1 @@
+{"protocolVersion":1,"requestId":"request_1","idempotencyKey":"idempotency-key-1","boardId":"board_1","expectedRevisionId":"revision_1","command":{"type":"artifact.stop","artifact":{"artifactId":"artifact_1","versionId":"version_1"}}}

@@ -1,0 +1,1 @@
+{"protocolVersion":1,"type":"board.error","code":"PAYLOAD_TOO_LARGE","message":"PAYLOAD_TOO_LARGE","category":"validation","retryable":false,"httpStatusHint":413,"details":{"scope":"scene","actualBytes":786433,"maximumBytes":786432}}

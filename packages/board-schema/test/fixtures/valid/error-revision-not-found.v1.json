@@ -1,0 +1,1 @@
+{"protocolVersion":1,"type":"board.error","code":"REVISION_NOT_FOUND","message":"REVISION_NOT_FOUND","category":"not_found","retryable":false,"httpStatusHint":404,"details":{"revisionId":"revision_1"}}

@@ -1,0 +1,1 @@
+{"protocolVersion":1,"type":"board.operation.envelope","request":{"protocolVersion":1,"requestId":"request_1","type":"board.create","idempotencyKey":"idempotency-key-1","title":"Board"},"actor":{"principalKind":"user","principalId":"user_1","grantId":"grant_1","scopes":["board.read"]}}

@@ -1,0 +1,1 @@
+{"protocolVersion":1,"type":"board.error","code":"RATE_LIMITED","message":"RATE_LIMITED","category":"rate_limit","retryable":true,"httpStatusHint":429,"details":{"retryAfterSeconds":1}}
