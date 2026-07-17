@@ -6,10 +6,12 @@
     "dev": "next dev -p 3410",
     "build": "next build",
     "start": "next start -p 3410",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/**/*.test.ts"
   },
   "dependencies": {
     "@leecat-board/board-schema": "0.0.0",
+    "@leecat-board/board-sdk": "0.0.0",
     "@leecat-board/board-ui": "0.0.0",
     "next": "15.5.18",
     "react": "19.2.5",
@@ -19,6 +21,7 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "tsx": "^4.20.0",
     "typescript": "^5.6.0"
   }
 }

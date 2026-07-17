@@ -1,0 +1,123 @@
+import { randomBytes } from 'node:crypto';
+
+import type { LoadedBoardConfigV1, SafeConfigSourceV1 } from '../config/board-config.js';
+import type { TokenProviderV1 } from '../credentials/token-provider.js';
+import type { ConnectionStatusPortResultV1, ConnectionStatusPortV1 } from '../tools/connection.tools.js';
+import { ConnectionHttpClientV1, type ConnectionHttpLocalErrorV1 } from './connection-http.client.js';
+
+export type SafeConfigSummaryV1 = {
+  source: SafeConfigSourceV1;
+  profile: string;
+  baseOrigin: string;
+  timeoutMs: number;
+  hasToken: boolean;
+};
+
+const summary = (loaded: LoadedBoardConfigV1, hasToken: boolean): SafeConfigSummaryV1 => ({
+  source: loaded.source,
+  profile: loaded.config.profile,
+  baseOrigin: loaded.config.baseUrl,
+  timeoutMs: loaded.config.timeoutMs,
+  hasToken,
+});
+
+const localValue = (error: ConnectionHttpLocalErrorV1): Record<string, unknown> => {
+  if (error.code === 'CANCELLED') return { code: 'BOARD_MCP_CANCELLED', message: 'Connection check was cancelled', retryable: false, details: null };
+  if (error.code === 'TIMEOUT') return { code: 'BOARD_MCP_TIMEOUT', message: 'SceneBoard connection timed out', retryable: true, details: { timeoutMs: error.timeoutMs } };
+  if (error.code === 'TRANSPORT_ERROR') return { code: 'BOARD_MCP_TRANSPORT_ERROR', message: 'SceneBoard transport is unavailable', retryable: true, details: { phase: error.phase } };
+  return { code: 'BOARD_MCP_RESPONSE_INVALID', message: 'SceneBoard response is invalid', retryable: false, details: { reason: error.reason } };
+};
+
+export class ConnectionStatusServiceV1 implements ConnectionStatusPortV1 {
+  constructor(
+    private readonly loaded: LoadedBoardConfigV1,
+    private readonly tokens: TokenProviderV1,
+    private readonly client: ConnectionHttpClientV1,
+  ) {}
+
+  async status(boardId: string | null, requestId: string, signal?: AbortSignal): Promise<ConnectionStatusPortResultV1> {
+    let snapshot;
+    try {
+      snapshot = await this.tokens.snapshot();
+    } catch {
+      return {
+        ok: false,
+        source: 'mcp',
+        value: {
+          code: 'BOARD_MCP_INTERNAL_ERROR',
+          message: 'Connection state is unavailable',
+          retryable: false,
+          details: { incidentId: randomBytes(16).toString('base64url') },
+        },
+      };
+    }
+    if (snapshot === null) return {
+      ok: true,
+      value: {
+        state: 'credential_missing',
+        config: summary(this.loaded, false),
+        connection: null,
+        lastErrorCode: null,
+      },
+    };
+    const result = await this.client.get(boardId, requestId, snapshot.accessToken, signal);
+    if (result.ok) return {
+      ok: true,
+      value: {
+        state: 'connected',
+        config: summary(this.loaded, true),
+        connection: result.value,
+        lastErrorCode: null,
+      },
+    };
+    if (result.source === 'board') {
+      if (result.error.code !== 'UNAUTHENTICATED') {
+        return { ok: false, source: 'board', value: result.error as unknown as Record<string, unknown> };
+      }
+      await this.tokens.invalidate(snapshot).catch(() => undefined);
+      return {
+        ok: true,
+        value: {
+          state: 'credential_invalid',
+          config: summary(this.loaded, false),
+          connection: null,
+          lastErrorCode: 'UNAUTHENTICATED',
+        },
+      };
+    }
+    if (result.error.code === 'CANCELLED') return { ok: false, source: 'mcp', value: localValue(result.error) };
+    const translated = localValue(result.error);
+    return {
+      ok: true,
+      value: {
+        state: 'backend_unavailable',
+        config: summary(this.loaded, true),
+        connection: null,
+        lastErrorCode: translated.code,
+      },
+    };
+  }
+
+  async probeWithToken(accessToken: string, signal?: AbortSignal): Promise<boolean> {
+    const requestId = randomBytes(16).toString('base64url');
+    return (await this.client.get(null, requestId, accessToken, signal)).ok;
+  }
+}
+
+export class UnconfiguredConnectionStatusServiceV1 implements ConnectionStatusPortV1 {
+  async status(
+    _boardId: string | null,
+    _requestId: string,
+    _signal?: AbortSignal,
+  ): Promise<ConnectionStatusPortResultV1> {
+    return {
+      ok: true,
+      value: {
+        state: 'not_configured',
+        config: null,
+        connection: null,
+        lastErrorCode: 'BOARD_MCP_CONFIG_INVALID',
+      },
+    };
+  }
+}

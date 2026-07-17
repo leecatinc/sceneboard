@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "owner": "D8",
+  "contractSha256": "d70eddb77564f81417b110d1b8943204b6b195f9ba0be56c12f780f46c7b9626",
+  "registryEntries": [
+    {
+      "order": 15,
+      "version": "012_d8_board_hitl_interactions",
+      "upAsset": "012_d8_board_hitl_interactions.up.sql",
+      "upSha256": "33a175cadbe41c93916fac494a1efe3aae330b2292e11bb7f7087ea1e045f0ec",
+      "downAsset": null,
+      "downSha256": null,
+      "reversible": false,
+      "predecessorIds": [
+        "011_d7_artifact_board_usage"
+      ]
+    }
+  ],
+  "tables": [
+    {
+      "name": "board_hitl_interactions",
+      "sourceAsset": "012_d8_board_hitl_interactions.up.sql",
+      "sourceSha256": "33a175cadbe41c93916fac494a1efe3aae330b2292e11bb7f7087ea1e045f0ec"
+    }
+  ]
+}

@@ -4,10 +4,20 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx src/main.ts",
-    "build": "tsc -p tsconfig.json",
+    "dev": "npm run build && npm run start",
+    "start": "node --import tsx dist/main.js",
+    "build": "tsc -p tsconfig.build.json && tsx scripts/copy-sql-assets.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test test/**/*.test.ts"
+    "test": "tsx --test test/**/*.test.ts",
+    "db:migrate:status": "tsx src/bootstrap/persistence-certification.bootstrap.ts migration status",
+    "db:migrate:up": "tsx src/bootstrap/persistence-certification.bootstrap.ts migration up",
+    "db:migrate:adopt": "tsx src/bootstrap/persistence-certification.bootstrap.ts migration adopt",
+    "db:prepare:lightweight": "tsx scripts/prepare-lightweight-database.ts",
+    "security:calibrate:bcrypt": "tsx scripts/calibrate-bcrypt.ts",
+    "security:calibrate:pairing": "tsx scripts/calibrate-pairing-claim.ts",
+    "security:retention:status": "tsx scripts/run-security-retention.ts status",
+    "security:retention:dry-run": "tsx scripts/run-security-retention.ts dry-run",
+    "security:retention:run": "tsx scripts/run-security-retention.ts run"
   },
   "dependencies": {
     "@leecat-board/board-schema": "0.0.0",
@@ -17,8 +27,11 @@
     "@nestjs/platform-express": "11.1.27",
     "bcryptjs": "3.0.3",
     "cookie-parser": "1.4.7",
+    "css-tree": "^3.2.1",
     "ioredis": "5.11.1",
     "mysql2": "3.15.3",
+    "nodemailer": "8.0.10",
+    "parse5": "^8.0.1",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
     "zod": "3.23.8"
@@ -26,6 +39,7 @@
   "devDependencies": {
     "@types/cookie-parser": "^1.4.10",
     "@types/node": "^22.0.0",
+    "@types/nodemailer": "7.0.11",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0"
   }

@@ -5,6 +5,8 @@ export type {
   BoardNodeV1,
   BoardSnapshotV1,
   HitlInteractionV1,
+  HitlFieldV1,
+  HitlOptionV1,
   HitlRequestDefinitionV1,
   HitlResponseV1,
   SceneV1,

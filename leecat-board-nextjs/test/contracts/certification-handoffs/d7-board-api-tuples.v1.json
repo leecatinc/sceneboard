@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "owner": "D7",
+  "resourcePath": "leecat-board-nextjs/lib/api/board-api.ts",
+  "publisherTestPath": "leecat-board-nextjs/test/contracts/d7-board-api-tuples.contract.test.ts",
+  "contractIds": [
+    "D7-ARTIFACT-METADATA-GET",
+    "D7-ARTIFACT-PACKAGE-GET",
+    "D7-ARTIFACT-NETWORK-FETCH"
+  ],
+  "selectors": [
+    {
+      "projectionId": "D7-ARTIFACT-METADATA-GET-SELECTOR",
+      "exportName": "BoardApiClient",
+      "exportKind": "class",
+      "memberName": "getArtifact",
+      "memberKind": "method",
+      "signature": "async getArtifact( boardIdValue: string, artifactValue: ArtifactReferenceV1, signal?: AbortSignal, ): Promise<ApiResult<ArtifactGetResult>>",
+      "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=getArtifact]",
+      "contractId": "D7-ARTIFACT-METADATA-GET"
+    },
+    {
+      "projectionId": "D7-ARTIFACT-PACKAGE-GET-SELECTOR",
+      "exportName": "BoardApiClient",
+      "exportKind": "class",
+      "memberName": "getArtifactPackage",
+      "memberKind": "method",
+      "signature": "async getArtifactPackage( boardIdValue: string, artifactValue: ArtifactReferenceV1, signal?: AbortSignal, ): Promise<ApiResult<ArtifactPackageResult>>",
+      "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=getArtifactPackage]",
+      "contractId": "D7-ARTIFACT-PACKAGE-GET"
+    },
+    {
+      "projectionId": "D7-ARTIFACT-NETWORK-FETCH-SELECTOR",
+      "exportName": "BoardApiClient",
+      "exportKind": "class",
+      "memberName": "requestArtifactNetworkFetch",
+      "memberKind": "method",
+      "signature": "async requestArtifactNetworkFetch(input: { boardId: string; artifact: ArtifactReferenceV1; csrfToken: string; method: 'GET' | 'HEAD'; url: string; signal?: AbortSignal; }): Promise<ApiResult<ArtifactNetworkResult>>",
+      "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=requestArtifactNetworkFetch]",
+      "contractId": "D7-ARTIFACT-NETWORK-FETCH"
+    }
+  ],
+  "tupleListSha256": "cf8777df7e5c0c8bb61d7994618810fc3de36b7719e1307b117a3e04d110dd38"
+}

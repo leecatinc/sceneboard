@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "owner": "D2",
+  "contractSha256": "d70eddb77564f81417b110d1b8943204b6b195f9ba0be56c12f780f46c7b9626",
+  "registryEntries": [
+    {
+      "order": 1,
+      "version": "001_d2_identity_sessions_audit",
+      "upAsset": "001_d2_identity_sessions_audit.up.sql",
+      "upSha256": "26639911effa4130db30cacfe91ce4837e9f0d24442ea81ec3517439641896ae",
+      "downAsset": "001_d2_identity_sessions_audit.down.sql",
+      "downSha256": "16379fe97beb769559ab6779ed2d1869e0721109193425484da45a5fd77fe8ca",
+      "reversible": true,
+      "predecessorIds": []
+    },
+    {
+      "order": 3,
+      "version": "002_d2_pairing_grants",
+      "upAsset": "002_d2_pairing_grants.up.sql",
+      "upSha256": "0611bdeebb21060ac7990cd9203c0bce2238e31bf7b2a3d13aef7d84d5d55687",
+      "downAsset": "002_d2_pairing_grants.down.sql",
+      "downSha256": "f2665134e2ab6ee546ac6e4e32f4b58f70c3ae249e38f42046710664acf3ea93",
+      "reversible": true,
+      "predecessorIds": [
+        "001_d3_boards"
+      ]
+    },
+    {
+      "order": 9,
+      "version": "003_d2_artifact_capability_policy",
+      "upAsset": "003_d2_artifact_capability_policy.up.sql",
+      "upSha256": "2777bcdd8e05212df37f270526fe1f08678b57124a5cc1a36e26ea8866ca7ea8",
+      "downAsset": "003_d2_artifact_capability_policy.down.sql",
+      "downSha256": "f847d85beb9ed8bb63d8de06f0d8caede9be1ceaa58c7dcc4acb1e89cf29df07",
+      "reversible": true,
+      "predecessorIds": [
+        "006_d3_board_event_outbox"
+      ]
+    }
+  ],
+  "tables": [
+    {
+      "name": "users",
+      "sourceAsset": "001_d2_identity_sessions_audit.up.sql",
+      "sourceSha256": "26639911effa4130db30cacfe91ce4837e9f0d24442ea81ec3517439641896ae"
+    },
+    {
+      "name": "auth_sessions",
+      "sourceAsset": "001_d2_identity_sessions_audit.up.sql",
+      "sourceSha256": "26639911effa4130db30cacfe91ce4837e9f0d24442ea81ec3517439641896ae"
+    },
+    {
+      "name": "security_audit_events",
+      "sourceAsset": "001_d2_identity_sessions_audit.up.sql",
+      "sourceSha256": "26639911effa4130db30cacfe91ce4837e9f0d24442ea81ec3517439641896ae"
+    },
+    {
+      "name": "mcp_clients",
+      "sourceAsset": "002_d2_pairing_grants.up.sql",
+      "sourceSha256": "0611bdeebb21060ac7990cd9203c0bce2238e31bf7b2a3d13aef7d84d5d55687"
+    },
+    {
+      "name": "mcp_grants",
+      "sourceAsset": "002_d2_pairing_grants.up.sql",
+      "sourceSha256": "0611bdeebb21060ac7990cd9203c0bce2238e31bf7b2a3d13aef7d84d5d55687"
+    },
+    {
+      "name": "pairing_requests",
+      "sourceAsset": "002_d2_pairing_grants.up.sql",
+      "sourceSha256": "0611bdeebb21060ac7990cd9203c0bce2238e31bf7b2a3d13aef7d84d5d55687"
+    },
+    {
+      "name": "mcp_grant_credentials",
+      "sourceAsset": "002_d2_pairing_grants.up.sql",
+      "sourceSha256": "0611bdeebb21060ac7990cd9203c0bce2238e31bf7b2a3d13aef7d84d5d55687"
+    },
+    {
+      "name": "mcp_grant_boards",
+      "sourceAsset": "002_d2_pairing_grants.up.sql",
+      "sourceSha256": "0611bdeebb21060ac7990cd9203c0bce2238e31bf7b2a3d13aef7d84d5d55687"
+    },
+    {
+      "name": "board_artifact_capability_policy_epochs",
+      "sourceAsset": "003_d2_artifact_capability_policy.up.sql",
+      "sourceSha256": "2777bcdd8e05212df37f270526fe1f08678b57124a5cc1a36e26ea8866ca7ea8"
+    },
+    {
+      "name": "board_artifact_capability_policies",
+      "sourceAsset": "003_d2_artifact_capability_policy.up.sql",
+      "sourceSha256": "2777bcdd8e05212df37f270526fe1f08678b57124a5cc1a36e26ea8866ca7ea8"
+    },
+    {
+      "name": "artifact_capability_preauthorization_tickets",
+      "sourceAsset": "003_d2_artifact_capability_policy.up.sql",
+      "sourceSha256": "2777bcdd8e05212df37f270526fe1f08678b57124a5cc1a36e26ea8866ca7ea8"
+    }
+  ]
+}

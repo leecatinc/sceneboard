@@ -10,19 +10,43 @@
     "packages/*"
   ],
   "scripts": {
-    "offline:source:build": "node scripts/build-offline-source.mjs",
-    "offline:registry": "node scripts/offline-registry.mjs",
-    "offline:verify": "node scripts/verify-dependency-approval.mjs",
+    "sync:sceanboard-skill": "node scripts/sync-sceanboard-skill.mjs",
+    "check:sceanboard-skill": "node scripts/sync-sceanboard-skill.mjs --check",
+    "preflight:auth-origins": "node scripts/verify-auth-origin-topology.mjs",
     "typecheck:contracts": "tsc -b ./tsconfig.json",
     "test:contracts": "npm run test --workspace @leecat-board/board-schema",
+    "test:browser:c10": "node --test e2e/*.test.mjs",
+    "verify:contracts": "node scripts/verify-contract-manifest.mjs",
+    "verify:dependencies": "node scripts/verify-dependency-reproducibility.mjs",
+    "verify:config": "node scripts/audit-secret-safe-config.mjs",
+    "test:certification": "node --test test/integration/*.test.mjs test/security/*.test.mjs test/e2e/*.test.mjs",
+    "certify:database": "node scripts/run-local-certification.mjs --phase=database",
+    "certify:restore": "node scripts/run-local-certification.mjs --phase=restore",
+    "certify:redis-loss": "node scripts/run-local-certification.mjs --phase=redis-loss",
+    "certify:multi-client": "node scripts/run-local-certification.mjs --phase=multi-client",
+    "certify:security": "node scripts/run-local-certification.mjs --phase=security",
+    "certify:e2e": "node scripts/run-local-certification.mjs --phase=e2e",
+    "certify:operations": "node scripts/run-local-certification.mjs --phase=operations",
+    "certify:capacity": "node scripts/run-local-certification.mjs --phase=capacity",
+    "certify:release": "node scripts/run-local-certification.mjs --phase=release",
     "check:contracts": "npm run typecheck:contracts && npm run test:contracts",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present"
+    "test": "npm run test --workspaces --if-present && npm run test:certification"
   },
   "devDependencies": {
     "playwright": "1.59.1"
   },
   "engines": {
     "node": ">=22"
+  },
+  "overrides": {
+    "@modelcontextprotocol/sdk": {
+      "zod": "3.25.76"
+    },
+    "@hono/node-server": "1.19.13",
+    "jose": "6.2.2"
+  },
+  "dependencies": {
+    "mermaid": "11.4.1"
   }
 }

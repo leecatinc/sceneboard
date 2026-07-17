@@ -7,6 +7,7 @@ import {
   ArtifactResourceParserV1,
   ArtifactRuntimeSummaryParserV1,
   BoardCapabilitiesParserV1,
+  BoardIdParserV1,
   BoardErrorParserV1,
   BoardEventEnvelopeParserV1,
   BoardNodeParserV1,
@@ -17,9 +18,12 @@ import {
   HitlInteractionParserV1,
   HitlRequestDefinitionParserV1,
   HitlResponseParserV1,
+  GlobalIdStringParserV1,
+  GrantIdParserV1,
   MutationEnvelopeParserV1,
   MutationRequestParserV1,
   MutationResultParserV1,
+  PrincipalIdParserV1,
   SceneParserV1,
   canonicalizeJsonV1,
   type BoardContractParserV1,
@@ -60,6 +64,21 @@ const parsers: Record<FixtureParserName, BoardContractParserV1<unknown>> = {
   MutationResultParserV1,
   SceneParserV1,
 };
+
+test('keeps the application scalar parser wire set exact', () => {
+  const accepted = ['A', '_', '-', 'a0_-', 'x'.repeat(128)];
+  const rejected = ['', 'x'.repeat(129), 'with.dot', 'with:colon', '한글', 'has space'];
+  for (const parser of [GlobalIdStringParserV1, BoardIdParserV1, GrantIdParserV1, PrincipalIdParserV1]) {
+    for (const value of accepted) {
+      const decoded = parser.parse(value);
+      assert.equal(decoded.ok, true, value);
+      const encoded = parser.parseBytes(new TextEncoder().encode(JSON.stringify(value)));
+      assert.equal(encoded.ok, true, `${value} bytes`);
+      if (decoded.ok && encoded.ok) assert.equal(encoded.data.value, decoded.data.value);
+    }
+    for (const value of rejected) assert.equal(parser.parse(value).ok, false, value);
+  }
+});
 
 test('registers every exact fixture once with complete metadata', async () => {
   assert.equal(FIXTURE_CATALOG.length, 181);

@@ -8,7 +8,12 @@ import { MutationEnvelopeSchemaV1, MutationRequestSchemaV1, MutationResultSchema
 import { BoardEventEnvelopeSchemaV1 } from './events.js';
 import type { BoardErrorV1 } from './errors.js';
 import { BoardErrorSchemaV1 } from './errors.js';
-import { GrantIdSchemaV1, PrincipalIdSchemaV1 } from './identifiers.js';
+import {
+  BoardIdSchemaV1,
+  GlobalIdStringSchemaV1,
+  GrantIdSchemaV1,
+  PrincipalIdSchemaV1,
+} from './identifiers.js';
 import { HitlInteractionSchemaV1, HitlRequestDefinitionSchemaV1, HitlResponseSchemaV1 } from './hitl.js';
 import type { JsonValue } from './json.js';
 import { scalarLengthV1 } from './json.js';
@@ -206,6 +211,11 @@ const createParser = <Schema extends z.ZodTypeAny>(schema: Schema, kind: ParserK
   parse: (input) => processKernel(schema, runDecodedKernelV1(input), kind),
   parseBytes: (bytes) => processKernel(schema, runBytesKernelV1(bytes), kind),
 });
+
+export const GlobalIdStringParserV1 = createParser(GlobalIdStringSchemaV1);
+export const BoardIdParserV1 = createParser(BoardIdSchemaV1);
+export const GrantIdParserV1 = createParser(GrantIdSchemaV1);
+export const PrincipalIdParserV1 = createParser(PrincipalIdSchemaV1);
 
 export const SceneParserV1 = createParser(SceneSchemaV1, 'scene');
 export const BoardNodeParserV1 = createParser(BoardNodeSchemaV1, 'node');

@@ -1,0 +1,30 @@
+{
+  "name": "sceneboard",
+  "version": "0.1.0",
+  "description": "Build and verify live SceneBoard boards with Codex.",
+  "author": {
+    "name": "SceneBoard",
+    "url": "https://sceneboard.dev"
+  },
+  "homepage": "https://sceneboard.dev/integrations/codex",
+  "repository": "https://github.com/leecatinc/leecat-board-mcp",
+  "keywords": ["sceneboard", "board", "mcp", "codex", "collaboration"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "SceneBoard",
+    "shortDescription": "Build live visual boards with Codex",
+    "longDescription": "Install the SceneBoard skill and MCP launcher together, pair Codex with an approved workspace, and build or verify live visual boards.",
+    "developerName": "SceneBoard",
+    "category": "Productivity",
+    "capabilities": ["Read", "Write", "Interactive"],
+    "websiteURL": "https://sceneboard.dev",
+    "defaultPrompt": [
+      "Use $sceanboard to present this on my live board.",
+      "Use $sceanboard to verify the current board state."
+    ],
+    "brandColor": "#02B391",
+    "composerIcon": "./assets/icon.svg",
+    "logo": "./assets/logo.svg"
+  },
+  "mcpServers": "./.mcp.json"
+}

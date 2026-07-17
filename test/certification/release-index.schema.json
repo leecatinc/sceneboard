@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sceneboard.dev/schemas/release-index.v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "attemptEnvelope", "status", "phases", "cleanupStatus", "evidenceTreeSha256"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "attemptEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["certificationSourceCommit", "manifestSha256", "observedInputHashes", "profile", "attemptId", "laneId"],
+      "properties": {
+        "certificationSourceCommit": { "type": "string", "pattern": "^[0-9a-f]{40,64}$" },
+        "manifestSha256": { "$ref": "#/$defs/sha256" },
+        "observedInputHashes": {
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/sha256" },
+          "minProperties": 1
+        },
+        "profile": { "type": "string" },
+        "attemptId": { "type": "string" },
+        "laneId": { "enum": ["correctness", "capacity"] }
+      },
+      "not": { "required": ["inventorySha256"] }
+    },
+    "status": { "enum": ["PASS", "FAIL", "BLOCKED"] },
+    "phases": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "cleanupStatus": { "enum": ["PASS", "FAIL", "NOT_STARTED"] },
+    "evidenceTreeSha256": { "$ref": "#/$defs/sha256" }
+  },
+  "$defs": { "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" } }
+}

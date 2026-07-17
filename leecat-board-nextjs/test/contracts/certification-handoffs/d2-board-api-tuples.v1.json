@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "owner": "D2",
+  "resourcePath": "leecat-board-nextjs/lib/api/board-api.ts",
+  "publisherTestPath": "leecat-board-nextjs/test/contracts/d2-board-api-tuples.contract.test.ts",
+  "contractIds": [
+    "D2-PAIRING-LIST-ACTIVE",
+    "D2-GRANT-LIST",
+    "D2-PAIRING-CREATE",
+    "D2-PAIRING-DECIDE",
+    "D2-PAIRING-CANCEL",
+    "D2-GRANT-REVOKE",
+    "D2-GRANT-ROTATE"
+  ],
+  "selectors": [
+    {
+      "projectionId": "D2-PAIRING-LIST-ACTIVE-SELECTOR",
+      "exportName": "BoardApiClient",
+      "exportKind": "class",
+      "memberName": "listActivePairings",
+      "memberKind": "method",
+      "signature": "async listActivePairings(signal?: AbortSignal): Promise<ApiResult<PairingOwnerStatus[]>>",
+      "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=listActivePairings]",
+      "contractId": "D2-PAIRING-LIST-ACTIVE"
+    },
+    {
+      "projectionId": "D2-GRANT-LIST-SELECTOR",
+      "exportName": "BoardApiClient",
+      "exportKind": "class",
+      "memberName": "listGrants",
+      "memberKind": "method",
+      "signature": "async listGrants(cursor: string | null = null, signal?: AbortSignal): Promise<ApiResult<{ grants: GrantSummary[]; nextCursor: string | null }>>",
+      "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=listGrants]",
+      "contractId": "D2-GRANT-LIST"
+    },
+    {
+      "projectionId": "D2-PAIRING-CREATE-SELECTOR",
+      "exportName": "BoardApiClient",
+      "exportKind": "class",
+      "memberName": "createPairing",
+      "memberKind": "method",
+      "signature": "async createPairing(csrfToken: string): Promise<ApiResult<CreatedPairing>>",
+      "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=createPairing]",
+      "contractId": "D2-PAIRING-CREATE"
+    },
+    {
+      "projectionId": "D2-PAIRING-DECIDE-SELECTOR",
+      "exportName": "BoardApiClient",
+      "exportKind": "class",
+      "memberName": "decidePairing",
+      "memberKind": "method",
+      "signature": "async decidePairing( pairingId: string, csrfToken: string, decision: { decision: 'deny' } | { decision: 'approve'; approvedScopes: ClientGrantCapabilityV1[]; approvedLifecyclePermissions: LifecyclePermission[]; boardIds: string[]; lifetime: 'session' | 'persistent'; }, ): Promise<ApiResult<PairingOwnerStatus>>",
+      "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=decidePairing]",
+      "contractId": "D2-PAIRING-DECIDE"
+    },
+    {
+      "projectionId": "D2-PAIRING-CANCEL-SELECTOR",
+      "exportName": "BoardApiClient",
+      "exportKind": "class",
+      "memberName": "cancelPairing",
+      "memberKind": "method",
+      "signature": "async cancelPairing(pairingId: string, csrfToken: string): Promise<ApiResult<null>>",
+      "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=cancelPairing]",
+      "contractId": "D2-PAIRING-CANCEL"
+    },
+    {
+      "projectionId": "D2-GRANT-REVOKE-SELECTOR",
+      "exportName": "BoardApiClient",
+      "exportKind": "class",
+      "memberName": "revokeGrant",
+      "memberKind": "method",
+      "signature": "async revokeGrant(grantId: string, csrfToken: string): Promise<ApiResult<null>>",
+      "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=revokeGrant]",
+      "contractId": "D2-GRANT-REVOKE"
+    },
+    {
+      "projectionId": "D2-GRANT-ROTATE-SELECTOR",
+      "exportName": "BoardApiClient",
+      "exportKind": "class",
+      "memberName": "rotateGrant",
+      "memberKind": "method",
+      "signature": "async rotateGrant(grantId: string, csrfToken: string): Promise<ApiResult<RotatedGrantCredential>>",
+      "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=rotateGrant]",
+      "contractId": "D2-GRANT-ROTATE"
+    }
+  ],
+  "tupleListSha256": "2dde014761bd14ba66be3f50f63e16a573eecb3ebdaae381f5318d77b180be55"
+}

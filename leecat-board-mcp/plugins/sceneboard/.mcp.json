@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "sceneboard": {
+      "command": "node",
+      "args": ["./scripts/launch-sceneboard-mcp.mjs"],
+      "cwd": ".",
+      "env": {
+        "SCENEBOARD_PRODUCTION_API_URL": "https://sceneboard.dev"
+      }
+    }
+  }
+}

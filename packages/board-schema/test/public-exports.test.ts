@@ -197,6 +197,15 @@ test('exports guarded parser values through curated facades', () => {
   assert.equal(artifactRuntime.ARTIFACT_REQUEST_CAPABILITIES_V1, schema.ARTIFACT_REQUEST_CAPABILITIES_V1);
 });
 
+test('exports the guarded scalar parser values required by application adapters', () => {
+  assert.equal(typeof schema.GlobalIdStringParserV1.parse, 'function');
+  assert.equal(typeof schema.BoardIdParserV1.parse, 'function');
+  assert.equal(typeof schema.GrantIdParserV1.parse, 'function');
+  assert.equal(typeof schema.PrincipalIdParserV1.parse, 'function');
+  assert.equal('BoardIdSchemaV1' in schema, false);
+  assert.equal('GlobalIdStringSchemaV1' in schema, false);
+});
+
 test('does not leak server-attested builders from public client facades', () => {
   assert.equal('buildMutationFingerprintV1' in sdk, false);
   assert.equal('normalizeActorContextV1' in sdk, false);

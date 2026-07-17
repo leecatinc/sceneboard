@@ -7,8 +7,10 @@ const GLOBAL_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 const LOCAL_ID_PATTERN = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
 const TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 
+export const GlobalIdStringSchemaV1 = z.string().regex(GLOBAL_ID_PATTERN);
+
 const globalId = <Name extends string>(_name: Name) =>
-  z.string().regex(GLOBAL_ID_PATTERN).brand<Name>();
+  GlobalIdStringSchemaV1.brand<Name>();
 
 export const BoardIdSchemaV1 = globalId('BoardId');
 export const RevisionIdSchemaV1 = globalId('RevisionId');

@@ -59,7 +59,14 @@ export type BoardOperationResultV1 = z.infer<typeof BoardOperationResultSchemaV1
 export type BoardSummaryV1 = z.infer<typeof BoardSummarySchemaV1>;
 export type HistoryEntryV1 = z.infer<typeof HistoryEntrySchemaV1>;
 export type PageCursorV1 = z.infer<typeof PageCursorSchemaV1>;
-export type BoardLifecycleIdempotencyEnvelopeV1 = { protocolVersion: 1; type: 'board.operation.envelope'; request: Extract<BoardOperationRequestV1, { type: 'board.create' | 'board.archive' }>; actor: ActorContextV1 };
+type BoardCreateRequestV1 = z.infer<(typeof requests)[2]>;
+type BoardArchiveRequestV1 = z.infer<(typeof requests)[3]>;
+export type BoardLifecycleIdempotencyEnvelopeV1 = {
+  protocolVersion: 1;
+  type: 'board.operation.envelope';
+  request: BoardCreateRequestV1 | BoardArchiveRequestV1;
+  actor: ActorContextV1;
+};
 export type BoardOperationFingerprintInputV1 =
   | { protocolVersion: 1; operationType: 'board.create'; title: string; actor: ActorContextV1 }
   | { protocolVersion: 1; operationType: 'board.archive'; boardId: z.infer<typeof BoardIdSchemaV1>; confirm: true; actor: ActorContextV1 };

@@ -3,22 +3,29 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "main": "dist/index.js",
+  "bin": {
+    "leecat-board-mcp": "./dist/index.js"
+  },
   "scripts": {
+    "build": "npm run build:native:profile-lease && tsc -p tsconfig.build.json && npm run verify:native:profile-lease",
+    "build:native:profile-lease": "node scripts/build-profile-lease-helper.mjs",
     "dev": "tsx src/index.ts",
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit",
-    "test": "tsx --test test/**/*.test.ts"
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc -p tsconfig.test.json",
+    "test": "tsx --test test/**/*.test.ts",
+    "verify:native:profile-lease": "node scripts/verify-profile-lease-helper.mjs"
   },
   "dependencies": {
     "@leecat-board/board-schema": "0.0.0",
     "@leecat-board/board-sdk": "0.0.0",
     "@modelcontextprotocol/sdk": "1.28.0",
-    "zod": "3.23.8"
+    "zod": "3.25.76"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 80">
+  <rect width="320" height="80" rx="18" fill="#FFFFFF"/>
+  <g transform="translate(8 8)">
+    <path d="M14 14h27a6 6 0 0 1 6 6v31H20a6 6 0 0 1-6-6V14Z" fill="none" stroke="#172033" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M49 4c1.1 7.4 4.6 10.9 12 12-7.4 1.1-10.9 4.6-12 12-1.1-7.4-4.6-10.9-12-12C44.4 14.9 47.9 11.4 49 4Z" fill="#02B391"/>
+  </g>
+  <text x="84" y="50" fill="#163430" font-family="system-ui, sans-serif" font-size="34" font-weight="800" letter-spacing="-1">SceneBoard</text>
+</svg>

@@ -1,25 +1,11 @@
 {
   "schemaVersion": 1,
-  "policyVersion": 1,
-  "decision": "inventory_and_fail_closed_on_unknown",
-  "allowedSpdxExpressions": [
-    "0BSD",
-    "Apache-2.0",
-    "BSD-2-Clause",
-    "BSD-3-Clause",
-    "BlueOak-1.0.0",
-    "CC-BY-4.0",
-    "CC0-1.0",
-    "ISC",
-    "LGPL-3.0-or-later",
-    "MIT",
-    "Python-2.0"
+  "mode": "inventory-only",
+  "classifications": [
+    "permissive",
+    "content-notice",
+    "reciprocal"
   ],
-  "localWorkspacePolicy": "Private leecat-board workspace packages may omit a license field; they are not redistributed dependencies.",
-  "legacyMetadataPolicy": "busboy, streamsearch, and seq-queue are accepted as MIT only when their bundled license metadata or LICENSE file matches the audited local payload.",
-  "lgplPolicy": "LGPL-3.0-or-later is limited to the optional unmodified sharp libvips binary packages and must remain replaceable.",
-  "forbidden": [
-    "Unknown external dependency license after bundled-license inspection",
-    "GPL family without a new explicit approval"
-  ]
+  "unresolvedResult": "LICENSE_AMBIGUOUS",
+  "productionApproval": false
 }

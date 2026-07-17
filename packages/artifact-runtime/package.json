@@ -3,10 +3,23 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "exports": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./bridge": "./src/bridge/index.ts",
+    "./package": "./src/package/index.ts",
+    "./policy": "./src/policy/index.ts",
+    "./server": "./src/server/index.ts",
+    "./topology": "./src/topology/index.ts"
+  },
   "scripts": {
     "build:types": "tsc -b ./tsconfig.build.json",
-    "typecheck": "tsc --noEmit"
+    "build:runtime:prepare": "node ./scripts/prepare-runtime-build.mjs",
+    "build:runtime:node": "npm run build:runtime:prepare && tsc -p ./tsconfig.node.json --outDir /workspace/.tmp/agent/sceneboard-artifact-runtime-build/node",
+    "build:runtime:assets": "node ./scripts/build-runtime-assets.mjs",
+    "build:runtime": "npm run build:runtime:node && npm run build:runtime:assets",
+    "start": "node ./dist/node/server/main.js",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/**/*.test.ts"
   },
   "dependencies": {
     "@leecat-board/board-schema": "0.0.0",
@@ -14,7 +27,9 @@
     "parse5": "8.0.1"
   },
   "devDependencies": {
+    "@types/node": "^22.0.0",
     "esbuild": "0.25.12",
+    "tsx": "^4.20.0",
     "typescript": "^5.6.0"
   }
 }

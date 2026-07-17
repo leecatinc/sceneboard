@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sceneboard.dev/schemas/source-tree-attestation.v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "certificationSourceCommit", "headTreeSha256", "indexTreeSha256", "statusSha256", "generatedParents"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "certificationSourceCommit": { "type": "string", "pattern": "^[0-9a-f]{40,64}$" },
+    "headTreeSha256": { "type": "string", "pattern": "^[0-9a-f]{40,64}$" },
+    "indexTreeSha256": { "type": "string", "pattern": "^[0-9a-f]{40,64}$" },
+    "statusSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "generatedParents": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": { "enum": [".artifacts/certification", ".certification-fixtures"] },
+      "uniqueItems": true
+    }
+  }
+}

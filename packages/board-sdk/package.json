@@ -3,15 +3,26 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "exports": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./events": "./src/events/index.ts",
+    "./sse": "./src/sse/index.ts",
+    "./http": "./src/http/index.ts",
+    "./scene-transform": "./src/scene-transform/index.ts",
+    "./client": "./src/client/index.ts",
+    "./state": "./src/state/index.ts"
+  },
   "scripts": {
     "build:types": "tsc -b ./tsconfig.build.json",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/**/*.test.ts"
   },
   "dependencies": {
     "@leecat-board/board-schema": "0.0.0"
   },
   "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
     "typescript": "^5.6.0"
   }
 }

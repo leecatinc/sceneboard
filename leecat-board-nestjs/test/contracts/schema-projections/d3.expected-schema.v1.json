@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "owner": "D3",
+  "contractSha256": "d70eddb77564f81417b110d1b8943204b6b195f9ba0be56c12f780f46c7b9626",
+  "registryEntries": [
+    {
+      "order": 2,
+      "version": "001_d3_boards",
+      "upAsset": "001_d3_boards.up.sql",
+      "upSha256": "bfdfa3b8eb84fc18a39d00c3eaef0518d79672df376d10e0c62db327df356725",
+      "downAsset": null,
+      "downSha256": null,
+      "reversible": false,
+      "predecessorIds": [
+        "001_d2_identity_sessions_audit"
+      ]
+    },
+    {
+      "order": 4,
+      "version": "002_d3_board_revisions",
+      "upAsset": "002_d3_board_revisions.up.sql",
+      "upSha256": "f37796c87e1b765a6f00029dad2fbab2545118ed5745f659df1c8af73c06e4fc",
+      "downAsset": null,
+      "downSha256": null,
+      "reversible": false,
+      "predecessorIds": [
+        "002_d2_pairing_grants"
+      ]
+    },
+    {
+      "order": 5,
+      "version": "003_d3_board_heads",
+      "upAsset": "003_d3_board_heads.up.sql",
+      "upSha256": "e74197c72fc93c45e7a23deaea169f749ab05d43b86a7d2ce865cd5c381b31e3",
+      "downAsset": null,
+      "downSha256": null,
+      "reversible": false,
+      "predecessorIds": [
+        "002_d3_board_revisions"
+      ]
+    },
+    {
+      "order": 6,
+      "version": "004_d3_board_idempotency_records",
+      "upAsset": "004_d3_board_idempotency_records.up.sql",
+      "upSha256": "1917793e3da2ec5bcacc931fc895c6b4a649e65388f106547f336766671bf113",
+      "downAsset": null,
+      "downSha256": null,
+      "reversible": false,
+      "predecessorIds": [
+        "003_d3_board_heads"
+      ]
+    },
+    {
+      "order": 7,
+      "version": "005_d3_board_revision_artifact_refs",
+      "upAsset": "005_d3_board_revision_artifact_refs.up.sql",
+      "upSha256": "16d175d145d0a608058cc0f401473491a2194f6d0479e73387e3f05eef05244f",
+      "downAsset": null,
+      "downSha256": null,
+      "reversible": false,
+      "predecessorIds": [
+        "004_d3_board_idempotency_records"
+      ]
+    },
+    {
+      "order": 8,
+      "version": "006_d3_board_event_outbox",
+      "upAsset": "006_d3_board_event_outbox.up.sql",
+      "upSha256": "827bda6ccdf9be3c26e162cfcf41939bd040fd3c5bcdd7d5094641d7e23d19b3",
+      "downAsset": null,
+      "downSha256": null,
+      "reversible": false,
+      "predecessorIds": [
+        "005_d3_board_revision_artifact_refs"
+      ]
+    }
+  ],
+  "tables": [
+    {
+      "name": "boards",
+      "sourceAsset": "001_d3_boards.up.sql",
+      "sourceSha256": "bfdfa3b8eb84fc18a39d00c3eaef0518d79672df376d10e0c62db327df356725"
+    },
+    {
+      "name": "board_revisions",
+      "sourceAsset": "002_d3_board_revisions.up.sql",
+      "sourceSha256": "f37796c87e1b765a6f00029dad2fbab2545118ed5745f659df1c8af73c06e4fc"
+    },
+    {
+      "name": "board_heads",
+      "sourceAsset": "003_d3_board_heads.up.sql",
+      "sourceSha256": "e74197c72fc93c45e7a23deaea169f749ab05d43b86a7d2ce865cd5c381b31e3"
+    },
+    {
+      "name": "board_idempotency_records",
+      "sourceAsset": "004_d3_board_idempotency_records.up.sql",
+      "sourceSha256": "1917793e3da2ec5bcacc931fc895c6b4a649e65388f106547f336766671bf113"
+    },
+    {
+      "name": "board_revision_artifact_refs",
+      "sourceAsset": "005_d3_board_revision_artifact_refs.up.sql",
+      "sourceSha256": "16d175d145d0a608058cc0f401473491a2194f6d0479e73387e3f05eef05244f"
+    },
+    {
+      "name": "board_event_outbox",
+      "sourceAsset": "006_d3_board_event_outbox.up.sql",
+      "sourceSha256": "827bda6ccdf9be3c26e162cfcf41939bd040fd3c5bcdd7d5094641d7e23d19b3"
+    }
+  ]
+}

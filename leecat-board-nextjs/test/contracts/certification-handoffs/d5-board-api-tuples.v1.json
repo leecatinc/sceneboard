@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "owner": "D5",
+  "resourcePath": "leecat-board-nextjs/lib/api/board-api.ts",
+  "publisherTestPath": "leecat-board-nextjs/test/contracts/d5-board-api-tuples.contract.test.ts",
+  "contractIds": [
+    "D5-BOARD-LIST",
+    "D5-BOARD-CREATE",
+    "D5-BOARD-GET",
+    "D5-HISTORY-LIST",
+    "D5-HISTORY-GET"
+  ],
+  "selectors": [
+    {
+      "projectionId": "D5-BOARD-LIST-SELECTOR",
+      "exportName": "BoardApiClient",
+      "exportKind": "class",
+      "memberName": "listBoards",
+      "memberKind": "method",
+      "signature": "async listBoards( cursor: PageCursorV1 | null = null, signal?: AbortSignal, ): Promise<ApiResult<BoardListResult>>",
+      "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=listBoards]",
+      "contractId": "D5-BOARD-LIST"
+    },
+    {
+      "projectionId": "D5-BOARD-CREATE-SELECTOR",
+      "exportName": "BoardApiClient",
+      "exportKind": "class",
+      "memberName": "createBoard",
+      "memberKind": "method",
+      "signature": "async createBoard(input: { title: string; requestId: RequestId; idempotencyKey: IdempotencyKey; csrfToken: string; signal?: AbortSignal; }): Promise<ApiResult<BoardCreateResult>>",
+      "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=createBoard]",
+      "contractId": "D5-BOARD-CREATE"
+    },
+    {
+      "projectionId": "D5-BOARD-GET-SELECTOR",
+      "exportName": "BoardApiClient",
+      "exportKind": "class",
+      "memberName": "getBoard",
+      "memberKind": "method",
+      "signature": "async getBoard(boardIdValue: string, signal?: AbortSignal): Promise<ApiResult<BoardGetResult>>",
+      "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=getBoard]",
+      "contractId": "D5-BOARD-GET"
+    },
+    {
+      "projectionId": "D5-HISTORY-LIST-SELECTOR",
+      "exportName": "BoardApiClient",
+      "exportKind": "class",
+      "memberName": "listHistory",
+      "memberKind": "method",
+      "signature": "async listHistory( boardIdValue: string, cursor: PageCursorV1 | null = null, signal?: AbortSignal, ): Promise<ApiResult<HistoryListResult>>",
+      "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=listHistory]",
+      "contractId": "D5-HISTORY-LIST"
+    },
+    {
+      "projectionId": "D5-HISTORY-GET-SELECTOR",
+      "exportName": "BoardApiClient",
+      "exportKind": "class",
+      "memberName": "getHistoryRevision",
+      "memberKind": "method",
+      "signature": "async getHistoryRevision( boardIdValue: string, revisionIdValue: string, signal?: AbortSignal, ): Promise<ApiResult<HistoryGetResult>>",
+      "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=getHistoryRevision]",
+      "contractId": "D5-HISTORY-GET"
+    }
+  ],
+  "tupleListSha256": "880654130ecdf6bdda94e1680b970c3c6aae2dbb491fe228781dd231803c73f0"
+}

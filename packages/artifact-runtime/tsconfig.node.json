@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "noEmit": false,
+    "rootDir": "./src",
+    "outDir": "./dist/node",
+    "types": ["node"]
+  },
+  "include": [
+    "src/topology/**/*.ts",
+    "src/policy/csp.ts",
+    "src/server/**/*.ts"
+  ]
+}

@@ -1,0 +1,11 @@
+import type { ArtifactRuntimeSummaryV1 } from '@leecat-board/board-schema';
+import type { PoolConnection } from 'mysql2/promise';
+
+import type { SnapshotCompositionInputV1 } from '../../revisions/snapshot-composition.service.js';
+
+export abstract class CurrentArtifactRuntimeSummaryPort {
+  abstract readAuthorizedAtCut(
+    connection: PoolConnection,
+    input: SnapshotCompositionInputV1,
+  ): Promise<readonly ArtifactRuntimeSummaryV1[]>;
+}
