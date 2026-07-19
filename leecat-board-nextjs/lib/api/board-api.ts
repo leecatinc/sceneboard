@@ -34,6 +34,10 @@ import {
 import type { CoordinatorResult, SessionRequestCoordinator } from '../auth/renewal-singleflight';
 
 export type LifecyclePermission = 'board.create' | 'board.archive';
+export type PairingBoardDestination =
+  | { mode: 'create'; title: string }
+  | { mode: 'existing'; boardId: string }
+  | { mode: 'deferred' };
 export type PairingOwnerState = 'created' | 'pending' | 'approved' | 'redeemed' | 'denied' | 'cancelled' | 'expired' | 'locked';
 
 export interface PairingOwnerStatus {
@@ -95,6 +99,7 @@ type MutationData<K extends MutationResultV1['result']['type']> = Extract<Mutati
 
 export type BoardListResult = OperationData<'board.list'>;
 export type BoardCreateResult = OperationData<'board.create'>;
+export type BoardArchiveResult = OperationData<'board.archive'>;
 export type BoardGetResult = OperationData<'board.get'>;
 export type BoardRenameResult = { boardId: BoardId; title: string; updatedAt: TimestampV1 };
 export type HistoryListResult = OperationData<'history.list'> & { metadata: HistoryAdapterMetadataV1 };
@@ -181,6 +186,33 @@ export class BoardApiClient {
     });
     const query = new URLSearchParams({ requestId: request.requestId });
     return this.readOperation(`/api/v1/boards/${encodeURIComponent(boardId)}?${query.toString()}`, request, signal);
+  }
+
+  async archiveBoard(
+    input: {
+      boardId: string;
+      requestId: RequestId;
+      idempotencyKey: IdempotencyKey;
+      signal?: AbortSignal;
+    },
+  ): Promise<ApiResult<BoardArchiveResult>> {
+    const boardId = parseBoardId(input.boardId);
+    const csrfToken = this.coordinator.currentSnapshot()?.csrfToken;
+    if (csrfToken === undefined) return { kind: 'reconciliation_required' };
+    const request = operationRequest<'board.archive'>({
+      protocolVersion: 1,
+      requestId: input.requestId,
+      type: 'board.archive',
+      idempotencyKey: input.idempotencyKey,
+      boardId,
+      confirm: true,
+    });
+    return this.writeOperation(
+      `/api/v1/boards/${encodeURIComponent(boardId)}/archive`,
+      request,
+      csrfToken,
+      input.signal,
+    );
   }
 
   async renameBoard(
@@ -455,7 +487,7 @@ export class BoardApiClient {
       decision: 'approve';
       approvedScopes: ClientGrantCapabilityV1[];
       approvedLifecyclePermissions: LifecyclePermission[];
-      boardIds: string[];
+      destination: PairingBoardDestination;
       lifetime: 'session' | 'persistent';
     },
   ): Promise<ApiResult<PairingOwnerStatus>> {
@@ -552,7 +584,7 @@ export class BoardApiClient {
     return decodeLifecycle(result, { requestId: request.requestId, boardId, hitlRequestId, action });
   }
 
-  private async writeOperation<K extends 'board.create'>(
+  private async writeOperation<K extends 'board.create' | 'board.archive'>(
     path: string,
     request: OperationRequest<K>,
     csrfToken: string,
@@ -568,7 +600,7 @@ export class BoardApiClient {
     return this.decodeOperation(result, request) as ApiResult<OperationData<K>>;
   }
 
-  private decodeOperation<K extends 'board.list' | 'board.get' | 'board.create' | 'history.list' | 'history.get' | 'artifact.get' | 'hitl.read'>(
+  private decodeOperation<K extends 'board.list' | 'board.get' | 'board.create' | 'board.archive' | 'history.list' | 'history.get' | 'artifact.get' | 'hitl.read'>(
     result: Awaited<ReturnType<SessionRequestCoordinator['dispatchShared']>>,
     request: OperationRequest<K>,
   ): ApiResult<OperationData<K> | { result: OperationData<K>; metadata: HistoryAdapterMetadataV1 | null }> {

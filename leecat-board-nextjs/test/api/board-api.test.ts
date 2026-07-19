@@ -95,6 +95,35 @@ test('createBoard preserves caller-owned retry identity and CSRF in the sole bro
   });
 });
 
+test('archiveBoard sends the exact confirmed lifecycle request with owner CSRF', async () => {
+  const value = setup('operation-result-board-archive.v1.json', 'board.archive');
+  await value.coordinator.reconcileSessionGeneration();
+
+  const result = await value.api.archiveBoard({
+    boardId: 'board_1',
+    requestId: 'archive_request_retry_1' as RequestId,
+    idempotencyKey: 'archive.idempotency.retry.0001' as IdempotencyKey,
+  });
+
+  assert.equal(result.kind, 'ok');
+  if (result.kind !== 'ok') return;
+  assert.equal(result.value.board.archivedAt, '2026-07-16T00:01:00.000Z');
+  const request = value.requests[1];
+  assert.equal(request?.url, 'https://sceneboard.dev/api/v1/boards/board_1/archive');
+  assert.equal(request?.init?.method, 'POST');
+  assert.equal((request?.init?.headers as Headers).get('X-CSRF-Token'), session.csrfToken);
+  const body = JSON.parse(String(request?.init?.body)) as Record<string, unknown>;
+  assert.equal(body.protocolVersion, 1);
+  assert.equal(body.requestId, 'archive_request_retry_1');
+  assert.equal(body.type, 'board.archive');
+  assert.equal(body.idempotencyKey, 'archive.idempotency.retry.0001');
+  assert.equal(body.boardId, 'board_1');
+  assert.equal(body.confirm, true);
+  assert.deepEqual(Object.keys(body).sort(), [
+    'boardId', 'confirm', 'idempotencyKey', 'protocolVersion', 'requestId', 'type',
+  ]);
+});
+
 test('renameBoard sends an owner CSRF request and accepts only the matching title projection', async () => {
   const values = new Map<string, string>();
   const requests: Array<{ url: string; init?: RequestInit }> = [];

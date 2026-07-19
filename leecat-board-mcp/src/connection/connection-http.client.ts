@@ -127,7 +127,9 @@ const parseConnection = (value: unknown, requestId: string, boardId: string | nu
   const scopes = exactCatalogSubset(grant.scopes, CLIENT_GRANT_CAPABILITIES_V1, 1);
   const lifecyclePermissions = exactCatalogSubset(grant.lifecyclePermissions, LIFECYCLE_PERMISSIONS, 0);
   if (scopes === null || lifecyclePermissions === null || !Array.isArray(grant.boardIds)
-    || grant.boardIds.length < 1 || grant.boardIds.length > 50 || grant.lifetime !== 'session' && grant.lifetime !== 'persistent'
+    || grant.boardIds.length > 50
+    || (grant.boardIds.length === 0 && (!scopes.includes('board.write') || !lifecyclePermissions.includes('board.create')))
+    || grant.lifetime !== 'session' && grant.lifetime !== 'persistent'
     || grant.status !== 'active' || !validTimestamp(grant.activatedAt) || !validTimestamp(grant.expiresAt)) return null;
   const parsedBoardIds: BoardId[] = [];
   let previousBoardId = '';

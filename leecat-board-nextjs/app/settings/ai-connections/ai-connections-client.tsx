@@ -2,12 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { BoardSummaryV1, ClientGrantCapabilityV1 } from '@leecat-board/board-schema';
+import { useRouter } from 'next/navigation';
 
 import {
   BoardApiClient,
-  createBoardRequestIdentity,
   type CreatedPairing,
   type GrantSummary,
+  type PairingBoardDestination,
   type PairingOwnerStatus,
 } from '../../../lib/api/board-api';
 import { authSessionClient } from '../../../lib/auth/session-client';
@@ -16,6 +17,7 @@ import {
   readCreatedPairingSession,
   writeCreatedPairingSession,
 } from '../../../lib/ai-connections/created-pairing-session';
+import { HEADER_GRANTS_CHANGED_EVENT } from '../../../lib/ai-connections/header-connection-state';
 import { PairingRequestModal } from '../../../components/ai-connections/PairingRequestModal';
 import { PairingCard } from './pairing-card';
 import { PairingRequestList } from './pairing-request-list';
@@ -25,6 +27,7 @@ import { useI18n } from '../../../components/i18n/I18nProvider';
 
 export function AiConnectionsClient() {
   const { t } = useI18n();
+  const router = useRouter();
   const [clients, setClients] = useState<{
     auth: ReturnType<typeof authSessionClient>;
     api: BoardApiClient;
@@ -38,7 +41,6 @@ export function AiConnectionsClient() {
   const [busy, setBusy] = useState<string | null>('bootstrap');
   const [error, setError] = useState<string | null>(null);
   const seenPendingPairings = useRef(new Set<string>());
-  const boardCreateAttempts = useRef(new Map<string, ReturnType<typeof createBoardRequestIdentity>>());
 
   async function reload(api: BoardApiClient = requiredClients().api, signal?: AbortSignal) {
     const [pairingResult, grantResult, boardResult] = await Promise.all([
@@ -67,6 +69,22 @@ export function AiConnectionsClient() {
         return;
       }
       await reload(api);
+      const location = new URL(window.location.href);
+      if (location.searchParams.get('create') === '1') {
+        location.searchParams.delete('create');
+        window.history.replaceState(window.history.state, '', `${location.pathname}${location.search}${location.hash}`);
+        const token = auth.snapshot()?.csrfToken ?? null;
+        if (token !== null) {
+          const createdResult = await api.createPairing(token);
+          if (createdResult.kind === 'ok') {
+            setCreated(createdResult.value);
+            writeCreatedPairingSession(window.sessionStorage, createdResult.value);
+            await reload(api);
+          } else {
+            setError(t('ai.createCodeFailed'));
+          }
+        }
+      }
       setBusy(null);
     });
     // `authSessionClient` is the process-wide client singleton; bootstrap runs once per mount.
@@ -168,7 +186,7 @@ export function AiConnectionsClient() {
   async function approve(pairingId: string, decision: {
     approvedScopes: ClientGrantCapabilityV1[];
     approvedLifecyclePermissions: Array<'board.create' | 'board.archive'>;
-    boardIds: string[];
+    destination: PairingBoardDestination;
     lifetime: 'session' | 'persistent';
   }) {
     const token = csrf();
@@ -181,7 +199,10 @@ export function AiConnectionsClient() {
       clearCreatedPairingSession(window.sessionStorage);
       setCreated(null);
       setSelectedPairingId(null);
-      await reload(current.api);
+      const destination = result.value.boardIds?.length === 1
+        ? `/boards/${encodeURIComponent(result.value.boardIds[0]!)}`
+        : '/boards';
+      router.replace(destination);
     } else setError(t('ai.connectionRefreshFailed'));
     setBusy(null);
   }
@@ -204,32 +225,6 @@ export function AiConnectionsClient() {
     setBusy(null);
   }
 
-  async function createBoardForPairing(pairingId: string): Promise<BoardSummaryV1 | null> {
-    const token = csrf();
-    if (token === null) return null;
-    setBusy(`board:${pairingId}`);
-    setError(null);
-    const current = requiredClients();
-    const identity = boardCreateAttempts.current.get(pairingId) ?? createBoardRequestIdentity();
-    boardCreateAttempts.current.set(pairingId, identity);
-    const result = await current.api.createBoard({
-      ...identity,
-      title: t('boards.new'),
-      csrfToken: token,
-    });
-    setBusy(null);
-    if (result.kind !== 'ok') {
-      if (result.kind === 'api_error' || result.kind === 'board_error') boardCreateAttempts.current.delete(pairingId);
-      setError(t('ai.boardCreateFailed'));
-      return null;
-    }
-    boardCreateAttempts.current.delete(pairingId);
-    setBoards((currentBoards) => currentBoards.some((board) => board.boardId === result.value.board.boardId)
-      ? currentBoards
-      : [...currentBoards, result.value.board].sort((left, right) => left.title.localeCompare(right.title)));
-    return result.value.board;
-  }
-
   async function rotate(grantId: string) {
     const token = csrf();
     if (token === null) return;
@@ -244,16 +239,20 @@ export function AiConnectionsClient() {
     setBusy(null);
   }
 
-  async function revoke(grantId: string) {
+  async function revoke(grantId: string): Promise<boolean> {
     const token = csrf();
-    if (token === null) return;
+    if (token === null) return false;
     setRotatedToken(null);
+    setError(null);
     setBusy(grantId);
     const current = requiredClients();
     const result = await current.api.revokeGrant(grantId, token);
-    if (result.kind === 'ok') await reload(current.api);
-    else setError(t('ai.connectionRefreshFailed'));
+    if (result.kind === 'ok') {
+      setGrants((currentGrants) => currentGrants.filter((grant) => grant.grantId !== grantId));
+      window.dispatchEvent(new Event(HEADER_GRANTS_CHANGED_EVENT));
+    }
     setBusy(null);
+    return result.kind === 'ok';
   }
 
   const selectedPairing = selectedPairingId === null
@@ -278,8 +277,8 @@ export function AiConnectionsClient() {
         <div className="section-head"><div><h2>{t('ai.pairingRequests')}</h2><p className="muted">{t('ai.pairingDescription')}</p></div><button className="button" disabled={busy !== null} onClick={() => void createPairing()}>{t('ai.createCode')}</button></div>
         <PairingRequestList pairings={pairings.filter((pairing) => pairing.pairingId !== created?.pairingId || pairing.state !== 'created')} selectedPairingId={selectedPairingId} onSelect={setSelectedPairingId} />
       </section>
-      {selectedPairing !== null && <PairingRequestModal pairing={selectedPairing} matchingCode={created?.pairingId === selectedPairing.pairingId ? created.code : null} boards={boards} busy={busy !== null} onDismiss={() => setSelectedPairingId(null)} onCreateBoard={() => createBoardForPairing(selectedPairing.pairingId)} onApprove={(decision) => void approve(selectedPairing.pairingId, decision)} onDeny={() => void deny(selectedPairing.pairingId)} onCancel={() => void cancel(selectedPairing.pairingId)} />}
-      <section className="section"><h2>{t('ai.approvedClients')}</h2><GrantList grants={grants} busyGrantId={busy} onRotate={(id) => void rotate(id)} onRevoke={(id) => void revoke(id)} /></section>
+      {selectedPairing !== null && <PairingRequestModal pairing={selectedPairing} matchingCode={created?.pairingId === selectedPairing.pairingId ? created.code : null} boards={boards} busy={busy !== null} onDismiss={() => setSelectedPairingId(null)} onApprove={(decision) => void approve(selectedPairing.pairingId, decision)} onDeny={() => void deny(selectedPairing.pairingId)} onCancel={() => void cancel(selectedPairing.pairingId)} />}
+      <section className="section"><h2>{t('ai.approvedClients')}</h2><GrantList grants={grants} busyGrantId={busy} onRotate={(id) => void rotate(id)} onRevoke={revoke} /></section>
     </section>
   );
 }

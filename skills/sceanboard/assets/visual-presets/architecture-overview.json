@@ -1,0 +1,16 @@
+{
+  "recipeVersion":1,
+  "root":{"kind":"architecture","title":"Architecture overview","width":1200,"height":700,"items":[
+    {"content":{"kind":"markdown","key":"architecture_notes","title":"Architecture notes","markdown":"# Architecture\n\nDescribe responsibilities, data flow, and important boundaries."},"x":40,"y":40,"width":420,"height":600,"zIndex":1},
+    {"content":{"kind":"drawing","key":"architecture_diagram","title":"System diagram","viewBox":{"x":0,"y":0,"width":700,"height":600},"elements":[
+      {"id":"sourceBox","type":"rect","x":40,"y":220,"width":160,"height":100,"style":{"stroke":"#0F766E","fill":"#CCFBF1","strokeWidth":2,"opacity":1}},
+      {"id":"serviceBox","type":"rect","x":270,"y":220,"width":160,"height":100,"style":{"stroke":"#1D4ED8","fill":"#DBEAFE","strokeWidth":2,"opacity":1}},
+      {"id":"storeBox","type":"rect","x":500,"y":220,"width":160,"height":100,"style":{"stroke":"#7C3AED","fill":"#EDE9FE","strokeWidth":2,"opacity":1}},
+      {"id":"flowA","type":"line","from":{"x":200,"y":270},"to":{"x":270,"y":270},"style":{"stroke":"#334155","strokeWidth":3,"opacity":1}},
+      {"id":"flowB","type":"line","from":{"x":430,"y":270},"to":{"x":500,"y":270},"style":{"stroke":"#334155","strokeWidth":3,"opacity":1}},
+      {"id":"sourceLabel","type":"text","x":85,"y":275,"text":"Source","style":{"fill":"#0F172A","opacity":1}},
+      {"id":"serviceLabel","type":"text","x":305,"y":275,"text":"Service","style":{"fill":"#0F172A","opacity":1}},
+      {"id":"storeLabel","type":"text","x":550,"y":275,"text":"Store","style":{"fill":"#0F172A","opacity":1}}
+    ]},"x":490,"y":40,"width":670,"height":600,"zIndex":1}
+  ]}
+}

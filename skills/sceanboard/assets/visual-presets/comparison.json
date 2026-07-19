@@ -1,0 +1,12 @@
+{
+  "recipeVersion":1,
+  "root":{"kind":"table","title":"Comparison","columns":[
+    {"key":"criterion","label":"Criterion","valueType":"string"},
+    {"key":"optionA","label":"Option A","valueType":"string"},
+    {"key":"optionB","label":"Option B","valueType":"string"}
+  ],"rows":[
+    {"id":"fit","cells":{"criterion":"Fit","optionA":"Describe the fit","optionB":"Describe the fit"}},
+    {"id":"tradeoff","cells":{"criterion":"Trade-off","optionA":"Describe the trade-off","optionB":"Describe the trade-off"}},
+    {"id":"decision","cells":{"criterion":"Decision signal","optionA":"Add evidence","optionB":"Add evidence"}}
+  ]}
+}

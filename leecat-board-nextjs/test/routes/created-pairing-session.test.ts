@@ -23,7 +23,7 @@ function memoryStorage() {
 
 const pairing: CreatedPairing = {
   pairingId: '0123456789ABCDEFGHJKMN',
-  code: 'ABC123-DEF456',
+  code: 'SB-ABC123-DEF456',
   state: 'created',
   codeExpiresAt: '2026-07-17T13:05:00.000Z',
 };
@@ -34,6 +34,13 @@ test('restores the matching code only inside its bounded tab session lifetime', 
   assert.deepEqual(readCreatedPairingSession(memory.storage, Date.parse('2026-07-17T13:09:59.000Z')), pairing);
   assert.equal(readCreatedPairingSession(memory.storage, Date.parse('2026-07-17T13:10:00.000Z')), null);
   assert.equal(memory.value(), null);
+});
+
+test('restores an already-issued legacy code during its remaining session lifetime', () => {
+  const memory = memoryStorage();
+  const legacyPairing = { ...pairing, code: 'ABC123-DEF456' };
+  writeCreatedPairingSession(memory.storage, legacyPairing, '2026-07-17T13:10:00.000Z');
+  assert.deepEqual(readCreatedPairingSession(memory.storage, Date.parse('2026-07-17T13:09:59.000Z')), legacyPairing);
 });
 
 test('rejects and removes malformed or explicitly dismissed pairing session data', () => {

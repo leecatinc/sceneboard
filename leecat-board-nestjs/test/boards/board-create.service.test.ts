@@ -200,7 +200,7 @@ const setup = (options: SetupOptions = {}) => {
     now: () => new Date('2026-07-16T12:00:00.000Z'),
     generateUuid: () => generatedIds.shift() ?? (() => { throw new Error('unexpected UUID request'); })(),
   });
-  return { service, calls, insertedBoardIds, bindCount: () => bindCount };
+  return { service, connection, context, calls, insertedBoardIds, bindCount: () => bindCount };
 };
 
 test('creates an initial empty head and canonical result with zero user binding calls', async () => {
@@ -216,6 +216,20 @@ test('creates an initial empty head and canonical result with zero user binding 
   assert.equal(result.result.snapshot.lastEventSequence, 1);
   assert.equal(value.bindCount(), 0);
   assert.equal(value.calls.includes('BIND_CREATED_BOARD'), false);
+});
+
+test('creates a canonical board inside an already-authorized pairing transaction', async () => {
+  const value = setup();
+  const result = await value.service.createInTransaction({
+    connection: value.connection,
+    context: value.context,
+    request: parseCreate('pairing_request_1', '새 보드'),
+  });
+  assert.equal(result.result.type, 'board.create');
+  if (result.result.type !== 'board.create') return;
+  assert.equal(result.result.board.title, '새 보드');
+  assert.equal(result.result.snapshot.scene.root, null);
+  assert.equal(value.insertedBoardIds.length, 1);
 });
 
 test('binds a newly inserted MCP board exactly once before revision 1', async () => {

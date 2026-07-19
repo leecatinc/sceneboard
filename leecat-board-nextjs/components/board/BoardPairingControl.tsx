@@ -3,13 +3,15 @@
 import { useEffect, useRef, useState } from 'react';
 import type { BoardSummaryV1, ClientGrantCapabilityV1 } from '@leecat-board/board-schema';
 
-import type { BoardApiClient, CreatedPairing, PairingOwnerStatus } from '../../lib/api/board-api';
+import type { BoardApiClient, CreatedPairing, PairingBoardDestination, PairingOwnerStatus } from '../../lib/api/board-api';
 import { authSessionClient } from '../../lib/auth/session-client';
 import {
   clearCreatedPairingSession,
   readCreatedPairingSession,
   writeCreatedPairingSession,
 } from '../../lib/ai-connections/created-pairing-session';
+import { HEADER_GRANTS_CHANGED_EVENT } from '../../lib/ai-connections/header-connection-state';
+import { hasVisibleGrantForBoard } from '../../lib/ai-connections/visible-approved-grants';
 import { PairingRequestModal } from '../ai-connections/PairingRequestModal';
 import { useI18n } from '../i18n/I18nProvider';
 
@@ -30,6 +32,8 @@ export function BoardPairingControl({ api, boardId, boardTitle }: {
   const [isOpen, setIsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isGrantCheckComplete, setIsGrantCheckComplete] = useState(false);
+  const [hasBoardConnection, setHasBoardConnection] = useState(false);
   const previousState = useRef<PairingOwnerStatus['state'] | null>(null);
 
   useEffect(() => {
@@ -43,6 +47,38 @@ export function BoardPairingControl({ api, boardId, boardTitle }: {
       return [{ boardId, title: boardTitle }, ...withoutCurrent];
     });
   }, [boardId, boardTitle]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const refreshGrant = async () => {
+      let cursor: string | null = null;
+      do {
+        const result = await api.listGrants(cursor, controller.signal);
+        if (controller.signal.aborted) return;
+        if (result.kind !== 'ok') {
+          setHasBoardConnection(false);
+          setIsGrantCheckComplete(true);
+          return;
+        }
+        if (hasVisibleGrantForBoard(result.value.grants, boardId)) {
+          setHasBoardConnection(true);
+          setIsGrantCheckComplete(true);
+          return;
+        }
+        cursor = result.value.nextCursor;
+      } while (cursor !== null);
+      setHasBoardConnection(false);
+      setIsGrantCheckComplete(true);
+    };
+    const onGrantsChanged = () => void refreshGrant();
+    setIsGrantCheckComplete(false);
+    window.addEventListener(HEADER_GRANTS_CHANGED_EVENT, onGrantsChanged);
+    void refreshGrant();
+    return () => {
+      controller.abort();
+      window.removeEventListener(HEADER_GRANTS_CHANGED_EVENT, onGrantsChanged);
+    };
+  }, [api, boardId]);
 
   useEffect(() => {
     if (created === null) return;
@@ -147,7 +183,7 @@ export function BoardPairingControl({ api, boardId, boardTitle }: {
   async function approve(decision: {
     approvedScopes: ClientGrantCapabilityV1[];
     approvedLifecyclePermissions: Array<'board.create' | 'board.archive'>;
-    boardIds: string[];
+    destination: PairingBoardDestination;
     lifetime: 'session' | 'persistent';
   }) {
     const token = csrf();
@@ -156,8 +192,11 @@ export function BoardPairingControl({ api, boardId, boardTitle }: {
     setError(null);
     const result = await api.decidePairing(ownerStatus.pairingId, token, { decision: 'approve', ...decision });
     setBusy(false);
-    if (result.kind === 'ok') clearPairing();
-    else setError(t('ai.connectionRefreshFailed'));
+    if (result.kind === 'ok') {
+      const destinationBoardId = result.value.boardIds?.length === 1 ? result.value.boardIds[0] ?? null : null;
+      clearPairing();
+      if (destinationBoardId !== null) window.location.assign(`/boards/${encodeURIComponent(destinationBoardId)}`);
+    } else setError(t('ai.connectionRefreshFailed'));
   }
 
   async function deny() {
@@ -184,6 +223,8 @@ export function BoardPairingControl({ api, boardId, boardTitle }: {
 
   const displayPairing = ownerStatus ?? created;
 
+  if (!isGrantCheckComplete || hasBoardConnection) return null;
+
   return (
     <div className="board-pairing-control">
       <button type="button" className="button board-pairing-button" aria-haspopup="dialog" aria-expanded={isOpen} disabled={busy && created === null} onClick={() => void openPairing()}>
@@ -195,7 +236,6 @@ export function BoardPairingControl({ api, boardId, boardTitle }: {
           pairing={displayPairing}
           matchingCode={created?.pairingId === displayPairing.pairingId ? created.code : null}
           boards={boards}
-          initialBoardIds={[boardId]}
           busy={busy}
           error={error}
           onDismiss={() => setIsOpen(false)}

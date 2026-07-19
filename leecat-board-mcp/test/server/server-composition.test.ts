@@ -30,7 +30,7 @@ test('missing configuration boots only the three safe tools and pairing dispatch
     const pairing = await client.callTool({
       name: 'board_pair_request',
       arguments: {
-        code: 'ABCDEF-GHJKMN',
+        code: 'SB-ABCDEF-GHJKMN',
         clientName: 'SceneBoard Codex',
         requestedScopes: ['board.read'],
         requestedLifecyclePermissions: [],

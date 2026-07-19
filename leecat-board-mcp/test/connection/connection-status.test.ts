@@ -40,14 +40,14 @@ const headers = (extra: Record<string, string> = {}): Record<string, string> => 
   ...extra,
 });
 
-const connection = (selectedBoard: unknown = null) => ({
+const connection = (selectedBoard: unknown = null, boardIds = ['board_1']) => ({
   principal: { principalKind: 'mcp_client', principalId: 'client_1', grantId: 'grant_1' },
   grant: {
     grantId: 'grant_1',
     client: { clientId: 'client_1', clientName: 'SceneBoard Codex', installationFingerprint: 'abcdefghijklmnop' },
     scopes: ['board.read', 'board.write'],
     lifecyclePermissions: ['board.create'],
-    boardIds: ['board_1'],
+    boardIds,
     lifetime: 'persistent',
     status: 'active',
     activatedAt: '2026-07-16T16:00:00.000Z',
@@ -83,6 +83,20 @@ test('connection status uses one strict Bearer GET and returns only redacted con
   assert.equal(await request.text(), '');
   assert.equal(new URL(request.url).searchParams.get('requestId'), requestId);
   assert.equal(new URL(request.url).searchParams.has('boardId'), false);
+});
+
+test('connection status accepts a create-capable session before its first board exists', async () => {
+  const service = new ConnectionStatusServiceV1(
+    loaded,
+    new EnvironmentTokenProviderV1(token),
+    client(async () => new Response(JSON.stringify(connection(null, [])), { status: 200, headers: headers() })),
+  );
+  const result = await service.status(null, requestId);
+  assert.equal(result.ok, true);
+  if (!result.ok || result.value.state !== 'connected') return;
+  const connected = result.value.connection as ReturnType<typeof connection>;
+  assert.deepEqual(connected.grant.boardIds, []);
+  assert.equal(connected.selectedBoard, null);
 });
 
 test('targeted connection validates the exact selected board, capabilities, and presence projection', async () => {

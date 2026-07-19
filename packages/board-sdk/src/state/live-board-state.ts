@@ -80,7 +80,15 @@ export const applyDurableEventV1 = (
   const index = state.liveSnapshot.artifacts.findIndex((item) => (
     `${item.artifact.artifactId}\0${item.artifact.versionId}` === key
   ));
-  if (index < 0) throw new TypeError('durable artifact event has no stable target');
+  if (index < 0) {
+    return {
+      ...state,
+      liveSnapshot: {
+        ...state.liveSnapshot,
+        artifacts: [...state.liveSnapshot.artifacts, data.artifact],
+      },
+    };
+  }
   const artifacts = [...state.liveSnapshot.artifacts];
   artifacts[index] = data.artifact;
   return { ...state, liveSnapshot: { ...state.liveSnapshot, artifacts } };

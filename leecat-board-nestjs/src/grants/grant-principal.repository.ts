@@ -121,10 +121,17 @@ export class GrantPrincipalRepository implements GrantPrincipalPersistence {
         if (!parsed.ok) throw new Error('grant board binding is invalid');
         return parsed.data.value;
       });
-      if (boardIds.length === 0 || new Set(boardIds).size !== boardIds.length) {
+      const scopes = scopeValuesFromMask(row.scopeMask);
+      const lifecyclePermissions = lifecycleValuesFromMask(row.lifecycleMask);
+      if (
+        new Set(boardIds).size !== boardIds.length
+        || (
+          boardIds.length === 0
+          && (!scopes.includes('board.write') || !lifecyclePermissions.includes('board.create'))
+        )
+      ) {
         throw new Error('active grant has invalid board bindings');
       }
-      const scopes = scopeValuesFromMask(row.scopeMask);
       return {
         ownerUserDatabaseId: row.ownerUserDatabaseId,
         grantDatabaseId: row.grantDatabaseId,
@@ -141,7 +148,7 @@ export class GrantPrincipalRepository implements GrantPrincipalPersistence {
             installationId: row.installationId,
           }, this.crypto),
           scopes,
-          lifecyclePermissions: lifecycleValuesFromMask(row.lifecycleMask),
+          lifecyclePermissions,
           boardIds,
           lifetime: row.grantLifetime === 1 ? 'session' : 'persistent',
           status: 'active',

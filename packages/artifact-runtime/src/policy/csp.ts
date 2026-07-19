@@ -12,8 +12,8 @@ export const buildRunnerContentSecurityPolicyV1 = (input: {
   if (app === runtime) throw new TypeError('runner and app origins must be distinct');
   return [
     "default-src 'none'",
-    `script-src ${runtime}`,
-    `style-src ${runtime}`,
+    `script-src ${runtime} data: blob:`,
+    `style-src ${runtime} 'unsafe-inline'`,
     "img-src 'none'",
     "connect-src 'none'",
     "font-src 'none'",
@@ -33,7 +33,7 @@ export const buildInnerPolicyV1 = (nonce: string): string => {
   if (!/^[A-Za-z0-9_-]{22}$/u.test(nonce)) throw new TypeError('inner CSP nonce must be 128-bit base64url');
   return [
     "default-src 'none'",
-    `script-src 'nonce-${nonce}' blob:`,
+    `script-src 'nonce-${nonce}' data: blob:`,
     "style-src 'unsafe-inline'",
     'img-src data: blob:',
     "connect-src 'none'",
@@ -45,6 +45,5 @@ export const buildInnerPolicyV1 = (nonce: string): string => {
     "manifest-src 'none'",
     "base-uri 'none'",
     "form-action 'none'",
-    "navigate-to 'none'",
   ].join('; ');
 };

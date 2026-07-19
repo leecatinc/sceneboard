@@ -49,7 +49,7 @@
       "exportKind": "class",
       "memberName": "decidePairing",
       "memberKind": "method",
-      "signature": "async decidePairing( pairingId: string, csrfToken: string, decision: { decision: 'deny' } | { decision: 'approve'; approvedScopes: ClientGrantCapabilityV1[]; approvedLifecyclePermissions: LifecyclePermission[]; boardIds: string[]; lifetime: 'session' | 'persistent'; }, ): Promise<ApiResult<PairingOwnerStatus>>",
+      "signature": "async decidePairing( pairingId: string, csrfToken: string, decision: { decision: 'deny' } | { decision: 'approve'; approvedScopes: ClientGrantCapabilityV1[]; approvedLifecyclePermissions: LifecyclePermission[]; destination: PairingBoardDestination; lifetime: 'session' | 'persistent'; }, ): Promise<ApiResult<PairingOwnerStatus>>",
       "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=decidePairing]",
       "contractId": "D2-PAIRING-DECIDE"
     },
@@ -84,5 +84,5 @@
       "contractId": "D2-GRANT-ROTATE"
     }
   ],
-  "tupleListSha256": "2dde014761bd14ba66be3f50f63e16a573eecb3ebdaae381f5318d77b180be55"
+  "tupleListSha256": "9450d2a5337af26a1bfd202ebb632b30bbe584b4d3dce496b362cb646aeeae61"
 }

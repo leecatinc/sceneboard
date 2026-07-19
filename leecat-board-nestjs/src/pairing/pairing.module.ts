@@ -12,16 +12,23 @@ import { APP_ENVIRONMENT, type AppEnvironment } from '../config/env.schema.js';
 import { MysqlService } from '../database/mysql.service.js';
 import { AuditRepository } from '../audit/audit.repository.js';
 import { PairingProofService } from './pairing-proof.service.js';
+import { BoardModule } from '../boards/board.module.js';
+import { BoardCreateService } from '../boards/board-create.service.js';
 
 @Module({
-  imports: [AuthModule, DatabaseModule, AuditModule],
+  imports: [AuthModule, DatabaseModule, AuditModule, BoardModule],
   controllers: [PairingController],
   providers: [
     {
       provide: PairingRepository,
-      inject: [MysqlService, AuditRepository, CryptoService],
-      useFactory: (mysql: MysqlService, audit: AuditRepository, crypto: CryptoService) => (
-        new PairingRepository(mysql, audit, crypto)
+      inject: [MysqlService, AuditRepository, CryptoService, BoardCreateService],
+      useFactory: (
+        mysql: MysqlService,
+        audit: AuditRepository,
+        crypto: CryptoService,
+        boardCreate: BoardCreateService,
+      ) => (
+        new PairingRepository(mysql, audit, crypto, boardCreate)
       ),
     },
     {

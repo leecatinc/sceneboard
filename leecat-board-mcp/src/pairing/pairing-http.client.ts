@@ -53,7 +53,7 @@ const GrantSchema = z.object({
   client: ClientSchema,
   scopes: z.array(ScopeSchema).min(1).max(7),
   lifecyclePermissions: z.array(LifecycleSchema).max(2),
-  boardIds: z.array(GlobalIdSchema).min(1).max(50),
+  boardIds: z.array(GlobalIdSchema).max(50),
   lifetime: z.enum(['session', 'persistent']),
   status: z.literal('active'),
   createdAt: TimestampSchema,
@@ -61,7 +61,18 @@ const GrantSchema = z.object({
   lastUsedAt: TimestampSchema.nullable(),
   expiresAt: TimestampSchema,
   revokedAt: z.null(),
-}).strict();
+}).strict().superRefine((value, context) => {
+  if (
+    value.boardIds.length === 0
+    && (!value.scopes.includes('board.write') || !value.lifecyclePermissions.includes('board.create'))
+  ) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['boardIds'],
+      message: 'an empty board set requires board.write and board.create',
+    });
+  }
+});
 
 const RedeemResponseSchema = z.object({
   tokenType: z.literal('Bearer'),

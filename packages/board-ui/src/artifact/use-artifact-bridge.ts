@@ -17,6 +17,7 @@ export type ArtifactBridgeViewV1 = {
   containerRef: RefObject<HTMLDivElement | null>;
   phase: ArtifactHostPhaseV1;
   correlationId: string | null;
+  contentSize: Readonly<{ width: number; height: number }> | null;
   stop(): void;
 };
 
@@ -46,6 +47,7 @@ export const useArtifactBridgeV1 = (input: ArtifactHostInputV1): ArtifactBridgeV
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [phase, setPhase] = useState<ArtifactHostPhaseV1>('loading');
   const [correlationId, setCorrelationId] = useState<string | null>(null);
+  const [contentSize, setContentSize] = useState<Readonly<{ width: number; height: number }> | null>(null);
   const [localStopEpoch, setLocalStopEpoch] = useState(0);
   const cleanupRef = useRef<(() => void) | null>(null);
 
@@ -146,13 +148,16 @@ export const useArtifactBridgeV1 = (input: ArtifactHostInputV1): ArtifactBridgeV
       frame.setAttribute('sandbox', OUTER_SANDBOX_TOKENS_V1);
       (frame as HTMLIFrameElement & { credentialless: boolean }).credentialless = true;
       frame.className = 'artifact-runtime-frame';
+      frame.src = `${runtimeOrigin}/runner`;
       const loaded = new Promise<void>((resolve, reject) => {
         const timer = setTimeout(() => reject(new TypeError('artifact runner navigation timed out')), 5_000);
         frame?.addEventListener('load', () => { clearTimeout(timer); resolve(); }, { once: true });
         frame?.addEventListener('error', () => { clearTimeout(timer); reject(new TypeError('artifact runner navigation failed')); }, { once: true });
       });
-      container.replaceChildren(frame);
-      frame.src = `${runtimeOrigin}/runner`;
+      const stage = document.createElement('div');
+      stage.className = 'artifact-runtime-stage';
+      stage.append(frame);
+      container.replaceChildren(stage);
       await loaded;
       if (frame.contentWindow === null) throw new TypeError('artifact runner window is unavailable');
 
@@ -169,6 +174,10 @@ export const useArtifactBridgeV1 = (input: ArtifactHostInputV1): ArtifactBridgeV
           if (message.type === 'runner.watchdog.pong') {
             if (watchdogDeadline !== null) clearTimeout(watchdogDeadline);
             watchdogDeadline = null;
+            return;
+          }
+          if (message.type === 'artifact.resize.request') {
+            setContentSize(message.value);
             return;
           }
           const waiterIndex = waiters.findIndex((waiter) => waiter.type === message.type);
@@ -267,5 +276,5 @@ export const useArtifactBridgeV1 = (input: ArtifactHostInputV1): ArtifactBridgeV
     localStopEpoch,
   ]);
 
-  return { containerRef, phase, correlationId, stop };
+  return { containerRef, phase, correlationId, contentSize, stop };
 };

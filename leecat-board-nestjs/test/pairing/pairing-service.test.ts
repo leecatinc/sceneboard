@@ -38,7 +38,7 @@ test('pairing create returns the raw short code once while persisting only its t
   } as unknown as PairingRepository;
   const service = new PairingService(repository, new PairingCodeService(crypto), crypto);
   const result = await service.create(session, 1_800_000_000_000);
-  assert.match(result.code, /^[0-9A-HJKMNP-TV-Z]{6}-[0-9A-HJKMNP-TV-Z]{6}$/);
+  assert.match(result.code, /^SB-[0-9A-HJKMNP-TV-Z]{6}-[0-9A-HJKMNP-TV-Z]{6}$/);
   assert.equal(result.codeExpiresAt, '2027-01-15T08:05:00.000Z');
   assert.equal(captured?.locatorHash.byteLength, 32);
   assert.equal(captured?.verifierHash.byteLength, 32);
@@ -123,7 +123,7 @@ test('pairing approval passes only catalog masks and approving-session ownership
     decision: 'approve',
     approvedScopes: ['board.read', 'board.write'],
     approvedLifecyclePermissions: ['board.create'],
-    boardIds: ['board_1' as BoardId],
+    destination: { mode: 'existing', boardId: 'board_1' as BoardId },
     lifetime: 'session',
   }, 1_800_000_000_000);
   assert.equal(result, status);
@@ -131,6 +131,30 @@ test('pairing approval passes only catalog masks and approving-session ownership
   assert.equal(captured?.approvingSessionDatabaseId, '2');
   if (captured?.decision !== 'approve') throw new Error('approval input was not persisted');
   assert.equal(captured.approvedScopeMask, 3);
+  assert.equal(captured.approvedLifecycleMask, 1);
+});
+
+test('pairing approval preserves a zero-board create grant for deferred board creation', async () => {
+  let captured: Parameters<PairingRepository['decide']>[0] | undefined;
+  const status = { pairingId: 'pairing_1', state: 'approved' } as PairingOwnerStatus;
+  const repository = {
+    async decide(input: Parameters<PairingRepository['decide']>[0]) {
+      captured = input;
+      return { kind: 'decided' as const, status };
+    },
+  } as unknown as PairingRepository;
+  const service = new PairingService(repository, new PairingCodeService(crypto), crypto);
+  const result = await service.decide(session, 'pairing_1', {
+    decision: 'approve',
+    approvedScopes: ['board.write'],
+    approvedLifecyclePermissions: ['board.create'],
+    destination: { mode: 'deferred' },
+    lifetime: 'session',
+  }, 1_800_000_000_000);
+  assert.equal(result, status);
+  if (captured?.decision !== 'approve') throw new Error('approval input was not persisted');
+  assert.deepEqual(captured.destination, { mode: 'deferred' });
+  assert.equal(captured.approvedScopeMask, 2);
   assert.equal(captured.approvedLifecycleMask, 1);
 });
 

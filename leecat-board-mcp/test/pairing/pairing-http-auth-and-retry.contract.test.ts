@@ -30,9 +30,9 @@ test('claim is unauthenticated and status/redeem use only the exact PairingProof
       grant: {
         grantId: 'grant_1',
         client: { clientId: 'client_1', clientName: 'SceneBoard Codex', installationFingerprint: 'abcdefghijklmnop' },
-        scopes: ['board.read'],
-        lifecyclePermissions: [],
-        boardIds: ['board_1'],
+        scopes: ['board.write'],
+        lifecyclePermissions: ['board.create'],
+        boardIds: [],
         lifetime: 'persistent',
         status: 'active',
         createdAt: '2026-07-16T16:00:00.000Z',

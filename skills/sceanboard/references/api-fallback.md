@@ -37,14 +37,14 @@ Send this exact object on stdin:
 
 ```json
 {
-  "code": "<PAIRING_CODE_FROM_SCENEBOARD>",
+  "code": "<SCENEBOARD_PAIRING_CODE>",
   "clientName": "Codex SceneBoard fallback",
   "requestedScopes": ["board.read", "board.write"],
-  "requestedLifecyclePermissions": []
+  "requestedLifecyclePermissions": ["board.create"]
 }
 ```
 
-Scopes and lifecycle permissions must follow the catalog order from [auth-and-config.md](auth-and-config.md). The process validates every finite-state response and emits secret-free `claimed`, `status`, and final `redeemed` or `terminal` events. Keep it alive until the owner approves or the pairing reaches a terminal state. Claim response loss is never retried. On redeem response loss, the same proof owner checks status and performs at most the one contract-authorized retry; otherwise follow the returned owner recovery.
+Scopes and lifecycle permissions must follow the catalog order from [auth-and-config.md](auth-and-config.md). Request `board.create` when the user expects the connection to create its first board; a zero-board approval without both `board.write` and `board.create` is invalid. The process validates every finite-state response and emits secret-free `claimed`, `status`, and final `redeemed` or `terminal` events. Keep it alive until the owner approves or the pairing reaches a terminal state. Claim response loss is never retried. On redeem response loss, the same proof owner checks status and performs at most the one contract-authorized retry; otherwise follow the returned owner recovery.
 
 ## Transport gate
 

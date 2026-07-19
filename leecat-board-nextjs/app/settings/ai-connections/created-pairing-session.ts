@@ -1,7 +1,7 @@
 import type { CreatedPairing } from '../../../lib/api/board-api';
 
 const CREATED_PAIRING_SESSION_KEY = 'sceneboard.created-pairing.v1';
-const PAIRING_CODE_PATTERN = /^[0-9A-HJKMNP-TV-Z]{6}-[0-9A-HJKMNP-TV-Z]{6}$/;
+const PAIRING_CODE_PATTERN = /^(?:SB-)?[0-9A-HJKMNP-TV-Z]{6}-[0-9A-HJKMNP-TV-Z]{6}$/;
 
 type SessionStorage = Pick<Storage, 'getItem' | 'removeItem' | 'setItem'>;
 

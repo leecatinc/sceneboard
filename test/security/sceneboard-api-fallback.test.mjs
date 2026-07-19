@@ -125,14 +125,19 @@ const operationEnvelope = (requestId, type, data, { replayed = false, mutationBo
   metadata: { history: null },
 });
 
-const connection = (selectedBoard = null, scopes = ['board.read', 'board.write']) => ({
+const connection = (
+  selectedBoard = null,
+  scopes = ['board.read', 'board.write'],
+  lifecyclePermissions = [],
+  boardIds = ['board_1'],
+) => ({
   principal: { principalKind: 'mcp_client', principalId: 'client_1', grantId: 'grant_1' },
   grant: {
     grantId: 'grant_1',
     client: { clientId: 'client_1', clientName: 'SceneBoard QA', installationFingerprint: 'abcdefghijklmnop' },
     scopes,
-    lifecyclePermissions: [],
-    boardIds: ['board_1'],
+    lifecyclePermissions,
+    boardIds,
     lifetime: 'persistent',
     status: 'active',
     activatedAt: TIME,
@@ -152,7 +157,7 @@ const configured = async (prefix) => {
 
 test('pair input uses the server grant scope catalog order', () => {
   const input = {
-    code: 'ABCDEF-GHJKMN',
+    code: 'SB-ABCDEF-GHJKMN',
     clientName: 'SceneBoard QA',
     requestedScopes: [
       'board.read', 'board.write', 'board.history.read', 'board.hitl.request',
@@ -269,6 +274,20 @@ test('board-scoped connection accepts the closed capabilities contract and rejec
       requestId: options.headers['X-Request-Id'], connection: true,
     }),
   }), { code: 'BOARD_API_RESPONSE_INVALID' });
+});
+
+test('untargeted connection accepts a create-capable grant before its first board exists', async () => {
+  const { root, env } = await configured('connection-empty-');
+  const result = await invokeProtected('board_connection_status', { boardId: null }, {
+    cwd: root,
+    env,
+    fetchImpl: async (url, options) => response(
+      connection(null, ['board.write'], ['board.create'], []),
+      { requestId: options.headers['X-Request-Id'], connection: true },
+    ),
+  });
+  assert.deepEqual(result.result.connection.grant.boardIds, []);
+  assert.equal(result.result.connection.selectedBoard, null);
 });
 
 test('connection and error projections reject non-string global and local identifiers', async () => {
@@ -548,6 +567,16 @@ test('pairing parsers enforce exact finite-state and grant contracts', () => {
     },
   });
   assert.equal(redeemed.grant.status, 'active');
+  const empty = parsePairingRedeem({
+    ...redeemed,
+    grant: {
+      ...redeemed.grant,
+      scopes: ['board.write'],
+      lifecyclePermissions: ['board.create'],
+      boardIds: [],
+    },
+  });
+  assert.deepEqual(empty.grant.boardIds, []);
   for (const mutate of [
     (value) => { value.accessToken = 'not-a-token'; },
     (value) => { value.grant.extra = true; },
@@ -778,7 +807,7 @@ test('patch geometry validates every supplied numeric field', () => {
 test('one-process pairing keeps proof private and proves the stored credential', async () => {
   const root = await mkdtemp(join(tmpdir(), 'sceneboard-pair-'));
   const stateRoot = join(root, 'state');
-  const pairingCode = 'ABCDEF-GHJKMN';
+  const pairingCode = 'SB-ABCDEF-GHJKMN';
   let challenge = null;
   let proof = null;
   const server = createServer(async (request, reply) => {
@@ -912,7 +941,7 @@ test('pairing rejects contradictory authorization before credential persistence'
       SCENEBOARD_API_URL: `http://127.0.0.1:${address.port}`, SCENEBOARD_PROFILE: 'qa_pair_mismatch', SCENEBOARD_TIMEOUT_MS: '1000' },
     stdio: ['pipe', 'pipe', 'pipe'],
   });
-  child.stdin.end(JSON.stringify({ code: 'ABCDEF-GHJKMN', clientName: 'SceneBoard QA',
+  child.stdin.end(JSON.stringify({ code: 'SB-ABCDEF-GHJKMN', clientName: 'SceneBoard QA',
     requestedScopes: ['board.read'], requestedLifecyclePermissions: [] }));
   const stdout = [];
   const stderr = [];
@@ -973,7 +1002,7 @@ test('ambiguous redeem retry returns one owner-recovery failure and never redeem
     stdio: ['pipe', 'pipe', 'pipe'],
   });
   child.stdin.end(JSON.stringify({
-    code: 'ABCDEF-GHJKMN', clientName: 'SceneBoard QA', requestedScopes: ['board.read'], requestedLifecyclePermissions: [],
+    code: 'SB-ABCDEF-GHJKMN', clientName: 'SceneBoard QA', requestedScopes: ['board.read'], requestedLifecyclePermissions: [],
   }));
   const stdout = [];
   child.stdout.on('data', (chunk) => stdout.push(chunk));

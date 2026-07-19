@@ -140,14 +140,14 @@
       "additionalProperties": false,
       "required": ["fileCount", "aggregateSha256"],
       "properties": {
-        "fileCount": { "const": 8 },
+        "fileCount": { "const": 30 },
         "aggregateSha256": { "$ref": "#/$defs/sha256" }
       }
     },
     "resources": {
       "type": "array",
-      "minItems": 375,
-      "maxItems": 375,
+      "minItems": 399,
+      "maxItems": 399,
       "items": { "$ref": "#/$defs/resourceResult" }
     }
   },

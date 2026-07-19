@@ -2617,6 +2617,24 @@
           "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=getBoard]"
         },
         {
+          "resourceId": "D5-BOARD-ARCHIVE-SELECTOR",
+          "owner": "D5",
+          "path": "leecat-board-nextjs/lib/api/board-api.ts",
+          "exportName": "BoardApiClient",
+          "exportKind": "class",
+          "projectionId": "D5-BOARD-ARCHIVE-SELECTOR",
+          "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=archiveBoard]"
+        },
+        {
+          "resourceId": "D5-BOARD-RENAME-SELECTOR",
+          "owner": "D5",
+          "path": "leecat-board-nextjs/lib/api/board-api.ts",
+          "exportName": "BoardApiClient",
+          "exportKind": "class",
+          "projectionId": "D5-BOARD-RENAME",
+          "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=renameBoard]"
+        },
+        {
           "resourceId": "D5-HISTORY-LIST-SELECTOR",
           "owner": "D5",
           "path": "leecat-board-nextjs/lib/api/board-api.ts",
@@ -2707,7 +2725,7 @@
           "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=supersedeInteraction]"
         }
       ],
-      "expectedCardinality": 20,
+      "expectedCardinality": 22,
       "canonicalization": "typescript-ast",
       "materializationPredecessor": "D2-D5-D7-D8-BROWSER-PUBLISHERS",
       "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
@@ -2928,7 +2946,7 @@
         {
           "resourceId": "D6-SKILL-01",
           "owner": "D6",
-          "path": "skills/sceanboard/SKILL.md",
+          "path": "skills/sceanboard/agents/openai.yaml",
           "exportName": null,
           "exportKind": null,
           "projectionId": null,
@@ -2937,7 +2955,7 @@
         {
           "resourceId": "D6-SKILL-02",
           "owner": "D6",
-          "path": "skills/sceanboard/references/commands.md",
+          "path": "skills/sceanboard/assets/artifact-templates/animated-data-story.json",
           "exportName": null,
           "exportKind": null,
           "projectionId": null,
@@ -2946,7 +2964,7 @@
         {
           "resourceId": "D6-SKILL-03",
           "owner": "D6",
-          "path": "skills/sceanboard/references/auth-and-config.md",
+          "path": "skills/sceanboard/assets/artifact-templates/architecture-map.json",
           "exportName": null,
           "exportKind": null,
           "projectionId": null,
@@ -2955,7 +2973,7 @@
         {
           "resourceId": "D6-SKILL-04",
           "owner": "D6",
-          "path": "skills/sceanboard/references/scene-contract.md",
+          "path": "skills/sceanboard/assets/artifact-templates/metric-story.json",
           "exportName": null,
           "exportKind": null,
           "projectionId": null,
@@ -2964,7 +2982,7 @@
         {
           "resourceId": "D6-SKILL-05",
           "owner": "D6",
-          "path": "skills/sceanboard/references/artifacts.md",
+          "path": "skills/sceanboard/assets/artifact-templates/process-flow.json",
           "exportName": null,
           "exportKind": null,
           "projectionId": null,
@@ -2973,7 +2991,7 @@
         {
           "resourceId": "D6-SKILL-06",
           "owner": "D6",
-          "path": "skills/sceanboard/references/history.md",
+          "path": "skills/sceanboard/assets/artifact-templates/timeline.json",
           "exportName": null,
           "exportKind": null,
           "projectionId": null,
@@ -2982,7 +3000,7 @@
         {
           "resourceId": "D6-SKILL-07",
           "owner": "D6",
-          "path": "skills/sceanboard/references/fallback.md",
+          "path": "skills/sceanboard/assets/visual-presets/architecture-overview.json",
           "exportName": null,
           "exportKind": null,
           "projectionId": null,
@@ -2991,7 +3009,7 @@
         {
           "resourceId": "D6-SKILL-08",
           "owner": "D6",
-          "path": "skills/sceanboard/references/platform.md",
+          "path": "skills/sceanboard/assets/visual-presets/comparison.json",
           "exportName": null,
           "exportKind": null,
           "projectionId": null,
@@ -3000,7 +3018,7 @@
         {
           "resourceId": "D6-SKILL-09",
           "owner": "D6",
-          "path": "skills/sceanboard/references/api-fallback.md",
+          "path": "skills/sceanboard/assets/visual-presets/dashboard.json",
           "exportName": null,
           "exportKind": null,
           "projectionId": null,
@@ -3009,7 +3027,7 @@
         {
           "resourceId": "D6-SKILL-10",
           "owner": "D6",
-          "path": "skills/sceanboard/scripts/sceneboard-api-core.mjs",
+          "path": "skills/sceanboard/assets/visual-presets/presentation.json",
           "exportName": null,
           "exportKind": null,
           "projectionId": null,
@@ -3018,7 +3036,7 @@
         {
           "resourceId": "D6-SKILL-11",
           "owner": "D6",
-          "path": "skills/sceanboard/scripts/sceneboard-api.mjs",
+          "path": "skills/sceanboard/assets/visual-presets/roadmap-status.json",
           "exportName": null,
           "exportKind": null,
           "projectionId": null,
@@ -3027,14 +3045,176 @@
         {
           "resourceId": "D6-SKILL-12",
           "owner": "D6",
-          "path": "skills/sceanboard/agents/openai.yaml",
+          "path": "skills/sceanboard/assets/visual-presets/study-brief.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-13",
+          "owner": "D6",
+          "path": "skills/sceanboard/references/api-fallback.md",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-14",
+          "owner": "D6",
+          "path": "skills/sceanboard/references/artifacts.md",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-15",
+          "owner": "D6",
+          "path": "skills/sceanboard/references/auth-and-config.md",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-16",
+          "owner": "D6",
+          "path": "skills/sceanboard/references/commands.md",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-17",
+          "owner": "D6",
+          "path": "skills/sceanboard/references/fallback.md",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-18",
+          "owner": "D6",
+          "path": "skills/sceanboard/references/history.md",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-19",
+          "owner": "D6",
+          "path": "skills/sceanboard/references/platform.md",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-20",
+          "owner": "D6",
+          "path": "skills/sceanboard/references/scene-contract.md",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-21",
+          "owner": "D6",
+          "path": "skills/sceanboard/references/visual-composer.md",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-22",
+          "owner": "D6",
+          "path": "skills/sceanboard/scripts/scene-artifact-core.mjs",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-23",
+          "owner": "D6",
+          "path": "skills/sceanboard/scripts/scene-artifact.mjs",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-24",
+          "owner": "D6",
+          "path": "skills/sceanboard/scripts/scene-recipe-compiler-internal.mjs",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-25",
+          "owner": "D6",
+          "path": "skills/sceanboard/scripts/scene-recipe-core.mjs",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-26",
+          "owner": "D6",
+          "path": "skills/sceanboard/scripts/scene-recipe-validation-internal.mjs",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-27",
+          "owner": "D6",
+          "path": "skills/sceanboard/scripts/scene-recipe.mjs",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-28",
+          "owner": "D6",
+          "path": "skills/sceanboard/scripts/sceneboard-api-core.mjs",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-29",
+          "owner": "D6",
+          "path": "skills/sceanboard/scripts/sceneboard-api.mjs",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-30",
+          "owner": "D6",
+          "path": "skills/sceanboard/SKILL.md",
           "exportName": null,
           "exportKind": null,
           "projectionId": null,
           "selector": "whole-file"
         }
       ],
-      "expectedCardinality": 12,
+      "expectedCardinality": 30,
       "canonicalization": "utf8-lf",
       "materializationPredecessor": null,
       "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"

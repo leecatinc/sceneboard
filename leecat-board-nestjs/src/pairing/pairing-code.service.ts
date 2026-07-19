@@ -2,7 +2,8 @@ import { AppError } from '../common/errors/app-error.js';
 import { CryptoService } from '../common/security/crypto.service.js';
 
 const CROCKFORD_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
-const PAIRING_PATTERN = /^[0-9A-HJKMNP-TV-Z]{6}-[0-9A-HJKMNP-TV-Z]{6}$/;
+const PAIRING_CODE_PREFIX = 'SB-';
+const PAIRING_PATTERN = /^(?:SB-)?([0-9A-HJKMNP-TV-Z]{6})-([0-9A-HJKMNP-TV-Z]{6})$/;
 
 export interface IssuedPairingCode {
   code: string;
@@ -38,7 +39,7 @@ export class PairingCodeService {
     const locator = encodeThirtyBits(this.crypto.random(4));
     const verifier = encodeThirtyBits(this.crypto.random(4));
     return {
-      code: `${locator}-${verifier}`,
+      code: `${PAIRING_CODE_PREFIX}${locator}-${verifier}`,
       locatorHash: this.crypto.hmac('pairing-locator/v1', locator),
       verifierHash: this.crypto.hmac('pairing-verifier/v1', verifier),
     };
@@ -46,8 +47,9 @@ export class PairingCodeService {
 
   parse(value: string): ParsedPairingCode {
     const normalized = value.toUpperCase();
-    if (!PAIRING_PATTERN.test(normalized)) throw new AppError('PAIRING_UNAVAILABLE');
-    return { locator: normalized.slice(0, 6), verifier: normalized.slice(7) };
+    const matched = PAIRING_PATTERN.exec(normalized);
+    if (matched === null) throw new AppError('PAIRING_UNAVAILABLE');
+    return { locator: matched[1]!, verifier: matched[2]! };
   }
 
   hash(parsed: ParsedPairingCode): HashedPairingCode {

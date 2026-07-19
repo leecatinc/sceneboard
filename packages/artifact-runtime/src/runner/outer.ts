@@ -81,11 +81,17 @@ const createInner = async (message: Extract<ArtifactBridgeMessageV1, { type: 'ho
   const diagram = /<pre\s+[^>]*class=(?:"[^"]*\bmermaid\b[^"]*"|'[^']*\bmermaid\b[^']*')[^>]*>/iu.test(htmlText);
   const nonce = randomId();
   const policy = buildInnerPolicyV1(nonce);
-  const resourcePrelude = `window.__SCENEBOARD_ARTIFACT_RESOURCES_V1__=${safeScriptString({ css: cssText, javascript: javascriptText, diagram })};\n`;
+  const resources = safeScriptString({ css: cssText, javascript: javascriptText, diagram });
+  const bootstrapBytes = new TextEncoder().encode(__INNER_BOOTSTRAP_SOURCE__);
+  let bootstrapBinary = '';
+  for (const byte of bootstrapBytes) bootstrapBinary += String.fromCharCode(byte);
+  const bootstrapDataUrl = `data:application/javascript;base64,${btoa(bootstrapBinary)}`;
   const mermaidTag = diagram
     ? `<script nonce="${nonce}" src="${escapeAttribute(new URL(__MERMAID_ASSET_PATH__, window.location.href).href)}"></script>`
     : '';
-  const documentBytes = new TextEncoder().encode(`<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${escapeAttribute(policy)}">${mermaidTag}</head><body>${htmlText}<script nonce="${nonce}">${resourcePrelude}${__INNER_BOOTSTRAP_SOURCE__}</script></body></html>`);
+  const resourcesTag = `<template id="__sceneboard_artifact_resources_v1__">${resources}</template>`;
+  const bootstrapTag = `<script nonce="${nonce}" src="${escapeAttribute(bootstrapDataUrl)}"></script>`;
+  const documentBytes = new TextEncoder().encode(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="${escapeAttribute(policy)}"><style>html,body{width:100%;height:100%;margin:0;overflow:hidden}</style>${mermaidTag}${resourcesTag}</head><body>${htmlText}${bootstrapTag}</body></html>`);
   innerDocumentUrl = URL.createObjectURL(new Blob([documentBytes], { type: 'text/html' }));
   const frame = document.createElement('iframe');
   frame.title = 'Isolated artifact content';
@@ -105,6 +111,10 @@ const createInner = async (message: Extract<ArtifactBridgeMessageV1, { type: 'ho
     const incoming = innerEndpoint.receive(event.data).envelope.message;
     if (incoming.type === 'artifact.ready') {
       lifecycle.receive('artifact.ready');
+      sendParent(incoming);
+      return;
+    }
+    if (incoming.type === 'artifact.resize.request') {
       sendParent(incoming);
       return;
     }

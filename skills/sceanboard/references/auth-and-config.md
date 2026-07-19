@@ -8,12 +8,14 @@
 
 ## Five-minute pairing flow
 
-1. The signed-in owner creates a pairing request in the web app and receives one 12-symbol human code formatted as two six-symbol groups separated by a hyphen.
+1. The signed-in owner creates a pairing request in the web app and receives one branded human code: the `SB-` SceneBoard prefix followed by two hyphen-separated six-symbol Crockford groups. New codes always include the prefix; the server temporarily accepts the legacy unprefixed body so already-issued codes can expire normally.
 2. The code's decision deadline is five minutes; the code itself grants no board access.
 3. The MCP client calls `board_pair_request`, or the MCP-absent adapter runs `pair`, with `code`, its client name, sorted requested scopes, and lifecycle permissions. Claim is unauthenticated.
 4. One private proof owner calls client-status/redeem with `Authorization: PairingProof …`; the proof is never a DTO or tool result.
 5. The owner approves or denies the exact scopes/client. Approval creates the separate redeem deadline.
 6. Redemption yields a grant token to the private process. Before persistence, the authorized connection must match the redeemed principal, client, grant, installation fingerprint, scopes, lifecycle permissions, boards, lifetime, status, and shared timestamps; approved capabilities must remain within the requested set. Only then may the process atomically persist and reload it before reporting `redeemed`/`hasToken:true`.
+
+The owner may approve no existing boards only when both `board.write` and lifecycle `board.create` are approved. This is a create-capable empty grant, not access to every board: existing boards remain unavailable, and a board created through that grant is atomically added to its board bindings. A generic full-work SceneBoard connection should request `board.read`, `board.write`, and lifecycle `board.create`; request `board.archive` only for an explicit archive/removal workflow.
 
 Claim response loss is an unknown outcome and is not automatically retried. Recover by owner cancel/wait then create a new code. If the server reports redeemed but the sink commit cannot be proven, use owner rotation/revoke/re-pair recovery; never guess or expose the token.
 

@@ -8,7 +8,7 @@ import type { CryptoService } from '../../src/common/security/crypto.service.js'
 
 type QueryResult = readonly [unknown, unknown];
 
-const setup = (row: Record<string, unknown>) => {
+const setup = (row: Record<string, unknown>, boardIds = ['board_1']) => {
   const calls: string[] = [];
   const connection = {
     async query(sql: string) {
@@ -21,7 +21,9 @@ const setup = (row: Record<string, unknown>) => {
     async execute(sql: string) {
       const normalized = sql.replace(/\s+/g, ' ').trim();
       calls.push(normalized);
-      if (normalized.includes('FROM mcp_grant_boards')) return [[{ boardPublicId: 'board_1' }], []] as QueryResult;
+      if (normalized.includes('FROM mcp_grant_boards')) {
+        return [boardIds.map((boardPublicId) => ({ boardPublicId })), []] as QueryResult;
+      }
       if (normalized.startsWith('SELECT')) return [[row], []] as QueryResult;
       return [{ affectedRows: 1 }, []] as QueryResult;
     },
@@ -89,6 +91,31 @@ test('resolves one digest-matched active persistent credential without exposing 
   });
   assert.equal(value.calls.some((call) => call.includes('lcbg_v1')), false);
   assert.deepEqual(value.audits, []);
+});
+
+test('resolves an active create grant before its first board is bound', async () => {
+  const value = setup({ ...active, scopeMask: 2, lifecycleMask: 1 }, []);
+  const result = await value.repository.resolve({
+    locator: Buffer.alloc(16, 1),
+    tokenHash: Buffer.alloc(32, 2),
+    now: Date.parse('2026-07-16T12:00:00.000Z'),
+  });
+  assert.notEqual(result, null);
+  if (result === null) throw new Error('create-capable grant was not resolved');
+  assert.notEqual(result.connectionGrant, undefined);
+  if (result.connectionGrant === undefined) throw new Error('create-capable grant projection is missing');
+  assert.deepEqual(result.connectionGrant.boardIds, []);
+  assert.deepEqual(result.connectionGrant.scopes, ['board.write']);
+  assert.deepEqual(result.connectionGrant.lifecyclePermissions, ['board.create']);
+});
+
+test('rejects a zero-board grant that cannot create its first board', async () => {
+  const value = setup({ ...active, scopeMask: 1, lifecycleMask: 0 }, []);
+  await assert.rejects(() => value.repository.resolve({
+    locator: Buffer.alloc(16, 1),
+    tokenHash: Buffer.alloc(32, 2),
+    now: Date.parse('2026-07-16T12:00:00.000Z'),
+  }), /invalid board bindings/);
 });
 
 test('lazily expires a verified overdue credential and grant with mandatory audit', async () => {

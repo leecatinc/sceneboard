@@ -3,8 +3,9 @@
 import { type FormEvent, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { ClientGrantCapabilityV1 } from '@leecat-board/board-schema';
 
-import type { CreatedPairing, PairingOwnerStatus } from '../../lib/api/board-api';
+import type { CreatedPairing, PairingBoardDestination, PairingOwnerStatus } from '../../lib/api/board-api';
 import { useI18n } from '../i18n/I18nProvider';
+import { ClipboardCopyButton } from './ClipboardCopyButton';
 import styles from './pairing-request.module.css';
 
 interface PairingBoardOption {
@@ -19,11 +20,9 @@ export function PairingRequestModal({
   pairing,
   matchingCode,
   boards,
-  initialBoardIds = [],
   busy,
   error = null,
   onDismiss,
-  onCreateBoard,
   onApprove,
   onDeny,
   onCancel,
@@ -31,15 +30,13 @@ export function PairingRequestModal({
   pairing: PairingRequest;
   matchingCode: string | null;
   boards: PairingBoardOption[];
-  initialBoardIds?: string[];
   busy: boolean;
   error?: string | null;
   onDismiss: () => void;
-  onCreateBoard?: () => Promise<PairingBoardOption | null>;
   onApprove: (decision: {
     approvedScopes: ClientGrantCapabilityV1[];
     approvedLifecyclePermissions: Array<'board.create' | 'board.archive'>;
-    boardIds: string[];
+    destination: PairingBoardDestination;
     lifetime: 'session' | 'persistent';
   }) => void;
   onDeny: () => void;
@@ -51,10 +48,11 @@ export function PairingRequestModal({
   const descriptionId = useId();
   const formId = useId();
   const [validation, setValidation] = useState<string | null>(null);
-  const [selectedBoardIds, setSelectedBoardIds] = useState<string[]>([]);
+  const [destinationMode, setDestinationMode] = useState<'create' | 'existing'>('create');
+  const [newBoardTitle, setNewBoardTitle] = useState('');
+  const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null);
   const [boardSearch, setBoardSearch] = useState('');
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [creatingBoard, setCreatingBoard] = useState(false);
   const ownerStatus = isOwnerStatus(pairing) ? pairing : null;
 
   useEffect(() => {
@@ -70,13 +68,12 @@ export function PairingRequestModal({
   }, []);
 
   useEffect(() => {
-    const availableIds = new Set<string>(boards.map((board) => board.boardId));
-    const requestedIds = ownerStatus?.boardIds ?? initialBoardIds;
-    const selectedIds = requestedIds.filter((boardId) => availableIds.has(boardId));
     setValidation(null);
     setBoardSearch('');
     setPickerOpen(false);
-    setSelectedBoardIds(selectedIds.length > 0 ? selectedIds : (boards.length === 1 ? [boards[0]!.boardId] : []));
+    setDestinationMode(ownerStatus?.requestedLifecyclePermissions.includes('board.create') === false ? 'existing' : 'create');
+    setNewBoardTitle(t('boards.new'));
+    setSelectedBoardId(null);
   }, [pairing.pairingId]);
 
   const filteredBoards = useMemo(() => {
@@ -84,28 +81,8 @@ export function PairingRequestModal({
     return query === '' ? boards : boards.filter((board) => board.title.toLocaleLowerCase().includes(query));
   }, [boardSearch, boards]);
 
-  const selectedLabel = selectedBoardIds.length === 0
-    ? t('ai.selectBoards')
-    : t('ai.selectedBoardCount', { count: selectedBoardIds.length });
-
-  function toggleBoard(boardId: string) {
-    setSelectedBoardIds((current) => current.includes(boardId)
-      ? current.filter((candidate) => candidate !== boardId)
-      : [...current, boardId].sort());
-  }
-
-  async function createBoard() {
-    if (onCreateBoard === undefined) return;
-    setCreatingBoard(true);
-    setValidation(null);
-    const board = await onCreateBoard();
-    setCreatingBoard(false);
-    if (board === null) {
-      setValidation(t('ai.boardCreateFailed'));
-      return;
-    }
-    setSelectedBoardIds((current) => [...new Set([...current, board.boardId])].sort());
-  }
+  const selectedBoard = selectedBoardId === null ? null : boards.find((board) => board.boardId === selectedBoardId) ?? null;
+  const selectedLabel = selectedBoard?.title ?? t('ai.selectBoards');
 
   function approve(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -113,22 +90,24 @@ export function PairingRequestModal({
     const data = new FormData(event.currentTarget);
     const approvedScopes = ownerStatus.requestedScopes.filter((scope) => data.getAll('scope').includes(scope));
     const approvedLifecyclePermissions = ownerStatus.requestedLifecyclePermissions.filter((permission) => data.getAll('lifecycle').includes(permission));
-    const boardIds = [...selectedBoardIds].sort();
     const lifetime = data.get('lifetime') === 'persistent' ? 'persistent' : 'session';
     if (matchingCode === null) {
       setValidation(t('ai.approvalDisabled'));
       return;
     }
-    if (approvedScopes.length === 0 || boardIds.length === 0) {
+    const canCreateBoard = approvedScopes.includes('board.write')
+      && approvedLifecyclePermissions.includes('board.create');
+    if (approvedScopes.length === 0
+      || (destinationMode === 'create' && (!canCreateBoard || newBoardTitle.length === 0))
+      || (destinationMode === 'existing' && selectedBoardId === null)) {
       setValidation(t('ai.selectScopeBoard'));
       return;
     }
+    const destination: PairingBoardDestination = destinationMode === 'create'
+      ? { mode: 'create', title: newBoardTitle }
+      : { mode: 'existing', boardId: selectedBoardId! };
     setValidation(null);
-    onApprove({ approvedScopes, approvedLifecyclePermissions, boardIds, lifetime });
-  }
-
-  async function copyCode() {
-    if (matchingCode !== null) await navigator.clipboard.writeText(matchingCode);
+    onApprove({ approvedScopes, approvedLifecyclePermissions, destination, lifetime });
   }
 
   const isPending = ownerStatus?.state === 'pending';
@@ -166,7 +145,7 @@ export function PairingRequestModal({
             <div>
               <span className="muted">{isPending ? t('ai.matchingCode') : t('ai.oneTimeCode')}</span>
               <div className="code code-compact">{matchingCode}</div>
-              {!isPending && <div className="actions"><button type="button" className="button secondary" onClick={() => void copyCode()}>{t('ai.copyCode')}</button></div>}
+              {!isPending && <div className="actions"><ClipboardCopyButton value={matchingCode} className="button secondary" /></div>}
             </div>
           )}
           {ownerStatus !== null && (
@@ -182,17 +161,27 @@ export function PairingRequestModal({
               {ownerStatus.requestedLifecyclePermissions.length > 0 && <fieldset><legend>{t('ai.lifecyclePermissions')}</legend>{ownerStatus.requestedLifecyclePermissions.map((permission) => <label key={permission}><input type="checkbox" name="lifecycle" value={permission} defaultChecked /> {permission}</label>)}</fieldset>}
               <fieldset>
                 <legend>{t('ai.boards')}</legend>
-                <div className={styles.boardToolbar}>
-                  {onCreateBoard !== undefined && <button type="button" className="button secondary" disabled={busy || creatingBoard} onClick={() => void createBoard()}>{creatingBoard ? t('boards.creating') : `+ ${t('boards.new')}`}</button>}
+                <label className={styles.destinationChoice}>
+                  <input type="radio" name="destination" value="create" checked={destinationMode === 'create'} onChange={() => setDestinationMode('create')} />
+                  <span>{t('boards.new')}</span>
+                </label>
+                {destinationMode === 'create' && (
+                  <input className={styles.newBoardTitle} value={newBoardTitle} maxLength={200} aria-label={t('boards.new')} onChange={(event) => setNewBoardTitle(event.target.value)} />
+                )}
+                <label className={styles.destinationChoice}>
+                  <input type="radio" name="destination" value="existing" checked={destinationMode === 'existing'} onChange={() => setDestinationMode('existing')} />
+                  <span>{t('ai.selectBoards')}</span>
+                </label>
+                <div className={styles.boardToolbar} aria-disabled={destinationMode !== 'existing'}>
                   <div className={styles.picker}>
-                    <button type="button" className={styles.pickerButton} aria-expanded={pickerOpen} onClick={() => setPickerOpen((open) => !open)}>{selectedLabel}</button>
+                    <button type="button" className={styles.pickerButton} disabled={destinationMode !== 'existing'} aria-expanded={pickerOpen} onClick={() => setPickerOpen((open) => !open)}>{selectedLabel}</button>
                     {pickerOpen && (
                       <div className={styles.pickerMenu}>
                         <input className={styles.search} value={boardSearch} onChange={(event) => setBoardSearch(event.target.value)} placeholder={t('ai.searchBoards')} aria-label={t('ai.searchBoards')} autoFocus />
-                        <div className={styles.options} role="listbox" aria-multiselectable="true">
+                        <div className={styles.options} role="radiogroup">
                           {filteredBoards.length === 0 ? <p className={styles.noMatches}>{t('ai.noMatchingBoards')}</p> : filteredBoards.map((board) => (
-                            <label className={styles.option} role="option" aria-selected={selectedBoardIds.includes(board.boardId)} key={board.boardId}>
-                              <input type="checkbox" checked={selectedBoardIds.includes(board.boardId)} onChange={() => toggleBoard(board.boardId)} />
+                            <label className={styles.option} key={board.boardId}>
+                              <input type="radio" name="existingBoard" checked={selectedBoardId === board.boardId} onChange={() => { setSelectedBoardId(board.boardId); setPickerOpen(false); }} />
                               {board.title}
                             </label>
                           ))}
@@ -211,11 +200,11 @@ export function PairingRequestModal({
         <footer className={styles.actions}>
           {isPending && (
             <>
-              <button type="submit" form={formId} className="button" disabled={busy || creatingBoard || matchingCode === null || selectedBoardIds.length === 0}>{t('ai.approve')}</button>
-              <button type="button" className="button danger" disabled={busy || creatingBoard} onClick={onDeny}>{t('ai.deny')}</button>
+              <button type="submit" form={formId} className="button" disabled={busy || matchingCode === null}>{t('ai.approve')}</button>
+              <button type="button" className="button danger" disabled={busy} onClick={onDeny}>{t('ai.deny')}</button>
             </>
           )}
-          <button type="button" className="button danger" disabled={busy || creatingBoard} onClick={onCancel}>{t('ai.cancelCode')}</button>
+          <button type="button" className="button danger" disabled={busy} onClick={onCancel}>{t('ai.cancelCode')}</button>
         </footer>
       </section>
     </dialog>

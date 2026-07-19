@@ -1,6 +1,6 @@
 ---
 name: sceanboard
-description: Operate SceneBoard through its local MCP server or the bundled MCP-absent API fallback. Use for SceneBoard live visuals, layouts, charts, maps, drawings, sandboxed artifacts, HITL, history, pairing, connection diagnostics, and browser-visible board verification; trigger on explicit SceneBoard/sceneboard/sceanboard/legacy lc-board names or a request to place or operate content on the user's named SceneBoard or live AI board. Do not trigger on generic chalkboard, 칠판, board, screen, 화면, preview, or UI mentions.
+description: Operate SceneBoard through its local MCP server or the bundled MCP-absent API fallback. Use for SceneBoard live visuals, layouts, charts, maps, drawings, sandboxed artifacts, HITL, history, pairing, connection diagnostics, and browser-visible board verification; trigger on explicit SceneBoard/sceneboard/sceanboard/legacy lc-board names, a request to place or operate content on the user's named SceneBoard or live AI board, or a user message consisting only of an SB-prefixed SceneBoard pairing code. Do not trigger on generic chalkboard, 칠판, board, screen, 화면, preview, or UI mentions.
 ---
 
 # sceanboard — SceneBoard skill
@@ -20,18 +20,18 @@ Read [platform.md](references/platform.md) for implementation boundaries. The fa
 ## Prerequisites and target resolution
 
 1. Use a registered `leecat-board-mcp` connection when its descriptors are available. Otherwise resolve and use the installed skill's `scripts/sceneboard-api.mjs` from the open project root. Remote MCP transport is not a v1 fallback.
-2. Pair with the signed-in owner without exposing the long-lived credential in chat, tool content, logs, or config.
-3. Use a user-supplied `boardId`, or call `board_list`. If candidates remain ambiguous, ask. Never infer an active, first, or sole board.
-4. Call `board_connection_status` with `{boardId:null}` only for untargeted authentication diagnostics, or `{boardId:<id>}` for one explicit board. Null never selects a board.
+2. Pair with the signed-in owner without exposing the long-lived credential in chat, tool content, logs, or config. If the entire user message is one valid `SB-`-prefixed code, treat it as an explicit request to pair immediately. Request the ordered core working set `board.read`, `board.write`, plus lifecycle `board.create`; use client name `Codex SceneBoard` unless the active client has a more specific stable name. Do not request history, human-in-the-loop, artifact, archive, or other capabilities without task intent.
+3. Use a user-supplied `boardId`, or call `board_list`. If candidates remain ambiguous, ask. Never infer an active, first, or sole board. If the user explicitly asks to create a board, an empty `board_list` is a valid starting state: require approved `board.write` plus lifecycle `board.create`, call `board_create`, and use only its returned `boardId` for subsequent work.
+4. Call `board_connection_status` with `{boardId:null}` for untargeted authentication and zero-board diagnostics, or `{boardId:<id>}` for one explicit board. Null never selects a board.
 
 Do not probe the API fallback merely because an MCP call failed. Descriptor absence is the only fallback condition; never select API while SceneBoard MCP descriptors are available.
 
 ## Workflow
 
-1. Determine whether the intent is a full redraw, partial transform, artifact, HITL prompt, history action, or connection diagnostic.
-2. Resolve the exact board as above.
+1. Determine whether the intent is board creation, a full redraw, partial transform, artifact, HITL prompt, history action, or connection diagnostic.
+2. Resolve the exact board as above. For explicit board creation, create first and continue with the returned identifier; do not require a pre-existing board.
 3. Read `board_scene_get` before a partial mutation unless the live revision is already fresh. Carry its exact `expectedRevisionId` into the mutation.
-4. Prefer trusted recursive nodes. Use an artifact only when custom HTML/CSS/JavaScript, Canvas, SVG, WebGL, or a specialized visual is materially useful.
+4. Prefer trusted recursive nodes, native recipes, and native presets. Use an artifact only when the requested result materially needs custom expressiveness or behavior unavailable in trusted nodes.
 5. Supply an explicit `idempotencyKey` and observed head to every mutation. Do not invent IDs, results, events, or browser presence.
 6. On `REVISION_CONFLICT`, re-read and consciously decide whether to reapply the intent with a new key. Never auto-rebase or blind-retry.
 7. Report the exact returned board/action/revision or terminal state. Keep only machine-internal transport diagnostics concise; apply the human-readable delivery contract below to every error or state shown to a person. Persistence is not proof that a live display rendered it.
@@ -59,9 +59,19 @@ Treat every complete person-facing Scene, HITL request or response, approval pro
 - Use `board_scene_replace` for a complete redraw, `board_scene_patch` for an ordered local transform, and `board_scene_clear` for an intentional blank restorable head.
 - Model splits, grids, tabs, and free positioning with the recursive node tree. Stable conceptual identity is `NodeId`; there is no blocks map or `blockId` indirection.
 - The trusted node catalog is closed. Fold unsupported content into markdown/code/status/layout, or use an approved artifact.
-- Render flowcharts, ERDs, sequence diagrams, and architecture diagrams as sandboxed artifacts using the vendored fixed Mermaid bundle or agent-authored SVG/Canvas. Never request a CDN.
+- Keep ordinary architecture, flow, drawing, and canvas compositions native when trusted nodes, recipes, or presets represent them faithfully. Use vendored content-hashed Mermaid or authored SVG/Canvas artifacts only when materially required expressiveness or behavior is unavailable in trusted nodes. Never request a CDN.
 - Raster data is a `data:` URI consumed at runtime by artifact JavaScript through Canvas or a dynamically created image. Static `<img src="data:…">` is rejected by the sanitizer.
 - Never insert secrets, tokens, cookies, private environment values, or credential-bearing URLs.
+
+## Visual composition routing
+
+- Start with `scripts/scene-recipe.mjs`: trusted native recipes and the six presets cover markdown, code, table, chart, map, drawing, status, progress, split, grid, tabs, canvas, architecture, and ordinary flow compositions.
+- Escalate to `scripts/scene-artifact.mjs` only for materially necessary custom SVG, Canvas, HTML/CSS/JavaScript, animation, or specialized behavior that trusted nodes cannot express faithfully. A custom input format or extra decoration alone is not a reason to escalate.
+- Author one closed recipe, compile it deterministically, inspect the exact emitted JSON, then perform one full `board_scene_replace` or one bounded ordered `board_scene_patch`. Do not stream a composition as many fragmented mutations.
+- Preserve explicit board resolution, the freshly observed `expectedRevisionId`, a distinct explicit `idempotencyKey` for every mutation, and conscious `REVISION_CONFLICT` handling.
+- Artifact use is two-stage: compile and publish the immutable artifact version, then create and place a `content.artifact` node with the returned identifiers. Never place an unpublished draft or invent immutable identifiers.
+- If the artifact runtime is unavailable or cannot be verified, preserve the same information with native nodes where possible. When publication succeeds but browser rendering fails, report immutable persistence and rendering as separate outcomes.
+- Follow [visual-composer.md](references/visual-composer.md) for exact commands, catalogs, deterministic batching, publication/placement, accessibility, and motion. The MCP-first transport, human-readable delivery, artifact isolation, history, HITL, and browser-verification contracts above remain authoritative.
 
 ## History
 
@@ -89,6 +99,8 @@ Keep `wait.timeoutMs` in `[0,30000]`. Effective wait is `min(30000, remaining SD
 
 `board_artifact_remove` and `board_interaction_cancel` do not exist in v1. Artifact stop does not remove a scene reference.
 
+A zero-board connection is deliberately not wildcard access. It is valid only with `board.write` and lifecycle `board.create`; existing boards remain hidden, while each successful `board_create` is atomically bound to that same grant. Treat `board_archive` as recoverable deletion and request lifecycle `board.archive` only when the user explicitly asks to remove or archive a board.
+
 ## Safety and fallback
 
 - Principal/owner identity comes only from authentication, never a tool `userId`.
@@ -106,3 +118,4 @@ Keep `wait.timeoutMs` in `[0,30000]`. Effective wait is `min(30000, remaining SD
 - MCP-absent API adapter: [api-fallback.md](references/api-fallback.md)
 - Service/data ownership: [platform.md](references/platform.md)
 - Fail-closed behavior: [fallback.md](references/fallback.md)
+- Native recipes, visual presets, and artifact composition: [visual-composer.md](references/visual-composer.md)

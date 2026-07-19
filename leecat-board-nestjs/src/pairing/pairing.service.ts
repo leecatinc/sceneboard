@@ -137,7 +137,7 @@ export class PairingService {
           grantPublicId: parseGrantId(this.crypto.generatePublicIdV1()),
           approvedScopeMask: scopeMaskFromValues(request.approvedScopes),
           approvedLifecycleMask: lifecycleMaskFromValues(request.approvedLifecyclePermissions),
-          boardIds: request.boardIds,
+          destination: request.destination,
           lifetime: request.lifetime,
         });
       if (result.kind === 'decided') return result.status;

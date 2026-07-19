@@ -29,12 +29,13 @@ const crypto = new CryptoService({
 test('issues two independent Crockford halves and persists only locator/verifier HMACs', () => {
   const service = new PairingCodeService(crypto);
   const issued = service.issue();
-  assert.match(issued.code, /^[0-9A-HJKMNP-TV-Z]{6}-[0-9A-HJKMNP-TV-Z]{6}$/);
+  assert.match(issued.code, /^SB-[0-9A-HJKMNP-TV-Z]{6}-[0-9A-HJKMNP-TV-Z]{6}$/);
   assert.equal(issued.locatorHash.byteLength, 32);
   assert.equal(issued.verifierHash.byteLength, 32);
   assert.equal(issued.locatorHash.includes(Buffer.from(issued.code)), false);
   const parsed = service.parse(issued.code.toLowerCase());
   assert.equal(service.verify(parsed, issued.locatorHash, issued.verifierHash), true);
+  assert.deepEqual(service.parse(issued.code.slice(3)), parsed);
   for (const invalid of ['AAAAAA-AAAAAI', 'AAAAAA_AAAAAA', 'AAAAAAAAAAAA', 'OOOOOO-000000']) {
     assert.throws(() => service.parse(invalid), (error) => error instanceof AppError && error.code === 'PAIRING_UNAVAILABLE');
   }
@@ -53,14 +54,14 @@ test('maps the seven D1 scopes and two lifecycle permissions without unknown bit
 test('parses exact claim and decision DTOs without echoing proof or installation secrets', () => {
   const proofChallenge = Buffer.alloc(32, 1).toString('base64url');
   assert.deepEqual(parsePairingClaim({
-    code: '000000-000001',
+    code: 'sb-000000-000001',
     installationId: 'codex.local.installation-1',
     clientName: 'Codex local MCP',
     requestedScopes: ['board.read', 'board.write'],
     requestedLifecyclePermissions: ['board.create'],
     clientProofChallenge: proofChallenge,
   }), {
-    code: '000000-000001',
+    code: 'SB-000000-000001',
     installationId: 'codex.local.installation-1',
     clientName: 'Codex local MCP',
     requestedScopes: ['board.read', 'board.write'],
@@ -69,6 +70,50 @@ test('parses exact claim and decision DTOs without echoing proof or installation
   });
   assert.deepEqual(parsePairingDecision({ decision: 'deny' }), { decision: 'deny' });
   assert.throws(() => parsePairingDecision({ decision: 'deny', boardIds: [] }), (error) => error instanceof AppError && error.code === 'INVALID_PAYLOAD');
+  assert.deepEqual(parsePairingDecision({
+    decision: 'approve',
+    approvedScopes: ['board.write'],
+    approvedLifecyclePermissions: ['board.create'],
+    destination: { mode: 'create', title: '새 보드' },
+    lifetime: 'session',
+  }), {
+    decision: 'approve',
+    approvedScopes: ['board.write'],
+    approvedLifecyclePermissions: ['board.create'],
+    destination: { mode: 'create', title: '새 보드' },
+    lifetime: 'session',
+  });
+  assert.deepEqual(parsePairingDecision({
+    decision: 'approve',
+    approvedScopes: ['board.read'],
+    approvedLifecyclePermissions: [],
+    destination: { mode: 'existing', boardId: 'board_1' },
+    lifetime: 'persistent',
+  }), {
+    decision: 'approve',
+    approvedScopes: ['board.read'],
+    approvedLifecyclePermissions: [],
+    destination: { mode: 'existing', boardId: 'board_1' },
+    lifetime: 'persistent',
+  });
+  assert.throws(() => parsePairingDecision({
+    decision: 'approve',
+    approvedScopes: ['board.write'],
+    approvedLifecyclePermissions: ['board.create'],
+    destination: { mode: 'create', title: '' },
+    lifetime: 'session',
+  }), (error) => error instanceof AppError && error.code === 'INVALID_PAYLOAD');
+  for (const invalid of [
+    { approvedScopes: ['board.read'], approvedLifecyclePermissions: ['board.create'] },
+    { approvedScopes: ['board.write'], approvedLifecyclePermissions: [] },
+  ]) {
+    assert.throws(() => parsePairingDecision({
+      decision: 'approve',
+      destination: { mode: 'deferred' },
+      lifetime: 'session',
+      ...invalid,
+    }), (error) => error instanceof AppError && error.code === 'PAIRING_SCOPE_INVALID');
+  }
 });
 
 test('issues purpose-separated opaque grant credentials and stores only a digest', () => {

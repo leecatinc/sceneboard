@@ -44,8 +44,8 @@ const expectedGroups = new Map([
   ['D1-SCHEMA-ROOT', 24], ['D1-FACADES', 3], ['D1-CORPUS', 182], ['D2-AUTHZ', 8],
   ['D2-HTTP-CONFIG', 4], ['D3-PUBLISHER', 2], ['D3-PERSISTENCE', 10],
   ['D3-BOARD-SEAMS', 17], ['D4-SEAMS', 10],
-  ['D2-D5-D7-D8-BROWSER-PUBLISHERS', 9], ['D5-BROWSER-API-SEAMS', 20],
-  ['D5-UI-ROUTES', 11], ['D6-MCP-SDK', 10], ['D6-INSTALLED-SKILL', 12],
+  ['D2-D5-D7-D8-BROWSER-PUBLISHERS', 9], ['D5-BROWSER-API-SEAMS', 22],
+  ['D5-UI-ROUTES', 11], ['D6-MCP-SDK', 10], ['D6-INSTALLED-SKILL', 30],
   ['D7-ARTIFACT-SEAM', 7], ['D8-HITL-SEAM', 6],
   ['MIGRATION-REGISTRY-ASSETS', 19], ['D2-MIGRATION-RUNNER', 5], ['RUNTIME-TOPOLOGY', 3],
   ['DEPENDENCY-EVIDENCE', 11], ['SCHEMA-MODEL-EVIDENCE', 6],
@@ -342,12 +342,12 @@ const validatePublishers = async (observedById) => {
     publisherValues.push(publisher.value);
   }
   const browser = publishers.filter(({ owner }) => owner !== 'D3');
-  if (browser.reduce((count, publisher) => count + publisher.selectorCount, 0) !== 20) fail('CONTRACT_OWNER_PUBLISHER_STALE');
+  if (browser.reduce((count, publisher) => count + publisher.selectorCount, 0) !== 22) fail('CONTRACT_OWNER_PUBLISHER_STALE');
   const browserNames = (await Promise.all(descriptors.slice(0, 4).map(async ([, path]) => (await parsePublisher(path)).value)))
     .flatMap(({ selectors }) => selectors.map(({ memberName }) => memberName));
   equal(browserNames, [
     'listActivePairings', 'listGrants', 'createPairing', 'decidePairing', 'cancelPairing', 'revokeGrant', 'rotateGrant',
-    'listBoards', 'createBoard', 'getBoard', 'listHistory', 'getHistoryRevision',
+    'listBoards', 'createBoard', 'getBoard', 'archiveBoard', 'renameBoard', 'listHistory', 'getHistoryRevision',
     'getArtifact', 'getArtifactPackage', 'requestArtifactNetworkFetch',
     'requestInteraction', 'respondToInteraction', 'readInteraction', 'cancelInteraction', 'supersedeInteraction',
   ], 'CONTRACT_OWNER_PUBLISHER_STALE');

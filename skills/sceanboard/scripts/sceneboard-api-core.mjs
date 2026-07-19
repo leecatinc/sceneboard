@@ -15,7 +15,7 @@ const GLOBAL_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 const LOCAL_ID_PATTERN = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
 const IDEMPOTENCY_PATTERN = /^[A-Za-z0-9._:-]{16,128}$/;
 const CURSOR_PATTERN = /^[A-Za-z0-9_-]{1,512}$/;
-const PAIRING_CODE_PATTERN = /^[0-9A-HJKMNP-TV-Z]{6}-[0-9A-HJKMNP-TV-Z]{6}$/i;
+const PAIRING_CODE_PATTERN = /^(?:SB-)?[0-9A-HJKMNP-TV-Z]{6}-[0-9A-HJKMNP-TV-Z]{6}$/i;
 const TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const SEMVER_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/u;
 const PROOF_PATTERN = /^[A-Za-z0-9_-]{43}$/;
@@ -728,7 +728,7 @@ const projectBoardErrorDetails = (code, value) => {
       ? { scope: value.scope, actualBytes: value.actualBytes, maximumBytes: value.maximumBytes } : undefined;
   }
   if (code === 'CAPABILITY_DENIED') {
-    return hasExactKeys(value, ['capability']) && [...SCOPES, ...ARTIFACT_CAPABILITIES].includes(value.capability)
+    return hasExactKeys(value, ['capability']) && [...GRANT_SCOPES, ...ARTIFACT_CAPABILITIES].includes(value.capability)
       ? { capability: value.capability } : undefined;
   }
   if (code === 'REVISION_NOT_FOUND') return hasExactKeys(value, ['revisionId']) && validGlobalId(value.revisionId) ? { revisionId: value.revisionId } : undefined;
@@ -890,7 +890,9 @@ const parseConnection = (value, boardId) => {
     || !validGlobalId(client.clientId) || !validClientName(client.clientName)
     || typeof client.installationFingerprint !== 'string' || !/^[A-Za-z0-9_-]{16}$/u.test(client.installationFingerprint)
     || scopes === null || lifecyclePermissions === null || !Array.isArray(grant.boardIds)
-    || grant.boardIds.length < 1 || grant.boardIds.length > 50 || grant.boardIds.some((id) => !validGlobalId(id))
+    || grant.boardIds.length > 50
+    || (grant.boardIds.length === 0 && (!scopes.includes('board.write') || !lifecyclePermissions.includes('board.create')))
+    || grant.boardIds.some((id) => !validGlobalId(id))
     || new Set(grant.boardIds).size !== grant.boardIds.length || !['session', 'persistent'].includes(grant.lifetime)
     || grant.status !== 'active' || !validTimestamp(grant.activatedAt) || !validTimestamp(grant.expiresAt)
     || typeof versions.mcpServer !== 'string' || !SEMVER_PATTERN.test(versions.mcpServer)
@@ -1755,15 +1757,17 @@ export const parsePairingStatus = (value, pairingId) => {
 };
 
 const parseRedeemedGrant = (grant) => {
+  const scopes = exactCatalog(grant?.scopes, GRANT_SCOPES, 1);
+  const lifecyclePermissions = exactCatalog(grant?.lifecyclePermissions, LIFECYCLE_PERMISSIONS);
   if (!hasExactKeys(grant, ['grantId', 'client', 'scopes', 'lifecyclePermissions', 'boardIds', 'lifetime', 'status', 'createdAt', 'activatedAt', 'lastUsedAt', 'expiresAt', 'revokedAt'])
     || !hasExactKeys(grant.client, ['clientId', 'clientName', 'installationFingerprint'])
     || typeof grant.grantId !== 'string' || !GLOBAL_ID_PATTERN.test(grant.grantId)
     || typeof grant.client.clientId !== 'string' || !GLOBAL_ID_PATTERN.test(grant.client.clientId)
     || !validClientName(grant.client.clientName)
     || typeof grant.client.installationFingerprint !== 'string' || !/^[A-Za-z0-9_-]{16}$/u.test(grant.client.installationFingerprint)
-    || exactCatalog(grant.scopes, GRANT_SCOPES, 1) === null
-    || exactCatalog(grant.lifecyclePermissions, LIFECYCLE_PERMISSIONS) === null
-    || !Array.isArray(grant.boardIds) || grant.boardIds.length < 1 || grant.boardIds.length > 50
+    || scopes === null || lifecyclePermissions === null
+    || !Array.isArray(grant.boardIds) || grant.boardIds.length > 50
+    || (grant.boardIds.length === 0 && (!scopes.includes('board.write') || !lifecyclePermissions.includes('board.create')))
     || grant.boardIds.some((id) => typeof id !== 'string' || !GLOBAL_ID_PATTERN.test(id))
     || new Set(grant.boardIds).size !== grant.boardIds.length
     || !['session', 'persistent'].includes(grant.lifetime) || grant.status !== 'active'

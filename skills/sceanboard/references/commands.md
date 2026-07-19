@@ -4,7 +4,7 @@ Prefer tools returned by MCP discovery. Before authentication exactly the three 
 
 ## Shared rules
 
-- Every board-scoped call requires an explicit `boardId`.
+- Every board-scoped call requires an explicit `boardId`. `board_list`, `board_connection_status` with a null target, and `board_create` are the only pre-board operations. After creation, use the exact returned `boardId`.
 - Every mutation requires `expectedRevisionId` and an explicit 16-128 character `idempotencyKey`, except board create/archive use their frozen lifecycle shapes. Identical semantic retry reuses the entire request; a conscious rebase uses a new key.
 - Mutation outputs are exact D1 `MutationResultV1` envelopes. Reads are exact `BoardOperationResultV1` envelopes. The MCP tool wrapper or fallback JSON wrapper `requestId` equals the nested result request ID. MCP non-history metadata is `null`; the API HTTP/fallback envelope uses `{history:null}`, while local patch wrapper metadata records the scene transform.
 - There is no `historyMode`, `commitLabel`, clear message, implicit board selection, or auto-generated mutation key.
@@ -14,7 +14,7 @@ Prefer tools returned by MCP discovery. Before authentication exactly the three 
 | Tool | Exact important input | Exact success |
 |---|---|---|
 | `board_connection_status` | `{boardId:null\|<id>}` | Redacted connection state; null authenticates without selecting a board. |
-| `board_pair_request` | `{code,clientName,requestedScopes,requestedLifecyclePermissions}` | Secret-free claimed pairing projection. |
+| `board_pair_request` | `{code,clientName,requestedScopes,requestedLifecyclePermissions}` | Secret-free claimed pairing projection. New human codes use the `SB-` prefix before the two code groups; an already-issued legacy unprefixed body remains accepted until expiry. |
 | `board_pair_status` | `{pairingId,waitTimeoutMs}` | Secret-free pending/approved/denied/cancelled/expired/redeemed projection. |
 | `board_list` | `{cursor,limit,includeArchived}` | `board.list` |
 | `board_get` | `{boardId}` | `board.get` |

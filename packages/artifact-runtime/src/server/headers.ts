@@ -2,7 +2,7 @@ import { buildRunnerContentSecurityPolicyV1 } from '../policy/csp.js';
 
 export type RuntimeHeadersV1 = Readonly<Record<string, string>>;
 
-const PERMISSIONS_POLICY = 'accelerometer=(), autoplay=(), camera=(), clipboard-read=(), clipboard-write=(), display-capture=(), fullscreen=(), geolocation=(), gyroscope=(), microphone=(), payment=(), publickey-credentials-get=(), storage-access=(), usb=(), web-share=()';
+const PERMISSIONS_POLICY = 'accelerometer=(), autoplay=(), camera=(), clipboard-read=(), clipboard-write=(), display-capture=(), fullscreen=(), geolocation=(), gyroscope=(), microphone=(), payment=(), publickey-credentials-get=(), storage-access=(), usb=()';
 
 export const buildRunnerHeadersV1 = (input: {
   appOrigin: string;
@@ -26,12 +26,14 @@ export const buildFixedAssetHeadersV1 = (): RuntimeHeadersV1 => Object.freeze({
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'no-referrer',
   'Cross-Origin-Resource-Policy': 'cross-origin',
+  'Origin-Agent-Cluster': '?1',
 });
 
 export const buildHealthHeadersV1 = (): RuntimeHeadersV1 => Object.freeze({
   'Content-Type': 'text/plain',
   'Cache-Control': 'no-store',
   'X-Content-Type-Options': 'nosniff',
+  'Origin-Agent-Cluster': '?1',
 });
 
 const FORBIDDEN = new Set([

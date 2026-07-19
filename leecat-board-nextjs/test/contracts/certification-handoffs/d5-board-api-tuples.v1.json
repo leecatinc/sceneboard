@@ -7,6 +7,8 @@
     "D5-BOARD-LIST",
     "D5-BOARD-CREATE",
     "D5-BOARD-GET",
+    "D5-BOARD-ARCHIVE",
+    "D5-BOARD-RENAME",
     "D5-HISTORY-LIST",
     "D5-HISTORY-GET"
   ],
@@ -42,6 +44,26 @@
       "contractId": "D5-BOARD-GET"
     },
     {
+      "projectionId": "D5-BOARD-ARCHIVE-SELECTOR",
+      "exportName": "BoardApiClient",
+      "exportKind": "class",
+      "memberName": "archiveBoard",
+      "memberKind": "method",
+      "signature": "async archiveBoard( input: { boardId: string; requestId: RequestId; idempotencyKey: IdempotencyKey; signal?: AbortSignal; }, ): Promise<ApiResult<BoardArchiveResult>>",
+      "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=archiveBoard]",
+      "contractId": "D5-BOARD-ARCHIVE"
+    },
+    {
+      "projectionId": "D5-BOARD-RENAME-SELECTOR",
+      "exportName": "BoardApiClient",
+      "exportKind": "class",
+      "memberName": "renameBoard",
+      "memberKind": "method",
+      "signature": "async renameBoard( boardIdValue: string, titleValue: string, signal?: AbortSignal, ): Promise<ApiResult<BoardRenameResult>>",
+      "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=renameBoard]",
+      "contractId": "D5-BOARD-RENAME"
+    },
+    {
       "projectionId": "D5-HISTORY-LIST-SELECTOR",
       "exportName": "BoardApiClient",
       "exportKind": "class",
@@ -62,5 +84,5 @@
       "contractId": "D5-HISTORY-GET"
     }
   ],
-  "tupleListSha256": "880654130ecdf6bdda94e1680b970c3c6aae2dbb491fe228781dd231803c73f0"
+  "tupleListSha256": "7aa7c91b396b61a2300f7a07f225095273c0ec32787f09df4fc8e38ba653c53b"
 }

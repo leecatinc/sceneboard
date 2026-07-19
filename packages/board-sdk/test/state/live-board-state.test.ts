@@ -1,10 +1,16 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { BoardSnapshotParserV1, type BoardSnapshotV1, type RevisionId } from '@leecat-board/board-schema';
+import {
+  BoardEventEnvelopeParserV1,
+  BoardSnapshotParserV1,
+  type BoardSnapshotV1,
+  type RevisionId,
+} from '@leecat-board/board-schema';
 
 import { RequestEpochV1 } from '../../src/client/index.js';
 import {
+  applyDurableEventV1,
   createLiveBoardStateV1,
   enterHistoryV1,
   hasLiveUpdateV1,
@@ -15,6 +21,12 @@ import {
 const parsed = BoardSnapshotParserV1.parse(JSON.parse(readFileSync(new URL('../../../board-schema/test/fixtures/valid/snapshot-board.v1.json', import.meta.url), 'utf8')));
 if (!parsed.ok) throw new TypeError('snapshot fixture is invalid');
 const first = parsed.data.value;
+
+const artifactEventParsed = BoardEventEnvelopeParserV1.parse(JSON.parse(readFileSync(new URL('../../../board-schema/test/fixtures/valid/event-artifact-status-changed.v1.json', import.meta.url), 'utf8')));
+if (!artifactEventParsed.ok) throw new TypeError('artifact event fixture is invalid');
+const parsedArtifactEvent = artifactEventParsed.data.value;
+if (parsedArtifactEvent.data.type !== 'artifact.status.changed') throw new TypeError('artifact event fixture is invalid');
+const artifactEvent = { ...parsedArtifactEvent, data: parsedArtifactEvent.data };
 
 const revision = (source: BoardSnapshotV1, id: string, number: number): BoardSnapshotV1 => ({
   ...source,
@@ -53,4 +65,10 @@ test('request epoch rejects late work after navigation and close', () => {
   const latest = epoch.capture();
   epoch.close();
   assert.equal(epoch.isCurrent(latest), false);
+});
+
+test('artifact status arriving before scene placement is admitted into live state', () => {
+  const state = applyDurableEventV1(createLiveBoardStateV1(first), artifactEvent);
+
+  assert.deepEqual(state.liveSnapshot.artifacts, [artifactEvent.data.artifact]);
 });

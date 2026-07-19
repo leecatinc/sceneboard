@@ -11,7 +11,7 @@ const LifecycleSchema = z.enum(['board.create', 'board.archive']);
 
 export const ConnectionStatusInputSchemaV1 = z.object({ boardId: GlobalIdSchemaV1.nullable() }).strict();
 export const PairRequestInputSchemaV1 = z.object({
-  code: z.string().regex(/^[0-9A-HJKMNP-TV-Z]{6}-[0-9A-HJKMNP-TV-Z]{6}$/i),
+  code: z.string().regex(/^(?:SB-)?[0-9A-HJKMNP-TV-Z]{6}-[0-9A-HJKMNP-TV-Z]{6}$/i),
   clientName: ShortTextSchemaV1,
   requestedScopes: z.array(ScopeSchema).min(1).max(7),
   requestedLifecyclePermissions: z.array(LifecycleSchema).max(2),

@@ -1,0 +1,8 @@
+{
+  "recipeVersion":1,
+  "root":{"kind":"exact-node","node":{"id":"roadmapRoot","type":"layout.split","title":"Roadmap status","direction":"vertical","gap":12,"children":[
+    {"weight":1,"node":{"id":"roadmapOverview","type":"content.markdown","title":"Overview","markdown":"# Roadmap\n\nSummarize the outcome, current phase, and next decision."}},
+    {"weight":1,"node":{"id":"roadmapProgress","type":"content.progress","title":"Progress","state":"active","value":0.5,"label":"Current phase","detail":"Replace with the observed progress."}},
+    {"weight":1,"node":{"id":"roadmapHealth","type":"content.status","title":"Health","status":"info","label":"Needs review","detail":"List the evidence and risks that need attention."}}
+  ]}}
+}

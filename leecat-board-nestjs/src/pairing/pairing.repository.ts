@@ -7,7 +7,13 @@ import { withTransaction } from '../database/transaction.js';
 import type { PairingId } from '../common/ids/public-id.js';
 import type { ClientId } from '../common/ids/public-id.js';
 import { CryptoService } from '../common/security/crypto.service.js';
-import { BoardIdParserV1, type BoardId } from '@leecat-board/board-schema';
+import {
+  BoardIdParserV1,
+  BoardOperationRequestParserV1,
+  normalizeActorContextV1,
+  type BoardId,
+  type ShortText,
+} from '@leecat-board/board-schema';
 import { parseClientId, type GrantId } from '../common/ids/public-id.js';
 import { parseGrantId } from '../common/ids/public-id.js';
 import {
@@ -20,6 +26,13 @@ import {
   type PairingClientStatus,
 } from './pairing-client.status.js';
 import { buildGrantSummary, type GrantSummary } from '../grants/grant.status.js';
+import { lifecycleValuesFromMask, scopeValuesFromMask } from '../grants/scope-map.js';
+import {
+  BoardCreateIdentifierCollisionError,
+  BoardCreateService,
+  type BoardCreateRequestV1,
+} from '../boards/board-create.service.js';
+import type { AuthorizedBoardContextV1 } from '../grants/board-access.policy.js';
 
 export interface CreatePairingPersistenceInput {
   publicId: PairingId;
@@ -73,7 +86,10 @@ export type DecidePairingPersistenceInput = {
     grantPublicId: GrantId;
     approvedScopeMask: number;
     approvedLifecycleMask: number;
-    boardIds: BoardId[];
+    destination:
+      | { mode: 'create'; title: ShortText }
+      | { mode: 'existing'; boardId: BoardId }
+      | { mode: 'deferred' };
     lifetime: 'session' | 'persistent';
   }
 );
@@ -166,6 +182,7 @@ export class PairingRepository {
     @Inject(MysqlService) private readonly mysql: MysqlService,
     @Inject(AuditRepository) private readonly audit: AuditRepository,
     @Inject(CryptoService) private readonly crypto: CryptoService,
+    @Inject(BoardCreateService) private readonly boardCreate: BoardCreateService,
   ) {}
 
   async create(input: CreatePairingPersistenceInput): Promise<CreatePairingPersistenceResult> {
@@ -474,7 +491,7 @@ export class PairingRepository {
           });
           return {
             kind: 'decided' as const,
-            status: this.decisionStatus(row, input, null, null, null, 5),
+            status: this.decisionStatus(row, input, null, null, null, 5, null),
           };
         }
 
@@ -482,17 +499,36 @@ export class PairingRepository {
           (input.approvedScopeMask & row.requestedScopeMask) !== input.approvedScopeMask
           || (input.approvedLifecycleMask & row.requestedLifecycleMask) !== input.approvedLifecycleMask
         ) return { kind: 'scope_invalid' as const };
-        const [boardRows] = await connection.execute<Array<RowDataPacket & { publicId: BoardId }>>(`
-          SELECT public_id AS publicId
-          FROM boards
-          WHERE owner_user_id = ? AND public_id IN (${input.boardIds.map(() => '?').join(', ')})
-          ORDER BY public_id
-          FOR UPDATE
-        `, [input.ownerUserDatabaseId, ...input.boardIds]);
-        if (
-          boardRows.length !== input.boardIds.length
-          || boardRows.some((board, index) => board.publicId !== input.boardIds[index])
+        const approvedScopes = scopeValuesFromMask(input.approvedScopeMask);
+        const approvedLifecyclePermissions = lifecycleValuesFromMask(input.approvedLifecycleMask);
+        if ((input.destination.mode === 'create' || input.destination.mode === 'deferred')
+          && (!approvedScopes.includes('board.write') || !approvedLifecyclePermissions.includes('board.create'))
         ) return { kind: 'scope_invalid' as const };
+
+        let boardIds: BoardId[];
+        if (input.destination.mode === 'existing') {
+          const [boardRows] = await connection.execute<Array<RowDataPacket & { publicId: BoardId }>>(`
+            SELECT public_id AS publicId
+            FROM boards
+            WHERE owner_user_id = ? AND public_id = ?
+            FOR UPDATE
+          `, [input.ownerUserDatabaseId, input.destination.boardId]);
+          if (boardRows.length !== 1 || boardRows[0]?.publicId !== input.destination.boardId) {
+            return { kind: 'scope_invalid' as const };
+          }
+          boardIds = [input.destination.boardId];
+        } else if (input.destination.mode === 'create') {
+          const context = this.ownerBoardCreateContext(input.ownerUserDatabaseId, input.ownerUserPublicId);
+          const created = await this.boardCreate.createInTransaction({
+            connection,
+            context,
+            request: this.pairingBoardCreateRequest(input.pairingId, input.destination.title),
+          });
+          if (created.result.type !== 'board.create') throw new Error('pairing board create returned an invalid result');
+          boardIds = [created.result.board.boardId];
+        } else {
+          boardIds = [];
+        }
 
         const absoluteExpiresAt = mysqlTimestampToMillis(approvingSession.absoluteExpiresAt);
         const grantExpiresAt = input.lifetime === 'session'
@@ -524,7 +560,7 @@ export class PairingRepository {
           if (isDuplicateKey(error)) throw new PairingCollisionError('grant identifier collision');
           throw error;
         }
-        for (const boardId of input.boardIds) {
+        for (const boardId of boardIds) {
           await connection.execute(
             'INSERT INTO mcp_grant_boards (grant_id, board_public_id, created_at) VALUES (?, ?, ?)',
             [grantDatabaseId, boardId, new Date(input.now)],
@@ -586,11 +622,14 @@ export class PairingRepository {
             input.approvedLifecycleMask,
             redeemExpiresAt,
             3,
+            boardIds,
           ),
         };
       }));
     } catch (error) {
-      if (error instanceof PairingCollisionError) return { kind: 'collision' };
+      if (error instanceof PairingCollisionError || error instanceof BoardCreateIdentifierCollisionError) {
+        return { kind: 'collision' };
+      }
       return { kind: 'service_unavailable' };
     }
   }
@@ -1254,6 +1293,7 @@ export class PairingRepository {
     approvedLifecycleMask: number | null,
     redeemExpiresAt: number | null,
     state: 3 | 5,
+    boardIds: BoardId[] | null,
   ): PairingOwnerStatus {
     return buildPairingOwnerStatus({
       pairingId: row.publicId,
@@ -1271,10 +1311,45 @@ export class PairingRepository {
       requestedLifecycleMask: row.requestedLifecycleMask,
       approvedScopeMask,
       approvedLifecycleMask,
-      boardIds: input.decision === 'approve' ? input.boardIds : null,
+      boardIds,
       lifetime: input.decision === 'approve' ? input.lifetime === 'session' ? 1 : 2 : null,
       decidedAt: input.now,
     }, this.crypto);
+  }
+
+  private ownerBoardCreateContext(ownerUserDatabaseId: string, ownerUserPublicId: string): AuthorizedBoardContextV1 {
+    const actor = normalizeActorContextV1({
+      principalKind: 'user',
+      principalId: ownerUserPublicId,
+      grantId: null,
+      scopes: scopeValuesFromMask(127),
+    });
+    if (!actor.ok) throw new Error('owner actor context is invalid');
+    const ownerUserPk = BigInt(ownerUserDatabaseId);
+    return {
+      actor: actor.data.value,
+      ownerUserPk,
+      access: { kind: 'owner', ownerUserPk },
+      createBinding: null,
+      artifactCapabilityPolicy: {
+        allowedArtifactRequestCapabilities: [],
+        policyEpoch: Buffer.alloc(16).toString('base64url'),
+      },
+    };
+  }
+
+  private pairingBoardCreateRequest(pairingId: PairingId, title: ShortText): BoardCreateRequestV1 {
+    const parsed = BoardOperationRequestParserV1.parse({
+      protocolVersion: 1,
+      requestId: `pairing_${pairingId}`,
+      type: 'board.create',
+      idempotencyKey: `pairing-board-create:${pairingId}`,
+      title,
+    });
+    if (!parsed.ok || parsed.data.value.type !== 'board.create') {
+      throw new Error('pairing board create request is invalid');
+    }
+    return parsed.data.value as BoardCreateRequestV1;
   }
 
   private async upsertClient(

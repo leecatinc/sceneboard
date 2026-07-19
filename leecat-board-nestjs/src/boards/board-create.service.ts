@@ -82,10 +82,10 @@ interface CreateReplayRelationRow extends RowDataPacket {
 
 type CreateCollisionKind = 'board' | 'revision' | 'event' | 'record';
 
-class CreateIdentifierCollisionError extends Error {
+export class BoardCreateIdentifierCollisionError extends Error {
   constructor(readonly kind: CreateCollisionKind) {
     super(`create identifier collision: ${kind}`);
-    this.name = 'CreateIdentifierCollisionError';
+    this.name = 'BoardCreateIdentifierCollisionError';
   }
 }
 
@@ -181,7 +181,7 @@ export class BoardCreateService {
     principal: ResolvedBoardPrincipalV1;
     request: BoardCreateRequestV1;
   }): Promise<BoardOperationResultV1> {
-    let prepared = await this.prepare(input);
+    let prepared = await this.prepare({ actor: input.principal.actor, request: input.request });
     for (let collisionCount = 0; collisionCount <= 3; collisionCount += 1) {
       try {
         return await this.accessPolicy.withAuthorizedBoardTransaction({
@@ -191,12 +191,21 @@ export class BoardCreateService {
           isolation: 'READ_COMMITTED_WRITE',
         }, async (connection, context) => this.insertNewCreate(connection, context, input.request, prepared));
       } catch (error) {
-        if (!(error instanceof CreateIdentifierCollisionError)) throw error;
+        if (!(error instanceof BoardCreateIdentifierCollisionError)) throw error;
         if (collisionCount === 3) throw internalFailure();
         prepared = this.regenerateCollision(prepared, error.kind);
       }
     }
     throw internalFailure();
+  }
+
+  async createInTransaction(input: {
+    connection: PoolConnection;
+    context: AuthorizedBoardContextV1;
+    request: BoardCreateRequestV1;
+  }): Promise<BoardOperationResultV1> {
+    const prepared = await this.prepare({ actor: input.context.actor, request: input.request });
+    return this.insertNewCreate(input.connection, input.context, input.request, prepared);
   }
 
   private regenerateCollision(prepared: PreparedCreateV1, kind: CreateCollisionKind): PreparedCreateV1 {
@@ -209,23 +218,23 @@ export class BoardCreateService {
   }
 
   private async prepare(input: {
-    principal: ResolvedBoardPrincipalV1;
+    actor: ResolvedBoardPrincipalV1['actor'];
     request: BoardCreateRequestV1;
   }): Promise<PreparedCreateV1> {
     const fingerprint = buildBoardOperationFingerprintV1({
       protocolVersion: 1,
       type: 'board.operation.envelope',
       request: input.request,
-      actor: input.principal.actor,
+      actor: input.actor,
     });
     if (!fingerprint.ok) throw new BoardContractError(fingerprint.error);
     const fingerprintPayload = Buffer.from(fingerprint.data.canonicalBytes);
-    const actorScopesPayload = canonicalBytes(input.principal.actor.scopes);
+    const actorScopesPayload = canonicalBytes(input.actor.scopes);
     const commandPayload = canonicalBytes({ title: input.request.title });
     const idempotencyScope = canonicalBytes({
       scope: 'board.create',
-      principalKind: input.principal.actor.principalKind,
-      principalId: input.principal.actor.principalId,
+      principalKind: input.actor.principalKind,
+      principalId: input.actor.principalId,
       idempotencyKey: input.request.idempotencyKey,
     });
     const now = this.runtime.now();
@@ -310,7 +319,7 @@ export class BoardCreateService {
         prepared.occurredAtSql,
       ]);
     } catch (error) {
-      if (isNamedDuplicate(error, 'uq_boards_public_id')) throw new CreateIdentifierCollisionError('board');
+      if (isNamedDuplicate(error, 'uq_boards_public_id')) throw new BoardCreateIdentifierCollisionError('board');
       throw error;
     }
     const boardPk = insertedPk(boardInsert);
@@ -346,7 +355,7 @@ export class BoardCreateService {
       ]);
     } catch (error) {
       if (isNamedDuplicate(error, 'uq_revisions_revision_id')) {
-        throw new CreateIdentifierCollisionError('revision');
+        throw new BoardCreateIdentifierCollisionError('revision');
       }
       throw error;
     }
@@ -400,7 +409,7 @@ export class BoardCreateService {
         prepared.occurredAtSql,
       ]);
     } catch (error) {
-      if (isNamedDuplicate(error, 'uq_outbox_event_id')) throw new CreateIdentifierCollisionError('event');
+      if (isNamedDuplicate(error, 'uq_outbox_event_id')) throw new BoardCreateIdentifierCollisionError('event');
       throw error;
     }
     insertedPk(eventInsert);
@@ -496,7 +505,7 @@ export class BoardCreateService {
       FOR UPDATE
     `, [actorKindCode(context.actor.principalKind), context.actor.principalId, request.idempotencyKey]);
     const row = rows[0];
-    if (rows.length === 0) throw new CreateIdentifierCollisionError('record');
+    if (rows.length === 0) throw new BoardCreateIdentifierCollisionError('record');
     if (rows.length !== 1 || row === undefined || row.operationType !== 'board.create') throw internalFailure();
     if (!digestEquals(row.fingerprintSha256, prepared.fingerprintSha256)) {
       if (row.actorGrantId !== context.actor.grantId) throw idempotencyReuse('grant_changed');

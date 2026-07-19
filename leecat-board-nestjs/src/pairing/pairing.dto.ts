@@ -1,7 +1,9 @@
 import {
   BoardIdParserV1,
+  ShortTextParserV1,
   type BoardId,
   type ClientGrantCapabilityV1,
+  type ShortText,
 } from '@leecat-board/board-schema';
 
 import { AppError } from '../common/errors/app-error.js';
@@ -29,7 +31,10 @@ export type PairingDecisionRequest =
     decision: 'approve';
     approvedScopes: ClientGrantCapabilityV1[];
     approvedLifecyclePermissions: LifecyclePermission[];
-    boardIds: BoardId[];
+    destination:
+      | { mode: 'create'; title: ShortText }
+      | { mode: 'existing'; boardId: BoardId }
+      | { mode: 'deferred' };
     lifetime: 'session' | 'persistent';
   };
 
@@ -87,7 +92,7 @@ const parseClientName = (value: unknown): string => {
 export const parsePairingClaim = (value: unknown): PairingClaimRequest => {
   const keys = ['code', 'installationId', 'clientName', 'requestedScopes', 'requestedLifecyclePermissions', 'clientProofChallenge'];
   if (!isRecord(value) || !exactKeys(value, keys)) throw new AppError('INVALID_PAYLOAD');
-  if (typeof value.code !== 'string' || !/^[0-9A-HJKMNP-TV-Z]{6}-[0-9A-HJKMNP-TV-Z]{6}$/i.test(value.code)) {
+  if (typeof value.code !== 'string' || !/^(?:SB-)?[0-9A-HJKMNP-TV-Z]{6}-[0-9A-HJKMNP-TV-Z]{6}$/i.test(value.code)) {
     throw new AppError('INVALID_PAYLOAD');
   }
   if (typeof value.installationId !== 'string' || !/^[A-Za-z0-9._:-]{16,128}$/.test(value.installationId)) {
@@ -116,22 +121,35 @@ export const parsePairingDecision = (value: unknown): PairingDecisionRequest => 
     if (!exactKeys(value, ['decision'])) throw new AppError('INVALID_PAYLOAD');
     return { decision: 'deny' };
   }
-  const keys = ['decision', 'approvedScopes', 'approvedLifecyclePermissions', 'boardIds', 'lifetime'];
+  const keys = ['decision', 'approvedScopes', 'approvedLifecyclePermissions', 'destination', 'lifetime'];
   if (value.decision !== 'approve' || !exactKeys(value, keys)) throw new AppError('INVALID_PAYLOAD');
   if (value.lifetime !== 'session' && value.lifetime !== 'persistent') throw new AppError('INVALID_PAYLOAD');
-  if (!Array.isArray(value.boardIds) || value.boardIds.length < 1 || value.boardIds.length > 50) throw new AppError('INVALID_PAYLOAD');
-  const boardIds: BoardId[] = [];
-  for (const item of value.boardIds) {
-    const parsed = BoardIdParserV1.parse(item);
-    if (!parsed.ok) throw new AppError('INVALID_PAYLOAD');
-    boardIds.push(parsed.data.value);
+  if (!isRecord(value.destination) || typeof value.destination.mode !== 'string') throw new AppError('INVALID_PAYLOAD');
+  let destination: Extract<PairingDecisionRequest, { decision: 'approve' }>['destination'];
+  if (value.destination.mode === 'create' && exactKeys(value.destination, ['mode', 'title'])) {
+    const title = ShortTextParserV1.parse(value.destination.title);
+    if (!title.ok) throw new AppError('INVALID_PAYLOAD');
+    destination = { mode: 'create', title: title.data.value };
+  } else if (value.destination.mode === 'existing' && exactKeys(value.destination, ['mode', 'boardId'])) {
+    const boardId = BoardIdParserV1.parse(value.destination.boardId);
+    if (!boardId.ok) throw new AppError('INVALID_PAYLOAD');
+    destination = { mode: 'existing', boardId: boardId.data.value };
+  } else if (value.destination.mode === 'deferred' && exactKeys(value.destination, ['mode'])) {
+    destination = { mode: 'deferred' };
+  } else {
+    throw new AppError('INVALID_PAYLOAD');
   }
-  if (boardIds.some((boardId, index) => index > 0 && boardIds[index - 1]! >= boardId)) throw new AppError('PAIRING_SCOPE_INVALID');
+  const approvedScopes = parseScopes(value.approvedScopes, false);
+  const approvedLifecyclePermissions = parseLifecycle(value.approvedLifecyclePermissions);
+  if (
+    (destination.mode === 'create' || destination.mode === 'deferred')
+    && (!approvedScopes.includes('board.write') || !approvedLifecyclePermissions.includes('board.create'))
+  ) throw new AppError('PAIRING_SCOPE_INVALID');
   return {
     decision: 'approve',
-    approvedScopes: parseScopes(value.approvedScopes, false),
-    approvedLifecyclePermissions: parseLifecycle(value.approvedLifecyclePermissions),
-    boardIds,
+    approvedScopes,
+    approvedLifecyclePermissions,
+    destination,
     lifetime: value.lifetime,
   };
 };

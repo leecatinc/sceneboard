@@ -96,6 +96,7 @@ export {
   MutationRequestParserV1,
   MutationResultParserV1,
   PrincipalIdParserV1,
+  ShortTextParserV1,
   SceneParserV1,
   buildBoardOperationFingerprintV1,
   buildMutationFingerprintV1,

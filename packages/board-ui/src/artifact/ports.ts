@@ -23,6 +23,8 @@ export interface ArtifactLoadPortV1 {
   }): Promise<Uint8Array>;
 }
 
+export type ArtifactViewModeV1 = 'fit-height' | 'fit-width' | 'actual';
+
 export type ArtifactHostInputV1 = {
   boardId: BoardId;
   artifact: ArtifactReferenceV1;
@@ -31,4 +33,7 @@ export type ArtifactHostInputV1 = {
   routeEpoch: string;
   snapshotWatermark: number;
   load: ArtifactLoadPortV1;
+  viewMode?: ArtifactViewModeV1;
+  showStopControl?: boolean;
+  stopSignal?: number;
 };

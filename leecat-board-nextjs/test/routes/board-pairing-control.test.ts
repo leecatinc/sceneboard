@@ -13,6 +13,7 @@ test('board owns an in-place pairing action without replacing live and history c
   assert.match(topBar, /<ConnectionBanner/);
   assert.match(topBar, /<HistoryControls/);
   assert.doesNotMatch(boardClient, /window\.location|router\.push|settings\/ai-connections/);
+  assert.match(source('components/board/BoardPairingControl.tsx'), /hasVisibleGrantForBoard\(result\.value\.grants, boardId\)/);
 });
 
 test('board pairing keeps one bounded same-tab code and polls only in a visible single flight', () => {
@@ -27,15 +28,24 @@ test('board pairing keeps one bounded same-tab code and polls only in a visible 
   assert.match(control, /api\.cancelPairing\(created\.pairingId, token\)/);
 });
 
-test('board pairing approval defaults to the current board and remains matching-code gated', () => {
+test('board pairing approval defaults to an approval-time new board and remains matching-code gated', () => {
   const control = source('components/board/BoardPairingControl.tsx');
   const modal = source('components/ai-connections/PairingRequestModal.tsx');
-  assert.match(control, /initialBoardIds=\{\[boardId\]\}/);
   assert.match(control, /api\.listBoards\(\)/);
-  assert.match(modal, /ownerStatus\?\.boardIds \?\? initialBoardIds/);
+  assert.match(modal, /useState<'create' \| 'existing'>\('create'\)/);
+  assert.match(modal, /destination: PairingBoardDestination/);
   assert.match(modal, /matchingCode === null/);
-  assert.match(modal, /approvedScopes\.length === 0 \|\| boardIds\.length === 0/);
+  assert.match(modal, /approvedScopes\.includes\('board\.write'\)/);
+  assert.match(modal, /approvedLifecyclePermissions\.includes\('board\.create'\)/);
+  assert.match(modal, /destinationMode === 'create'.*!canCreateBoard/s);
   assert.match(modal, /t\('ai\.cancelCode'\)/);
   assert.match(modal, /onClick=\{onDismiss\}/);
   assert.match(modal, /onClick=\{onCancel\}/);
+});
+
+test('AI connections redirects from the approved response board and falls back to the board list', () => {
+  const client = source('app/settings/ai-connections/ai-connections-client.tsx');
+  assert.match(client, /result\.value\.boardIds\?\.length === 1/);
+  assert.match(client, /`\/boards\/\$\{encodeURIComponent\(result\.value\.boardIds\[0\]!\)\}`/);
+  assert.match(client, /router\.replace\(destination\)/);
 });

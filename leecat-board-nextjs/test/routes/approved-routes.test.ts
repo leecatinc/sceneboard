@@ -5,6 +5,7 @@ import test from 'node:test';
 
 const workspace = resolve(import.meta.dirname, '../..');
 const pages = [
+  'app/page.tsx',
   'app/(auth)/login/page.tsx',
   'app/(auth)/signup/page.tsx',
   'app/integrations/codex/page.tsx',
@@ -14,7 +15,6 @@ const pages = [
 ];
 
 test('App Router exposes the approved SceneBoard product and public integration routes', () => {
-  assert.equal(existsSync(resolve(workspace, 'app/page.tsx')), false);
   assert.equal(existsSync(resolve(workspace, 'app/settings/page.tsx')), false);
   for (const page of pages) assert.equal(existsSync(resolve(workspace, page)), true, page);
   const serverSources = pages.map((page) => readFileSync(resolve(workspace, page), 'utf8')).join('\n');
@@ -61,6 +61,26 @@ test('account menu contains only account actions while AI connections links to p
   assert.match(form, /name="confirmPassword"/);
 });
 
+test('application header exposes one-shot code creation and keeps page scrolling below the header', () => {
+  const shell = readFileSync(resolve(workspace, 'components/app/AppShell.tsx'), 'utf8');
+  const action = readFileSync(resolve(workspace, 'components/app/HeaderPairingAction.tsx'), 'utf8');
+  const styles = readFileSync(resolve(workspace, 'app/globals.css'), 'utf8');
+  assert.match(shell, /<HeaderPairingAction \/>/);
+  assert.match(action, /api\.createPairing\(token\)/);
+  assert.match(action, /<PairingRequestModal/);
+  assert.match(action, /api\.listActivePairings\(signal\)/);
+  assert.match(action, /api\.listGrants\(null, signal\)/);
+  assert.match(action, /'ai\.connected'/);
+  assert.match(action, /'ai\.connecting'/);
+  assert.match(action, /readCreatedPairingSession\(window\.sessionStorage\)/);
+  assert.match(styles, /\.app-shell \{ height: 100dvh;[^}]+overflow: hidden;/);
+  assert.match(styles, /\.app-main \{[^}]+min-height: 0;[^}]+overflow: auto;/);
+  assert.match(styles, /\.app-shell-viewport-locked \.app-main \{[^}]+display: grid;[^}]+grid-template-rows: minmax\(0, 1fr\);[^}]+overflow: hidden;/);
+  assert.match(styles, /\.board-surface \{[^}]+grid-row: 3;[^}]+grid-template-columns: minmax\(0, 1fr\) 228px;/);
+  assert.match(styles, /\.scene-surface > \.scene-empty, \.scene-surface > \.scene-fallback \{ height: 100%; min-height: 0; \}/);
+  assert.match(styles, /\.scene-root > \.artifact-host,[^}]+\.artifact-runtime-frame \{[^}]+height: 100%;[^}]+min-height: 0;/);
+});
+
 test('AI connection presentation preserves a bounded tab code and gates approval on the matching live code', () => {
   const owner = readFileSync(resolve(workspace, 'app/settings/ai-connections/ai-connections-client.tsx'), 'utf8');
   const pending = readFileSync(resolve(workspace, 'components/ai-connections/PairingRequestModal.tsx'), 'utf8');
@@ -72,7 +92,8 @@ test('AI connection presentation preserves a bounded tab code and gates approval
   assert.match(owner, /writeCreatedPairingSession\(window\.sessionStorage/);
   assert.match(owner, /clearCreatedPairingSession\(window\.sessionStorage\)/);
   assert.match(owner, /newlyPending/);
-  assert.match(owner, /createBoardForPairing/);
+  assert.doesNotMatch(owner, /createBoardForPairing/);
+  assert.match(owner, /location\.searchParams\.get\('create'\) === '1'/);
   assert.match(owner, /<PairingRequestList/);
   assert.match(owner, /<PairingRequestModal/);
   assert.match(pending, /matchingCode === null/);
@@ -85,16 +106,24 @@ test('AI connection presentation preserves a bounded tab code and gates approval
   assert.match(pending, /showModal\(\)/);
   assert.match(pending, /t\('boards\.new'\)/);
   assert.match(pending, /t\('ai\.searchBoards'\)/);
-  assert.match(pending, /aria-multiselectable="true"/);
+  assert.match(pending, /role="radiogroup"/);
+  assert.match(pending, /destinationMode === 'create'/);
   assert.match(requests, /aria-haspopup="dialog"/);
   assert.match(requests, /requestRow/);
 });
 
 test('board top bar preserves live connection and history controls before pairing integration', () => {
   const topBar = readFileSync(resolve(workspace, 'components/board/BoardTopBar.tsx'), 'utf8');
+  const viewModes = readFileSync(resolve(workspace, 'components/board/BoardViewModeControls.tsx'), 'utf8');
+  const statusRail = readFileSync(resolve(workspace, 'components/board/StatusRail.tsx'), 'utf8');
   assert.match(topBar, /<ConnectionBanner connection=\{state\.connection\} \/>/);
   assert.match(topBar, /<HistoryControls/);
   assert.match(topBar, /onPrevious=\{onPrevious\}/);
   assert.match(topBar, /onNext=\{onNext\}/);
   assert.match(topBar, /onLatest=\{onLatest\}/);
+  assert.match(topBar, /<BoardViewModeControls value=\{viewMode\}/);
+  assert.match(viewModes, /'fit-height', 'fit-width', 'actual'/);
+  assert.match(viewModes, /aria-pressed=\{value === mode\}/);
+  assert.match(statusRail, /artifact-stop-sidebar/);
+  assert.match(statusRail, /onStopRendering/);
 });

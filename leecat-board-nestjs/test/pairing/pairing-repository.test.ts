@@ -5,8 +5,11 @@ import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import type { AuditRepository } from '../../src/audit/audit.repository.js';
 import { CryptoService } from '../../src/common/security/crypto.service.js';
 import type { PairingId } from '../../src/common/ids/public-id.js';
+import type { GrantId } from '../../src/common/ids/public-id.js';
+import type { BoardId, ShortText } from '@leecat-board/board-schema';
 import type { MysqlService } from '../../src/database/mysql.service.js';
 import { PairingRepository } from '../../src/pairing/pairing.repository.js';
+import type { BoardCreateService } from '../../src/boards/board-create.service.js';
 
 const compact = (sql: string): string => sql.replace(/\s+/g, ' ').trim();
 const key = Buffer.alloc(32, 5);
@@ -97,7 +100,7 @@ test('redemption locks family, pairing, grant, and credentials before one audite
   const audit = {
     async writeMandatory(_transaction: unknown, input: { event: string }) { audits.push(input.event); },
   } as unknown as AuditRepository;
-  const repository = new PairingRepository(mysql, audit, crypto);
+  const repository = new PairingRepository(mysql, audit, crypto, {} as BoardCreateService);
 
   const result = await repository.redeem({
     pairingId: 'pairing_1' as PairingId,
@@ -126,4 +129,94 @@ test('redemption locks family, pairing, grant, and credentials before one audite
   assert.ok(calls.some((call) => call.startsWith('UPDATE pairing_requests SET state = 4')));
   assert.ok(indexes.credentials < indexes.commit);
   assert.equal(calls.includes('ROLLBACK'), false);
+});
+
+test('approval-time board creation and grant issuance roll back together when mandatory audit fails', async () => {
+  const events: string[] = [];
+  const now = Date.parse('2027-01-15T08:00:00.000Z');
+  const connection = {
+    async query() { events.push('isolation'); return [[], []]; },
+    async beginTransaction() { events.push('begin'); },
+    async commit() { events.push('commit'); },
+    async rollback() { events.push('rollback'); },
+    async execute(sql: string): Promise<[unknown, unknown]> {
+      const statement = compact(sql);
+      if (statement.startsWith('SELECT status FROM users')) return [[{ status: 1 } as RowDataPacket], []];
+      if (statement.includes('FROM auth_sessions') && statement.includes('family_public_id')) {
+        return [[{
+          id: '2',
+          status: 1,
+          idleExpiresAt: '2027-01-15 09:00:00.000',
+          absoluteExpiresAt: '2027-01-16 08:00:00.000',
+        } as RowDataPacket], []];
+      }
+      if (statement.includes('FROM pairing_requests p') && statement.includes('LEFT JOIN mcp_clients')) {
+        return [[{
+          id: '10',
+          publicId: 'pairing_1',
+          state: 2,
+          requestedScopeMask: 3,
+          requestedLifecycleMask: 1,
+          clientDatabaseId: '11',
+          clientPublicId: 'client_1',
+          clientName: 'Codex',
+          installationId: 'installation_1',
+          createdAt: '2027-01-15 07:59:00.000',
+          codeExpiresAt: '2027-01-15 08:05:00.000',
+          decisionExpiresAt: '2027-01-15 08:10:00.000',
+        } as RowDataPacket], []];
+      }
+      if (statement.startsWith('INSERT INTO mcp_grants')) {
+        events.push('grant');
+        return [{ affectedRows: 1, insertId: 12 }, []];
+      }
+      if (statement.startsWith('INSERT INTO mcp_grant_boards')) {
+        events.push('binding');
+        return [{ affectedRows: 1, insertId: 0 }, []];
+      }
+      if (statement.startsWith('UPDATE pairing_requests')) {
+        events.push('decision');
+        return [{ affectedRows: 1, insertId: 0 }, []];
+      }
+      throw new Error(`unexpected SQL: ${statement}`);
+    },
+  } as unknown as PoolConnection;
+  const mysql = {
+    async withConnection<Value>(operation: (value: PoolConnection) => Promise<Value>) {
+      return operation(connection);
+    },
+  } as MysqlService;
+  const audit = {
+    async writeMandatory() {
+      events.push('audit-failure');
+      throw new Error('mandatory audit unavailable');
+    },
+  } as unknown as AuditRepository;
+  const boardCreate = {
+    async createInTransaction(input: { connection: PoolConnection }) {
+      assert.equal(input.connection, connection);
+      events.push('board');
+      return { result: { type: 'board.create', board: { boardId: 'board_new' as BoardId } } };
+    },
+  } as unknown as BoardCreateService;
+  const repository = new PairingRepository(mysql, audit, crypto, boardCreate);
+
+  const result = await repository.decide({
+    pairingId: 'pairing_1' as PairingId,
+    ownerUserDatabaseId: '1',
+    ownerUserPublicId: 'user_1',
+    approvingSessionDatabaseId: '2',
+    approvingSessionPublicId: 'session_1',
+    approvingFamilyPublicId: 'family_1',
+    now,
+    decision: 'approve',
+    grantPublicId: 'grant_1' as GrantId,
+    approvedScopeMask: 3,
+    approvedLifecycleMask: 1,
+    destination: { mode: 'create', title: '새 보드' as ShortText },
+    lifetime: 'session',
+  });
+
+  assert.deepEqual(result, { kind: 'service_unavailable' });
+  assert.deepEqual(events, ['isolation', 'begin', 'board', 'grant', 'binding', 'decision', 'audit-failure', 'rollback']);
 });

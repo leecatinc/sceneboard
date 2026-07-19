@@ -7,7 +7,6 @@ import {
 
 declare global {
   interface Window {
-    __SCENEBOARD_ARTIFACT_RESOURCES_V1__?: { css: string | null; javascript: string | null; diagram: boolean };
     SceneBoardArtifact?: Readonly<{
       onHostMessage(listener: (message: ArtifactBridgeMessageV1) => void): () => void;
       requestResize(width: number, height: number): void;
@@ -17,13 +16,24 @@ declare global {
   }
 }
 
-const resources = window.__SCENEBOARD_ARTIFACT_RESOURCES_V1__;
-if (resources === undefined) throw new TypeError('artifact resources are unavailable');
+const resourcesElement = document.getElementById('__sceneboard_artifact_resources_v1__');
+if (!(resourcesElement instanceof HTMLTemplateElement)) throw new TypeError('artifact resources are unavailable');
+const resources = JSON.parse(resourcesElement.content.textContent ?? '') as {
+  css: string | null;
+  javascript: string | null;
+  diagram: boolean;
+};
+resourcesElement.remove();
+if ((resources.css !== null && typeof resources.css !== 'string')
+  || (resources.javascript !== null && typeof resources.javascript !== 'string')
+  || typeof resources.diagram !== 'boolean') throw new TypeError('artifact resources are invalid');
 
 const hostListeners = new Set<(message: ArtifactBridgeMessageV1) => void>();
 let endpoint: ArtifactBridgeEndpointV1 | null = null;
 let port: MessagePort | null = null;
 let scriptUrl: string | null = null;
+let resizeObserver: ResizeObserver | null = null;
+let hasExplicitResizeRequest = false;
 let disposed = false;
 
 const send = (message: ArtifactBridgeMessageV1): void => {
@@ -40,6 +50,7 @@ const dispose = (): void => {
   port?.close();
   endpoint?.close();
   if (scriptUrl !== null) URL.revokeObjectURL(scriptUrl);
+  resizeObserver?.disconnect();
   hostListeners.clear();
 };
 
@@ -50,6 +61,7 @@ window.SceneBoardArtifact = Object.freeze({
     return () => hostListeners.delete(listener);
   },
   requestResize(width: number, height: number): void {
+    hasExplicitResizeRequest = true;
     send({ type: 'artifact.resize.request', value: { width, height } });
   },
   changeSelection(nodeIds: string[]): void {
@@ -77,6 +89,24 @@ const runArtifact = async (): Promise<void> => {
       document.body.append(script);
     });
   }
+  const reportSize = (): void => {
+    if (hasExplicitResizeRequest) return;
+    let width = Math.max(document.documentElement.scrollWidth, document.body.scrollWidth, window.innerWidth);
+    let height = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight, window.innerHeight);
+    for (const element of document.body.querySelectorAll<HTMLElement>('*')) {
+      const rect = element.getBoundingClientRect();
+      width = Math.max(width, Math.max(0, rect.left) + element.scrollWidth, rect.right);
+      height = Math.max(height, Math.max(0, rect.top) + element.scrollHeight, rect.bottom);
+    }
+    send({ type: 'artifact.resize.request', value: {
+      width: Math.min(16_384, Math.max(1, Math.ceil(width))),
+      height: Math.min(16_384, Math.max(1, Math.ceil(height))),
+    } });
+  };
+  reportSize();
+  resizeObserver = new ResizeObserver(reportSize);
+  resizeObserver.observe(document.documentElement);
+  resizeObserver.observe(document.body);
   send({ type: 'artifact.ready' });
 };
 

@@ -79,6 +79,7 @@ test('runner headers are exact and omit credential/CORS fields', () => {
   });
   assert.equal(Object.keys(headers).length, 10);
   assert.match(headers['Content-Security-Policy'] ?? '', /sandbox allow-scripts/u);
+  assert.match(headers['Content-Security-Policy'] ?? '', /script-src http:\/\/127\.0\.0\.2:3412 data: blob:/u);
   assert.equal(headers['Cross-Origin-Resource-Policy'], 'cross-origin');
   for (const forbidden of ['Set-Cookie', 'Access-Control-Allow-Origin', 'X-Frame-Options']) {
     assert.equal(Object.hasOwn(headers, forbidden), false);
@@ -98,6 +99,8 @@ test('runtime routes enforce Host, GET, and the fixed allowlist', () => {
   assert.equal(request('GET', '/healthz').status, 200);
   assert.equal(request('GET', '/runner').status, 200);
   assert.equal(request('GET', outerPath).status, 200);
+  assert.equal(request('GET', '/healthz').headers['Origin-Agent-Cluster'], '?1');
+  assert.equal(request('GET', outerPath).headers['Origin-Agent-Cluster'], '?1');
   assert.equal(request('GET', '/assets/unknown.js').status, 404);
   assert.equal(request('POST', '/runner').status, 405);
   assert.equal(request('GET', '/runner', 'localhost:3412').status, 421);

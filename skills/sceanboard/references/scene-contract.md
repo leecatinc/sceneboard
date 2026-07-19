@@ -19,7 +19,7 @@ The closed 15-node catalog is:
 - Layout: `layout.split`, `layout.grid`, `layout.tabs`, `layout.canvas`.
 - Trusted content: `content.markdown`, `content.code`, `content.table`, `content.chart`, `content.map`, `content.drawing`, `content.status`, `content.image`, `content.progress`, `content.hitl`, `content.artifact`.
 
-Use an approved artifact for unsupported custom visuals. Flowcharts/ERDs/sequences use the vendored Mermaid artifact bundle or authored SVG/Canvas, never a CDN.
+Use trusted nodes, native recipes, and presets first when they faithfully represent architecture, flowcharts, entity-relationship diagrams (ERDs), or sequences. Use the vendored Mermaid artifact bundle or authored SVG/Canvas only when materially required custom expressiveness or behavior is unavailable in trusted nodes, never a content delivery network (CDN).
 
 ## Exact local patch catalog
 
