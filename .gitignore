@@ -26,6 +26,8 @@ coverage/
 /.doitqa.json
 /lah-config.json
 /logs/
+/.cw/
+/test-results/
 /.artifacts/certification/
 /.certification-fixtures/
 /leecat-board-mcp/
