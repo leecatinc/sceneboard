@@ -9,7 +9,7 @@ import { useI18n } from '../../../components/i18n/I18nProvider';
 import type { MessageKey } from '../../../lib/i18n/catalog';
 import styles from './codex-install.module.css';
 
-const INSTALL_COMMAND = `codex plugin marketplace add leecatinc/leecat-board-mcp
+const INSTALL_COMMAND = `codex plugin marketplace add leecatinc/sceneboard-mcp
 codex plugin add sceneboard@sceneboard`;
 const UPDATE_COMMAND = 'codex plugin marketplace upgrade sceneboard';
 const REMOVE_COMMAND = 'codex plugin remove sceneboard@sceneboard';

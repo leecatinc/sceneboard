@@ -16,7 +16,7 @@
 
 | 서브프로젝트 폴더 | GitHub repo | 배포 브랜치 |
 |---|---|---|
-| `leecat-board-mcp` | https://github.com/leecatinc/leecat-board-mcp.git | (로컬 stdio, 미배포) |
+| `leecat-board-mcp` | https://github.com/leecatinc/sceneboard-mcp.git | `main` (공개 Codex marketplace) |
 | `leecat-board-nestjs` | https://github.com/leecatinc/leecat-board-nestjs.git | `release` (배포됨) |
 | `leecat-board-nextjs` | https://github.com/leecatinc/leecat-board-nextjs.git | `release` (배포됨) |
 | `leecat-board-artifact-runtime` | https://github.com/leecatinc/leecat-board-artifact-runtime.git | `release` (배포 진행) |

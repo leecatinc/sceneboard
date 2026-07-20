@@ -7,7 +7,7 @@
     "url": "https://sceneboard.dev"
   },
   "homepage": "https://sceneboard.dev/integrations/codex",
-  "repository": "https://github.com/leecatinc/leecat-board-mcp",
+  "repository": "https://github.com/leecatinc/sceneboard-mcp",
   "keywords": ["sceneboard", "board", "mcp", "codex", "collaboration"],
   "skills": "./skills/",
   "interface": {

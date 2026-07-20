@@ -44,7 +44,7 @@ test('account menu contains only account actions while AI connections links to p
   assert.match(connections, /<SkillInstallGuide \/>/);
   assert.match(guide, /href="\/integrations\/codex"/);
   assert.match(guide, /ai\.skillMcpPrerequisite/);
-  assert.match(install, /codex plugin marketplace add leecatinc\/leecat-board-mcp/);
+  assert.match(install, /codex plugin marketplace add leecatinc\/sceneboard-mcp/);
   assert.match(install, /codex plugin add sceneboard@sceneboard/);
   assert.match(install, /&lt;project&gt;\/\.mcp\.json/);
   assert.match(install, /https:\/\/sceneboard\.dev/);

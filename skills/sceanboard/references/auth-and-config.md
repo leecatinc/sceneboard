@@ -23,10 +23,10 @@ Exact grant scopes in catalog order are `board.read`, `board.write`, `board.hist
 
 ## Codex plugin installation
 
-The recommended distribution is the SceneBoard Codex plugin. It installs this skill and the MCP launcher together from the official `leecatinc/leecat-board-mcp` marketplace repository. The setup page is `https://sceneboard.dev/integrations/codex`.
+The recommended distribution is the SceneBoard Codex plugin. It installs this skill and the MCP launcher together from the official public `leecatinc/sceneboard-mcp` marketplace repository. The setup page is `https://sceneboard.dev/integrations/codex`.
 
 ```bash
-codex plugin marketplace add leecatinc/leecat-board-mcp
+codex plugin marketplace add leecatinc/sceneboard-mcp
 codex plugin add sceneboard@sceneboard
 ```
 
