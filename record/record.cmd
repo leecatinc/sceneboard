@@ -27,7 +27,7 @@ py -3 record.py ^
   --terminal-x 1340 --terminal-y 210 ^
   --terminal-width 580 --terminal-height 870 ^
   --mask 1680,112,240,58 ^
-  --max-seconds 600
+  --max-seconds 1800
 
 if errorlevel 1 (
   echo.

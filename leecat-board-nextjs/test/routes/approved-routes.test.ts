@@ -70,6 +70,9 @@ test('application header exposes one-shot code creation and keeps page scrolling
   assert.match(shell, /<BoardLifecycleNavigator \/>/);
   assert.match(lifecycle, /isBoardCreationAutoOpenPath\(currentPathname\)/);
   assert.match(lifecycle, /boardIdFromDetailPath\(currentPathname\)/);
+  assert.match(lifecycle, /<ConfirmationDialog/);
+  assert.match(lifecycle, /setPendingBoard\(createdBoard\)/);
+  assert.match(lifecycle, /'board\.switchToNewBoard'/);
   assert.match(lifecycle, /router\.replace\(`\/boards\/\$\{encodeURIComponent\(createdBoard\.boardId\)\}`\)/);
   assert.match(lifecycle, /router\.replace\('\/boards'\)/);
   assert.match(lifecycle, /document\.visibilityState !== 'visible'/);

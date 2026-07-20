@@ -400,6 +400,36 @@ test('scene patch reports revision conflict before applying operations', async (
   assert.equal(requests, 1);
 });
 
+test('scene patch uses distinct HTTP correlation IDs for its head read and mutation', async () => {
+  const { root, env } = await configured('patch-correlation-');
+  const requestIds = [];
+  const result = await invokeProtected('board_scene_patch', {
+    boardId: 'board_1',
+    expectedRevisionId: 'revision_2',
+    idempotencyKey: 'qa-key-correlation-1234',
+    operations: [{ type: 'replace_root', root: null }],
+  }, {
+    cwd: root,
+    env,
+    fetchImpl: async (url, options) => {
+      const requestId = options.headers['X-Request-Id'];
+      requestIds.push(requestId);
+      if (requestIds.length === 1) {
+        return response(operationEnvelope(requestId, 'board.get', {
+          board: boardSummary(), snapshot: boardSnapshot(),
+        }), { requestId });
+      }
+      return response(operationEnvelope(requestId, 'scene.replace', {
+        revision: boardSummary('revision_3', 3).headRevision,
+      }, { mutationBoardId: 'board_1' }), { requestId });
+    },
+  });
+  assert.equal(requestIds.length, 2);
+  assert.notEqual(requestIds[0], requestIds[1]);
+  assert.equal(result.requestId, requestIds[1]);
+  assert.equal(result.result.result.type, 'scene.replace');
+});
+
 test('protected results enforce request, status, and board correlation', async () => {
   const { root, env } = await configured('result-');
   const board = await invokeProtected('board_get', { boardId: 'board_1' }, {

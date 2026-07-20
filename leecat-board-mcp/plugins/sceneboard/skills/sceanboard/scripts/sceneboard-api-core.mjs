@@ -2195,9 +2195,14 @@ const invokeScenePatch = async (input, { config, requestId, fetchImpl }) => {
   const operationDeadline = performance.now() + config.timeoutMs;
   const credential = await readCredential(config);
   if (credential === null) throw new SceneBoardApiError('BOARD_API_NOT_CONNECTED', 'SceneBoard API fallback is not paired', { details: { recovery: 'run_pair' } });
+  // A scene patch is one public operation backed by two HTTP requests. Keep the
+  // public request ID for the mutation/result, but give the prerequisite head
+  // read its own correlation ID so strict servers never see an ID reused for a
+  // different request.
+  const headRequestId = randomBytes(16).toString('base64url');
   const head = await authorizedRequest(config, credential, {
-    path: `/api/v1/boards/${input.boardId}?requestId=${requestId}`,
-    requestId,
+    path: `/api/v1/boards/${input.boardId}?requestId=${headRequestId}`,
+    requestId: headRequestId,
     expectedStatus: [200],
     expectedType: 'board.get',
     allowedErrorCodes: OPERATION_ERROR_CODES.board_get,

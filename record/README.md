@@ -31,7 +31,7 @@ This folder records a fixed `1920×1080` desktop region containing the SceneBoar
 5. Press **F10** globally to stop.
 6. The final MP4 is written under `record/output/`.
 
-The capture stops automatically after ten minutes if F10 is not pressed.
+The capture stops automatically after thirty minutes if F10 is not pressed.
 
 ## Optional microphone audio
 
@@ -54,6 +54,6 @@ For the cleanest hackathon submission, recording narration separately and mixing
 - Change `--fps 60` to `--fps 30` for a smaller file.
 - Change `--terminal-x`, `--terminal-y`, `--terminal-width`, and `--terminal-height` to reposition Codex.
 - Add another `--mask X,Y,W,H` to cover another private area.
-- Change `--max-seconds 600` to set a different safety limit.
+- Change `--max-seconds 1800` to set a different safety limit. The default allows a full 30-minute take.
 
 Recording is first written as MKV so an interruption is less likely to destroy the entire take. It is remuxed to MP4 automatically after a clean stop.

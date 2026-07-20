@@ -15,7 +15,7 @@ import time
 from typing import Iterable
 
 
-VK_S = 0x53
+VK_F10 = 0x79
 SW_MINIMIZE = 6
 
 
@@ -51,7 +51,7 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--height", type=positive_even, default=1080)
     result.add_argument("--fps", type=positive_int, default=60)
     result.add_argument("--countdown", type=positive_int, default=3)
-    result.add_argument("--max-seconds", type=positive_int, default=600)
+    result.add_argument("--max-seconds", type=positive_int, default=1800)
     result.add_argument("--terminal-title", default="SceneBoard Codex")
     result.add_argument("--terminal-x", type=int, default=1340)
     result.add_argument("--terminal-y", type=int, default=210)
@@ -228,8 +228,8 @@ def main() -> int:
     started = time.monotonic()
     try:
         while process.poll() is None:
-            if ctypes.windll.user32.GetAsyncKeyState(VK_S) & 0x8000:
-                while ctypes.windll.user32.GetAsyncKeyState(VK_S) & 0x8000:
+            if ctypes.windll.user32.GetAsyncKeyState(VK_F10) & 0x8000:
+                while ctypes.windll.user32.GetAsyncKeyState(VK_F10) & 0x8000:
                     time.sleep(0.05)
                 break
             if time.monotonic() - started >= arguments.max_seconds:
