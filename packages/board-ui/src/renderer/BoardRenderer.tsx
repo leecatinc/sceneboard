@@ -13,6 +13,7 @@ export function BoardRenderer({
   onSelectTab,
   renderArtifact,
   renderHitl,
+  drawingView,
   emptyLabel = 'This scene is empty.',
 }: BoardRendererPropsV1) {
   const parsed = BoardSnapshotParserV1.parse(input);
@@ -27,6 +28,7 @@ export function BoardRenderer({
     ...(onSelectTab === undefined ? {} : { onSelectTab }),
     ...(renderArtifact === undefined ? {} : { renderArtifact }),
     ...(renderHitl === undefined ? {} : { renderHitl }),
+    ...(drawingView === undefined ? {} : { drawingView }),
   };
   const renderNode = (node: BoardNodeV1) => {
     const Renderer = RENDERER_REGISTRY_V1[node.type];

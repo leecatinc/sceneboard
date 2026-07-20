@@ -9,14 +9,17 @@ import { HistoryControls } from './HistoryControls';
 import { BoardTitleEditor } from './BoardTitleEditor';
 import { BoardViewModeControls } from './BoardViewModeControls';
 
-export function BoardTopBar({ title, state, liveUpdated, pairingControl, archiveControl, viewMode, onViewModeChange, onRename, onPrevious, onNext, onLatest }: {
+export function BoardTopBar({ title, state, liveUpdated, pairingControl, archiveControl, viewMode, artifactZoom, canResetArtifactView, onViewModeChange, onResetArtifactView, onRename, onPrevious, onNext, onLatest }: {
   title: string;
   state: LiveBoardStateV1;
   liveUpdated: boolean;
   pairingControl: ReactNode;
   archiveControl: ReactNode;
   viewMode: ArtifactViewModeV1;
+  artifactZoom: number | null;
+  canResetArtifactView: boolean;
   onViewModeChange: (mode: ArtifactViewModeV1) => void;
+  onResetArtifactView: () => void;
   onRename: (title: string) => Promise<boolean>;
   onPrevious: () => void;
   onNext: () => void;
@@ -28,7 +31,7 @@ export function BoardTopBar({ title, state, liveUpdated, pairingControl, archive
     <header className="board-topbar">
       <div><p className="eyebrow">{state.mode.kind === 'history' ? t('board.historicalView') : t('board.liveScene')}</p><BoardTitleEditor title={title} onRename={onRename} /><p>{t('boards.revision', { number: snapshot.revision.revisionNumber })}</p></div>
       <div className="board-connection-actions"><ConnectionBanner connection={state.connection} />{pairingControl}{archiveControl}</div>
-      <div className="board-navigation-actions"><BoardViewModeControls value={viewMode} onChange={onViewModeChange} /><HistoryControls state={state} liveUpdated={liveUpdated} onPrevious={onPrevious} onNext={onNext} onLatest={onLatest} /></div>
+      <div className="board-navigation-actions"><BoardViewModeControls value={viewMode} zoom={artifactZoom} canReset={canResetArtifactView} onChange={onViewModeChange} onReset={onResetArtifactView} /><HistoryControls state={state} liveUpdated={liveUpdated} onPrevious={onPrevious} onNext={onNext} onLatest={onLatest} /></div>
     </header>
   );
 }

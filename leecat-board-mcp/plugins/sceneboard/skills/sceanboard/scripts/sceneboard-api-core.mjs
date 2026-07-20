@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
+import { spawn } from 'node:child_process';
 import { constants } from 'node:fs';
 import { lstat, mkdir, open, readFile, rename, unlink } from 'node:fs/promises';
 import { homedir } from 'node:os';
@@ -19,6 +20,14 @@ const PAIRING_CODE_PATTERN = /^(?:SB-)?[0-9A-HJKMNP-TV-Z]{6}-[0-9A-HJKMNP-TV-Z]{
 const TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const SEMVER_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/u;
 const PROOF_PATTERN = /^[A-Za-z0-9_-]{43}$/;
+const WINDOWS_PROTECTED_VALUE_PATTERN = /^[A-Za-z0-9+/]{16,8192}={0,2}$/;
+const WINDOWS_PROTECTION = 'windows-dpapi-current-user';
+const WINDOWS_DPAPI_TIMEOUT_MS = 10_000;
+const WINDOWS_DPAPI_OUTPUT_LIMIT = 16_384;
+const WINDOWS_DPAPI_SCRIPTS = {
+  protect: '$value=[Console]::In.ReadToEnd();$bytes=[Text.Encoding]::UTF8.GetBytes($value);$protected=[Security.Cryptography.ProtectedData]::Protect($bytes,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser);[Console]::Out.Write([Convert]::ToBase64String($protected))',
+  unprotect: '$value=[Console]::In.ReadToEnd();$protected=[Convert]::FromBase64String($value);$bytes=[Security.Cryptography.ProtectedData]::Unprotect($protected,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser);[Console]::Out.Write([Text.Encoding]::UTF8.GetString($bytes))',
+};
 const NODE_TYPES = [
   'layout.split', 'layout.grid', 'layout.tabs', 'layout.canvas',
   'content.markdown', 'content.code', 'content.table', 'content.chart', 'content.map',
@@ -293,32 +302,102 @@ const validateTimeout = (value) => {
   return timeoutMs;
 };
 
-const statRegularPrivateFile = async (path) => {
+const isWindows = (platform) => platform === 'win32';
+
+const runWindowsDataProtection = (operation, value) => new Promise((resolve, reject) => {
+  const script = WINDOWS_DPAPI_SCRIPTS[operation];
+  if (script === undefined || typeof value !== 'string') {
+    reject(new SceneBoardApiError('BOARD_API_CREDENTIAL_UNAVAILABLE', 'SceneBoard Windows credential protection is unavailable'));
+    return;
+  }
+  const systemRoot = process.env.SystemRoot;
+  if (typeof systemRoot !== 'string' || !isAbsolute(systemRoot)) {
+    reject(new SceneBoardApiError(
+      'BOARD_API_CREDENTIAL_UNAVAILABLE',
+      'SceneBoard Windows credential protection is unavailable',
+      { details: { reason: 'windows_system_root_unavailable' } },
+    ));
+    return;
+  }
+  const powershellPath = join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+  let output = '';
+  let outputBytes = 0;
+  let settled = false;
+  const child = spawn(powershellPath, [
+    '-NoLogo', '-NoProfile', '-NonInteractive', '-Command', script,
+  ], {
+    stdio: ['pipe', 'pipe', 'pipe'],
+    windowsHide: true,
+  });
+  const finish = (error, result = null) => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timeout);
+    if (error === null) resolve(result);
+    else reject(new SceneBoardApiError(
+      'BOARD_API_CREDENTIAL_UNAVAILABLE',
+      'SceneBoard Windows credential protection is unavailable',
+      { details: { reason: error } },
+    ));
+  };
+  const timeout = setTimeout(() => {
+    child.kill();
+    finish('windows_dpapi_timeout');
+  }, WINDOWS_DPAPI_TIMEOUT_MS);
+  child.once('error', () => finish('windows_dpapi_process_unavailable'));
+  child.stdout.on('data', (chunk) => {
+    outputBytes += chunk.length;
+    if (outputBytes > WINDOWS_DPAPI_OUTPUT_LIMIT) {
+      child.kill();
+      finish('windows_dpapi_output_too_large');
+      return;
+    }
+    output += chunk.toString('utf8');
+  });
+  child.stderr.on('data', () => {});
+  child.once('close', (code) => {
+    if (code !== 0) finish('windows_dpapi_failed');
+    else if (output.length === 0) finish('windows_dpapi_empty_output');
+    else finish(null, output);
+  });
+  child.stdin.once('error', () => finish('windows_dpapi_input_failed'));
+  child.stdin.end(value);
+});
+
+const defaultWindowsDataProtection = {
+  protect: (value) => runWindowsDataProtection('protect', value),
+  unprotect: (value) => runWindowsDataProtection('unprotect', value),
+};
+
+const statRegularPrivateFile = async (path, platform = process.platform) => {
   const status = await lstat(path);
   const ownUid = process.geteuid?.();
   if (!status.isFile() || status.isSymbolicLink() || status.nlink !== 1
-    || (ownUid !== undefined && status.uid !== ownUid) || (status.mode & 0o777) !== 0o600) {
+    || (!isWindows(platform) && ownUid !== undefined && status.uid !== ownUid)
+    || (!isWindows(platform) && (status.mode & 0o777) !== 0o600)) {
     throw new SceneBoardApiError('BOARD_API_CREDENTIAL_UNAVAILABLE', 'SceneBoard private state is invalid');
   }
 };
 
-const assertPrivateDirectory = async (path) => {
+const assertPrivateDirectory = async (path, platform = process.platform) => {
   const status = await lstat(path);
   const ownUid = process.geteuid?.();
-  if (!status.isDirectory() || status.isSymbolicLink() || (ownUid !== undefined && status.uid !== ownUid)
-    || (status.mode & 0o777) !== 0o700) {
+  if (!status.isDirectory() || status.isSymbolicLink()
+    || (!isWindows(platform) && ownUid !== undefined && status.uid !== ownUid)
+    || (!isWindows(platform) && (status.mode & 0o777) !== 0o700)) {
     throw new SceneBoardApiError('BOARD_API_CREDENTIAL_UNAVAILABLE', 'SceneBoard private state is invalid');
   }
 };
 
-const ensurePrivateDirectory = async (path) => {
+const ensurePrivateDirectory = async (path, platform = process.platform) => {
   await mkdir(path, { recursive: true, mode: 0o700 });
   const status = await lstat(path);
   const ownUid = process.geteuid?.();
-  if (!status.isDirectory() || status.isSymbolicLink() || (ownUid !== undefined && status.uid !== ownUid)) {
+  if (!status.isDirectory() || status.isSymbolicLink()
+    || (!isWindows(platform) && ownUid !== undefined && status.uid !== ownUid)) {
     throw new SceneBoardApiError('BOARD_API_CREDENTIAL_UNAVAILABLE', 'SceneBoard private state is invalid');
   }
-  if ((status.mode & 0o777) !== 0o700) {
+  if (!isWindows(platform) && (status.mode & 0o777) !== 0o700) {
     const handle = await open(path, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
     try {
       await handle.chmod(0o700);
@@ -326,10 +405,11 @@ const ensurePrivateDirectory = async (path) => {
       await handle.close();
     }
   }
-  await assertPrivateDirectory(path);
+  await assertPrivateDirectory(path, platform);
 };
 
-const syncDirectory = async (directory) => {
+const syncDirectory = async (directory, platform = process.platform) => {
+  if (isWindows(platform)) return;
   const directoryHandle = await open(directory, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
   try {
     await directoryHandle.sync();
@@ -338,7 +418,14 @@ const syncDirectory = async (directory) => {
   }
 };
 
-const stateRoot = (env) => {
+const stateRoot = (env, platform = process.platform) => {
+  if (isWindows(platform)) {
+    const localAppData = env.LOCALAPPDATA || join(env.USERPROFILE || homedir(), 'AppData', 'Local');
+    if (!isAbsolute(localAppData)) {
+      throw new SceneBoardApiError('BOARD_API_CONFIG_INVALID', 'SceneBoard API configuration is invalid', { details: { field: 'LOCALAPPDATA' } });
+    }
+    return localAppData;
+  }
   if (env.XDG_STATE_HOME !== undefined && env.XDG_STATE_HOME !== '') {
     if (!isAbsolute(env.XDG_STATE_HOME)) {
       throw new SceneBoardApiError('BOARD_API_CONFIG_INVALID', 'SceneBoard API configuration is invalid', { details: { field: 'XDG_STATE_HOME' } });
@@ -352,7 +439,12 @@ const stateRoot = (env) => {
   return join(home, '.local', 'state');
 };
 
-export const resolveApiConfig = async ({ cwd = process.cwd(), env = process.env } = {}) => {
+export const resolveApiConfig = async ({
+  cwd = process.cwd(),
+  env = process.env,
+  platform = process.platform,
+  windowsDataProtection = defaultWindowsDataProtection,
+} = {}) => {
   let source = 'production_default';
   let baseUrl = env.SCENEBOARD_API_URL ?? API_DEFAULT;
   let profile = env.SCENEBOARD_PROFILE ?? 'sceneboard';
@@ -396,12 +488,14 @@ export const resolveApiConfig = async ({ cwd = process.cwd(), env = process.env 
     profile: validProfile,
     timeoutMs: validateTimeout(timeoutMs),
     source,
-    stateDirectory: join(stateRoot(env), 'leecat-board', 'credentials', validProfile),
+    platform,
+    windowsDataProtection,
+    stateDirectory: join(stateRoot(env, platform), 'leecat-board', 'credentials', validProfile),
   };
 };
 
-export const atomicPrivateWrite = async (directory, fileName, bytes) => {
-  await ensurePrivateDirectory(directory);
+export const atomicPrivateWrite = async (directory, fileName, bytes, { platform = process.platform } = {}) => {
+  await ensurePrivateDirectory(directory, platform);
   const temporaryPath = join(directory, `.${fileName}.${randomBytes(16).toString('base64url')}.tmp`);
   const targetPath = join(directory, fileName);
   let handle = null;
@@ -409,18 +503,19 @@ export const atomicPrivateWrite = async (directory, fileName, bytes) => {
   try {
     handle = await open(
       temporaryPath,
-      constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
+      constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY
+        | (isWindows(platform) ? 0 : constants.O_NOFOLLOW),
       0o600,
     );
-    await handle.chmod(0o600);
+    if (!isWindows(platform)) await handle.chmod(0o600);
     await handle.writeFile(bytes);
     await handle.sync();
     await handle.close();
     handle = null;
-    await statRegularPrivateFile(temporaryPath);
+    await statRegularPrivateFile(temporaryPath, platform);
     await rename(temporaryPath, targetPath);
     renamed = true;
-    await syncDirectory(directory);
+    await syncDirectory(directory, platform);
   } finally {
     await handle?.close().catch(() => undefined);
     if (!renamed) await unlink(temporaryPath).catch(() => undefined);
@@ -430,14 +525,36 @@ export const atomicPrivateWrite = async (directory, fileName, bytes) => {
 export const readCredential = async (config) => {
   const path = join(config.stateDirectory, 'credential.json');
   try {
-    await ensurePrivateDirectory(config.stateDirectory);
-    await statRegularPrivateFile(path);
+    await ensurePrivateDirectory(config.stateDirectory, config.platform);
+    await statRegularPrivateFile(path, config.platform);
     const bytes = await readFile(path);
     const record = parseJsonBytes(bytes, 'SceneBoard credential', 512);
+    const source = new TextDecoder().decode(bytes);
+    if (isWindows(config.platform)) {
+      if (!hasExactKeys(record, ['version', 'generation', 'protection', 'protectedAccessToken']) || record.version !== 2
+        || typeof record.generation !== 'string' || !GENERATION_PATTERN.test(record.generation)
+        || record.protection !== WINDOWS_PROTECTION
+        || typeof record.protectedAccessToken !== 'string'
+        || !WINDOWS_PROTECTED_VALUE_PATTERN.test(record.protectedAccessToken)
+        || JSON.stringify(record) !== source) {
+        throw new SceneBoardApiError('BOARD_API_CREDENTIAL_UNAVAILABLE', 'SceneBoard credential is invalid');
+      }
+      let accessToken;
+      try {
+        accessToken = await config.windowsDataProtection.unprotect(record.protectedAccessToken);
+      } catch (error) {
+        if (error instanceof SceneBoardApiError) throw error;
+        throw new SceneBoardApiError('BOARD_API_CREDENTIAL_UNAVAILABLE', 'SceneBoard Windows credential protection is unavailable');
+      }
+      if (typeof accessToken !== 'string' || !TOKEN_PATTERN.test(accessToken)) {
+        throw new SceneBoardApiError('BOARD_API_CREDENTIAL_UNAVAILABLE', 'SceneBoard credential is invalid');
+      }
+      return { version: 1, generation: record.generation, accessToken };
+    }
     if (!hasExactKeys(record, ['version', 'generation', 'accessToken']) || record.version !== 1
       || typeof record.generation !== 'string' || !GENERATION_PATTERN.test(record.generation)
       || typeof record.accessToken !== 'string' || !TOKEN_PATTERN.test(record.accessToken)
-      || JSON.stringify(record) !== new TextDecoder().decode(bytes)) {
+      || JSON.stringify(record) !== source) {
       throw new SceneBoardApiError('BOARD_API_CREDENTIAL_UNAVAILABLE', 'SceneBoard credential is invalid');
     }
     return record;
@@ -448,13 +565,14 @@ export const readCredential = async (config) => {
 };
 
 const acquireCredentialMutationLock = async (config) => {
-  await ensurePrivateDirectory(config.stateDirectory);
+  await ensurePrivateDirectory(config.stateDirectory, config.platform);
   const path = join(config.stateDirectory, 'api-credential.lock');
   const nonce = randomBytes(16).toString('base64url');
   let handle = null;
   for (let attempt = 0; attempt < 40; attempt += 1) {
     try {
-      handle = await open(path, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW, 0o600);
+      handle = await open(path, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY
+        | (isWindows(config.platform) ? 0 : constants.O_NOFOLLOW), 0o600);
       break;
     } catch (error) {
       if (error?.code !== 'EEXIST') throw error;
@@ -468,12 +586,12 @@ const acquireCredentialMutationLock = async (config) => {
     }
   }
   try {
-    await handle.chmod(0o600);
+    if (!isWindows(config.platform)) await handle.chmod(0o600);
     await handle.writeFile(JSON.stringify({ version: 1, nonce }));
     await handle.sync();
     await handle.close();
     handle = null;
-    await statRegularPrivateFile(path);
+    await statRegularPrivateFile(path, config.platform);
   } catch (error) {
     await handle?.close().catch(() => undefined);
     await unlink(path).catch(() => undefined);
@@ -481,12 +599,12 @@ const acquireCredentialMutationLock = async (config) => {
   }
   return async () => {
     try {
-      await ensurePrivateDirectory(config.stateDirectory);
-      await statRegularPrivateFile(path);
+      await ensurePrivateDirectory(config.stateDirectory, config.platform);
+      await statRegularPrivateFile(path, config.platform);
       const value = parseJsonBytes(await readFile(path), 'SceneBoard credential lock', 256);
       if (hasExactKeys(value, ['version', 'nonce']) && value.version === 1 && value.nonce === nonce) {
         await unlink(path);
-        await syncDirectory(config.stateDirectory);
+        await syncDirectory(config.stateDirectory, config.platform);
       }
     } catch {}
   };
@@ -496,16 +614,30 @@ export const writeCredential = async (config, accessToken) => {
   if (!TOKEN_PATTERN.test(accessToken)) {
     throw new SceneBoardApiError('BOARD_API_RESPONSE_INVALID', 'SceneBoard pairing response is invalid');
   }
-  const record = { version: 1, generation: randomBytes(16).toString('base64url'), accessToken };
+  const generation = randomBytes(16).toString('base64url');
+  let record;
+  if (isWindows(config.platform)) {
+    let protectedAccessToken;
+    try {
+      protectedAccessToken = await config.windowsDataProtection.protect(accessToken);
+    } catch (error) {
+      if (error instanceof SceneBoardApiError) throw error;
+      throw new SceneBoardApiError('BOARD_API_CREDENTIAL_UNAVAILABLE', 'SceneBoard Windows credential protection is unavailable');
+    }
+    if (typeof protectedAccessToken !== 'string' || !WINDOWS_PROTECTED_VALUE_PATTERN.test(protectedAccessToken)) {
+      throw new SceneBoardApiError('BOARD_API_CREDENTIAL_UNAVAILABLE', 'SceneBoard Windows credential protection is unavailable');
+    }
+    record = { version: 2, generation, protection: WINDOWS_PROTECTION, protectedAccessToken };
+  } else record = { version: 1, generation, accessToken };
   const bytes = new TextEncoder().encode(JSON.stringify(record));
   const release = await acquireCredentialMutationLock(config);
   try {
-    await atomicPrivateWrite(config.stateDirectory, 'credential.json', bytes);
+    await atomicPrivateWrite(config.stateDirectory, 'credential.json', bytes, { platform: config.platform });
   } finally {
     bytes.fill(0);
     await release();
   }
-  return record.generation;
+  return generation;
 };
 
 export const deleteCredentialIfGeneration = async (config, generation) => {
@@ -513,15 +645,15 @@ export const deleteCredentialIfGeneration = async (config, generation) => {
   const release = await acquireCredentialMutationLock(config);
   const path = join(config.stateDirectory, 'credential.json');
   try {
-    await ensurePrivateDirectory(config.stateDirectory);
-    await statRegularPrivateFile(path);
+    await ensurePrivateDirectory(config.stateDirectory, config.platform);
+    await statRegularPrivateFile(path, config.platform);
     const current = await readCredential(config);
     if (current === null || current.generation !== generation) return false;
     const quarantine = join(config.stateDirectory, `.credential.quarantine.${randomBytes(16).toString('base64url')}`);
     await rename(path, quarantine);
-    await syncDirectory(config.stateDirectory);
+    await syncDirectory(config.stateDirectory, config.platform);
     await unlink(quarantine).catch(() => undefined);
-    await syncDirectory(config.stateDirectory);
+    await syncDirectory(config.stateDirectory, config.platform);
     return true;
   } catch (error) {
     if (error?.code === 'ENOENT') return false;
@@ -534,8 +666,8 @@ export const deleteCredentialIfGeneration = async (config, generation) => {
 export const getOrCreateInstallationId = async (config) => {
   const path = join(config.stateDirectory, 'installation.json');
   try {
-    await ensurePrivateDirectory(config.stateDirectory);
-    await statRegularPrivateFile(path);
+    await ensurePrivateDirectory(config.stateDirectory, config.platform);
+    await statRegularPrivateFile(path, config.platform);
     const bytes = await readFile(path);
     const record = parseJsonBytes(bytes, 'SceneBoard installation', 256);
     if (!hasExactKeys(record, ['version', 'installationId']) || record.version !== 1
@@ -552,17 +684,19 @@ export const getOrCreateInstallationId = async (config) => {
     config.stateDirectory,
     'installation.json',
     new TextEncoder().encode(JSON.stringify({ version: 1, installationId })),
+    { platform: config.platform },
   );
   return installationId;
 };
 
 export const acquirePairingLock = async (config) => {
-  await ensurePrivateDirectory(config.stateDirectory);
+  await ensurePrivateDirectory(config.stateDirectory, config.platform);
   const path = join(config.stateDirectory, 'api-pairing.lock');
   const nonce = randomBytes(16).toString('base64url');
   let handle;
   try {
-    handle = await open(path, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW, 0o600);
+    handle = await open(path, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY
+      | (isWindows(config.platform) ? 0 : constants.O_NOFOLLOW), 0o600);
   } catch (error) {
     if (error?.code === 'EEXIST') {
       throw new SceneBoardApiError('BOARD_API_PROFILE_BUSY', 'SceneBoard API fallback pairing is already active', {
@@ -573,7 +707,7 @@ export const acquirePairingLock = async (config) => {
     throw error;
   }
   try {
-    await handle.chmod(0o600);
+    if (!isWindows(config.platform)) await handle.chmod(0o600);
     await handle.writeFile(JSON.stringify({ version: 1, nonce }));
     await handle.sync();
   } catch (error) {
@@ -584,7 +718,7 @@ export const acquirePairingLock = async (config) => {
   await handle.close();
   return async () => {
     try {
-      await statRegularPrivateFile(path);
+      await statRegularPrivateFile(path, config.platform);
       const value = parseJsonBytes(await readFile(path), 'SceneBoard pairing lock', 256);
       if (value?.version === 1 && value?.nonce === nonce) await unlink(path);
     } catch {}

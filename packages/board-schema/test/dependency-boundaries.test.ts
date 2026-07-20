@@ -80,7 +80,7 @@ test('keeps the runtime value-import graph acyclic', async () => {
 
 test('keeps shared primitive and revision runtime ownership in identifiers', async () => {
   const expectedConsumers = new Map([
-    ['ShortTextSchemaV1', ['artifacts', 'commands', 'errors', 'hitl', 'nodes/base', 'nodes/content', 'nodes/drawing', 'nodes/layout', 'operations']],
+    ['ShortTextSchemaV1', ['artifacts', 'commands', 'errors', 'hitl', 'nodes/base', 'nodes/content', 'nodes/drawing', 'nodes/layout', 'operations', 'parsers']],
     ['ContentTextSchemaV1', ['hitl', 'nodes/content']],
     ['LocalFieldIdSchemaV1', ['hitl', 'nodes/content', 'nodes/drawing']],
     ['RevisionSummarySchemaV1', ['commands', 'events', 'operations', 'snapshots']],

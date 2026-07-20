@@ -9,8 +9,10 @@ import test from 'node:test';
 
 import {
   SceneBoardApiError,
+  acquirePairingLock,
   applyScenePatch,
   deleteCredentialIfGeneration,
+  getOrCreateInstallationId,
   invokeProtected,
   parseApiInputBytes,
   parsePairingClaim,
@@ -184,6 +186,61 @@ test('fallback config requires a complete selected project tuple and reports tim
     mcpServers: { sceneboard: { env: { BOARD_API_URL: 'https://sceneboard.dev' } } },
   }));
   await assert.rejects(resolveApiConfig({ cwd: root, env: process.env }), { code: 'BOARD_API_CONFIG_INVALID' });
+});
+
+test('Windows fallback stores only current-user protected credentials under LOCALAPPDATA', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'sceneboard-windows-fallback-'));
+  const localAppData = join(root, 'local-app-data');
+  const windowsDataProtection = {
+    protect: async (value) => Buffer.from(`current-user:${value}`, 'utf8').toString('base64'),
+    unprotect: async (value) => Buffer.from(value, 'base64').toString('utf8').replace('current-user:', ''),
+  };
+  const config = await resolveApiConfig({
+    cwd: root,
+    env: { ...process.env, LOCALAPPDATA: localAppData, SCENEBOARD_PROFILE: 'windows_pair' },
+    platform: 'win32',
+    windowsDataProtection,
+  });
+  assert.equal(config.stateDirectory, join(localAppData, 'leecat-board', 'credentials', 'windows_pair'));
+  const release = await acquirePairingLock(config);
+  await release();
+  const installationId = await getOrCreateInstallationId(config);
+  assert.match(installationId, /^install_[A-Za-z0-9_-]{32}$/u);
+  const generation = await writeCredential(config, TOKEN);
+  const credentialPath = join(config.stateDirectory, 'credential.json');
+  const source = await readFile(credentialPath, 'utf8');
+  const stored = JSON.parse(source);
+  assert.equal(source.includes(TOKEN), false);
+  assert.deepEqual(Object.keys(stored), ['version', 'generation', 'protection', 'protectedAccessToken']);
+  assert.equal(stored.version, 2);
+  assert.equal(stored.generation, generation);
+  assert.equal(stored.protection, 'windows-dpapi-current-user');
+  assert.equal((await readCredential(config)).accessToken, TOKEN);
+  assert.equal(await deleteCredentialIfGeneration(config, 'z'.repeat(22)), false);
+  const replacement = `lcbg_v1.${'c'.repeat(22)}.${'d'.repeat(43)}`;
+  const replacementGeneration = await writeCredential(config, replacement);
+  assert.equal((await readCredential(config)).accessToken, replacement);
+  assert.equal(await deleteCredentialIfGeneration(config, replacementGeneration), true);
+  assert.equal(await readCredential(config), null);
+});
+
+test('Windows fallback reports a closed credential error when current-user protection is unavailable', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'sceneboard-windows-dpapi-failure-'));
+  const config = await resolveApiConfig({
+    cwd: root,
+    env: { ...process.env, LOCALAPPDATA: join(root, 'local-app-data'), SCENEBOARD_PROFILE: 'windows_failure' },
+    platform: 'win32',
+    windowsDataProtection: {
+      protect: async () => { throw new Error(`must-not-leak-${TOKEN}`); },
+      unprotect: async () => { throw new Error(`must-not-leak-${TOKEN}`); },
+    },
+  });
+  await assert.rejects(writeCredential(config, TOKEN), (error) => {
+    const failure = safeFailure(error, 'pair');
+    assert.equal(failure.error.code, 'BOARD_API_CREDENTIAL_UNAVAILABLE');
+    assert.equal(JSON.stringify(failure).includes(TOKEN), false);
+    return true;
+  });
 });
 
 test('board-scoped connection accepts the closed capabilities contract and rejects missing cache headers', async () => {

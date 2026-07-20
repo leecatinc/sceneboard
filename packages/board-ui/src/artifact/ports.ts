@@ -4,6 +4,7 @@ import type {
   ArtifactRuntimeSummaryV1,
   BoardId,
 } from '@leecat-board/board-schema';
+import type { ArtifactNavigationIntentV1, ArtifactResizeRequestV1 } from '@leecat-board/artifact-runtime/bridge';
 
 export type ArtifactMetadataLoadV1 = {
   manifest: ArtifactManifestV1;
@@ -24,6 +25,18 @@ export interface ArtifactLoadPortV1 {
 }
 
 export type ArtifactViewModeV1 = 'fit-height' | 'fit-width' | 'actual';
+export type ArtifactHostInstanceIdV1 = string;
+export type ArtifactViewStateEventV1 = Readonly<{
+  hostInstanceId: ArtifactHostInstanceIdV1;
+  incarnationKey: string;
+  phase: 'register' | 'interaction' | 'unregister';
+  scale: number;
+}>;
+export type ArtifactResetCommandV1 = Readonly<{
+  hostInstanceId: ArtifactHostInstanceIdV1;
+  incarnationKey: string;
+  epoch: number;
+}>;
 
 export type ArtifactHostInputV1 = {
   boardId: BoardId;
@@ -33,7 +46,13 @@ export type ArtifactHostInputV1 = {
   routeEpoch: string;
   snapshotWatermark: number;
   load: ArtifactLoadPortV1;
+  hostInstanceId: ArtifactHostInstanceIdV1;
+  incarnationKey: string;
   viewMode?: ArtifactViewModeV1;
   showStopControl?: boolean;
   stopSignal?: number;
+  onNavigationIntent?(intent: ArtifactNavigationIntentV1): void;
+  onResizeRequest?(request: ArtifactResizeRequestV1): void;
+  onViewStateChange?(event: ArtifactViewStateEventV1): void;
+  resetCommand?: ArtifactResetCommandV1 | null;
 };

@@ -48,6 +48,8 @@ test('ArtifactHost server shell is trusted, frame-free, and keeps local stop vis
       runtime={runtime}
       runtimeOrigin="http://127.0.0.2:3412"
       routeEpoch="route_one"
+      hostInstanceId="artifact_node"
+      incarnationKey={`route_one:artifact_node:${runtime.artifact.artifactId}:${runtime.artifact.versionId}`}
       snapshotWatermark={current.lastEventSequence}
       load={load}
     />,
@@ -63,4 +65,48 @@ test('artifact host sources use one credentialless allow-scripts outer frame', (
   assert.match(source, /setAttribute\('sandbox', OUTER_SANDBOX_TOKENS_V1\)/u);
   assert.match(source, /postMessage\(bootstrap, '\*', \[channel\.port2\]\)/u);
   assert.doesNotMatch(source, /srcdoc|dangerouslySetInnerHTML|eval\(|new Function/u);
+});
+
+test('ArtifactHost rejects an invalid incarnation before mounting the admitted bridge host', () => {
+  const current = snapshot();
+  const runtime = current.artifacts[0];
+  assert.ok(runtime);
+  const load: ArtifactLoadPortV1 = {
+    readMetadata: async () => { throw new TypeError('invalid identity must not load metadata'); },
+    readPackage: async () => { throw new TypeError('invalid identity must not load a package'); },
+  };
+  const html = renderToStaticMarkup(
+    <ArtifactHost
+      boardId={current.boardId}
+      artifact={runtime.artifact}
+      runtime={runtime}
+      runtimeOrigin="http://127.0.0.2:3412"
+      routeEpoch="route_one"
+      hostInstanceId="artifact_node"
+      incarnationKey="route_one:different_node:different_artifact:different_version"
+      snapshotWatermark={current.lastEventSequence}
+      load={load}
+    />,
+  );
+  assert.match(html, /could not be rendered safely/u);
+  assert.doesNotMatch(html, /Preparing the isolated artifact|Stop rendering|<iframe/u);
+});
+
+test('ArtifactHost source places identity admission before the bridge-owning child', () => {
+  const source = readFileSync(new URL('../../src/artifact/ArtifactHost.tsx', import.meta.url), 'utf8');
+  assert.match(source, /function AdmittedArtifactHost/u);
+  assert.match(source, /if \(!hasValidIdentity\)[\s\S]*return <AdmittedArtifactHost/u);
+  assert.match(source, /container\.scrollLeft = 0/u);
+  assert.match(source, /container\.scrollTop = 0/u);
+});
+
+test('ArtifactHost admits reset epochs only for its exact positive incarnation', () => {
+  const source = readFileSync(new URL('../../src/artifact/ArtifactHost.tsx', import.meta.url), 'utf8');
+  assert.equal(source.match(/advanceArtifactResetEpochV1\(/gu)?.length, 2);
+  assert.match(source, /appliedResetEpochRef\.current = reset\.epoch/u);
+  assert.doesNotMatch(source, /resetEpoch \?\? 0|appliedResetEpochRef\.current = 0/u);
+  assert.match(source, /generation !== generationRef\.current/u);
+  assert.match(source, /cancelAnimationFrame\(sizeFrameRef\.current\)/u);
+  assert.match(source, /applyArtifactPanIntentV1\(isPanningRef\.current, intent\)/u);
+  assert.match(source, /intent\.type === 'artifact\.navigation\.pan\.cancel'[\s\S]*delete container\.dataset\.panning/u);
 });

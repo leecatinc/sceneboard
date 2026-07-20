@@ -71,7 +71,15 @@ export const applyDurableEventV1 = (
   const data = envelope.data;
   if (data.type === 'hitl.updated') {
     const index = state.liveSnapshot.hitl.findIndex((item) => item.hitlRequestId === data.hitl.hitlRequestId);
-    if (index < 0) throw new TypeError('durable HITL event has no stable target');
+    if (index < 0) {
+      return {
+        ...state,
+        liveSnapshot: {
+          ...state.liveSnapshot,
+          hitl: [...state.liveSnapshot.hitl, data.hitl],
+        },
+      };
+    }
     const hitl = [...state.liveSnapshot.hitl];
     hitl[index] = data.hitl;
     return { ...state, liveSnapshot: { ...state.liveSnapshot, hitl } };

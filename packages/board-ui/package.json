@@ -12,7 +12,7 @@
   "scripts": {
     "build:types": "tsc -b ./tsconfig.build.json",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test test/*.test.tsx test/**/*.test.tsx"
+    "test": "tsx --test test/*.test.ts test/*.test.tsx test/**/*.test.ts test/**/*.test.tsx"
   },
   "dependencies": {
     "@leecat-board/artifact-runtime": "0.0.0",

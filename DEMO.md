@@ -6,7 +6,7 @@
 2. Set the SceneBoard user language to **English** before recording.
 3. Paste this entire file into Codex CLI and press Enter.
 4. Do not enter anything else in the terminal.
-5. In the browser, approve the connection request and make the single human choice when it appears.
+5. In the browser, approve the connection request and answer the three Human-in-the-Loop decisions when they appear.
 
 For a non-interactive launch, prepend the newest valid pairing code:
 
@@ -32,14 +32,18 @@ Complete this flow in one new SceneBoard board:
 
 1. Connect SceneBoard.
 2. Ask a person to choose the visual setting.
-3. Turn that choice into a childlike 2D Canvas animation.
-4. Transform the same scene into a CSS 3D paper-diorama animation.
-5. Use revision history to demonstrate movement between the 2D and 3D results.
+3. Draw only a childlike monochrome outline of the chosen scene.
+4. Ask whether Codex should color the drawing; color it only after an explicit yes.
+5. Ask whether Codex should transform the colored drawing into 3D; continue only after an explicit yes.
+6. Transform the same scene into a CSS 3D paper-diorama animation.
+7. Use revision history to demonstrate movement among the outline, colored 2D, and 3D results.
 
-Human intervention is allowed at exactly two points:
+Human intervention is allowed at exactly four points:
 
 - Approving the connection request in the browser.
-- Selecting one option in the Human-in-the-Loop card.
+- Selecting the visual setting in the first Human-in-the-Loop card.
+- Confirming whether Codex should add color in the second Human-in-the-Loop card.
+- Confirming whether Codex should enter the 3D stage in the third Human-in-the-Loop card.
 
 Never guess or manufacture a human response. Do not ask additional terminal questions. The only exception is an absent, placeholder, or invalid `PAIRING_CODE`; in that case, request one valid `SB-` code and resume immediately after receiving it.
 
@@ -98,7 +102,7 @@ Show:
 
 - Title: `AI Builds the Visual. A Human Directs the Story.`
 - Description: `Codex carries out the work while SceneBoard asks a person to decide the creative direction that matters.`
-- Steps: `1. Choose a setting` → `2. Watch Codex draw` → `3. Enter the 3D scene`
+- Steps: `1. Choose a setting` → `2. Watch Codex sketch` → `3. Approve color` → `4. Approve 3D`
 - Status: `A decision request will appear here in a moment.`
 
 Use generous spacing and recording-friendly type. Do not expose implementation terms or identifiers.
@@ -131,20 +135,21 @@ Stop waiting immediately on `answered`, `expired`, `cancelled`, or `superseded`.
 
 After a real answer, print one human-readable line such as:
 
-`Decision received — I will turn the sunny garden into an animated 2D drawing.`
+`Decision received — I will sketch the sunny garden as a monochrome 2D outline.`
 
-## 5. Childlike 2D Canvas animation
+## 5. Childlike 2D outline Canvas animation
 
-Create one self-contained artifact that exactly reflects the selected option. Codex must visibly draw the picture live, using the warm and imperfect style of an elementary-school child's paint-app drawing and completing it one element at a time.
+Create one self-contained artifact that exactly reflects the selected option. Codex must visibly sketch the complete picture live, using the warm and imperfect style of an elementary-school child's pencil drawing. This stage is outline-only: do not add fill colors, colored accents, gradients, or colored backgrounds.
 
 ### Visual contract
 
 - Use a responsive 16:9 Canvas with a 1200×675 design coordinate system.
-- Use slightly uneven crayon and marker lines with intentionally imperfect hand-drawn shapes.
-- Draw a black cat outline in the center, then fill it with orange and cream colors.
-- Give the cat large green eyes, triangular ears, a smiling mouth, and a long waving tail.
+- Immediately call `window.SceneBoardArtifact.requestResize(1200, 675)` after the artifact bridge is available. Do not rely on automatic content-size measurement for full-scene artifacts.
+- Use slightly uneven graphite and black crayon lines with intentionally imperfect hand-drawn shapes.
+- Draw a black cat outline in the center and leave the body, eyes, cheeks, tail, and environmental elements unfilled.
+- Give the cat large outlined eyes, triangular ears, a smiling mouth, and a long outlined tail.
 - Show the exact handwritten-style title `The Cat Codex Drew` and the subtitle `Drawn live by Codex, guided by your choice.` together with the human's exact choice.
-- Run for about 8–10 seconds, then hold the finished image.
+- Run for about 6–8 seconds, then hold the finished monochrome sketch.
 - Do not make motion the only way information is conveyed.
 - Under `prefers-reduced-motion: reduce`, show the completed picture immediately without animation.
 - Provide a complete text alternative for environments without Canvas.
@@ -152,16 +157,16 @@ Create one self-contained artifact that exactly reflects the selected option. Co
 
 ### Animation sequence
 
-1. 0–2 seconds: show a moving pen or crayon tip while Codex draws the cat outline like a pencil sketch.
-2. 2–4 seconds: add the body colors, eyes, cheeks, and tail.
-3. 4–7 seconds: draw the selected setting one element at a time.
-4. 7–10 seconds: add subtle motion and sparkle, then reveal `Finished — drawn by Codex.`
+1. 0–2 seconds: show a moving pencil tip while Codex draws the cat's head and ears.
+2. 2–4 seconds: add the outlined eyes, face, body, paws, and tail without filling them.
+3. 4–7 seconds: sketch the selected setting one outlined element at a time.
+4. At completion, reveal `Outline complete — waiting for your color decision.` and keep every shape monochrome.
 
 ### Setting details
 
-- `A sunny garden`: a yellow sun in the upper right, an apple tree on the right, grass, flowers, and butterflies. Let sunlight sparkle softly while leaves and the tail sway.
-- `A star-filled space adventure`: a navy sky, stars, crescent moon, ringed planet, and tiny paper rocket. Let stars appear in sequence while the cat floats gently.
-- `A rainy city`: a blue-gray sky, uneven buildings, a yellow umbrella, and puddles. Animate raindrops and small ripples.
+- `A sunny garden`: outline the sun in the upper right, an apple tree on the right, grass, flowers, and butterflies without color fills.
+- `A star-filled space adventure`: outline stars, a crescent moon, a ringed planet, and a tiny paper rocket without a colored sky.
+- `A rainy city`: outline clouds, uneven buildings, an umbrella, raindrops, and puddles without color fills.
 
 ### Publish, place, and verify
 
@@ -171,19 +176,61 @@ Create one self-contained artifact that exactly reflects the selected option. Co
 4. Read that immutable version with `board_artifact_get` and verify status `ready`.
 5. Read the latest head again.
 6. Place the returned artifact/version reference over the full scene in one mutation.
-7. Record the resulting 2D revision ID and display number.
+7. Record the resulting outline revision ID and display number.
 
-When a browser verifier can reuse the current approved user session, verify `.artifact-host.artifact-active` and the completed image on the real board page. Do not create another browser profile or login. If browser verification is unavailable, state `Browser rendering requires manual verification.` Do not equate publish success with render success. Stop before 3D if the artifact is not `ready` or cannot render safely on the current environment.
+When a browser verifier can reuse the current approved user session, verify `.artifact-host.artifact-active` and the completed image on the real board page. Do not create another browser profile or login. If browser verification is unavailable, state `Browser rendering requires manual verification.` Do not equate publish success with render success. Stop before the color decision if the outline artifact is not `ready` or cannot render safely on the current environment.
 
-After a confirmed render, hold the finished 2D image for about 10 seconds for recording.
+After a confirmed render, hold the finished outline for about six seconds for recording.
 
-## 6. CSS 3D paper-diorama animation
+## 6. Human-in-the-Loop color confirmation
+
+Read the latest head and open one `confirmation` interaction with a new unique `hitlRequestId`.
+
+- Title: `Should Codex color this drawing now?`
+- Body: `The monochrome outline is complete. Choosing yes will preserve this outline in revision history and create a new colored 2D version using the setting you selected. Choosing no will keep the current outline unchanged and end the visual transformation.`
+- Impact: `standard`
+- Confirm label: `Yes, add color`
+- Cancel label: `No, keep the outline`
+
+Place the exact returned Human-in-the-Loop request reference into the current visible scene when the contract does not place it automatically. Continue bounded status waits while the request is `open`; do not end the Codex turn between waits. Stop only on `answered`, `expired`, `cancelled`, or `superseded`.
+
+If the person selects `No, keep the outline`, preserve the outline as the current head, print `Color was not approved — the outline remains unchanged.`, and stop safely. Never infer yes from silence, elapsed time, or visual observation.
+
+## 7. Colored 2D Canvas animation
+
+Continue only after the authoritative response confirms `Yes, add color`.
+
+Create a new immutable artifact that preserves the exact geometry and selected setting from the outline revision, then visibly adds color without redrawing a different composition.
+
+- Call `window.SceneBoardArtifact.requestResize(1200, 675)` and retain the 1200×675 16:9 design coordinate system.
+- Keep the original black outline visible throughout the transition.
+- Fill the cat with orange and cream, give it large green eyes and warm cheeks, and color the selected setting one element at a time.
+- Animate the coloring for about 5–7 seconds as if Codex were using a child's paint tool, then reveal `Color complete — guided by your decision.`
+- Honor `prefers-reduced-motion: reduce` by showing the completed colored image immediately.
+- Keep the title `The Cat Codex Drew`, the human's exact setting choice, and a complete text alternative visible or accessible.
+
+Read the latest head, publish the immutable artifact, verify its exact version is `ready`, reread the latest head, and replace the outline artifact with the colored artifact in one mutation. Record the colored 2D revision ID and display number. After confirmed browser rendering, hold the colored result for about six seconds.
+
+## 8. Human-in-the-Loop 3D confirmation
+
+Read the latest head and open one `confirmation` interaction with a new unique `hitlRequestId`.
+
+- Title: `Should Codex bring this picture into 3D?`
+- Body: `The colored 2D drawing is complete. Choosing yes will preserve it in revision history and create a new interactive paper-diorama revision using the same cat and setting. Choosing no will keep the colored 2D picture as the final result.`
+- Impact: `standard`
+- Confirm label: `Yes, enter 3D`
+- Cancel label: `No, stay in 2D`
+
+Place the exact request reference in the visible scene when needed and keep the Codex turn active through repeated bounded status waits. If the person selects `No, stay in 2D`, preserve the colored 2D scene, print `3D was not approved — the colored 2D drawing remains the final scene.`, and stop safely.
+
+## 9. CSS 3D paper-diorama animation
 
 Preserve the selected story and visual elements, but transform the next revision into a layered paper theater made from the picture Codex drew. This is a 3D expression of the same choice, not a new story.
 
 ### Implementation contract
 
 - Use only HTML, CSS, and JavaScript; do not use WebGL, Three.js, or external libraries.
+- Call `window.SceneBoardArtifact.requestResize(1200, 675)` and author the complete stage at that 16:9 design size.
 - Create a perspective stage with background, middle, and foreground layers.
 - Use `transform-style: preserve-3d` and distinct `translateZ` values.
 - Place the cat in the foreground, the main environmental elements in the middle, and the sky/distant scenery in the background.
@@ -204,52 +251,59 @@ Follow the same safe sequence as the 2D artifact: read head, publish immutable a
 
 After a confirmed render, hold the 3D scene for about 10 seconds.
 
-## 7. Revision time-travel verification
+## 10. Revision time-travel verification
 
 Read `board_history_list` newest first and verify:
 
-- The 2D Canvas revision remains in history.
+- The monochrome outline revision remains in history.
+- A later colored 2D Canvas revision remains in history.
 - A later 3D diorama revision remains in history.
-- The two revisions reference different immutable artifact versions.
+- The three visual revisions reference the intended immutable artifact versions.
 - The current head is the 3D scene.
 
 Do not call `board_history_restore`. SceneBoard's `Previous`, `Next`, and `Latest` controls must remain local viewing controls that do not change board head.
 
 If the same logged-in browser session can be controlled:
 
-1. Select `Previous` and show the 2D revision for about five seconds.
-2. Select `Latest` and return to the 3D revision for about five seconds.
-3. Confirm that no page or artifact-runtime error occurred.
+1. Select `Previous` until the recorded colored 2D artifact revision is visible, then hold it for about five seconds.
+2. Continue selecting `Previous` until the recorded monochrome outline artifact revision is visible, then hold it for about five seconds. Human-in-the-Loop card revisions may appear between the visual artifact revisions.
+3. Select `Latest` and return to the 3D revision for about five seconds.
+4. Confirm that no page or artifact-runtime error occurred.
 
 If browser control is unavailable, keep the 3D scene visible and print only:
 
-`Recording cue — select Previous in the status rail to show the 2D revision, then Latest to return to the 3D scene.`
+`Recording cue — use Previous to reach the recorded colored 2D revision, continue to the recorded outline revision, then select Latest to return to the 3D scene.`
 
-## 8. Completion report
+## 11. Completion report
 
 Print only this concise evidence report:
 
 ```text
 SceneBoard demo ready
 - Board: <title and actual URL or boardId>
-- Human decision: <actual selected result>
-- 2D: revision <display number or ID> / artifact ready <yes|no> / browser active <yes|no|not-checked>
+- Setting decision: <actual selected result>
+- Color decision: <actual yes|no result>
+- 3D decision: <actual yes|no result>
+- Outline: revision <display number or ID> / artifact ready <yes|no> / browser active <yes|no|not-checked>
+- Colored 2D: revision <display number or ID> / artifact ready <yes|no> / browser active <yes|no|not-checked>
 - 3D: revision <display number or ID> / artifact ready <yes|no> / browser active <yes|no|not-checked>
 - Revision navigation: <verified automatically | presenter click required>
 - Recording status: <READY | BLOCKED: one specific reason>
 ```
 
-Use `READY` only when pairing, the real human answer, both artifact publications, history verification, and all required browser-render checks succeeded. Otherwise use `BLOCKED` and stop at the nearest actionable recovery point.
+Use `READY` only when pairing, all three real human answers, all three artifact publications, history verification, and all required browser-render checks succeeded. Otherwise use `BLOCKED` and stop at the nearest actionable recovery point.
 
-## 9. Suggested three-minute recording timeline
+## 12. Suggested three-minute recording timeline
 
 - 0:00–0:20 — Paste this runbook with an `SB-` code into Codex CLI and connect.
 - 0:20–0:45 — Approve in the browser and arrive at the new board automatically.
-- 0:45–1:10 — Make one Human-in-the-Loop choice inside SceneBoard.
-- 1:10–1:40 — Watch the cat's 2D Canvas drawing form step by step.
-- 1:40–2:10 — Transform the same choice into the CSS 3D paper diorama.
-- 2:10–2:35 — Compare the 2D and 3D revisions with `Previous` and `Latest`.
-- 2:35–2:50 — Hold the final scene and core message.
+- 0:45–1:00 — Choose the setting in the first Human-in-the-Loop card.
+- 1:00–1:20 — Watch Codex draw the monochrome outline.
+- 1:20–1:35 — Approve color, then watch the 2D fills appear.
+- 1:35–1:50 — Approve the 3D transition.
+- 1:50–2:15 — Watch the colored drawing become a CSS 3D paper diorama.
+- 2:15–2:40 — Compare the outline, colored 2D, and 3D revisions with `Previous` and `Latest`.
+- 2:40–2:50 — Hold the final scene and core message.
 
 Final message:
 

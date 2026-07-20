@@ -6,11 +6,13 @@ import {
   ArtifactHostStateMachineV1,
   type ArtifactBridgeEnvelopeV1,
   type ArtifactBridgeMessageV1,
+  type ArtifactNavigationIntentV1,
 } from '@leecat-board/artifact-runtime/bridge';
 import { decodeArtifactPackageV1 } from '@leecat-board/artifact-runtime/package';
 import { OUTER_SANDBOX_TOKENS_V1 } from '@leecat-board/artifact-runtime/policy';
 
 import type { ArtifactHostInputV1 } from './ports.js';
+import { dispatchArtifactNavigationIntentV1 } from './navigation-dispatch.js';
 
 export type ArtifactHostPhaseV1 = 'loading' | 'handshaking' | 'active' | 'stopped' | 'blocked' | 'failed' | 'unsupported';
 export type ArtifactBridgeViewV1 = {
@@ -27,6 +29,8 @@ type Waiter = {
   reject(error: Error): void;
   timer: ReturnType<typeof setTimeout>;
 };
+
+type BinaryCarrier = { envelope: ArtifactBridgeEnvelopeV1; binary: ArrayBuffer };
 
 const randomId = (): string => {
   const bytes = crypto.getRandomValues(new Uint8Array(16));
@@ -50,14 +54,27 @@ export const useArtifactBridgeV1 = (input: ArtifactHostInputV1): ArtifactBridgeV
   const [contentSize, setContentSize] = useState<Readonly<{ width: number; height: number }> | null>(null);
   const [localStopEpoch, setLocalStopEpoch] = useState(0);
   const cleanupRef = useRef<(() => void) | null>(null);
+  const sendNavigationControlRef = useRef<((enabled: boolean) => void) | null>(null);
+  const onNavigationIntentRef = useRef(input.onNavigationIntent);
+  const onResizeRequestRef = useRef(input.onResizeRequest);
+  const viewModeRef = useRef(input.viewMode ?? 'fit-height');
+  onNavigationIntentRef.current = input.onNavigationIntent;
+  onResizeRequestRef.current = input.onResizeRequest;
+  viewModeRef.current = input.viewMode ?? 'fit-height';
 
   const stop = useCallback(() => {
     cleanupRef.current?.();
     cleanupRef.current = null;
     setLocalStopEpoch((value) => value + 1);
     setCorrelationId(null);
+    setContentSize(null);
     setPhase('stopped');
   }, []);
+
+  useEffect(() => {
+    if (phase !== 'active') return;
+    sendNavigationControlRef.current?.(input.viewMode === 'actual');
+  }, [input.viewMode, phase]);
 
   useEffect(() => {
     if (localStopEpoch > 0) return;
@@ -85,7 +102,12 @@ export const useArtifactBridgeV1 = (input: ArtifactHostInputV1): ArtifactBridgeV
     let packageBytes: Uint8Array | null = null;
     let watchdogTimer: ReturnType<typeof setInterval> | null = null;
     let watchdogDeadline: ReturnType<typeof setTimeout> | null = null;
+    let navigationTimer: ReturnType<typeof setTimeout> | null = null;
     let stopped = false;
+
+    const assertRunning = (): void => {
+      if (stopped || controller.signal.aborted) throw new TypeError('artifact host run was superseded');
+    };
 
     const rejectWaiters = (error: Error): void => {
       for (const waiter of waiters.splice(0)) {
@@ -99,6 +121,8 @@ export const useArtifactBridgeV1 = (input: ArtifactHostInputV1): ArtifactBridgeV
       controller.abort();
       if (watchdogTimer !== null) clearInterval(watchdogTimer);
       if (watchdogDeadline !== null) clearTimeout(watchdogDeadline);
+      if (navigationTimer !== null) clearTimeout(navigationTimer);
+      navigationTimer = null;
       rejectWaiters(new TypeError('artifact host disposed'));
       if (endpoint !== null && port !== null && !endpoint.closed) {
         try { port.postMessage(endpoint.send({ type: 'host.dispose', reason })); } catch { /* terminal */ }
@@ -106,6 +130,8 @@ export const useArtifactBridgeV1 = (input: ArtifactHostInputV1): ArtifactBridgeV
       endpoint?.close();
       port?.close();
       frame?.remove();
+      sendNavigationControlRef.current = null;
+      setContentSize(null);
       if (packageBytes !== null) packageBytes.fill(0);
       packageBytes = null;
     };
@@ -128,12 +154,17 @@ export const useArtifactBridgeV1 = (input: ArtifactHostInputV1): ArtifactBridgeV
     const run = async (): Promise<void> => {
       setPhase('loading');
       setCorrelationId(null);
+      setContentSize(null);
       const admittedWatermark = input.snapshotWatermark;
       const metadata = await input.load.readMetadata({ boardId: input.boardId, artifact: input.artifact, signal: controller.signal });
+      assertRunning();
       if (metadata.runtime.status !== 'ready') throw new TypeError('artifact metadata is not ready');
       packageBytes = await input.load.readPackage({ boardId: input.boardId, artifact: input.artifact, signal: controller.signal });
+      assertRunning();
       const decoded = await decodeArtifactPackageV1(packageBytes);
+      assertRunning();
       const confirmed = await input.load.readMetadata({ boardId: input.boardId, artifact: input.artifact, signal: controller.signal });
+      assertRunning();
       if (input.snapshotWatermark < admittedWatermark
         || input.runtime.status !== 'ready'
         || confirmed.runtime.status !== 'ready'
@@ -150,15 +181,30 @@ export const useArtifactBridgeV1 = (input: ArtifactHostInputV1): ArtifactBridgeV
       frame.className = 'artifact-runtime-frame';
       frame.src = `${runtimeOrigin}/runner`;
       const loaded = new Promise<void>((resolve, reject) => {
-        const timer = setTimeout(() => reject(new TypeError('artifact runner navigation timed out')), 5_000);
-        frame?.addEventListener('load', () => { clearTimeout(timer); resolve(); }, { once: true });
-        frame?.addEventListener('error', () => { clearTimeout(timer); reject(new TypeError('artifact runner navigation failed')); }, { once: true });
+        navigationTimer = setTimeout(() => {
+          navigationTimer = null;
+          reject(new TypeError('artifact runner navigation timed out'));
+        }, 5_000);
+        frame?.addEventListener('load', () => {
+          if (navigationTimer !== null) clearTimeout(navigationTimer);
+          navigationTimer = null;
+          resolve();
+        }, { once: true });
+        frame?.addEventListener('error', () => {
+          if (navigationTimer !== null) clearTimeout(navigationTimer);
+          navigationTimer = null;
+          reject(new TypeError('artifact runner navigation failed'));
+        }, { once: true });
       });
       const stage = document.createElement('div');
       stage.className = 'artifact-runtime-stage';
-      stage.append(frame);
+      const transformPlane = document.createElement('div');
+      transformPlane.className = 'artifact-runtime-transform';
+      transformPlane.append(frame);
+      stage.append(transformPlane);
       container.replaceChildren(stage);
       await loaded;
+      assertRunning();
       if (frame.contentWindow === null) throw new TypeError('artifact runner window is unavailable');
 
       const channelId = randomId();
@@ -167,17 +213,42 @@ export const useArtifactBridgeV1 = (input: ArtifactHostInputV1): ArtifactBridgeV
       endpoint = new ArtifactBridgeEndpointV1({ channelId, sessionId, artifact: input.artifact });
       const channel = new MessageChannel();
       port = channel.port1;
-      port.onmessage = (event: MessageEvent<ArtifactBridgeEnvelopeV1>) => {
+      port.onmessage = (event: MessageEvent<ArtifactBridgeEnvelopeV1 | BinaryCarrier>) => {
         try {
           if (endpoint === null) throw new TypeError('artifact endpoint is unavailable');
-          const message = endpoint.receive(event.data).envelope.message;
+          let source: unknown = event.data;
+          let binary: ArrayBuffer | null = null;
+          let transfers = { messagePorts: event.ports.length, arrayBufferBytes: [] as number[] };
+          if (event.data !== null && typeof event.data === 'object' && !Array.isArray(event.data)
+            && Object.keys(event.data).length === 2 && Object.hasOwn(event.data, 'envelope') && Object.hasOwn(event.data, 'binary')) {
+            const carrier = event.data as BinaryCarrier;
+            if (!(carrier.binary instanceof ArrayBuffer)) throw new TypeError('binary carrier is invalid');
+            source = carrier.envelope;
+            binary = carrier.binary;
+            transfers = { messagePorts: event.ports.length, arrayBufferBytes: [binary.byteLength] };
+          }
+          const message = endpoint.receive(source, transfers).envelope.message;
           if (message.type === 'runner.watchdog.pong') {
             if (watchdogDeadline !== null) clearTimeout(watchdogDeadline);
             watchdogDeadline = null;
             return;
           }
           if (message.type === 'artifact.resize.request') {
-            setContentSize(message.value);
+            onResizeRequestRef.current?.(message.value);
+            return;
+          }
+          if (message.type === 'artifact.navigation.wheel'
+            || message.type === 'artifact.navigation.pan.start'
+            || message.type === 'artifact.navigation.pan.move'
+            || message.type === 'artifact.navigation.pan.end'
+            || message.type === 'artifact.navigation.pan.cancel') {
+            dispatchArtifactNavigationIntentV1(viewModeRef.current, message as ArtifactNavigationIntentV1, onNavigationIntentRef.current);
+            return;
+          }
+          if (message.type === 'artifact.selection.change'
+            || message.type === 'artifact.user-action'
+            || message.type === 'artifact.capability.request') {
+            if (binary !== null) new Uint8Array(binary).fill(0);
             return;
           }
           const waiterIndex = waiters.findIndex((waiter) => waiter.type === message.type);
@@ -202,7 +273,12 @@ export const useArtifactBridgeV1 = (input: ArtifactHostInputV1): ArtifactBridgeV
       lifecycle.advance('mount');
       frame.contentWindow.postMessage(bootstrap, '*', [channel.port2]);
       port.start();
+      sendNavigationControlRef.current = (enabled) => {
+        if (endpoint === null || port === null || stopped) return;
+        port.postMessage(endpoint.send({ type: 'host.navigation.set', enabled }));
+      };
       await waitFor('runner.ready', 5_000);
+      assertRunning();
       lifecycle.advance('runner.ready');
 
       const transferId = randomId();
@@ -227,19 +303,23 @@ export const useArtifactBridgeV1 = (input: ArtifactHostInputV1): ArtifactBridgeV
         const envelope = endpoint.send({ type: 'host.package.chunk', transferId, index, offset, byteLength: length }, { messagePorts: 0, arrayBufferBytes: [length] });
         port.postMessage({ envelope, binary: chunk.buffer }, [chunk.buffer]);
         const ack = await waitFor('runner.package.ack', 5_000);
+        assertRunning();
         if (ack.type !== 'runner.package.ack' || ack.transferId !== transferId || ack.index !== index || ack.receivedBytes !== offset + length) throw new TypeError('artifact package ACK mismatch');
         offset += length;
       }
       port.postMessage(endpoint.send({ type: 'host.package.end', transferId, chunkCount, totalBytes: packageBytes.byteLength, packageSha256: decoded.packageSha256 }));
       const ready = await waitFor('runner.package.ready', 10_000);
+      assertRunning();
       if (ready.type !== 'runner.package.ready' || ready.transferId !== transferId || ready.packageSha256 !== decoded.packageSha256) throw new TypeError('artifact package-ready mismatch');
       lifecycle.advance('package.ready');
       lifecycle.advance('inner.start');
       setPhase('handshaking');
       await waitFor('artifact.ready', 10_000);
+      assertRunning();
       lifecycle.advance('artifact.ready');
       packageBytes.fill(0);
       packageBytes = null;
+      setContentSize({ width: 1_200, height: 675 });
       setPhase('active');
       watchdogTimer = setInterval(() => {
         if (endpoint === null || port === null || watchdogDeadline !== null || stopped) return;

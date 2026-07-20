@@ -28,6 +28,75 @@ const parsedArtifactEvent = artifactEventParsed.data.value;
 if (parsedArtifactEvent.data.type !== 'artifact.status.changed') throw new TypeError('artifact event fixture is invalid');
 const artifactEvent = { ...parsedArtifactEvent, data: parsedArtifactEvent.data };
 
+const hitlEventParsed = BoardEventEnvelopeParserV1.parse(JSON.parse(readFileSync(new URL('../../../board-schema/test/fixtures/valid/event-hitl-updated.v1.json', import.meta.url), 'utf8')));
+if (!hitlEventParsed.ok || hitlEventParsed.data.value.data.type !== 'hitl.updated') throw new TypeError('HITL event fixture is invalid');
+const hitlEvent = { ...hitlEventParsed.data.value, data: hitlEventParsed.data.value.data };
+const answeredHitlParsed = BoardEventEnvelopeParserV1.parse({
+  ...hitlEvent,
+  eventId: 'event_2',
+  sequence: 2,
+  occurredAt: '2026-07-16T00:01:00.000Z',
+  data: {
+    type: 'hitl.updated',
+    hitl: {
+      ...hitlEvent.data.hitl,
+      state: 'answered',
+      stateUpdatedAt: '2026-07-16T00:01:00.000Z',
+      response: { kind: 'info', acknowledged: true },
+      answeredAt: '2026-07-16T00:01:00.000Z',
+    },
+  },
+});
+if (!answeredHitlParsed.ok || answeredHitlParsed.data.value.data.type !== 'hitl.updated') throw new TypeError('answered HITL event fixture is invalid');
+const answeredHitlEvent = { ...answeredHitlParsed.data.value, data: answeredHitlParsed.data.value.data };
+
+const secondHitlParsed = BoardEventEnvelopeParserV1.parse({
+  ...hitlEvent,
+  eventId: 'event_3',
+  sequence: 3,
+  occurredAt: '2026-07-16T00:02:00.000Z',
+  data: {
+    type: 'hitl.updated',
+    hitl: {
+      ...hitlEvent.data.hitl,
+      hitlRequestId: 'hitl_2',
+      createdAt: '2026-07-16T00:02:00.000Z',
+      expiresAt: '2026-07-16T00:04:00.000Z',
+      stateUpdatedAt: '2026-07-16T00:02:00.000Z',
+    },
+  },
+});
+if (!secondHitlParsed.ok || secondHitlParsed.data.value.data.type !== 'hitl.updated') throw new TypeError('second HITL event fixture is invalid');
+const secondHitlEvent = { ...secondHitlParsed.data.value, data: secondHitlParsed.data.value.data };
+
+const answeredSecondHitlParsed = BoardEventEnvelopeParserV1.parse({
+  ...secondHitlEvent,
+  eventId: 'event_4',
+  sequence: 4,
+  occurredAt: '2026-07-16T00:03:00.000Z',
+  data: {
+    type: 'hitl.updated',
+    hitl: {
+      ...secondHitlEvent.data.hitl,
+      state: 'answered',
+      stateUpdatedAt: '2026-07-16T00:03:00.000Z',
+      response: { kind: 'info', acknowledged: true },
+      answeredAt: '2026-07-16T00:03:00.000Z',
+    },
+  },
+});
+if (!answeredSecondHitlParsed.ok || answeredSecondHitlParsed.data.value.data.type !== 'hitl.updated') throw new TypeError('answered second HITL event fixture is invalid');
+const answeredSecondHitlEvent = { ...answeredSecondHitlParsed.data.value, data: answeredSecondHitlParsed.data.value.data };
+
+const wrongBoardHitlParsed = BoardEventEnvelopeParserV1.parse({
+  ...secondHitlEvent,
+  boardId: 'board_2',
+  eventId: 'event_5',
+  sequence: 5,
+});
+if (!wrongBoardHitlParsed.ok || wrongBoardHitlParsed.data.value.data.type !== 'hitl.updated') throw new TypeError('wrong-board HITL event fixture is invalid');
+const wrongBoardHitlEvent = { ...wrongBoardHitlParsed.data.value, data: wrongBoardHitlParsed.data.value.data };
+
 const revision = (source: BoardSnapshotV1, id: string, number: number): BoardSnapshotV1 => ({
   ...source,
   revision: {
@@ -71,4 +140,70 @@ test('artifact status arriving before scene placement is admitted into live stat
   const state = applyDurableEventV1(createLiveBoardStateV1(first), artifactEvent);
 
   assert.deepEqual(state.liveSnapshot.artifacts, [artifactEvent.data.artifact]);
+});
+
+test('new durable HITL is appended to hidden live state without mutating history', () => {
+  const second = revision(first, 'revision_2', 2);
+  let state = createLiveBoardStateV1(second);
+  state = enterHistoryV1(state, first, {
+    revisionId: first.revision.revisionId,
+    previousRevisionId: null,
+    nextRevisionId: second.revision.revisionId,
+    latestRevisionId: second.revision.revisionId,
+    label: 'Initial',
+  });
+  const visible = visibleBoardSnapshotV1(state);
+
+  state = applyDurableEventV1(state, hitlEvent);
+
+  assert.equal(visibleBoardSnapshotV1(state), visible);
+  assert.deepEqual(state.liveSnapshot.hitl, [hitlEvent.data.hitl]);
+});
+
+test('later durable HITL state replaces the stable request without duplication', () => {
+  let state = applyDurableEventV1(createLiveBoardStateV1(first), hitlEvent);
+
+  state = applyDurableEventV1(state, answeredHitlEvent);
+
+  assert.equal(state.liveSnapshot.hitl.length, 1);
+  assert.deepEqual(state.liveSnapshot.hitl[0], answeredHitlEvent.data.hitl);
+});
+
+test('durable HITL appends and updates only the exact identity in a populated historical state', () => {
+  const second = revision(first, 'revision_2', 2);
+  const liveWithFirst = { ...second, hitl: [hitlEvent.data.hitl] };
+  let state = enterHistoryV1(createLiveBoardStateV1(liveWithFirst), first, {
+    revisionId: first.revision.revisionId,
+    previousRevisionId: null,
+    nextRevisionId: second.revision.revisionId,
+    latestRevisionId: second.revision.revisionId,
+    label: 'Initial',
+  });
+  const visible = visibleBoardSnapshotV1(state);
+  const originalFirst = state.liveSnapshot.hitl[0];
+
+  state = applyDurableEventV1(state, secondHitlEvent);
+
+  assert.equal(visibleBoardSnapshotV1(state), visible);
+  assert.equal(state.liveSnapshot.hitl.length, 2);
+  assert.equal(state.liveSnapshot.hitl[0], originalFirst);
+  assert.deepEqual(state.liveSnapshot.hitl.map((item) => item.hitlRequestId), ['hitl_1', 'hitl_2']);
+  assert.deepEqual(state.liveSnapshot.hitl[1], secondHitlEvent.data.hitl);
+
+  state = applyDurableEventV1(state, answeredSecondHitlEvent);
+
+  assert.equal(visibleBoardSnapshotV1(state), visible);
+  assert.equal(state.liveSnapshot.hitl.length, 2);
+  assert.equal(state.liveSnapshot.hitl[0], originalFirst);
+  assert.deepEqual(state.liveSnapshot.hitl.map((item) => item.hitlRequestId), ['hitl_1', 'hitl_2']);
+  assert.deepEqual(state.liveSnapshot.hitl[1], answeredSecondHitlEvent.data.hitl);
+});
+
+test('wrong-board durable HITL fails closed without changing the input state', () => {
+  const state = createLiveBoardStateV1({ ...first, hitl: [hitlEvent.data.hitl] });
+  const liveSnapshot = state.liveSnapshot;
+
+  assert.throws(() => applyDurableEventV1(state, wrongBoardHitlEvent), /durable event targets another board/u);
+  assert.equal(state.liveSnapshot, liveSnapshot);
+  assert.deepEqual(state.liveSnapshot.hitl, [hitlEvent.data.hitl]);
 });

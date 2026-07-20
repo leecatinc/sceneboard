@@ -10,6 +10,15 @@ import {
 
 export type Base64Url22 = string;
 
+export type ArtifactNavigationControlV1 = Readonly<{ type: 'host.navigation.set'; enabled: boolean }>;
+export type ArtifactNavigationIntentV1 =
+  | Readonly<{ type: 'artifact.navigation.wheel'; xMillionth: number; yMillionth: number; deltaY: number }>
+  | Readonly<{ type: 'artifact.navigation.pan.start'; pointerId: number; xMillionth: number; yMillionth: number }>
+  | Readonly<{ type: 'artifact.navigation.pan.move'; pointerId: number; deltaX: number; deltaY: number }>
+  | Readonly<{ type: 'artifact.navigation.pan.end'; pointerId: number; deltaX: number; deltaY: number }>
+  | Readonly<{ type: 'artifact.navigation.pan.cancel'; pointerId: number }>;
+export type ArtifactResizeRequestV1 = Readonly<{ width: number; height: number; source: 'explicit' | 'observer' }>;
+
 export type ArtifactBridgeMessageV1 =
   | { type: 'host.bootstrap'; appOrigin: string; runtimeOrigin: string; policyEpoch: Base64Url22 }
   | { type: 'runner.ready'; supportedProtocolVersions: [1] }
@@ -26,7 +35,9 @@ export type ArtifactBridgeMessageV1 =
   | { type: 'host.data'; revisionId: string; projectionId: string; value: JsonValue }
   | { type: 'host.viewport'; value: { width: number; height: number; devicePixelRatio: number } }
   | { type: 'host.selection'; value: { nodeIds: string[] } }
-  | { type: 'artifact.resize.request'; value: { width: number; height: number } }
+  | ArtifactNavigationControlV1
+  | ArtifactNavigationIntentV1
+  | { type: 'artifact.resize.request'; value: ArtifactResizeRequestV1 }
   | { type: 'artifact.selection.change'; value: { nodeIds: string[] } }
   | { type: 'artifact.user-action'; requestId: Base64Url22; capability: 'clipboard.write' | 'download' | 'fullscreen' }
   | { type: 'artifact.capability.request'; requestId: Base64Url22; capability: ArtifactRequestCapabilityV1; payload: Record<string, unknown> }
@@ -76,6 +87,12 @@ const MESSAGE_KEYS: Readonly<Record<ArtifactBridgeMessageV1['type'], readonly st
   'host.data': ['type', 'revisionId', 'projectionId', 'value'],
   'host.viewport': ['type', 'value'],
   'host.selection': ['type', 'value'],
+  'host.navigation.set': ['type', 'enabled'],
+  'artifact.navigation.wheel': ['type', 'xMillionth', 'yMillionth', 'deltaY'],
+  'artifact.navigation.pan.start': ['type', 'pointerId', 'xMillionth', 'yMillionth'],
+  'artifact.navigation.pan.move': ['type', 'pointerId', 'deltaX', 'deltaY'],
+  'artifact.navigation.pan.end': ['type', 'pointerId', 'deltaX', 'deltaY'],
+  'artifact.navigation.pan.cancel': ['type', 'pointerId'],
   'artifact.resize.request': ['type', 'value'],
   'artifact.selection.change': ['type', 'value'],
   'artifact.user-action': ['type', 'requestId', 'capability'],
@@ -102,6 +119,12 @@ const CONTROL_CAPS: Readonly<Record<ArtifactBridgeMessageV1['type'], number>> = 
   'host.data': 65_536,
   'host.viewport': 1_024,
   'host.selection': 8_192,
+  'host.navigation.set': 1_024,
+  'artifact.navigation.wheel': 1_024,
+  'artifact.navigation.pan.start': 1_024,
+  'artifact.navigation.pan.move': 1_024,
+  'artifact.navigation.pan.end': 1_024,
+  'artifact.navigation.pan.cancel': 1_024,
   'artifact.resize.request': 1_024,
   'artifact.selection.change': 8_192,
   'artifact.user-action': 1_024,
@@ -172,6 +195,11 @@ const integer = (value: unknown, minimum: number, maximum: number, label: string
     throw new TypeError(`${label} is invalid`);
   }
   return value as number;
+};
+
+const finite = (value: unknown, minimum: number, maximum: number, label: string): number => {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < minimum || value > maximum) throw new TypeError(`${label} is invalid`);
+  return value;
 };
 
 const id22 = (value: unknown, label: string): string => {
@@ -276,10 +304,11 @@ const validateMessage = (message: Record<string, unknown>): ArtifactBridgeMessag
     case 'host.viewport':
     case 'artifact.resize.request': {
       const value = record(message.value, 'viewport');
-      const allowed = type === 'host.viewport' ? ['width', 'height', 'devicePixelRatio'] : ['width', 'height'];
+      const allowed = type === 'host.viewport' ? ['width', 'height', 'devicePixelRatio'] : ['width', 'height', 'source'];
       if (!exactKeys(value, allowed)) throw new TypeError('viewport keys are invalid');
       integer(value.width, 1, 16_384, 'width'); integer(value.height, 1, 16_384, 'height');
       if (type === 'host.viewport' && (typeof value.devicePixelRatio !== 'number' || !Number.isFinite(value.devicePixelRatio) || value.devicePixelRatio <= 0 || value.devicePixelRatio > 4)) throw new TypeError('device pixel ratio is invalid');
+      if (type === 'artifact.resize.request' && value.source !== 'explicit' && value.source !== 'observer') throw new TypeError('resize source is invalid');
       break;
     }
     case 'host.selection':
@@ -289,6 +318,28 @@ const validateMessage = (message: Record<string, unknown>): ArtifactBridgeMessag
       ids(value.nodeIds);
       break;
     }
+    case 'host.navigation.set':
+      if (typeof message.enabled !== 'boolean') throw new TypeError('navigation control is invalid');
+      break;
+    case 'artifact.navigation.wheel':
+      integer(message.xMillionth, 0, 1_000_000, 'navigation x');
+      integer(message.yMillionth, 0, 1_000_000, 'navigation y');
+      if (finite(message.deltaY, -16_384, 16_384, 'wheel delta') === 0) throw new TypeError('wheel delta is invalid');
+      break;
+    case 'artifact.navigation.pan.start':
+      integer(message.pointerId, 0, 2_147_483_647, 'pointer ID');
+      integer(message.xMillionth, 0, 1_000_000, 'navigation x');
+      integer(message.yMillionth, 0, 1_000_000, 'navigation y');
+      break;
+    case 'artifact.navigation.pan.move':
+    case 'artifact.navigation.pan.end':
+      integer(message.pointerId, 0, 2_147_483_647, 'pointer ID');
+      finite(message.deltaX, -16_384, 16_384, 'pan x');
+      finite(message.deltaY, -16_384, 16_384, 'pan y');
+      break;
+    case 'artifact.navigation.pan.cancel':
+      integer(message.pointerId, 0, 2_147_483_647, 'pointer ID');
+      break;
     case 'artifact.user-action':
       id22(message.requestId, 'request ID');
       if (!['clipboard.write', 'download', 'fullscreen'].includes(String(message.capability))) throw new TypeError('user action capability is invalid');

@@ -95,6 +95,7 @@ export {
   MutationEnvelopeParserV1,
   MutationRequestParserV1,
   MutationResultParserV1,
+  NodeIdParserV1,
   PrincipalIdParserV1,
   ShortTextParserV1,
   SceneParserV1,

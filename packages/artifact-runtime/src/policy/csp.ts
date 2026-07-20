@@ -33,7 +33,7 @@ export const buildInnerPolicyV1 = (nonce: string): string => {
   if (!/^[A-Za-z0-9_-]{22}$/u.test(nonce)) throw new TypeError('inner CSP nonce must be 128-bit base64url');
   return [
     "default-src 'none'",
-    `script-src 'nonce-${nonce}' data: blob:`,
+    `script-src 'nonce-${nonce}' blob:`,
     "style-src 'unsafe-inline'",
     'img-src data: blob:',
     "connect-src 'none'",

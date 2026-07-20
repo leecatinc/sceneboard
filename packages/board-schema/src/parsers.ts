@@ -12,6 +12,7 @@ import {
   BoardIdSchemaV1,
   GlobalIdStringSchemaV1,
   GrantIdSchemaV1,
+  NodeIdSchemaV1,
   PrincipalIdSchemaV1,
   ShortTextSchemaV1,
 } from './identifiers.js';
@@ -217,6 +218,7 @@ export const GlobalIdStringParserV1 = createParser(GlobalIdStringSchemaV1);
 export const BoardIdParserV1 = createParser(BoardIdSchemaV1);
 export const GrantIdParserV1 = createParser(GrantIdSchemaV1);
 export const PrincipalIdParserV1 = createParser(PrincipalIdSchemaV1);
+export const NodeIdParserV1 = createParser(NodeIdSchemaV1);
 export const ShortTextParserV1 = createParser(ShortTextSchemaV1);
 
 export const SceneParserV1 = createParser(SceneSchemaV1, 'scene');

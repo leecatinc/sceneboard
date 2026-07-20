@@ -1,5 +1,8 @@
 import {
   ArtifactBridgeEndpointV1,
+  ArtifactNavigationAdmissionV1,
+  ArtifactRateBudgetV1,
+  isChargedAuthoredMessageV1,
   ArtifactRunnerStateMachineV1,
   parseArtifactBridgeEnvelopeV1,
   type ArtifactBridgeEnvelopeV1,
@@ -8,6 +11,7 @@ import {
 import type { ArtifactReferenceV1 } from '@leecat-board/board-schema';
 import { decodeArtifactPackageV1 } from '../package/index.js';
 import { buildInnerPolicyV1, INNER_SANDBOX_TOKENS_V1 } from '../policy/index.js';
+import { composeArtifactInnerDocumentV1 } from './inner-document.js';
 
 declare const __INNER_BOOTSTRAP_SOURCE__: string;
 declare const __MERMAID_ASSET_PATH__: string;
@@ -40,15 +44,38 @@ let innerDocumentUrl: string | null = null;
 let packageBytes: Uint8Array | null = null;
 let expectedTransfer: { id: string; totalBytes: number; chunkCount: number; packageSha256: string; received: number; nextIndex: number } | null = null;
 let disposed = false;
+const navigationAdmission = new ArtifactNavigationAdmissionV1();
 const lifecycle = new ArtifactRunnerStateMachineV1();
+const authoredBudget = new ArtifactRateBudgetV1({ countRate: 32, countBurst: 64, byteRate: 131_072, byteBurst: 262_144 });
+
+const isNavigationIntent = (message: ArtifactBridgeMessageV1): boolean => message.type === 'artifact.navigation.wheel'
+  || message.type === 'artifact.navigation.pan.start'
+  || message.type === 'artifact.navigation.pan.move'
+  || message.type === 'artifact.navigation.pan.end'
+  || message.type === 'artifact.navigation.pan.cancel';
 
 const sendParent = (message: ArtifactBridgeMessageV1): void => {
   if (disposed || parentEndpoint === null || parentPort === null) return;
   parentPort.postMessage(parentEndpoint.send(message));
 };
 
+const sendParentBinary = (message: ArtifactBridgeMessageV1, binary: ArrayBuffer): void => {
+  if (disposed || parentEndpoint === null || parentPort === null) return;
+  const envelope = parentEndpoint.send(message, { messagePorts: 0, arrayBufferBytes: [binary.byteLength] });
+  parentPort.postMessage({ envelope, binary } satisfies BinaryCarrier, [binary]);
+};
+
+const closeNavigation = (): void => {
+  navigationAdmission.setEnabled(false);
+};
+
+const admitNavigation = (message: ArtifactBridgeMessageV1): boolean => {
+  return navigationAdmission.admit(message, lifecycle.state === 'active');
+};
+
 const terminalDispose = (notify = true): void => {
   if (disposed) return;
+  closeNavigation();
   if (innerEndpoint !== null && innerPort !== null && !innerEndpoint.closed) {
     try { innerPort.postMessage(innerEndpoint.send({ type: 'host.dispose', reason: 'protocol_error' })); } catch { /* terminal */ }
   }
@@ -91,7 +118,13 @@ const createInner = async (message: Extract<ArtifactBridgeMessageV1, { type: 'ho
     : '';
   const resourcesTag = `<template id="__sceneboard_artifact_resources_v1__">${resources}</template>`;
   const bootstrapTag = `<script nonce="${nonce}" src="${escapeAttribute(bootstrapDataUrl)}"></script>`;
-  const documentBytes = new TextEncoder().encode(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="${escapeAttribute(policy)}"><style>html,body{width:100%;height:100%;margin:0;overflow:hidden}</style>${mermaidTag}${resourcesTag}</head><body>${htmlText}${bootstrapTag}</body></html>`);
+  const documentBytes = new TextEncoder().encode(composeArtifactInnerDocumentV1({
+    policy: escapeAttribute(policy),
+    mermaidTag,
+    resourcesTag,
+    bootstrapTag,
+    html: htmlText,
+  }));
   innerDocumentUrl = URL.createObjectURL(new Blob([documentBytes], { type: 'text/html' }));
   const frame = document.createElement('iframe');
   frame.title = 'Isolated artifact content';
@@ -106,15 +139,47 @@ const createInner = async (message: Extract<ArtifactBridgeMessageV1, { type: 'ho
     sessionId: bridgeIdentity.sessionId,
     artifact: bridgeIdentity.artifact,
   });
-  innerPort.onmessage = (event: MessageEvent<ArtifactBridgeEnvelopeV1>) => {
+  innerPort.onmessage = (event: MessageEvent<ArtifactBridgeEnvelopeV1 | BinaryCarrier>) => {
     if (innerEndpoint === null) return;
-    const incoming = innerEndpoint.receive(event.data).envelope.message;
+    let source: unknown = event.data;
+    let binary: ArrayBuffer | null = null;
+    let transfers = { messagePorts: event.ports.length, arrayBufferBytes: [] as number[] };
+    if (event.data !== null && typeof event.data === 'object' && !Array.isArray(event.data)
+      && Object.keys(event.data).length === 2 && Object.hasOwn(event.data, 'envelope') && Object.hasOwn(event.data, 'binary')) {
+      const carrier = event.data as unknown as BinaryCarrier;
+      if (!(carrier.binary instanceof ArrayBuffer)) throw new TypeError('binary carrier is invalid');
+      source = carrier.envelope;
+      binary = carrier.binary;
+      transfers = { messagePorts: event.ports.length, arrayBufferBytes: [binary.byteLength] };
+    }
+    const parsed = innerEndpoint.receive(source, transfers);
+    const incoming = parsed.envelope.message;
+    if (isChargedAuthoredMessageV1(incoming) && !authoredBudget.admit(parsed.canonicalControlBytes)) {
+      sendParent({ type: 'protocol.error', code: 'rate', correlationId: randomId() });
+      terminalDispose(false);
+      return;
+    }
     if (incoming.type === 'artifact.ready') {
       lifecycle.receive('artifact.ready');
       sendParent(incoming);
       return;
     }
     if (incoming.type === 'artifact.resize.request') {
+      sendParent(incoming);
+      return;
+    }
+    if (isNavigationIntent(incoming) && admitNavigation(incoming)) {
+      sendParent(incoming);
+      return;
+    }
+    if (incoming.type === 'artifact.selection.change'
+      || incoming.type === 'artifact.user-action'
+      || incoming.type === 'artifact.capability.request') {
+      if (incoming.type === 'artifact.capability.request' && incoming.capability === 'download') {
+        if (binary === null) throw new TypeError('download capability bytes are unavailable');
+        sendParentBinary(incoming, binary);
+        return;
+      }
       sendParent(incoming);
       return;
     }
@@ -132,7 +197,7 @@ const createInner = async (message: Extract<ArtifactBridgeMessageV1, { type: 'ho
 const handleParentMessage = async (event: MessageEvent<unknown>): Promise<void> => {
   if (parentEndpoint === null) return;
   let source: unknown = event.data;
-  let transfer = { messagePorts: 0, arrayBufferBytes: [] as number[] };
+  let transfer = { messagePorts: event.ports.length, arrayBufferBytes: [] as number[] };
   let binary: ArrayBuffer | null = null;
   if (event.data !== null && typeof event.data === 'object' && !Array.isArray(event.data)
     && Object.keys(event.data).length === 2 && Object.hasOwn(event.data, 'envelope') && Object.hasOwn(event.data, 'binary')) {
@@ -140,7 +205,7 @@ const handleParentMessage = async (event: MessageEvent<unknown>): Promise<void> 
     if (!(carrier.binary instanceof ArrayBuffer)) throw new TypeError('binary carrier is invalid');
     source = carrier.envelope;
     binary = carrier.binary;
-    transfer = { messagePorts: 0, arrayBufferBytes: [binary.byteLength] };
+    transfer = { messagePorts: event.ports.length, arrayBufferBytes: [binary.byteLength] };
   }
   const parsed = parentEndpoint.receive(source, transfer);
   const message = parsed.envelope.message;
@@ -150,6 +215,28 @@ const handleParentMessage = async (event: MessageEvent<unknown>): Promise<void> 
   }
   if (message.type === 'host.watchdog.ping') {
     sendParent({ type: 'runner.watchdog.pong', watchdogId: message.watchdogId, sentAtMonotonicMs: message.sentAtMonotonicMs });
+    return;
+  }
+  if (message.type === 'host.navigation.set') {
+    if (lifecycle.state !== 'active' || innerEndpoint === null || innerPort === null) throw new TypeError('navigation control is unavailable');
+    if (message.enabled) navigationAdmission.setEnabled(true);
+    else closeNavigation();
+    innerPort.postMessage(innerEndpoint.send(message));
+    return;
+  }
+  if (message.type === 'host.theme'
+    || message.type === 'host.data'
+    || message.type === 'host.viewport'
+    || message.type === 'host.selection'
+    || message.type === 'host.capability.result') {
+    if (lifecycle.state !== 'active' || innerEndpoint === null || innerPort === null) throw new TypeError('artifact host update is unavailable');
+    if (message.type === 'host.capability.result' && message.ok && message.capability === 'network.fetch') {
+      if (binary === null) throw new TypeError('network capability bytes are unavailable');
+      const envelope = innerEndpoint.send(message, { messagePorts: 0, arrayBufferBytes: [binary.byteLength] });
+      innerPort.postMessage({ envelope, binary } satisfies BinaryCarrier, [binary]);
+      return;
+    }
+    innerPort.postMessage(innerEndpoint.send(message));
     return;
   }
   lifecycle.receive(message.type);

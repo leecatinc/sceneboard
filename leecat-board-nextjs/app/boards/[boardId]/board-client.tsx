@@ -2,8 +2,8 @@
 
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import { memo, useEffect, useState } from 'react';
-import { BoardRenderer, type RendererComponentV1 } from '@leecat-board/board-ui/renderer';
+import { memo, useEffect, useReducer, useState } from 'react';
+import { BoardRenderer, type DrawingViewStateV1, type RendererComponentV1 } from '@leecat-board/board-ui/renderer';
 import type { ArtifactLoadPortV1 } from '@leecat-board/board-ui/artifact';
 import type { ArtifactViewModeV1 } from '@leecat-board/board-ui/artifact';
 import { HitlBlock, type HitlInteractionControllerV1 } from '@leecat-board/board-ui/interaction';
@@ -18,6 +18,12 @@ import { BoardApiClient } from '../../../lib/api/board-api';
 import { authSessionClient } from '../../../lib/auth/session-client';
 import { useHitlInteractionController } from '../../../lib/board/use-hitl-interaction-controller';
 import { useI18n } from '../../../components/i18n/I18nProvider';
+import {
+  canResetArtifactViewV1,
+  createArtifactViewRegistryV1,
+  reduceArtifactViewRegistryV1,
+  selectedArtifactZoomV1,
+} from '../../../lib/board/artifact-view-registry';
 
 const PAGE_NAVIGATION_TARGETS = [
   'input',
@@ -128,6 +134,9 @@ export function BoardClient({ boardId }: { boardId: string }) {
   const [selectedTabs, setSelectedTabs] = useState<Record<string, string>>({});
   const [artifactViewMode, setArtifactViewMode] = useState<ArtifactViewModeV1>('fit-height');
   const [artifactStopSignal, setArtifactStopSignal] = useState(0);
+  const [artifactViews, dispatchArtifactView] = useReducer(reduceArtifactViewRegistryV1, undefined, createArtifactViewRegistryV1);
+  const [drawingView, setDrawingView] = useState<DrawingViewStateV1>({ nodeId: '', scale: null, canReset: false });
+  const [drawingResetSignal, setDrawingResetSignal] = useState(0);
   const [api] = useState(() => new BoardApiClient(authSessionClient().sharedCoordinator()));
   const [artifactLoad] = useState<ArtifactLoadPortV1>(() => {
     return {
@@ -149,7 +158,8 @@ export function BoardClient({ boardId }: { boardId: string }) {
     : null;
 
   useEffect(() => setSelectedTabs({}), [boardId, revisionId]);
-
+  useEffect(() => dispatchArtifactView({ type: 'clear' }), [boardId]);
+  useEffect(() => setDrawingView({ nodeId: '', scale: null, canReset: false }), [boardId]);
   useEffect(() => {
     if (pageTabs === null) return undefined;
     const navigatePage = (event: KeyboardEvent) => {
@@ -193,6 +203,7 @@ export function BoardClient({ boardId }: { boardId: string }) {
   const { state, visibleSnapshot } = session;
   const runtimeOrigin = process.env.NEXT_PUBLIC_ARTIFACT_RUNTIME_ORIGIN ?? '';
   const routeEpoch = `${boardId}:${visibleSnapshot.revision.revisionId}`;
+  const artifactRouteEpoch = boardId;
   const hitlMode: HitlInteractionControllerV1['mode'] = state.mode.kind === 'history' ? 'history' : 'live';
   const renderArtifact: RendererComponentV1<'content.artifact'> = ({ node, context }) => {
     const runtime = context.snapshot.artifacts.find((item) => (
@@ -200,19 +211,24 @@ export function BoardClient({ boardId }: { boardId: string }) {
       && item.artifact.versionId === node.artifact.versionId
     ));
     if (runtime === undefined) return <div className="artifact-fallback" role="alert">{t('board.artifactUnavailable')}</div>;
+    const incarnationKey = `${artifactRouteEpoch}:${node.id}:${node.artifact.artifactId}:${node.artifact.versionId}`;
     return (
       <IsolatedArtifactHost
-        key={`${routeEpoch}:${node.artifact.artifactId}:${node.artifact.versionId}`}
+        key={incarnationKey}
         boardId={context.snapshot.boardId}
         artifact={node.artifact}
         runtime={runtime}
         runtimeOrigin={runtimeOrigin}
-        routeEpoch={routeEpoch}
+        routeEpoch={artifactRouteEpoch}
+        hostInstanceId={node.id}
+        incarnationKey={incarnationKey}
         snapshotWatermark={context.snapshot.lastEventSequence}
         load={artifactLoad}
         viewMode={artifactViewMode}
         showStopControl={false}
         stopSignal={artifactStopSignal}
+        onViewStateChange={(event) => dispatchArtifactView({ type: 'event', event })}
+        resetCommand={artifactViews.resetCommand}
       />
     );
   };
@@ -224,6 +240,16 @@ export function BoardClient({ boardId }: { boardId: string }) {
       routeEpoch={routeEpoch}
     />
   );
+  const onDrawingViewStateChange = (next: DrawingViewStateV1) => {
+    setDrawingView((current) => current.nodeId === next.nodeId && current.scale === next.scale && current.canReset === next.canReset ? current : next);
+  };
+  const rootIsDrawing = visibleSnapshot.scene.root?.type === 'content.drawing';
+  const selectedZoom = rootIsDrawing ? drawingView.scale : selectedArtifactZoomV1(artifactViews);
+  const canResetView = rootIsDrawing ? drawingView.canReset : canResetArtifactViewV1(artifactViews);
+  const resetView = () => {
+    dispatchArtifactView({ type: 'reset' });
+    setDrawingResetSignal((value) => value + 1);
+  };
   return (
     <section className={`board-workspace ${state.mode.kind === 'history' ? 'is-history' : ''}`}>
       <BoardTopBar
@@ -234,6 +260,9 @@ export function BoardClient({ boardId }: { boardId: string }) {
         archiveControl={<BoardArchiveControl api={api} boardId={boardId} boardTitle={session.title} onArchived={() => router.replace('/boards')} />}
         viewMode={artifactViewMode}
         onViewModeChange={setArtifactViewMode}
+        artifactZoom={selectedZoom}
+        canResetArtifactView={canResetView}
+        onResetArtifactView={resetView}
         onRename={session.rename}
         onPrevious={session.previous}
         onNext={session.next}
@@ -244,11 +273,12 @@ export function BoardClient({ boardId }: { boardId: string }) {
         <div className="scene-surface" aria-label={t('board.sceneCanvas')}>
           <BoardRenderer
             snapshot={visibleSnapshot}
-            emptyLabel={t('board.sceneUnavailable')}
+            emptyLabel=""
             selectedTabs={selectedTabs}
             onSelectTab={(nodeId, tabId) => setSelectedTabs((current) => ({ ...current, [nodeId]: tabId }))}
             renderArtifact={renderArtifact}
             renderHitl={renderHitl}
+            drawingView={{ mode: artifactViewMode, resetSignal: drawingResetSignal, onStateChange: onDrawingViewStateChange }}
           />
         </div>
         <StatusRail snapshot={visibleSnapshot} presence={state.presence} onStopRendering={() => setArtifactStopSignal((value) => value + 1)} />

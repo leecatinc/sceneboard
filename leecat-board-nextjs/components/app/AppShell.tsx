@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 
 import type { MessageKey } from '../../lib/i18n/catalog';
 import { useI18n } from '../i18n/I18nProvider';
+import { BoardLifecycleNavigator } from './BoardLifecycleNavigator';
 import { Brand } from './Brand';
 import { HeaderPairingAction } from './HeaderPairingAction';
 import { UserMenu } from './UserMenu';
@@ -18,6 +19,7 @@ export function AppShell({ children, titleKey, actions, viewportLocked = false }
   const { t } = useI18n();
   return (
     <div className={`app-shell${viewportLocked ? ' app-shell-viewport-locked' : ''}`}>
+      <BoardLifecycleNavigator />
       <header className="app-header">
         <Brand linked label={t('brand.boardsLabel')} />
         <nav className="app-nav" aria-label={t('nav.primary')}>

@@ -202,6 +202,7 @@ test('exports the guarded scalar parser values required by application adapters'
   assert.equal(typeof schema.BoardIdParserV1.parse, 'function');
   assert.equal(typeof schema.GrantIdParserV1.parse, 'function');
   assert.equal(typeof schema.PrincipalIdParserV1.parse, 'function');
+  assert.equal(typeof schema.NodeIdParserV1.parse, 'function');
   assert.equal('BoardIdSchemaV1' in schema, false);
   assert.equal('GlobalIdStringSchemaV1' in schema, false);
 });

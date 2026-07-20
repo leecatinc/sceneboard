@@ -4,6 +4,19 @@ import type {
   BoardSnapshotV1,
   NodeTypeV1,
 } from '@leecat-board/board-schema';
+import type { ArtifactViewModeV1 } from '../artifact/ports.js';
+
+export type DrawingViewStateV1 = Readonly<{
+  nodeId: string;
+  scale: number | null;
+  canReset: boolean;
+}>;
+
+export type DrawingViewControllerV1 = Readonly<{
+  mode: ArtifactViewModeV1;
+  resetSignal: number;
+  onStateChange: (state: DrawingViewStateV1) => void;
+}>;
 
 export type RendererContextV1 = {
   snapshot: BoardSnapshotV1;
@@ -11,6 +24,7 @@ export type RendererContextV1 = {
   onSelectTab?: (nodeId: string, tabId: string) => void;
   renderArtifact?: RendererComponentV1<'content.artifact'>;
   renderHitl?: RendererComponentV1<'content.hitl'>;
+  drawingView?: DrawingViewControllerV1;
 };
 
 export type RenderNodeV1 = (node: BoardNodeV1) => ReactNode;
@@ -29,5 +43,6 @@ export type BoardRendererPropsV1 = {
   onSelectTab?: (nodeId: string, tabId: string) => void;
   renderArtifact?: RendererComponentV1<'content.artifact'>;
   renderHitl?: RendererComponentV1<'content.hitl'>;
+  drawingView?: DrawingViewControllerV1;
   emptyLabel?: string;
 };

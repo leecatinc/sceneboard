@@ -23,6 +23,7 @@ import {
   MutationEnvelopeParserV1,
   MutationRequestParserV1,
   MutationResultParserV1,
+  NodeIdParserV1,
   PrincipalIdParserV1,
   SceneParserV1,
   canonicalizeJsonV1,
@@ -78,6 +79,11 @@ test('keeps the application scalar parser wire set exact', () => {
     }
     for (const value of rejected) assert.equal(parser.parse(value).ok, false, value);
   }
+});
+
+test('keeps local node identifiers distinct from global identifiers', () => {
+  for (const value of ['A', 'node_1', `n${'x'.repeat(63)}`]) assert.equal(NodeIdParserV1.parse(value).ok, true, value);
+  for (const value of ['1node', '_node', 'x'.repeat(65), 'node.with.dot']) assert.equal(NodeIdParserV1.parse(value).ok, false, value);
 });
 
 test('registers every exact fixture once with complete metadata', async () => {

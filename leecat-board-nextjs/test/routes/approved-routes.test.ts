@@ -64,8 +64,15 @@ test('account menu contains only account actions while AI connections links to p
 test('application header exposes one-shot code creation and keeps page scrolling below the header', () => {
   const shell = readFileSync(resolve(workspace, 'components/app/AppShell.tsx'), 'utf8');
   const action = readFileSync(resolve(workspace, 'components/app/HeaderPairingAction.tsx'), 'utf8');
+  const lifecycle = readFileSync(resolve(workspace, 'components/app/BoardLifecycleNavigator.tsx'), 'utf8');
   const styles = readFileSync(resolve(workspace, 'app/globals.css'), 'utf8');
   assert.match(shell, /<HeaderPairingAction \/>/);
+  assert.match(shell, /<BoardLifecycleNavigator \/>/);
+  assert.match(lifecycle, /isBoardCreationAutoOpenPath\(currentPathname\)/);
+  assert.match(lifecycle, /boardIdFromDetailPath\(currentPathname\)/);
+  assert.match(lifecycle, /router\.replace\(`\/boards\/\$\{encodeURIComponent\(createdBoard\.boardId\)\}`\)/);
+  assert.match(lifecycle, /router\.replace\('\/boards'\)/);
+  assert.match(lifecycle, /document\.visibilityState !== 'visible'/);
   assert.match(action, /api\.createPairing\(token\)/);
   assert.match(action, /<PairingRequestModal/);
   assert.match(action, /api\.listActivePairings\(signal\)/);
@@ -79,6 +86,9 @@ test('application header exposes one-shot code creation and keeps page scrolling
   assert.match(styles, /\.board-surface \{[^}]+grid-row: 3;[^}]+grid-template-columns: minmax\(0, 1fr\) 228px;/);
   assert.match(styles, /\.scene-surface > \.scene-empty, \.scene-surface > \.scene-fallback \{ height: 100%; min-height: 0; \}/);
   assert.match(styles, /\.scene-root > \.artifact-host,[^}]+\.artifact-runtime-frame \{[^}]+height: 100%;[^}]+min-height: 0;/);
+  assert.match(styles, /\.scene-root > \.scene-drawing-block \{[^}]+height: 100%;[^}]+grid-template-rows: auto minmax\(0, 1fr\);/);
+  assert.match(styles, /\.scene-drawing-viewport\[data-view-mode="actual"\] \{[^}]+overflow: hidden;[^}]+cursor: grab;/);
+  assert.match(styles, /\.scene-drawing-transform \.scene-drawing \{[^}]+width: 100%;[^}]+height: 100%;[^}]+max-height: none;/);
 });
 
 test('AI connection presentation preserves a bounded tab code and gates approval on the matching live code', () => {
@@ -116,14 +126,26 @@ test('board top bar preserves live connection and history controls before pairin
   const topBar = readFileSync(resolve(workspace, 'components/board/BoardTopBar.tsx'), 'utf8');
   const viewModes = readFileSync(resolve(workspace, 'components/board/BoardViewModeControls.tsx'), 'utf8');
   const statusRail = readFileSync(resolve(workspace, 'components/board/StatusRail.tsx'), 'utf8');
+  const boardClient = readFileSync(resolve(workspace, 'app/boards/[boardId]/board-client.tsx'), 'utf8');
   assert.match(topBar, /<ConnectionBanner connection=\{state\.connection\} \/>/);
   assert.match(topBar, /<HistoryControls/);
   assert.match(topBar, /onPrevious=\{onPrevious\}/);
   assert.match(topBar, /onNext=\{onNext\}/);
   assert.match(topBar, /onLatest=\{onLatest\}/);
-  assert.match(topBar, /<BoardViewModeControls value=\{viewMode\}/);
+  assert.match(topBar, /<BoardViewModeControls value=\{viewMode\} zoom=\{artifactZoom\} canReset=\{canResetArtifactView\}/);
   assert.match(viewModes, /'fit-height', 'fit-width', 'actual'/);
   assert.match(viewModes, /aria-pressed=\{value === mode\}/);
+  assert.match(viewModes, /board\.artifactZoomStatus/);
+  assert.match(viewModes, /aria-live="polite"/);
+  assert.match(viewModes, /board\.resetArtifactView/);
+  assert.match(boardClient, /dispatchArtifactView\(\{ type: 'clear' \}\)/);
+  assert.match(boardClient, /drawingView=\{\{ mode: artifactViewMode, resetSignal: drawingResetSignal, onStateChange: onDrawingViewStateChange \}\}/);
+  assert.match(boardClient, /rootIsDrawing \? drawingView\.scale : selectedArtifactZoomV1\(artifactViews\)/);
+  assert.match(boardClient, /setDrawingResetSignal\(\(value\) => value \+ 1\)/);
+  assert.match(boardClient, /<BoardRenderer[\s\S]*?emptyLabel=""/);
+  assert.match(boardClient, /return <BoardStatePanel error=/);
+  assert.match(viewModes, /onClick=\{onReset\}/);
+  assert.match(topBar, /artifactZoom/);
   assert.match(statusRail, /artifact-stop-sidebar/);
   assert.match(statusRail, /onStopRendering/);
 });

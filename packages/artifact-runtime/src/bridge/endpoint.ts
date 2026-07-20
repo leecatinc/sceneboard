@@ -29,6 +29,7 @@ export class ArtifactBridgeEndpointV1 {
 
   send(message: ArtifactBridgeMessageV1, transfers: ArtifactBridgeTransfersV1 = { messagePorts: 0, arrayBufferBytes: [] }): ArtifactBridgeEnvelopeV1 {
     if (this.#closed) throw new TypeError('bridge endpoint is closed');
+    const expectedType = message.type;
     const envelope: ArtifactBridgeEnvelopeV1 = {
       protocolVersion: 1,
       type: 'artifact.bridge',
@@ -39,14 +40,18 @@ export class ArtifactBridgeEndpointV1 {
       message,
     };
     parseArtifactBridgeEnvelopeV1(envelope, transfers);
+    if (envelope.message !== message || envelope.message.type !== expectedType) throw new TypeError('bridge message was mutated during validation');
     this.#outboundSequence += 1;
     return envelope;
   }
 
   receive(input: unknown, transfers: ArtifactBridgeTransfersV1 = { messagePorts: 0, arrayBufferBytes: [] }): ParsedArtifactBridgeEnvelopeV1 {
     if (this.#closed) throw new TypeError('bridge endpoint is closed');
+    const expectedMessage = input !== null && typeof input === 'object' && 'message' in input ? input.message : null;
+    const expectedType = expectedMessage !== null && typeof expectedMessage === 'object' && 'type' in expectedMessage ? expectedMessage.type : null;
     const parsed = parseArtifactBridgeEnvelopeV1(input, transfers);
     const { envelope } = parsed;
+    if (envelope.message !== expectedMessage || envelope.message.type !== expectedType) throw new TypeError('bridge message was mutated during validation');
     if (envelope.channelId !== this.identity.channelId
       || envelope.sessionId !== this.identity.sessionId
       || envelope.artifact.artifactId !== this.identity.artifact.artifactId

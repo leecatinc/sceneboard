@@ -15,7 +15,7 @@ import time
 from typing import Iterable
 
 
-VK_F10 = 0x79
+VK_S = 0x53
 SW_MINIMIZE = 6
 
 
@@ -228,8 +228,8 @@ def main() -> int:
     started = time.monotonic()
     try:
         while process.poll() is None:
-            if ctypes.windll.user32.GetAsyncKeyState(VK_F10) & 0x8000:
-                while ctypes.windll.user32.GetAsyncKeyState(VK_F10) & 0x8000:
+            if ctypes.windll.user32.GetAsyncKeyState(VK_S) & 0x8000:
+                while ctypes.windll.user32.GetAsyncKeyState(VK_S) & 0x8000:
                     time.sleep(0.05)
                 break
             if time.monotonic() - started >= arguments.max_seconds:

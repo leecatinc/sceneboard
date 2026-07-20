@@ -50,3 +50,50 @@ test('safe markdown preserves raw HTML as text and chart projection preserves ca
   assert.deepEqual(geometry.categoryDomain, ['B', 'A']);
   assert.equal(geometry.tableOnly, false);
 });
+
+test('root drawing accepts a bounded board view controller while nested drawings remain static', () => {
+  const base = fixture('snapshot-board.v1.json') as Record<string, unknown>;
+  const parsed = BoardSnapshotParserV1.parse({
+    ...base,
+    scene: {
+      protocolVersion: 1,
+      type: 'scene',
+      root: {
+        id: 'drawing',
+        type: 'content.drawing',
+        viewBox: { x: 0, y: 0, width: 1_200, height: 675 },
+        elements: [{ id: 'line', type: 'line', from: { x: 0, y: 0 }, to: { x: 10, y: 10 }, style: {} }],
+      },
+    },
+  });
+  assert.equal(parsed.ok, true);
+  const snapshot = (parsed as { ok: true; data: { value: BoardSnapshotV1 } }).data.value;
+  assert.equal(snapshot.scene.root?.type, 'content.drawing');
+  const html = renderToStaticMarkup(
+    <BoardRenderer
+      snapshot={snapshot}
+      drawingView={{ mode: 'actual', resetSignal: 0, onStateChange: () => undefined }}
+    />,
+  );
+  assert.match(html, /scene-drawing-viewport/);
+  assert.match(html, /scene-drawing-stage/);
+  assert.match(html, /scene-drawing-transform/);
+  assert.match(html, /role="img"/);
+
+  const nestedInput = {
+    ...base,
+    scene: fixture('scene-all-node-types.v1.json'),
+    hitl: [fixture('hitl-interaction-open.v1.json')],
+    artifacts: [fixture('artifact-runtime-summary-ready.v1.json')],
+  };
+  const nestedParsed = BoardSnapshotParserV1.parse(nestedInput);
+  assert.equal(nestedParsed.ok, true);
+  const nestedHtml = renderToStaticMarkup(
+    <BoardRenderer
+      snapshot={(nestedParsed as { ok: true; data: { value: BoardSnapshotV1 } }).data.value}
+      drawingView={{ mode: 'actual', resetSignal: 0, onStateChange: () => undefined }}
+    />,
+  );
+  assert.doesNotMatch(nestedHtml, /scene-drawing-viewport/);
+  assert.match(nestedHtml, /class="scene-drawing"/);
+});
