@@ -1,18 +1,14 @@
 # Demo 06 — Revision Time Travel
 
-PAIRING_CODE: `{{SB_CODE}}`
-
 Read `demo/_COMMON.md` and follow it as mandatory operating policy. Then execute this runbook immediately.
 
 ## Goal
 
 Create a compact sequence of visibly different revisions, then demonstrate that SceneBoard preserves and navigates the AI work without rewriting history.
 
-## Connection and board
+## Shared board
 
-Request `board.read`, `board.write`, `board.history.read`, and `artifact.publish`, plus lifecycle `board.create`. Create:
-
-`SceneBoard Demo — Every AI Change Preserved`
+Reuse the approved connection and exact shared board required by `_COMMON.md`. Complete the mandatory shared-board reset, then begin this take on the empty live Scene. Do not pair again or create another board. Use `SceneBoard Demo — Every AI Change Preserved` as the visible demo heading. The four revisions below are the four meaningful revisions after the reset revision.
 
 ## Revision sequence
 
@@ -68,4 +64,3 @@ Explain in one sentence:
 End with:
 
 `AI work evolves. SceneBoard keeps every meaningful version inspectable.`
-

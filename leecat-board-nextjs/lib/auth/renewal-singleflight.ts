@@ -258,8 +258,8 @@ export class SessionRequestCoordinator implements BoardStreamDispatchPortV1 {
           return { kind: 'protocol_error' as const, sourceStatus: 200, error: null };
         }
         return {
-          kind: 'consumed' as const,
-          value: await consumeOkResponse(response, input.signal),
+          kind: 'stream_ready' as const,
+          response,
         };
       }
       const error = await readBoardStreamError(response);
@@ -291,6 +291,12 @@ export class SessionRequestCoordinator implements BoardStreamDispatchPortV1 {
       }
       return { kind: 'protocol_error' as const, sourceStatus: response.status, error };
     });
+    if (result.kind === 'stream_ready') {
+      return {
+        kind: 'consumed',
+        value: await consumeOkResponse(result.response, input.signal),
+      };
+    }
     if (result.kind === 'unsupported_browser' || result.kind === 'ok') {
       return { kind: 'protocol_error', sourceStatus: null, error: null };
     }

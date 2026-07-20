@@ -21,14 +21,15 @@ const descriptor = (name) => validateSceneArtifactTemplateDescriptor(JSON.parse(
 const recipe = (template, motion = 'subtle') => ({
   artifactRecipeVersion: 1, template, placementKey: `${template}-visual`, title: 'Visual summary', fallbackText: 'The complete facts are listed in this visual.', theme: 'light', size: descriptor(template).defaultSize, motion,
   content: template === 'metric-story' ? { metrics: [{ label: 'Completion', value: '75%', detail: 'Three stages are complete.', trend: 'up' }] }
-    : template === 'process-flow' ? { steps: [{ label: 'Prepare', detail: null, status: 'complete' }, { label: 'Review', detail: 'Check the evidence.', status: 'active' }] }
+    : template === 'demo-showcase' ? { kind: 'illustration', selection: 'sunny-garden', phase: 'outline' }
+      : template === 'process-flow' ? { steps: [{ label: 'Prepare', detail: null, status: 'complete' }, { label: 'Review', detail: 'Check the evidence.', status: 'active' }] }
       : template === 'architecture-map' ? { nodes: [{ key: 'source', label: 'Source', role: 'source' }, { key: 'service', label: 'Service', role: 'service' }], edges: [{ from: 'source', to: 'service', label: 'Sends data' }] }
         : template === 'timeline' ? { events: [{ date: 'First', label: 'Prepare', detail: null, status: 'past' }, { date: 'Next', label: 'Review', detail: null, status: 'current' }] }
           : { seriesLabel: 'Completion', unit: '%', points: [{ label: 'First', value: 25 }, { label: 'Second', value: 75 }] },
 });
 
 test('template catalog and motion catalog are exact', () => {
-  assert.deepEqual(SCENE_ARTIFACT_TEMPLATE_NAMES_V1, ['animated-data-story', 'architecture-map', 'metric-story', 'process-flow', 'timeline']);
+  assert.deepEqual(SCENE_ARTIFACT_TEMPLATE_NAMES_V1, ['animated-data-story', 'architecture-map', 'demo-showcase', 'metric-story', 'process-flow', 'timeline']);
   assert.deepEqual(SCENE_ARTIFACT_MOTION_LEVELS_V1, ['none', 'subtle', 'staged', 'focus']);
   assert.deepEqual(JSON.parse(execFileSync(process.execPath, [cli, 'template-list'], { encoding: 'utf8' })).templates, SCENE_ARTIFACT_TEMPLATE_NAMES_V1);
 });
@@ -38,7 +39,26 @@ test('every closed template compiles with accessible static meaning', () => {
     const draft = compileSceneArtifactDraft(recipe(template, motion), descriptor(template));
     assert.equal(draft.source.artifactId, null); assert.deepEqual(draft.source.requestedCapabilities, []);
     assert.match(draft.source.html, /<h1>Visual summary<\/h1>/); assert.match(draft.source.html, /complete facts/);
-    if (motion === 'none') assert.doesNotMatch(draft.source.css, /prefers-reduced-motion/); else assert.match(draft.source.css, /prefers-reduced-motion/);
+    if (template === 'demo-showcase') assert.match(draft.source.css, /prefers-reduced-motion/);
+    else if (motion === 'none') assert.doesNotMatch(draft.source.css, /prefers-reduced-motion/);
+    else assert.match(draft.source.css, /prefers-reduced-motion/);
+  }
+});
+
+test('demo showcase variants compile to one audited local interaction program', () => {
+  const variants = [
+    ['illustration', 'sunny-garden', 'outline'], ['illustration', 'space-adventure', 'color'],
+    ['diorama', 'space-observatory', 'ready'], ['prototype', 'risk-checker', 'improved'],
+    ['data-story', 'support-week', 'ready'], ['incident', 'cache-unavailable', 'failure'],
+    ['mission-control', 'launch-readiness', 'ready'], ['code-review', 'no-charge', 'final'],
+  ];
+  for (const [kind, selection, phase] of variants) {
+    const input = recipe('demo-showcase', 'staged'); input.content = { kind, selection, phase };
+    const draft = compileSceneArtifactDraft(input, descriptor('demo-showcase'));
+    assert.match(draft.source.html, /data-sb-demo-showcase="v1"/);
+    assert.equal(typeof draft.source.javascript, 'string');
+    assert.doesNotThrow(() => new Function(draft.source.javascript));
+    assert.deepEqual(draft.source.requestedCapabilities, []);
   }
 });
 

@@ -41,8 +41,17 @@ const setup = (responses: Response[], initial: string | null = null) => {
     removeItem(key) { values.delete(key); },
   };
   const locks: Array<'shared' | 'exclusive'> = [];
+  let activeLocks = 0;
   const manager: LockManagerPort = {
-    async request(_name, options, callback) { locks.push(options.mode); return callback(); },
+    async request(_name, options, callback) {
+      locks.push(options.mode);
+      activeLocks += 1;
+      try {
+        return await callback();
+      } finally {
+        activeLocks -= 1;
+      }
+    },
   };
   const requests: Array<{ url: string; init?: RequestInit }> = [];
   const fetcher = async (url: string | URL | Request, init?: RequestInit) => {
@@ -57,7 +66,7 @@ const setup = (responses: Response[], initial: string | null = null) => {
     fetcher,
     randomBytes: () => new Uint8Array(16).fill(7),
   });
-  return { coordinator, values, writes, locks, requests };
+  return { coordinator, values, writes, locks, requests, activeLockCount: () => activeLocks };
 };
 
 test('private reconciliation is one exclusive fixed session probe and commits generation after body consumption', async () => {
@@ -142,7 +151,7 @@ const forbidden: BoardErrorV1 = {
   details: null,
 };
 
-test('closed board stream request holds one shared coordinator lease and exposes only the 200 response consumer', async () => {
+test('closed board stream request releases its shared coordinator lease before consuming the long-lived response', async () => {
   const stream = new Response('event bytes', {
     status: 200,
     headers: {
@@ -161,6 +170,7 @@ test('closed board stream request holds one shared coordinator lease and exposes
     cursor: 'opaque_cursor',
     signal,
   }, async (response, heldSignal) => {
+    assert.equal(value.activeLockCount(), 0);
     assert.equal(response, stream);
     assert.equal(heldSignal, signal);
     return 'consumed';

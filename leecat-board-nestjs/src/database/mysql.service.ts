@@ -27,6 +27,7 @@ export const createMysqlPoolOptions = (environment: Pick<AppEnvironment, 'mysql'
   supportBigNumbers: true,
   bigNumberStrings: true,
   multipleStatements: false,
+  flags: ['-FOUND_ROWS'],
   connectionLimit: 10,
   maxIdle: 10,
   idleTimeout: 60_000,

@@ -48,6 +48,7 @@ test('pins mysql2 safety options and never enables multi-statements', () => {
   assert.equal(options.supportBigNumbers, true);
   assert.equal(options.bigNumberStrings, true);
   assert.equal(options.multipleStatements, false);
+  assert.deepEqual(options.flags, ['-FOUND_ROWS']);
 });
 
 test('creates only the non-secret exact migration connection profile', () => {

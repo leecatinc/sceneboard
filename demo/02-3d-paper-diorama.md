@@ -1,18 +1,14 @@
 # Demo 02 — Interactive 3D Paper Diorama
 
-PAIRING_CODE: `{{SB_CODE}}`
-
 Read `demo/_COMMON.md` and follow it as mandatory operating policy. Then execute this runbook immediately.
 
 ## Goal
 
 Turn one human-selected setting into an interactive 3D paper theater using only local HTML, CSS, and JavaScript. The finished scene must visibly respond to pointer movement without requiring WebGL or an external library.
 
-## Connection and board
+## Shared board
 
-Request `board.read`, `board.write`, `board.hitl.request`, and `artifact.publish`, plus lifecycle `board.create`. Create:
-
-`SceneBoard Demo — Interactive 3D World`
+Reuse the approved connection and exact shared board required by `_COMMON.md`. Complete the mandatory shared-board reset, then begin this take on the empty live Scene. Do not pair again or create another board. Use `SceneBoard Demo — Interactive 3D World` as the visible demo heading.
 
 ## Human choice
 

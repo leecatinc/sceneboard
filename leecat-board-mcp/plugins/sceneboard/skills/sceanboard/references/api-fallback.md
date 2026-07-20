@@ -23,6 +23,20 @@ Failures are secret-free and nonzero:
 {"ok":false,"transport":"api","operation":"board_list","error":{"code":"BOARD_API_NOT_CONNECTED","message":"…","retryable":false,"details":{"recovery":"run_pair"}}}
 ```
 
+### Windows PowerShell
+
+Use the bundled launcher, which delegates to the same official Node adapter. Build the object with `ConvertTo-Json` and pipe it on stdin. Do not define `Invoke-SceneBoardApi`, call `Invoke-RestMethod`/`Invoke-WebRequest`/`curl`, or implement REST, credential decryption, retries, or response projection in PowerShell.
+
+```powershell
+$adapter = 'C:\absolute\path\to\sceanboard\scripts\sceneboard-api.ps1'
+$inputObject = @{ boardId = $null } | ConvertTo-Json -Compress -Depth 64
+$inputObject | & $adapter invoke board_connection_status
+```
+
+For `describe`, invoke `& $adapter describe` without stdin. For pairing, pipe the complete pairing object to `& $adapter pair` and keep that one process alive through redemption. Pairing codes and protected inputs must remain on stdin, never argv.
+
+The API process wrapper adds one transport envelope around the protected command result. For example, after a successful `board_artifact_put`, read the immutable identifiers from `$.result.result.artifact.artifact.{artifactId,versionId}` in the wrapper output. MCP tool output uses its documented command result directly. Do not guess a shallower path or treat a missing projected field as permission to publish or place different content.
+
 Use the exact protected operation names and inputs in [commands.md](commands.md). `board_scene_patch` reads the current head, rejects it if it differs from `expectedRevisionId`, applies the ordered 11-operation catalog locally, and submits one `scene.replace`; the server validates the complete scene and remains the final schema authority. Preserve the original revision and idempotency key so a concurrent change produces `REVISION_CONFLICT` instead of a blind rebase.
 
 ## Pairing
@@ -54,5 +68,16 @@ After redemption, the adapter verifies server authorization, writes the private 
 2. If any SceneBoard descriptor is present, select MCP. A missing individual descriptor is unavailable; do not mix transports.
 3. If an MCP operation returns an error, return that error. Do not invoke this adapter.
 4. Browser verification remains separate from persistence. A successful API result does not prove a live tab rendered it.
+
+## Ambiguous mutation recovery
+
+An `ok:false` result, nonzero process exit, timeout, or invalid response is not a successful mutation response. Preserve its safe error code and incident identifier. Do not switch transports, retry a publication, invent a new artifact/version, or replace the intended artifact Scene with native fallback content.
+
+Use the same official adapter to read the latest durable state once:
+
+- For artifact placement, require the current Scene to contain the exact published `artifactId` and `versionId`.
+- For a Scene replacement, require the current Scene to equal the intended canonical Scene.
+
+If the exact target exists, report that persistence was confirmed by the read while the original mutation response remained invalid; continue only after obtaining any fresh head required by the next independent mutation. If it does not exist, stop as blocked with the original error. Never claim browser rendering from this recovery read.
 
 The adapter has no external package dependency, follows complete project `.mcp.json` development overrides, defaults to `https://sceneboard.dev`, uses the selected private `store://<profile>` credential, applies one total deadline per operation, and emits closed connection/error/result projections with resource correlation and secret-material rejection. Linux protects the local record with owner-only filesystem permissions. Windows stores only a DPAPI `CurrentUser` ciphertext under `%LOCALAPPDATA%`, so another operating-system account cannot decrypt the bearer token. It rejects redirects and unsafe origins and never prints authorization material.

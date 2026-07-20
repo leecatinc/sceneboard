@@ -1,18 +1,14 @@
 # Demo 04 — Animated Data Story
 
-PAIRING_CODE: `{{SB_CODE}}`
-
 Read `demo/_COMMON.md` and follow it as mandatory operating policy. Then execute this runbook immediately.
 
 ## Goal
 
 Turn a dense operational dataset into a short, visual explanation that a first-time viewer can understand without reading raw JSON or logs.
 
-## Connection and board
+## Shared board
 
-Request `board.read`, `board.write`, and `artifact.publish`, plus lifecycle `board.create`. Create:
-
-`SceneBoard Demo — Data Becomes a Story`
+Reuse the approved connection and exact shared board required by `_COMMON.md`. Complete the mandatory shared-board reset, then begin this take on the empty live Scene. Do not pair again or create another board. Use `SceneBoard Demo — Data Becomes a Story` as the visible demo heading.
 
 ## Fixed illustrative dataset
 
@@ -53,4 +49,3 @@ Use SVG or Canvas with accessible text equivalents. Do not imply the sample data
 Hold the final decision frame for at least eight seconds. End with:
 
 `SceneBoard turns an AI analysis into a decision people can see.`
-

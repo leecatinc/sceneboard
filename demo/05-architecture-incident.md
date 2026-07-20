@@ -1,18 +1,14 @@
 # Demo 05 — Interactive Architecture Incident Map
 
-PAIRING_CODE: `{{SB_CODE}}`
-
 Read `demo/_COMMON.md` and follow it as mandatory operating policy. Then execute this runbook immediately.
 
 ## Goal
 
 Show how Codex can explain a complex backend incident visually, including propagation, customer impact, and the safest recovery action.
 
-## Connection and board
+## Shared board
 
-Request `board.read`, `board.write`, `board.hitl.request`, and `artifact.publish`, plus lifecycle `board.create`. Create:
-
-`SceneBoard Demo — Incident Explained Visually`
+Reuse the approved connection and exact shared board required by `_COMMON.md`. Complete the mandatory shared-board reset, then begin this take on the empty live Scene. Do not pair again or create another board. Use `SceneBoard Demo — Incident Explained Visually` as the visible demo heading.
 
 ## Architecture
 

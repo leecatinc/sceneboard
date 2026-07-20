@@ -97,6 +97,36 @@ test('maps board-bound infrastructure errors to D1 and preserves admitted correl
   assert.equal(response.headers.get('Retry-After'), '4');
 });
 
+test('preserves a valid query correlation when authentication rejects before the controller', () => {
+  const response = capture(
+    new BoardContractError({
+      protocolVersion: 1,
+      type: 'board.error',
+      code: 'UNAUTHENTICATED',
+      message: 'Authentication is required',
+      category: 'auth',
+      retryable: false,
+      httpStatusHint: 401,
+      details: null,
+    }),
+    { url: '/api/v1/mcp/connection?requestId=request_01' },
+  );
+  assert.equal(response.status, 401);
+  assert.equal(response.headers.get('X-Request-Id'), 'request_01');
+});
+
+test('does not trust invalid or ambiguous query correlation on an early error', () => {
+  for (const url of [
+    '/api/v1/mcp/connection?requestId=not%20valid',
+    '/api/v1/mcp/connection?requestId=request_01&requestId=request_02',
+  ]) {
+    const response = capture(new AppError('UNAUTHENTICATED'), { url });
+    assert.match(response.headers.get('X-Request-Id') ?? '', /^[A-Za-z0-9_-]{22}$/);
+    assert.notEqual(response.headers.get('X-Request-Id'), 'request_01');
+    assert.notEqual(response.headers.get('X-Request-Id'), 'request_02');
+  }
+});
+
 test('does not attempt a JSON error after an SSE response is committed or closed', () => {
   for (const responseState of [{ headersSent: true }, { writableEnded: true }, { destroyed: true }]) {
     const response = capture(new Error('stream closed'), { url: '/api/v1/boards/board_1/events' }, responseState);

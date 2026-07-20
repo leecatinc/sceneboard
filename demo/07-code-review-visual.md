@@ -1,18 +1,14 @@
 # Demo 07 — Visual Code Review for Everyone
 
-PAIRING_CODE: `{{SB_CODE}}`
-
 Read `demo/_COMMON.md` and follow it as mandatory operating policy. Then execute this runbook immediately.
 
 ## Goal
 
 Translate a technical code change into one visual surface that both an engineer and a product stakeholder can understand.
 
-## Connection and board
+## Shared board
 
-Request `board.read`, `board.write`, `board.hitl.request`, and `artifact.publish`, plus lifecycle `board.create`. Create:
-
-`SceneBoard Demo — Code Change Explained Visually`
+Reuse the approved connection and exact shared board required by `_COMMON.md`. Complete the mandatory shared-board reset, then begin this take on the empty live Scene. Do not pair again or create another board. Use `SceneBoard Demo — Code Change Explained Visually` as the visible demo heading.
 
 ## Fictional change set
 

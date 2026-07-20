@@ -2,23 +2,21 @@
 
 ## How to use this file
 
-1. Replace `{{SB_CODE}}` below with a newly issued SceneBoard pairing code.
+1. Complete one SceneBoard pairing and open its bound board before recording.
 2. Set the SceneBoard user language to **English** before recording.
 3. Paste this entire file into Codex CLI and press Enter.
 4. Do not enter anything else in the terminal.
-5. In the browser, approve the connection request and answer the three Human-in-the-Loop decisions when they appear.
+5. In the browser, answer the three Human-in-the-Loop decisions when they appear.
 
-For a non-interactive launch, prepend the newest valid pairing code:
+For a non-interactive launch after the one-time pairing:
 
 ```bash
-{ printf 'PAIRING_CODE: %s\n' 'SB-XXXXXX-XXXXXX'; cat DEMO.md; } | codex exec -C /workspace/lc/leecat-board -
+codex exec -C /workspace/lc/leecat-board - < DEMO.md
 ```
 
 ---
 
 # Instructions for Codex
-
-PAIRING_CODE: `{{SB_CODE}}`
 
 You are the presentation agent for a three-minute SceneBoard demo. This is an execution runbook, not background material. Start immediately, continue through every successful gate, and do not stop after describing a plan.
 
@@ -28,9 +26,9 @@ Every terminal message and every visible SceneBoard title, scene, Human-in-the-L
 
 The artwork must clearly credit Codex as its creator. Never use first-person viewer copy such as `My Cat`, `The Cat I Drew`, or any equivalent phrase. Use the exact artwork title `The Cat Codex Drew` and make it unmistakable that Codex is drawing the picture live.
 
-Complete this flow in one new SceneBoard board:
+Complete this flow on the currently paired shared SceneBoard board:
 
-1. Connect SceneBoard.
+1. Reuse the approved connection and clear the current live Scene.
 2. Ask a person to choose the visual setting.
 3. Draw only a childlike monochrome outline of the chosen scene.
 4. Ask whether Codex should color the drawing; color it only after an explicit yes.
@@ -38,22 +36,21 @@ Complete this flow in one new SceneBoard board:
 6. Transform the same scene into a CSS 3D paper-diorama animation.
 7. Use revision history to demonstrate movement among the outline, colored 2D, and 3D results.
 
-Human intervention is allowed at exactly four points:
+Human intervention is allowed at exactly three points during this run:
 
-- Approving the connection request in the browser.
 - Selecting the visual setting in the first Human-in-the-Loop card.
 - Confirming whether Codex should add color in the second Human-in-the-Loop card.
 - Confirming whether Codex should enter the 3D stage in the third Human-in-the-Loop card.
 
-Never guess or manufacture a human response. Do not ask additional terminal questions. The only exception is an absent, placeholder, or invalid `PAIRING_CODE`; in that case, request one valid `SB-` code and resume immediately after receiving it.
+Never guess or manufacture a human response. Do not ask additional terminal questions. If no existing approved connection and exact bound board are available, stop with `BLOCKED: complete the one-time SceneBoard pairing before this demo.` Do not request or consume a new code inside this runbook.
 
 ## 1. Non-negotiable operating rules
 
 - Read `.AI/skills/sceanboard/SKILL.md` and its directly required references first, then follow them exactly.
 - Use SceneBoard MCP tools when they are available. Use the official API fallback only when SceneBoard MCP tools are not available at all. Do not switch transports merely because an MCP call returns an error.
 - Do not modify source code, server configuration, builds, processes, or Git state during this run.
-- Never modify an existing board or prior demo result. Create a new board for every run.
-- Use the exact `boardId` returned by the API. Never infer the first or only board.
+- Reuse only the exact `boardId` bound to the existing approved credential. Never infer the first or only board.
+- Never create, archive, delete, rename, or switch boards during this run. Clear only the current live Scene before beginning; immutable prior revisions remain in history.
 - Read the latest head immediately before every mutation and use its exact `expectedRevisionId`.
 - Use a unique 16–128 character idempotency key for every mutation. Reuse a key only when retransmitting the identical request.
 - On `REVISION_CONFLICT`, read the latest head, reconfirm the intended change, and deliberately reapply it once with a new key. Never retry blindly or indefinitely.
@@ -64,35 +61,18 @@ Never guess or manufacture a human response. Do not ask additional terminal ques
 - Treat artifact status `ready` and successful browser rendering as separate claims requiring separate evidence.
 - Never report an unsuccessful or unchecked step as successful.
 
-## 2. Connect and create a board
+## 2. Reuse and reset the shared board
 
-### 2.1 Pairing request
-
-Use `PAIRING_CODE` to request a connection with this client name:
-
-`Codex SceneBoard Visual Demo`
-
-Request only the current contract scopes required for:
-
-- Reading and writing a board.
-- Creating a board.
-- Reading revision history.
-- Creating and reading a Human-in-the-Loop request.
-- Publishing an artifact.
-
-Do not request Human-in-the-Loop response, board archive/delete, artifact control, or any other capability that this demo does not need.
-
-Poll pairing status with bounded waits. On approval, use only the exact board information returned by the approval result. On rejection, cancellation, expiration, or invalid code, print one clear English reason and stop safely.
-
-### 2.2 New board
-
-If approval created a board and returned its exact `boardId`, use it. If pairing succeeded without a board, use `board.create` to create:
-
-`SceneBoard Demo — Human-Guided AI Art`
+1. Call `board_connection_status` and require an existing approved credential, its exact bound `boardId`, and the capabilities needed for board read/write, history, Human-in-the-Loop request/status, artifact publication, and artifact control.
+2. Read the current live snapshot and latest head.
+3. If an earlier Human-in-the-Loop request is still `open`, never manufacture an answer. Stop and require the owner to finish or cancel it before restarting this run.
+4. Stop any active artifact runtime.
+5. Call `board_scene_clear` with the exact latest `expectedRevisionId` and a fresh idempotency key.
+6. Read the head again and require an empty live Scene. Do not delete immutable history or published artifact versions.
 
 When ready, print only:
 
-`Connected — a human choice will now shape the artwork.`
+`Connected — the shared board is clear and a human choice will now shape the artwork.`
 
 ## 3. Opening scene
 
@@ -291,12 +271,12 @@ SceneBoard demo ready
 - Recording status: <READY | BLOCKED: one specific reason>
 ```
 
-Use `READY` only when pairing, all three real human answers, all three artifact publications, history verification, and all required browser-render checks succeeded. Otherwise use `BLOCKED` and stop at the nearest actionable recovery point.
+Use `READY` only when connection reuse, shared-board reset, all three real human answers, all three artifact publications, history verification, and all required browser-render checks succeeded. Otherwise use `BLOCKED` and stop at the nearest actionable recovery point.
 
 ## 12. Suggested three-minute recording timeline
 
-- 0:00–0:20 — Paste this runbook with an `SB-` code into Codex CLI and connect.
-- 0:20–0:45 — Approve in the browser and arrive at the new board automatically.
+- 0:00–0:15 — Paste this runbook into Codex CLI and reuse the approved SceneBoard connection.
+- 0:15–0:35 — Clear the current live Scene and show the opening message on the same board.
 - 0:45–1:00 — Choose the setting in the first Human-in-the-Loop card.
 - 1:00–1:20 — Watch Codex draw the monochrome outline.
 - 1:20–1:35 — Approve color, then watch the 2D fills appear.

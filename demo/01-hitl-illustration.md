@@ -1,18 +1,14 @@
 # Demo 01 — Human-Guided 2D Illustration
 
-PAIRING_CODE: `{{SB_CODE}}`
-
 Read `demo/_COMMON.md` and follow it as mandatory operating policy. Then execute this runbook immediately.
 
 ## Goal
 
 Demonstrate that Codex does the creative work while a meaningful human choice controls the result. Build the artwork progressively so the recording captures both AI action and human authority.
 
-## Connection and board
+## Shared board
 
-Request `board.read`, `board.write`, `board.history.read`, `board.hitl.request`, and `artifact.publish`, plus lifecycle `board.create`. Create a new board titled:
-
-`SceneBoard Demo — Human-Guided Illustration`
+Reuse the approved connection and exact shared board required by `_COMMON.md`. Complete the mandatory shared-board reset, then begin this take on the empty live Scene. Do not pair again or create another board. Use `SceneBoard Demo — Human-Guided Illustration` as the visible demo heading, not as a request to rename the board.
 
 ## Opening scene
 

@@ -59,7 +59,19 @@ scene-artifact.mjs place [FILE|-]
 scene-artifact.mjs --help
 ```
 
-Templates are `animated-data-story`, `architecture-map`, `metric-story`, `process-flow`, and `timeline`. Motion is one of `none`, `subtle`, `staged`, or `focus`.
+Templates are `animated-data-story`, `architecture-map`, `demo-showcase`, `metric-story`, `process-flow`, and `timeline`. Motion is one of `none`, `subtle`, `staged`, or `focus`.
+
+`demo-showcase` is the closed recording template for SceneBoard's richer local demonstrations. Its exact content is `{kind,selection,phase}`. Supported combinations are:
+
+- `illustration`: `sunny-garden|space-adventure|rainy-city` with `outline|color`.
+- `diorama`: `golden-garden|space-observatory|neon-street` with `ready`.
+- `prototype`: `calm-itinerary|visual-explorer|risk-checker` with `initial|improved`.
+- `data-story`: `support-week` with `ready`.
+- `incident`: `cache-unavailable|pool-exhausted|queue-backlog` with `failure|recovery`.
+- `mission-control`: `launch-readiness` with `ready`.
+- `code-review`: `no-charge|checkout-speed|concurrent-inventory` with `review|final`.
+
+The template emits only its compiler-owned local interaction program. It requests no capabilities and performs no network access, download, navigation, storage, or external resource load. Use the human's authoritative HITL answer to choose `selection`; never default or invent it.
 
 Compile returns exact `{artifactRecipeVersion:1,type:"artifact-draft",template,motion,source:{artifactId:null,html,css,javascript,requestedCapabilities:[]},placement:{nodeId,title,fallbackText}}`. Place accepts `{artifact:{artifactId,versionId},placement:{nodeId,title,fallbackText}}` and returns one exact `content.artifact` node. Every shipped template requests `requestedCapabilities:[]`; neither the model nor this compiler approves capabilities. The server does not sanitize or rewrite the separate JavaScript field, so use only compiler-owned closed templates.
 
@@ -67,7 +79,7 @@ Compile returns exact `{artifactRecipeVersion:1,type:"artifact-draft",template,m
 
 1. Compile and inspect the unpublished draft. It cannot be placed directly and has no immutable artifact identifiers.
 2. Re-read `board_scene_get`. Call `board_artifact_put` with exact `{boardId,expectedRevisionId,idempotencyKey,artifactId:null,html,css,javascript,requestedCapabilities}` using draft source plus the observed head and a fresh key.
-3. Extract the immutable pair only from `result.artifact.artifact.{artifactId,versionId}` after successful publication. Publication neither creates nor returns a board revision.
+3. Extract the immutable pair only after successful publication: use `result.artifact.artifact.{artifactId,versionId}` from the documented MCP command result, or `$.result.result.artifact.artifact.{artifactId,versionId}` from the official API process wrapper. Publication neither creates nor returns a board revision. A missing field at the selected transport's exact path is an invalid response, not permission to guess identifiers or publish replacement content.
 4. Re-read `board_scene_get` because another writer may have advanced the head. Use `place` with the immutable pair and draft placement.
 5. Include the resulting `content.artifact` node in one `board_scene_replace` or bounded `board_scene_patch`, with that freshly observed `expectedRevisionId` and a distinct `idempotencyKey`.
 
@@ -95,4 +107,4 @@ Compile with `scene-recipe.mjs compile recipe.json --output scene`, inspect the 
 {"artifactRecipeVersion":1,"template":"metric-story","placementKey":"metric-summary","title":"Metric summary","fallbackText":"The metric and its trend are listed below.","theme":"light","size":{"width":960,"height":540},"motion":"subtle","content":{"metrics":[{"label":"Completion","value":"75%","detail":"Three of four stages are complete.","trend":"up"}]}}
 ```
 
-Compile with `scene-artifact.mjs compile`, publish the exact draft source through `board_artifact_put`, extract `result.artifact.artifact.{artifactId,versionId}`, re-read `board_scene_get`, and send `{"artifact":{"artifactId":"PUBLISHED_ID","versionId":"PUBLISHED_VERSION"},"placement":DRAFT_PLACEMENT}` to `scene-artifact.mjs place`. Put the returned node into one scene mutation using the fresh head and a new key.
+Compile with `scene-artifact.mjs compile`, publish the exact draft source through `board_artifact_put`, extract the immutable identifiers from the selected transport's exact path documented above, re-read `board_scene_get`, and send `{"artifact":{"artifactId":"PUBLISHED_ID","versionId":"PUBLISHED_VERSION"},"placement":DRAFT_PLACEMENT}` to `scene-artifact.mjs place`. Put the returned node into one scene mutation using the fresh head and a new key.

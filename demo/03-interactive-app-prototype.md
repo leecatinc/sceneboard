@@ -1,18 +1,14 @@
 # Demo 03 — Clickable App Prototype
 
-PAIRING_CODE: `{{SB_CODE}}`
-
 Read `demo/_COMMON.md` and follow it as mandatory operating policy. Then execute this runbook immediately.
 
 ## Goal
 
 Demonstrate that a Codex result can become an immediately testable product surface instead of a long block of implementation text.
 
-## Connection and board
+## Shared board
 
-Request `board.read`, `board.write`, `board.history.read`, `board.hitl.request`, and `artifact.publish`, plus lifecycle `board.create`. Create:
-
-`SceneBoard Demo — Clickable Product Prototype`
+Reuse the approved connection and exact shared board required by `_COMMON.md`. Complete the mandatory shared-board reset, then begin this take on the empty live Scene. Do not pair again or create another board. Use `SceneBoard Demo — Clickable Product Prototype` as the visible demo heading.
 
 ## Product brief
 

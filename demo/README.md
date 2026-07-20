@@ -1,6 +1,6 @@
 # SceneBoard Independent Demo Library
 
-This directory contains independent recording runbooks. Each numbered Markdown file can be pasted into Codex CLI for a separate take. Every take creates a new board, uses English-only presentation copy, and preserves its own revision history.
+This directory contains independent recording runbooks. Each numbered Markdown file can be pasted into Codex CLI for a separate take. Pair SceneBoard once, reuse the same approved connection and board for every take, and clear the current live Scene before each demo. English-only presentation copy and immutable revision history are preserved.
 
 ## Recommended clips
 
@@ -16,17 +16,17 @@ This directory contains independent recording runbooks. Each numbered Markdown f
 
 ## Running one take
 
-Replace the placeholder with a newly issued SceneBoard code and paste the whole selected file into Codex CLI.
+Complete one SceneBoard pairing before recording, then paste the selected file into Codex CLI. No new pairing code is required between demos.
 
 ```bash
-{ printf 'PAIRING_CODE: %s\n' 'SB-XXXXXX-XXXXXX'; cat demo/03-interactive-app-prototype.md; } | codex exec -C /workspace/lc/leecat-board -
+codex exec -C /workspace/lc/leecat-board - < demo/03-interactive-app-prototype.md
 ```
 
-The browser user only needs to approve the connection and answer the Human-in-the-Loop cards explicitly named by that runbook. Do not reuse an expired code or an old demo board.
+The browser user approves the connection once before the first take. During each runbook, the user only answers its explicitly named Human-in-the-Loop cards. The runbook reuses the bound board and clears its current live Scene before starting; prior revisions remain available in history.
 
 ## Suggested three-minute edit
 
-- 0:00–0:15 — Problem and `SB-` pairing code.
+- 0:00–0:15 — Problem and the already-connected SceneBoard workspace.
 - 0:15–0:50 — Human-guided illustration.
 - 0:50–1:15 — 3D paper diorama.
 - 1:15–1:45 — Clickable app prototype.
@@ -36,4 +36,3 @@ The browser user only needs to approve the connection and answer the Human-in-th
 - 2:55–3:00 — SceneBoard closing message.
 
 Use only the strongest 20–35 seconds from each raw take. Record every run independently so one failed take cannot invalidate the others.
-

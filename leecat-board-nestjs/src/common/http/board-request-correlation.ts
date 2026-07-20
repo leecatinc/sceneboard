@@ -29,3 +29,16 @@ export const admitBoardRequestId = (
 export const admittedBoardRequestId = (
   request: BoardRequestCorrelationCarrier,
 ): RequestId | null => request[BOARD_REQUEST_ID] ?? null;
+
+export const boardRequestIdFromUrl = (value: string | undefined): RequestId | null => {
+  if (value === undefined) return null;
+  let candidates: string[];
+  try {
+    candidates = new URL(value, 'http://sceneboard.internal').searchParams.getAll('requestId');
+  } catch {
+    return null;
+  }
+  if (candidates.length !== 1) return null;
+  const parsed = GlobalIdStringParserV1.parse(candidates[0]);
+  return parsed.ok ? parsed.data.value as RequestId : null;
+};

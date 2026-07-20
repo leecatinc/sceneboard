@@ -15,7 +15,7 @@ const collect = (directory, prefix = '') => readdirSync(directory, { withFileTyp
 
 test('canonical skill, private mirror, plugin mirror, and archives are synchronized', () => {
   const result = JSON.parse(execFileSync(process.execPath, [join(root, 'scripts/sync-sceanboard-skill.mjs'), '--check'], { encoding: 'utf8' }));
-  assert.deepEqual(result, { status: 'PASS', fileCount: 30 });
+  assert.deepEqual(result, { status: 'PASS', fileCount: 32 });
   const canonical = collect(join(root, 'skills/sceanboard'));
   assert.deepEqual(collect(join(root, '.AI/skills/sceanboard')), canonical);
   assert.deepEqual(collect(join(root, 'leecat-board-mcp/plugins/sceneboard/skills/sceanboard')), canonical);

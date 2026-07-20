@@ -6,6 +6,7 @@ import type { BoardErrorV1 } from '@leecat-board/board-schema';
 import { CryptoService } from '../security/crypto.service.js';
 import {
   admittedBoardRequestId,
+  boardRequestIdFromUrl,
   type BoardRequestCorrelationCarrier,
 } from '../http/board-request-correlation.js';
 import { applyPrivateResponseHeaders } from '../http/response-headers.interceptor.js';
@@ -105,7 +106,9 @@ export class HttpErrorFilter implements ExceptionFilter {
     const response = http.getResponse<HttpResponse>();
     const request = http.getRequest<HttpRequest>();
     if (response.headersSent === true || response.writableEnded === true || response.destroyed === true) return;
-    const requestId = admittedBoardRequestId(request) ?? this.crypto.generatePublicIdV1();
+    const requestId = admittedBoardRequestId(request)
+      ?? boardRequestIdFromUrl(request.url)
+      ?? this.crypto.generatePublicIdV1();
     response.setHeader('X-Request-Id', requestId);
     applyPrivateResponseHeaders(request.url ?? '', response);
 
