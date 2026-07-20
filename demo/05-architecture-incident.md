@@ -26,6 +26,8 @@ The application API also sends background work to a worker queue. Clearly label 
 
 Create one `choice` interaction:
 
+Use the real SceneBoard interaction command and require the resulting choice card to appear in the automatic decision tray or as an inline `content.hitl` node before waiting.
+
 - Question: `Which failure should Codex simulate?`
 - Explanation: `Your choice changes the failure path and recovery recommendation. This is a fictional simulation and does not operate a real system.`
 - Options:
@@ -63,6 +65,8 @@ Do not present the recommendation as an automatic production action. End on `A p
 
 Create one `confirmation` interaction:
 
+Use the real SceneBoard interaction command and require the resulting confirmation card to appear before waiting.
+
 - Title: `Approve the simulated recovery view?`
 - Body: `This only advances the visual simulation. It does not execute commands or change infrastructure.`
 - Confirm: `Show recovery`
@@ -73,4 +77,3 @@ If approved, advance the artifact locally or publish a recovery revision that re
 End with:
 
 `Codex explains the system. SceneBoard keeps the recovery decision human.`
-

@@ -39,12 +39,14 @@ Send this exact object on stdin:
 {
   "code": "<SCENEBOARD_PAIRING_CODE>",
   "clientName": "Codex SceneBoard fallback",
-  "requestedScopes": ["board.read", "board.write"],
-  "requestedLifecyclePermissions": ["board.create"]
+  "requestedScopes": ["board.read", "board.write", "board.history.read", "board.hitl.request", "board.hitl.respond", "artifact.publish", "artifact.control"],
+  "requestedLifecyclePermissions": ["board.create", "board.archive"]
 }
 ```
 
-Scopes and lifecycle permissions must follow the catalog order from [auth-and-config.md](auth-and-config.md). Request `board.create` when the user expects the connection to create its first board; a zero-board approval without both `board.write` and `board.create` is invalid. The process validates every finite-state response and emits secret-free `claimed`, `status`, and final `redeemed` or `terminal` events. Keep it alive until the owner approves or the pairing reaches a terminal state. Claim response loss is never retried. On redeem response loss, the same proof owner checks status and performs at most the one contract-authorized retry; otherwise follow the returned owner recovery.
+Scopes and lifecycle permissions must include the complete catalog in the exact order shown above and in [auth-and-config.md](auth-and-config.md). SceneBoard shows the complete request to the signed-in owner, who remains responsible for approving or reducing it; the adapter never treats a requested capability as approved before redemption proves the final grant. A zero-board approval without both `board.write` and `board.create` is invalid. The process validates every finite-state response and emits secret-free `claimed`, `status`, and final `redeemed` or `terminal` events. Keep it alive until the owner approves or the pairing reaches a terminal state. Claim response loss is never retried. On redeem response loss, the same proof owner checks status and performs at most the one contract-authorized retry; otherwise follow the returned owner recovery.
+
+After redemption, the adapter verifies server authorization, writes the private credential, and reloads it before reporting success. A closed `BOARD_API_PAIRING_CREDENTIAL_UNRECOVERABLE` failure includes only a safe `phase` (`connection_request`, `authorization_validation`, `credential_write`, `credential_reload`, or `credential_reload_mismatch`) and, when applicable, an allowlisted Windows DPAPI reason. It never includes a token, filesystem path, command output, or raw exception. Revoke or rotate the created connection before retrying with a fresh code.
 
 ## Transport gate
 

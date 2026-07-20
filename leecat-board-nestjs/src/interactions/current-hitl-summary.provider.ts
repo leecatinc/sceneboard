@@ -55,6 +55,25 @@ export class CurrentHitlSummaryProvider extends CurrentHitlSummaryPort {
         summaries.push(stored.interaction);
       }
     }
+    const [openRows] = await connection.execute<InteractionRowV1[]>(`
+      SELECT ${INTERACTION_ROW_COLUMNS}
+      FROM boards b
+      JOIN board_hitl_interactions i ON i.board_pk = b.board_pk
+      WHERE b.public_id = ?
+        AND i.state_code = 'O'
+        AND i.state_event_sequence <= ?
+      ORDER BY i.created_event_sequence ASC, i.hitl_pk ASC
+    `, [input.boardId, input.lastEventSequence]);
+    const referenced = new Set(ids);
+    for (const row of openRows) {
+      const stored = mapInteractionRowV1(row);
+      if (stored.interaction.state !== 'open' || stored.stateEventSequence > input.lastEventSequence) {
+        throw new BoardPersistenceError('row_integrity');
+      }
+      if (!referenced.has(stored.interaction.hitlRequestId)) {
+        summaries.push(stored.interaction);
+      }
+    }
     return summaries;
   }
 }

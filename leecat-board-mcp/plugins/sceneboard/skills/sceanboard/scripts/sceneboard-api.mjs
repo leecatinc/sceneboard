@@ -43,6 +43,34 @@ const OPERATIONS = [
   'board_interaction_respond',
 ];
 
+const WINDOWS_CREDENTIAL_FAILURE_REASONS = new Set([
+  'windows_system_root_unavailable',
+  'windows_dpapi_process_unavailable',
+  'windows_dpapi_timeout',
+  'windows_dpapi_output_too_large',
+  'windows_dpapi_failed',
+  'windows_dpapi_empty_output',
+  'windows_dpapi_input_failed',
+]);
+
+const pairingCredentialFailure = (phase, error) => {
+  const reason = error instanceof SceneBoardApiError
+    && WINDOWS_CREDENTIAL_FAILURE_REASONS.has(error.details?.reason)
+    ? error.details.reason
+    : undefined;
+  return new SceneBoardApiError(
+    'BOARD_API_PAIRING_CREDENTIAL_UNRECOVERABLE',
+    'SceneBoard paired credential could not be proven',
+    {
+      details: {
+        phase,
+        ...(reason === undefined ? {} : { reason }),
+        recovery: 'owner_rotate_or_revoke_and_repair',
+      },
+    },
+  );
+};
+
 const write = (value) => process.stdout.write(`${JSON.stringify(value)}\n`);
 
 const readStdinJson = async () => {
@@ -187,6 +215,7 @@ const pair = async () => {
     }
     redeemed = parsePairingRedeem(redeemed);
     let storedGeneration = null;
+    let credentialPhase = 'connection_request';
     try {
       const requestId = randomBytes(16).toString('base64url');
       const connection = await requestJson({
@@ -199,23 +228,25 @@ const pair = async () => {
         requirePairingHeaders: 'connection',
         connectionBoardId: null,
       });
+      credentialPhase = 'authorization_validation';
       validatePairingAuthorization(redeemed, connection, input);
+      credentialPhase = 'credential_write';
       storedGeneration = await writeCredential(config, redeemed.accessToken);
       redeemed.accessToken = '';
+      credentialPhase = 'credential_reload';
       const stored = await readCredential(config);
-      if (stored === null || stored.generation !== storedGeneration) throw new Error('credential reload failed');
-    } catch {
+      if (stored === null || stored.generation !== storedGeneration) {
+        credentialPhase = 'credential_reload_mismatch';
+        throw new Error('credential reload mismatch');
+      }
+    } catch (error) {
       redeemed.accessToken = '';
       if (storedGeneration !== null) {
         try {
           await deleteCredentialIfGeneration(config, storedGeneration);
         } catch {}
       }
-      throw new SceneBoardApiError(
-        'BOARD_API_PAIRING_CREDENTIAL_UNRECOVERABLE',
-        'SceneBoard paired credential could not be proven',
-        { details: { recovery: 'owner_rotate_or_revoke_and_repair' } },
-      );
+      throw pairingCredentialFailure(credentialPhase, error);
     }
     write({
       ok: true,

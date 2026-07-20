@@ -17,6 +17,7 @@ import { useBoardSession } from '../../../lib/board/use-board-session';
 import { BoardApiClient } from '../../../lib/api/board-api';
 import { authSessionClient } from '../../../lib/auth/session-client';
 import { useHitlInteractionController } from '../../../lib/board/use-hitl-interaction-controller';
+import { selectUnplacedOpenHitlV1 } from '../../../lib/board/unplaced-hitl';
 import { useI18n } from '../../../components/i18n/I18nProvider';
 import {
   canResetArtifactViewV1,
@@ -205,6 +206,9 @@ export function BoardClient({ boardId }: { boardId: string }) {
   const routeEpoch = `${boardId}:${visibleSnapshot.revision.revisionId}`;
   const artifactRouteEpoch = boardId;
   const hitlMode: HitlInteractionControllerV1['mode'] = state.mode.kind === 'history' ? 'history' : 'live';
+  const unplacedOpenHitl = state.mode.kind === 'live'
+    ? selectUnplacedOpenHitlV1(visibleSnapshot)
+    : [];
   const renderArtifact: RendererComponentV1<'content.artifact'> = ({ node, context }) => {
     const runtime = context.snapshot.artifacts.find((item) => (
       item.artifact.artifactId === node.artifact.artifactId
@@ -280,6 +284,24 @@ export function BoardClient({ boardId }: { boardId: string }) {
             renderHitl={renderHitl}
             drawingView={{ mode: artifactViewMode, resetSignal: drawingResetSignal, onStateChange: onDrawingViewStateChange }}
           />
+          {unplacedOpenHitl.length > 0 && (
+            <section className="board-hitl-overlay" aria-label={t('board.interactions')} aria-live="polite">
+              <div className="board-hitl-tray">
+                {unplacedOpenHitl.map((interaction) => (
+                  <BoundHitlBlock
+                    key={`${routeEpoch}:automatic:${interaction.hitlRequestId}`}
+                    api={api}
+                    nodeId={`automatic-hitl-${interaction.hitlRequestId}`}
+                    boardId={visibleSnapshot.boardId}
+                    expectedRevisionId={visibleSnapshot.revision.revisionId}
+                    interaction={interaction}
+                    mode={hitlMode}
+                    routeEpoch={routeEpoch}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
         </div>
         <StatusRail snapshot={visibleSnapshot} presence={state.presence} onStopRendering={() => setArtifactStopSignal((value) => value + 1)} />
       </div>

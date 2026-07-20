@@ -1007,7 +1007,13 @@ test('pairing rejects contradictory authorization before credential persistence'
   const exitCode = await new Promise((resolve) => child.on('close', resolve));
   await new Promise((resolve) => server.close(resolve));
   assert.equal(exitCode, 1, Buffer.concat(stderr).toString());
-  assert.equal(Buffer.concat(stdout).includes(TOKEN), false);
+  const output = Buffer.concat(stdout);
+  assert.equal(output.includes(TOKEN), false);
+  const failure = output.toString().trim().split('\n').map(JSON.parse).at(-1);
+  assert.equal(failure.error.code, 'BOARD_API_PAIRING_CREDENTIAL_UNRECOVERABLE');
+  assert.equal(failure.error.details.phase, 'authorization_validation');
+  assert.equal(failure.error.details.reason, undefined);
+  assert.equal(failure.error.details.recovery, 'owner_rotate_or_revoke_and_repair');
   await assert.rejects(stat(join(stateRoot, 'leecat-board', 'credentials', 'qa_pair_mismatch', 'credential.json')), { code: 'ENOENT' });
 });
 

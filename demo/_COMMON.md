@@ -37,7 +37,11 @@ This file is mandatory operating context for every numbered demo runbook in this
 ## Human-in-the-Loop behavior
 
 - Never guess, manufacture, or default a human answer.
-- After `board_interaction_request`, immediately wait through `board_interaction_status` using the returned `stateUpdatedAt` cursor and bounded waits of at most 30 seconds.
+- Create the real interaction with `board_interaction_request`; explanatory Markdown such as `Waiting for a decision` is not a Human-in-the-Loop card and is never proof that a request exists.
+- Require the request result to be `open`. SceneBoard automatically presents an open interaction in the board-level decision tray when the current Scene has no matching `content.hitl` node.
+- When the recording composition needs an exact inline position, read the unchanged Scene head after the successful request and add one `content.hitl` node using that exact returned `hitlRequestId`. Never place a speculative ID before the interaction exists.
+- When browser verification is available, require either the automatic decision tray or the explicit inline card to be visible before claiming that the person can answer.
+- After presentation is established, immediately wait through `board_interaction_status` using the returned `stateUpdatedAt` cursor and bounded waits of at most 30 seconds.
 - Keep at most one wait in flight. Continue bounded waits while the interaction is `open`.
 - Stop on `answered`, `expired`, `cancelled`, or `superseded` and explain the exact outcome in plain English.
 - A Human-in-the-Loop card must state why the decision is needed, what each choice changes, what remains unchanged, and what happens next.
@@ -68,4 +72,3 @@ SceneBoard demo ready
 ```
 
 Use `READY` only when every required operation and verification in the selected runbook succeeded.
-

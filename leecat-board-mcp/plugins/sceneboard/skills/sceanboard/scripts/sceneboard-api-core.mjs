@@ -25,8 +25,8 @@ const WINDOWS_PROTECTION = 'windows-dpapi-current-user';
 const WINDOWS_DPAPI_TIMEOUT_MS = 10_000;
 const WINDOWS_DPAPI_OUTPUT_LIMIT = 16_384;
 const WINDOWS_DPAPI_SCRIPTS = {
-  protect: '$value=[Console]::In.ReadToEnd();$bytes=[Text.Encoding]::UTF8.GetBytes($value);$protected=[Security.Cryptography.ProtectedData]::Protect($bytes,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser);[Console]::Out.Write([Convert]::ToBase64String($protected))',
-  unprotect: '$value=[Console]::In.ReadToEnd();$protected=[Convert]::FromBase64String($value);$bytes=[Security.Cryptography.ProtectedData]::Unprotect($protected,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser);[Console]::Out.Write([Text.Encoding]::UTF8.GetString($bytes))',
+  protect: 'Add-Type -AssemblyName System.Security;$value=[Console]::In.ReadToEnd();$bytes=[Text.Encoding]::UTF8.GetBytes($value);$protected=[Security.Cryptography.ProtectedData]::Protect($bytes,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser);[Console]::Out.Write([Convert]::ToBase64String($protected))',
+  unprotect: 'Add-Type -AssemblyName System.Security;$value=[Console]::In.ReadToEnd();$protected=[Convert]::FromBase64String($value);$bytes=[Security.Cryptography.ProtectedData]::Unprotect($protected,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser);[Console]::Out.Write([Text.Encoding]::UTF8.GetString($bytes))',
 };
 const NODE_TYPES = [
   'layout.split', 'layout.grid', 'layout.tabs', 'layout.canvas',

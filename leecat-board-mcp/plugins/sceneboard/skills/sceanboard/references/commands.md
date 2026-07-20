@@ -37,6 +37,8 @@ Prefer tools returned by MCP discovery. Before authentication exactly the three 
 
 `definition.kind` is exactly `info|choice|form|confirmation`; `response.kind` must match. Do not request authentication secrets through HITL. Bounded-wait status is the default response delivery path described in the skill.
 
+Every successful open request is included in the current board snapshot. If the Scene has no matching `content.hitl` node, the browser presents it in the board-level decision tray. An explicit node may be added only after creation with the exact returned `hitlRequestId`; a waiting message is not a substitute for a real interaction.
+
 Artifact capabilities are sorted unique values from `clipboard.write|download|fullscreen|network.fetch`. Capability request input never self-approves.
 
 ## Closed errors

@@ -27,6 +27,8 @@ Publish a native opening scene containing:
 
 Create one `choice` interaction:
 
+Use the real SceneBoard interaction command and require the resulting choice card to appear in the automatic decision tray or as an inline `content.hitl` node before waiting.
+
 - Question: `Where should the cat play?`
 - Explanation: `Your choice determines the environment in both the monochrome outline and the colored result. It does not change account data or permissions.`
 - Options:
@@ -53,6 +55,8 @@ Do not use fill colors, gradients, or colored accents. Preserve the completed ou
 
 Create one `confirmation` interaction:
 
+Use the real SceneBoard interaction command and require the resulting confirmation card to appear before waiting.
+
 - Title: `Should Codex add color now?`
 - Body: `The outline is safely preserved in revision history. Approving will create a new colored version without replacing the recorded outline.`
 - Confirm: `Yes, add color`
@@ -76,4 +80,3 @@ Keep the black outline visible. End with `Color complete — one human choice sh
 Verify history contains both the outline and colored revisions. If browser control is available, show `Previous` for the outline and `Latest` for the colored result. End on:
 
 `Codex creates. A person decides. SceneBoard preserves both.`
-

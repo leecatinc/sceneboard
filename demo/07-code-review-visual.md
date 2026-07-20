@@ -53,6 +53,8 @@ The simulation must be deterministic, local, and clearly labeled illustrative. I
 
 After placing the artifact, create one `choice` interaction:
 
+Use the real SceneBoard interaction command and require the resulting choice card to appear in the automatic decision tray or as an inline `content.hitl` node before waiting.
+
 - Question: `What should the team verify first?`
 - Explanation: `This records review priority only. It does not approve deployment or operate the checkout system.`
 - Options:
@@ -67,4 +69,3 @@ Wait for the answer, then publish a concise final scene that keeps the compariso
 End with:
 
 `Codex writes technical work. SceneBoard makes its impact reviewable by humans.`
-

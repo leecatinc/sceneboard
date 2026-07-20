@@ -18,6 +18,8 @@ Request `board.read`, `board.write`, `board.hitl.request`, and `artifact.publish
 
 Create one `choice` interaction:
 
+Use the real SceneBoard interaction command and require the resulting choice card to appear in the automatic decision tray or as an inline `content.hitl` node before waiting.
+
 - Question: `Which world should Codex build in 3D?`
 - Explanation: `This controls the visual theme only. Codex will build the selected world as a layered paper diorama.`
 - Options:
@@ -56,4 +58,3 @@ Do not use WebGL, Three.js, network access, or device sensors. In reduced-motion
 Verify the immutable artifact is ready and active in the browser. End with:
 
 `No external renderer. No hidden design tool. Built live by Codex inside SceneBoard.`
-

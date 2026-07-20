@@ -26,6 +26,8 @@ First publish a concise native scene titled `From Product Brief to Working Proto
 
 Create one `choice` interaction:
 
+Use the real SceneBoard interaction command and require the resulting choice card to appear in the automatic decision tray or as an inline `content.hitl` node before waiting.
+
 - Question: `Which experience should Codex prototype?`
 - Explanation: `The choice changes navigation and visual emphasis, while keeping the same trip-planning goal.`
 - Options:
@@ -58,6 +60,8 @@ Tailor the information hierarchy and screens to the person's actual choice. Use 
 
 After the first prototype is placed, create a `confirmation` interaction:
 
+Use the real SceneBoard interaction command and require the resulting confirmation card to appear before waiting.
+
 - Title: `Should Codex make the primary action easier to find?`
 - Body: `Approving will preserve this prototype in history and create a new revision with stronger hierarchy, clearer wording, and a more visible primary action.`
 - Confirm: `Yes, improve it`
@@ -68,4 +72,3 @@ If approved, publish a second immutable prototype with the same functionality bu
 End with:
 
 `A product conversation became a testable interface — built live by Codex.`
-

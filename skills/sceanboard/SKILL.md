@@ -20,7 +20,7 @@ Read [platform.md](references/platform.md) for implementation boundaries. The fa
 ## Prerequisites and target resolution
 
 1. Use a registered `leecat-board-mcp` connection when its descriptors are available. Otherwise resolve and use the installed skill's `scripts/sceneboard-api.mjs` from the open project root. Remote MCP transport is not a v1 fallback.
-2. Pair with the signed-in owner without exposing the long-lived credential in chat, tool content, logs, or config. If the entire user message is one valid `SB-`-prefixed code, treat it as an explicit request to pair immediately. Request the ordered core working set `board.read`, `board.write`, plus lifecycle `board.create`; use client name `Codex SceneBoard` unless the active client has a more specific stable name. Do not request history, human-in-the-loop, artifact, archive, or other capabilities without task intent.
+2. Pair with the signed-in owner without exposing the long-lived credential in chat, tool content, logs, or config. If the entire user message is one valid `SB-`-prefixed code, treat it as an explicit request to pair immediately. Always request the complete grant catalog in its exact order: `board.read`, `board.write`, `board.history.read`, `board.hitl.request`, `board.hitl.respond`, `artifact.publish`, and `artifact.control`; also request lifecycle permissions `board.create` and `board.archive`. Use client name `Codex SceneBoard` unless the active client has a more specific stable name. Present the complete request to the owner and let the owner approve, deselect, deny, or cancel it in SceneBoard; never claim unapproved capabilities.
 3. Use a user-supplied `boardId`, or call `board_list`. If candidates remain ambiguous, ask. Never infer an active, first, or sole board. If the user explicitly asks to create a board, an empty `board_list` is a valid starting state: require approved `board.write` plus lifecycle `board.create`, call `board_create`, and use only its returned `boardId` for subsequent work.
 4. Call `board_connection_status` with `{boardId:null}` for untargeted authentication and zero-board diagnostics, or `{boardId:<id>}` for one explicit board. Null never selects a board.
 
@@ -79,10 +79,12 @@ History browsing is non-destructive. `Previous`/`Next` pins an immutable revisio
 
 ## HITL: blocking-first delivery
 
-1. Create the interaction with `board_interaction_request`.
-2. Immediately call `board_interaction_status` with the returned `stateUpdatedAt` as `wait.afterStateUpdatedAt` and a bounded timeout. This is the primary delivery path.
-3. On `changed:false`, reissue the same cursor after small jitter with at most one in-flight wait. Transport-class retries use the SDK's bounded jittered retry policy.
-4. Stop on `answered`, `expired`, `cancelled`, or `superseded`. Never fabricate a response on timeout.
+1. Create the interaction with `board_interaction_request` and require a successful `open` result. Visible prose that says an answer is pending is not an interaction and never proves that a card exists.
+2. SceneBoard automatically presents every open interaction that lacks a matching Scene node in its board-level decision tray. When an exact inline position is materially useful, read the unchanged head after the successful request and add one `content.hitl` node with that exact returned `hitlRequestId`; never place a speculative HITL reference before creation.
+3. When browser verification is available, require either the automatic decision tray or the explicit inline card to render before reporting that a person can answer. Persistence and presentation remain separate evidence.
+4. Immediately call `board_interaction_status` with the returned `stateUpdatedAt` as `wait.afterStateUpdatedAt` and a bounded timeout. This is the primary response-delivery path.
+5. On `changed:false`, reissue the same cursor after small jitter with at most one in-flight wait. Transport-class retries use the SDK's bounded jittered retry policy.
+6. Stop on `answered`, `expired`, `cancelled`, or `superseded`. Never fabricate a response on timeout.
 
 Keep `wait.timeoutMs` in `[0,30000]`. Effective wait is `min(30000, remaining SDK deadline - 5000, known outer tool budget - 5000)`; use `wait:null` only when that is below 1000 or a safe margin cannot be established. Visual confirmation never authorizes anything beyond the declared request scope.
 
