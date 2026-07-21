@@ -1,0 +1,42 @@
+# Dependencies and generated build output
+node_modules/
+dist/
+.next/
+.next-check/
+coverage/
+*.tsbuildinfo
+
+# Local environment and credentials
+**/.env
+**/.env.*
+!**/.env.example
+**/.mcp.json
+!sceneboard-mcp/plugins/sceneboard/.mcp.json
+**/.board.json
+**/credentials/
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Runtime state and logs
+*.log
+logs/
+.artifacts/
+.certification-fixtures/
+test-results/
+playwright-report/
+
+# Local recordings, screenshots, and temporary output
+record/output/
+tmp/
+screenshots/
+*.webm
+*.mkv
+*.mov
+*.mp4
+
+# Editor and operating-system metadata
+.DS_Store
+.idea/
+.vscode/

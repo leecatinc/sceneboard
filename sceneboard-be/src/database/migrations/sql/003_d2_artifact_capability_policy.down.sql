@@ -1,0 +1,3 @@
+DROP TABLE artifact_capability_preauthorization_tickets;
+DROP TABLE board_artifact_capability_policies;
+DROP TABLE board_artifact_capability_policy_epochs;

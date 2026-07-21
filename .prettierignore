@@ -1,0 +1,10 @@
+node_modules/
+**/dist/
+**/.next/
+**/coverage/
+**/public/downloads/
+sceneboard-mcp/plugins/sceneboard/runtime/index.js
+package-lock.json
+test/certification/**/*.json
+packages/board-schema/test/fixtures/**/*.json
+sceneboard-fe/test/contracts/certification-handoffs/**/*.json

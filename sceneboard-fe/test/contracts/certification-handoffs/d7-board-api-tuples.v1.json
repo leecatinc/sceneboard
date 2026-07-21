@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "owner": "D7",
+  "resourcePath": "sceneboard-fe/lib/api/board-api.ts",
+  "publisherTestPath": "sceneboard-fe/test/contracts/d7-board-api-tuples.contract.test.ts",
+  "contractIds": [
+    "D7-ARTIFACT-METADATA-GET",
+    "D7-ARTIFACT-PACKAGE-GET",
+    "D7-ARTIFACT-NETWORK-FETCH"
+  ],
+  "selectors": [
+    {
+      "projectionId": "D7-ARTIFACT-METADATA-GET-SELECTOR",
+      "exportName": "BoardApiClient",
+      "exportKind": "class",
+      "memberName": "getArtifact",
+      "memberKind": "method",
+      "signature": "async getArtifact( boardId: string, artifact: ArtifactReferenceV1, signal?: AbortSignal, ): Promise<ApiResult<ArtifactGetResult>>",
+      "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=getArtifact]",
+      "contractId": "D7-ARTIFACT-METADATA-GET"
+    },
+    {
+      "projectionId": "D7-ARTIFACT-PACKAGE-GET-SELECTOR",
+      "exportName": "BoardApiClient",
+      "exportKind": "class",
+      "memberName": "getArtifactPackage",
+      "memberKind": "method",
+      "signature": "async getArtifactPackage( boardId: string, artifact: ArtifactReferenceV1, signal?: AbortSignal, ): Promise<ApiResult<ArtifactPackageResult>>",
+      "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=getArtifactPackage]",
+      "contractId": "D7-ARTIFACT-PACKAGE-GET"
+    },
+    {
+      "projectionId": "D7-ARTIFACT-NETWORK-FETCH-SELECTOR",
+      "exportName": "BoardApiClient",
+      "exportKind": "class",
+      "memberName": "requestArtifactNetworkFetch",
+      "memberKind": "method",
+      "signature": "async requestArtifactNetworkFetch( input: ArtifactNetworkFetchInput, ): Promise<ApiResult<ArtifactNetworkResult>>",
+      "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=requestArtifactNetworkFetch]",
+      "contractId": "D7-ARTIFACT-NETWORK-FETCH"
+    }
+  ],
+  "tupleListSha256": "fa3bb491ba4b62ecf38cda41c346c636727b8aa15eb38c57a813c3367afc9733"
+}

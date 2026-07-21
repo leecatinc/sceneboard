@@ -1,0 +1,1 @@
+{"protocolVersion":1,"type":"board.error","code":"UNAUTHENTICATED","message":"UNAUTHENTICATED","category":"auth","retryable":false,"httpStatusHint":401,"details":null}

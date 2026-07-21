@@ -1,0 +1,1 @@
+{"protocolVersion":1,"type":"board.error","code":"CAPABILITY_DENIED","message":"CAPABILITY_DENIED","category":"auth","retryable":false,"httpStatusHint":403,"details":{"capability":"board.write"}}

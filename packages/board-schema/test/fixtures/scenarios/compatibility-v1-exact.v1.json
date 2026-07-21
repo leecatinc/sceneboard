@@ -1,0 +1,1 @@
+{"scenario":"compatibility-v1-exact","expectedRelation":"accepted","inputFixture":"valid/scene-empty.v1.json","expected":{"accepted":true,"readerMajor":1,"writerMajor":1}}

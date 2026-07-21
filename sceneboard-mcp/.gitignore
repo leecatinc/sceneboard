@@ -1,0 +1,15 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+*.log
+
+.env
+.env.*
+!.env.example
+
+.board.json
+config/board.json
+
+native/profile-lease-helper
+native/profile-lease-helper.sha256

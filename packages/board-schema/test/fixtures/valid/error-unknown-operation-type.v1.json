@@ -1,0 +1,1 @@
+{"protocolVersion":1,"type":"board.error","code":"UNKNOWN_OPERATION_TYPE","message":"UNKNOWN_OPERATION_TYPE","category":"validation","retryable":false,"httpStatusHint":422,"details":{"path":["type"],"receivedType":"unknown"}}

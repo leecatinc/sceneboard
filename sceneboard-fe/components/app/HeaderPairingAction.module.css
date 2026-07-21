@@ -1,0 +1,66 @@
+.control {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.action {
+  min-height: 38px;
+  padding: 8px 12px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  border: 1px solid var(--primary);
+  border-radius: 6px;
+  background: var(--primary-wash);
+  color: var(--text-strong);
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 750;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+
+.connecting .dot {
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.error {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(320px, 72vw);
+  border: 1px solid color-mix(in srgb, var(--danger) 42%, var(--surface));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--danger) 12%, var(--surface));
+  color: var(--danger);
+  padding: 8px 10px;
+  box-shadow: 0 8px 24px rgba(17, 36, 33, 0.12);
+  font-size: 12px;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .connecting .dot {
+    animation: none;
+  }
+}

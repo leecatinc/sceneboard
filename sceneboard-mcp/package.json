@@ -1,0 +1,41 @@
+{
+  "name": "sceneboard-mcp",
+  "private": true,
+  "version": "0.0.0",
+  "license": "Apache-2.0",
+  "author": "LeeCat",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/leecatinc/sceneboard.git"
+  },
+  "homepage": "https://sceneboard.dev",
+  "bugs": {
+    "url": "https://github.com/leecatinc/sceneboard/issues"
+  },
+  "type": "module",
+  "bin": {
+    "sceneboard-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "npm run build:native:profile-lease && tsc -p tsconfig.build.json && npm run verify:native:profile-lease",
+    "build:native:profile-lease": "node scripts/build-profile-lease-helper.mjs",
+    "dev": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc -p tsconfig.test.json",
+    "test": "tsx --test test/**/*.test.ts",
+    "verify:native:profile-lease": "node scripts/verify-profile-lease-helper.mjs"
+  },
+  "dependencies": {
+    "@sceneboard/board-schema": "0.0.0",
+    "@sceneboard/board-sdk": "0.0.0",
+    "@modelcontextprotocol/sdk": "1.28.0",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

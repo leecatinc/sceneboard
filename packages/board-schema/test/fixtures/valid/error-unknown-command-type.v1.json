@@ -1,0 +1,1 @@
+{"protocolVersion":1,"type":"board.error","code":"UNKNOWN_COMMAND_TYPE","message":"UNKNOWN_COMMAND_TYPE","category":"validation","retryable":false,"httpStatusHint":422,"details":{"path":["command","type"],"receivedType":"unknown"}}

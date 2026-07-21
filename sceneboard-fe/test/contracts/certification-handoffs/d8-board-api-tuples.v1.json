@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "owner": "D8",
+  "resourcePath": "sceneboard-fe/lib/api/board-api.ts",
+  "publisherTestPath": "sceneboard-fe/test/contracts/d8-board-api-tuples.contract.test.ts",
+  "contractIds": [
+    "D8-HITL-MUTATION-REQUEST",
+    "D8-HITL-MUTATION-RESPOND",
+    "D8-HITL-READ-WAIT",
+    "D8-HITL-LIFECYCLE-CANCEL",
+    "D8-HITL-LIFECYCLE-SUPERSEDE"
+  ],
+  "selectors": [
+    {
+      "projectionId": "D8-HITL-MUTATION-REQUEST-SELECTOR",
+      "exportName": "BoardApiClient",
+      "exportKind": "class",
+      "memberName": "requestInteraction",
+      "memberKind": "method",
+      "signature": "async requestInteraction( request: HitlRequestMutationRequest, signal?: AbortSignal, ): Promise<ApiResult<HitlRequestResult>>",
+      "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=requestInteraction]",
+      "contractId": "D8-HITL-MUTATION-REQUEST"
+    },
+    {
+      "projectionId": "D8-HITL-MUTATION-RESPOND-SELECTOR",
+      "exportName": "BoardApiClient",
+      "exportKind": "class",
+      "memberName": "respondToInteraction",
+      "memberKind": "method",
+      "signature": "async respondToInteraction( request: HitlRespondMutationRequest, signal?: AbortSignal, ): Promise<ApiResult<HitlRespondResult>>",
+      "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=respondToInteraction]",
+      "contractId": "D8-HITL-MUTATION-RESPOND"
+    },
+    {
+      "projectionId": "D8-HITL-READ-WAIT-SELECTOR",
+      "exportName": "BoardApiClient",
+      "exportKind": "class",
+      "memberName": "readInteraction",
+      "memberKind": "method",
+      "signature": "async readInteraction( request: HitlReadOperationRequest, signal?: AbortSignal, ): Promise<ApiResult<HitlReadResult>>",
+      "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=readInteraction]",
+      "contractId": "D8-HITL-READ-WAIT"
+    },
+    {
+      "projectionId": "D8-HITL-LIFECYCLE-CANCEL-SELECTOR",
+      "exportName": "BoardApiClient",
+      "exportKind": "class",
+      "memberName": "cancelInteraction",
+      "memberKind": "method",
+      "signature": "async cancelInteraction( boardId: string, hitlRequestId: string, request: HitlCancelAdapterRequest, signal?: AbortSignal, ): Promise<ApiResult<HitlLifecycleResult>>",
+      "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=cancelInteraction]",
+      "contractId": "D8-HITL-LIFECYCLE-CANCEL"
+    },
+    {
+      "projectionId": "D8-HITL-LIFECYCLE-SUPERSEDE-SELECTOR",
+      "exportName": "BoardApiClient",
+      "exportKind": "class",
+      "memberName": "supersedeInteraction",
+      "memberKind": "method",
+      "signature": "async supersedeInteraction( boardId: string, hitlRequestId: string, request: HitlSupersedeAdapterRequest, signal?: AbortSignal, ): Promise<ApiResult<HitlLifecycleResult>>",
+      "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=supersedeInteraction]",
+      "contractId": "D8-HITL-LIFECYCLE-SUPERSEDE"
+    }
+  ],
+  "tupleListSha256": "cbefce1fe6ed8e8ef54559e774f007c1b212574d2a205b396266c92d604d32e2"
+}

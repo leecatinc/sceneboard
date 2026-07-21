@@ -1,0 +1,4 @@
+interface:
+  display_name: 'SceneBoard'
+  short_description: 'AI와 함께 실시간 보드를 안전하게 조작하고 검증합니다'
+  default_prompt: 'Use $sceneboard to present this clearly on my live board.'

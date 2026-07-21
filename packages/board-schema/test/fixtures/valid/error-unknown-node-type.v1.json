@@ -1,0 +1,1 @@
+{"protocolVersion":1,"type":"board.error","code":"UNKNOWN_NODE_TYPE","message":"UNKNOWN_NODE_TYPE","category":"validation","retryable":false,"httpStatusHint":422,"details":{"path":["root","type"],"receivedType":"unknown"}}

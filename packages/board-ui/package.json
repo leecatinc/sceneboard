@@ -1,0 +1,40 @@
+{
+  "name": "@sceneboard/board-ui",
+  "private": true,
+  "version": "0.0.0",
+  "license": "Apache-2.0",
+  "author": "LeeCat",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/leecatinc/sceneboard.git"
+  },
+  "homepage": "https://sceneboard.dev",
+  "bugs": {
+    "url": "https://github.com/leecatinc/sceneboard/issues"
+  },
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./artifact": "./src/artifact/index.ts",
+    "./interaction": "./src/interaction/index.ts",
+    "./renderer": "./src/renderer/index.ts"
+  },
+  "scripts": {
+    "build:types": "tsc -b ./tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/*.test.ts test/*.test.tsx test/**/*.test.ts test/**/*.test.tsx"
+  },
+  "dependencies": {
+    "@sceneboard/artifact-runtime": "0.0.0",
+    "@sceneboard/board-schema": "0.0.0",
+    "react": "19.2.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "react-dom": "19.2.5",
+    "tsx": "^4.20.0",
+    "typescript": "^5.6.0"
+  }
+}

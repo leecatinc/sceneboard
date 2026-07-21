@@ -1,0 +1,1 @@
+{"scenario":"idempotency-changed-scopes-conflict","expectedRelation":"conflict","originalFixture":"valid/mutation-envelope-scene-clear.v1.json","attemptedPatch":{"actor":{"scopes":["board.read","board.write"]}},"expected":{"fingerprint":"different","reason":"scopes_changed"}}

@@ -1,0 +1,79 @@
+{
+  "name": "sceneboard",
+  "private": true,
+  "version": "0.0.0",
+  "license": "Apache-2.0",
+  "author": "LeeCat",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/leecatinc/sceneboard.git"
+  },
+  "homepage": "https://sceneboard.dev",
+  "bugs": {
+    "url": "https://github.com/leecatinc/sceneboard/issues"
+  },
+  "packageManager": "npm@10.9.3",
+  "workspaces": [
+    "sceneboard-fe",
+    "sceneboard-be",
+    "sceneboard-mcp",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "build:check": "node scripts/run-build-check.mjs",
+    "format": "prettier --write \"**/*.{ts,tsx,js,mjs,cjs,css,md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,cjs,css,md,yml,yaml}\"",
+    "lint": "eslint . --max-warnings=0",
+    "build:sceneboard-plugin": "node scripts/build-sceneboard-plugin.mjs",
+    "check:sceneboard-plugin": "node scripts/build-sceneboard-plugin.mjs --check",
+    "sync:sceneboard-skill": "npm run build:sceneboard-plugin && node scripts/sync-sceneboard-skill.mjs",
+    "check:sceneboard-skill": "npm run check:sceneboard-plugin && node scripts/sync-sceneboard-skill.mjs --check",
+    "sync:contract-publishers": "node scripts/sync-contract-publishers.mjs",
+    "check:contract-publishers": "node scripts/sync-contract-publishers.mjs --check",
+    "preflight:auth-origins": "node scripts/verify-auth-origin-topology.mjs",
+    "typecheck:contracts": "tsc -b ./tsconfig.json",
+    "test:contracts": "npm run test --workspace @sceneboard/board-schema",
+    "test:browser:c10": "node --test e2e/*.test.mjs",
+    "verify:contracts": "node scripts/verify-contract-manifest.mjs",
+    "verify:dependencies": "node scripts/verify-dependency-reproducibility.mjs",
+    "verify:config": "node scripts/audit-secret-safe-config.mjs",
+    "test:certification": "node --test test/integration/*.test.mjs test/security/*.test.mjs test/e2e/*.test.mjs",
+    "certify:database": "node scripts/run-local-certification.mjs --phase=database",
+    "certify:restore": "node scripts/run-local-certification.mjs --phase=restore",
+    "certify:redis-loss": "node scripts/run-local-certification.mjs --phase=redis-loss",
+    "certify:multi-client": "node scripts/run-local-certification.mjs --phase=multi-client",
+    "certify:security": "node scripts/run-local-certification.mjs --phase=security",
+    "certify:e2e": "node scripts/run-local-certification.mjs --phase=e2e",
+    "certify:operations": "node scripts/run-local-certification.mjs --phase=operations",
+    "certify:capacity": "node scripts/run-local-certification.mjs --phase=capacity",
+    "certify:release": "node scripts/run-local-certification.mjs --phase=release",
+    "check:contracts": "npm run typecheck:contracts && npm run test:contracts",
+    "check": "npm run verify:config && npm run verify:dependencies && npm run check:contract-publishers && npm run verify:contracts && npm run check:sceneboard-skill && npm run format:check && npm run lint && npm run typecheck && npm test && npm run build:check",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present && npm run test:certification"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "eslint": "9.39.5",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "playwright": "1.59.1",
+    "prettier": "3.8.3",
+    "typescript-eslint": "8.63.0",
+    "zod": "4.3.6"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "overrides": {
+    "@modelcontextprotocol/sdk": {
+      "zod": "3.25.76"
+    },
+    "@hono/node-server": "1.19.13",
+    "jose": "6.2.2"
+  },
+  "dependencies": {
+    "mermaid": "11.4.1"
+  }
+}

@@ -1,0 +1,1 @@
+{"scenario":"compatibility-major-mismatch-bidirectional","expectedRelation":"rejected","cases":[{"readerMajor":1,"writerMajor":2,"accepted":false},{"readerMajor":2,"writerMajor":1,"accepted":false},{"readerMajor":1,"writerMajor":1,"accepted":true}],"expected":{"errorCode":"PROTOCOL_VERSION_MISMATCH","automaticDowngrade":false}}

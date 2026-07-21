@@ -1,0 +1,1 @@
+{"protocolVersion":1,"type":"board.error","code":"LIMIT_EXCEEDED","message":"LIMIT_EXCEEDED","category":"validation","retryable":false,"httpStatusHint":422,"details":{"limit":"maxSceneNodes","actual":501,"maximum":500,"path":["root"]}}

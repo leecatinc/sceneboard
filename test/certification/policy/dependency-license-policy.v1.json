@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "mode": "inventory-only",
+  "classifications": [
+    "permissive",
+    "content-notice",
+    "reciprocal"
+  ],
+  "unresolvedResult": "LICENSE_AMBIGUOUS",
+  "productionApproval": false
+}

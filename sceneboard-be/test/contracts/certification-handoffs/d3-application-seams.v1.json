@@ -1,0 +1,258 @@
+{
+  "schemaVersion": 1,
+  "owner": "D3",
+  "resourcePath": "sceneboard-be/src",
+  "publisherTestPath": "sceneboard-be/test/contracts/d3-application-seams.contract.test.ts",
+  "contractIds": [
+    "board.list",
+    "board.get",
+    "board.create",
+    "board.archive",
+    "scene.replace",
+    "scene.clear",
+    "scene.restore",
+    "history.list",
+    "history.get",
+    "snapshot.compose",
+    "outbox.delivery"
+  ],
+  "selectors": [
+    {
+      "projectionId": "D3-BOARD-LIST",
+      "sourcePath": "sceneboard-be/src/boards/board-list.service.ts",
+      "exportName": "BoardListService",
+      "exportKind": "class",
+      "memberName": "list",
+      "memberKind": "method",
+      "signature": "async list(input: { principal: ResolvedBoardPrincipalV1; request: BoardListRequestV1; }): Promise<BoardOperationResultV1>",
+      "selector": "ClassDeclaration[name=BoardListService]/MethodDeclaration[name=list]",
+      "contractIds": [
+        "board.list"
+      ]
+    },
+    {
+      "projectionId": "D3-BOARD-GET",
+      "sourcePath": "sceneboard-be/src/boards/board-get.service.ts",
+      "exportName": "BoardGetService",
+      "exportKind": "class",
+      "memberName": "get",
+      "memberKind": "method",
+      "signature": "async get(input: { principal: ResolvedBoardPrincipalV1; requestId: RequestId; boardId: BoardId; }): Promise<BoardOperationResultV1>",
+      "selector": "ClassDeclaration[name=BoardGetService]/MethodDeclaration[name=get]",
+      "contractIds": [
+        "board.get"
+      ]
+    },
+    {
+      "projectionId": "D3-BOARD-CREATE",
+      "sourcePath": "sceneboard-be/src/boards/board-create.service.ts",
+      "exportName": "BoardCreateService",
+      "exportKind": "class",
+      "memberName": "create",
+      "memberKind": "method",
+      "signature": "async create(input: { principal: ResolvedBoardPrincipalV1; request: BoardCreateRequestV1; }): Promise<BoardOperationResultV1>",
+      "selector": "ClassDeclaration[name=BoardCreateService]/MethodDeclaration[name=create]",
+      "contractIds": [
+        "board.create"
+      ]
+    },
+    {
+      "projectionId": "D3-BOARD-CREATE-IN-TRANSACTION",
+      "sourcePath": "sceneboard-be/src/boards/board-create.service.ts",
+      "exportName": "BoardCreateService",
+      "exportKind": "class",
+      "memberName": "createInTransaction",
+      "memberKind": "method",
+      "signature": "async createInTransaction(input: { connection: PoolConnection; context: AuthorizedBoardContextV1; request: BoardCreateRequestV1; }): Promise<BoardOperationResultV1>",
+      "selector": "ClassDeclaration[name=BoardCreateService]/MethodDeclaration[name=createInTransaction]",
+      "contractIds": [
+        "board.create"
+      ]
+    },
+    {
+      "projectionId": "D3-BOARD-ARCHIVE",
+      "sourcePath": "sceneboard-be/src/boards/board-archive.service.ts",
+      "exportName": "BoardArchiveService",
+      "exportKind": "class",
+      "memberName": "archive",
+      "memberKind": "method",
+      "signature": "async archive(input: { principal: ResolvedBoardPrincipalV1; request: BoardArchiveRequestV1; }): Promise<BoardOperationResultV1>",
+      "selector": "ClassDeclaration[name=BoardArchiveService]/MethodDeclaration[name=archive]",
+      "contractIds": [
+        "board.archive"
+      ]
+    },
+    {
+      "projectionId": "D3-SCENE-MUTATE",
+      "sourcePath": "sceneboard-be/src/revisions/board-mutation.service.ts",
+      "exportName": "BoardMutationService",
+      "exportKind": "class",
+      "memberName": "applySceneMutation",
+      "memberKind": "method",
+      "signature": "async applySceneMutation(input: { principal: ResolvedBoardPrincipalV1; request: MutationRequestV1; }): Promise<MutationResultV1>",
+      "selector": "ClassDeclaration[name=BoardMutationService]/MethodDeclaration[name=applySceneMutation]",
+      "contractIds": [
+        "scene.replace",
+        "scene.clear",
+        "scene.restore"
+      ]
+    },
+    {
+      "projectionId": "D3-HISTORY-LIST",
+      "sourcePath": "sceneboard-be/src/history/history-list.service.ts",
+      "exportName": "HistoryListService",
+      "exportKind": "class",
+      "memberName": "list",
+      "memberKind": "method",
+      "signature": "async list(input: { principal: ResolvedBoardPrincipalV1; request: HistoryListRequestV1; }): Promise<BoardOperationResultV1>",
+      "selector": "ClassDeclaration[name=HistoryListService]/MethodDeclaration[name=list]",
+      "contractIds": [
+        "history.list"
+      ]
+    },
+    {
+      "projectionId": "D3-HISTORY-LIST-METADATA",
+      "sourcePath": "sceneboard-be/src/history/history-list.service.ts",
+      "exportName": "HistoryListService",
+      "exportKind": "class",
+      "memberName": "listWithMetadata",
+      "memberKind": "method",
+      "signature": "async listWithMetadata(input: { principal: ResolvedBoardPrincipalV1; request: HistoryListRequestV1; }): Promise<{ result: BoardOperationResultV1; metadata: HistoryAdapterMetadataV1 }>",
+      "selector": "ClassDeclaration[name=HistoryListService]/MethodDeclaration[name=listWithMetadata]",
+      "contractIds": [
+        "history.list"
+      ]
+    },
+    {
+      "projectionId": "D3-HISTORY-GET",
+      "sourcePath": "sceneboard-be/src/history/history-get.service.ts",
+      "exportName": "HistoryGetService",
+      "exportKind": "class",
+      "memberName": "get",
+      "memberKind": "method",
+      "signature": "async get(input: { principal: ResolvedBoardPrincipalV1; request: HistoryGetRequestV1; }): Promise<BoardOperationResultV1>",
+      "selector": "ClassDeclaration[name=HistoryGetService]/MethodDeclaration[name=get]",
+      "contractIds": [
+        "history.get"
+      ]
+    },
+    {
+      "projectionId": "D3-HISTORY-GET-METADATA",
+      "sourcePath": "sceneboard-be/src/history/history-get.service.ts",
+      "exportName": "HistoryGetService",
+      "exportKind": "class",
+      "memberName": "getWithMetadata",
+      "memberKind": "method",
+      "signature": "async getWithMetadata(input: { principal: ResolvedBoardPrincipalV1; request: HistoryGetRequestV1; }): Promise<{ result: BoardOperationResultV1; metadata: HistoryAdapterMetadataV1 }>",
+      "selector": "ClassDeclaration[name=HistoryGetService]/MethodDeclaration[name=getWithMetadata]",
+      "contractIds": [
+        "history.get"
+      ]
+    },
+    {
+      "projectionId": "D3-SNAPSHOT-COMPOSE",
+      "sourcePath": "sceneboard-be/src/revisions/snapshot-composition.service.ts",
+      "exportName": "SnapshotCompositionService",
+      "exportKind": "class",
+      "memberName": "compose",
+      "memberKind": "method",
+      "signature": "async compose( connection: PoolConnection, input: SnapshotCompositionInputV1, ): Promise<BoardSnapshotV1>",
+      "selector": "ClassDeclaration[name=SnapshotCompositionService]/MethodDeclaration[name=compose]",
+      "contractIds": [
+        "snapshot.compose"
+      ]
+    },
+    {
+      "projectionId": "D3-OUTBOX-LIST-PENDING",
+      "sourcePath": "sceneboard-be/src/events/board-event-outbox.repository.ts",
+      "exportName": "BoardEventOutboxRepository",
+      "exportKind": "class",
+      "memberName": "listPendingCandidates",
+      "memberKind": "method",
+      "signature": "async listPendingCandidates(limit = 100): Promise<readonly PendingBoardEventCandidateV1[]>",
+      "selector": "ClassDeclaration[name=BoardEventOutboxRepository]/MethodDeclaration[name=listPendingCandidates]",
+      "contractIds": [
+        "outbox.delivery"
+      ]
+    },
+    {
+      "projectionId": "D3-OUTBOX-LOAD-PENDING",
+      "sourcePath": "sceneboard-be/src/events/board-event-outbox.repository.ts",
+      "exportName": "BoardEventOutboxRepository",
+      "exportKind": "class",
+      "memberName": "loadPendingEvent",
+      "memberKind": "method",
+      "signature": "async loadPendingEvent( candidate: PendingBoardEventCandidateV1, ): Promise<DeliverableBoardEventV1 | null>",
+      "selector": "ClassDeclaration[name=BoardEventOutboxRepository]/MethodDeclaration[name=loadPendingEvent]",
+      "contractIds": [
+        "outbox.delivery"
+      ]
+    },
+    {
+      "projectionId": "D3-OUTBOX-MARK-DELIVERED",
+      "sourcePath": "sceneboard-be/src/events/board-event-outbox.repository.ts",
+      "exportName": "BoardEventOutboxRepository",
+      "exportKind": "class",
+      "memberName": "markDelivered",
+      "memberKind": "method",
+      "signature": "async markDelivered(eventPk: bigint): Promise<boolean>",
+      "selector": "ClassDeclaration[name=BoardEventOutboxRepository]/MethodDeclaration[name=markDelivered]",
+      "contractIds": [
+        "outbox.delivery"
+      ]
+    },
+    {
+      "projectionId": "D3-OUTBOX-HEAD",
+      "sourcePath": "sceneboard-be/src/events/board-event-outbox.repository.ts",
+      "exportName": "BoardEventOutboxRepository",
+      "exportKind": "class",
+      "memberName": "getHead",
+      "memberKind": "method",
+      "signature": "async getHead(boardId: BoardId): Promise<BoardEventHeadV1 | null>",
+      "selector": "ClassDeclaration[name=BoardEventOutboxRepository]/MethodDeclaration[name=getHead]",
+      "contractIds": [
+        "outbox.delivery"
+      ]
+    },
+    {
+      "projectionId": "D3-OUTBOX-EVENT",
+      "sourcePath": "sceneboard-be/src/events/board-event-outbox.repository.ts",
+      "exportName": "BoardEventOutboxRepository",
+      "exportKind": "class",
+      "memberName": "getEvent",
+      "memberKind": "method",
+      "signature": "async getEvent(boardId: BoardId, sequence: number): Promise<DeliverableBoardEventV1 | null>",
+      "selector": "ClassDeclaration[name=BoardEventOutboxRepository]/MethodDeclaration[name=getEvent]",
+      "contractIds": [
+        "outbox.delivery"
+      ]
+    },
+    {
+      "projectionId": "D3-OUTBOX-CONTIGUOUS",
+      "sourcePath": "sceneboard-be/src/events/board-event-outbox.repository.ts",
+      "exportName": "BoardEventOutboxRepository",
+      "exportKind": "class",
+      "memberName": "listContiguousEvents",
+      "memberKind": "method",
+      "signature": "async listContiguousEvents( boardId: BoardId, afterSequence: number, limit = 100, ): Promise<readonly DeliverableBoardEventV1[]>",
+      "selector": "ClassDeclaration[name=BoardEventOutboxRepository]/MethodDeclaration[name=listContiguousEvents]",
+      "contractIds": [
+        "outbox.delivery"
+      ]
+    },
+    {
+      "projectionId": "D3-OUTBOX-HEALTH",
+      "sourcePath": "sceneboard-be/src/events/board-event-outbox.repository.ts",
+      "exportName": "BoardEventOutboxRepository",
+      "exportKind": "class",
+      "memberName": "getHealth",
+      "memberKind": "method",
+      "signature": "async getHealth(): Promise<BoardEventOutboxHealthV1>",
+      "selector": "ClassDeclaration[name=BoardEventOutboxRepository]/MethodDeclaration[name=getHealth]",
+      "contractIds": [
+        "outbox.delivery"
+      ]
+    }
+  ],
+  "tupleListSha256": "1d48b7d8425dc0f550d140aa3cdbde7517aede123e665026b9b0bbe1cffe2395"
+}

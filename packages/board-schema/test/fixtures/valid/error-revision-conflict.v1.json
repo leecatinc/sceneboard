@@ -1,0 +1,1 @@
+{"protocolVersion":1,"type":"board.error","code":"REVISION_CONFLICT","message":"REVISION_CONFLICT","category":"conflict","retryable":false,"httpStatusHint":409,"details":{"boardId":"board_1","expectedRevisionId":"revision_1","actualRevisionId":"revision_2","actualRevisionNumber":2,"recovery":"fetch_latest_then_retry"}}

@@ -1,0 +1,1 @@
+{"scenario":"scene-clear-idempotent-replay","expectedRelation":"replay","originalFixture":"valid/mutation-envelope-scene-clear.v1.json","attemptedPatch":{"requestId":"request_retry"},"expected":{"fingerprint":"equal","reason":null,"secondRevisionCreated":false}}

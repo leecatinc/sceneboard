@@ -1,0 +1,1 @@
+{"scenario":"board-get-initial-snapshot","expectedRelation":"same-head","createResultFixture":"valid/operation-result-board-create.v1.json","getResultFixture":"valid/operation-result-board-get.v1.json","expected":{"sameBoardId":true,"sameRevisionId":true,"sceneRoot":null}}

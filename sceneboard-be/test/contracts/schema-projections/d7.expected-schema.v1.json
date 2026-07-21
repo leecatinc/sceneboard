@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "owner": "D7",
+  "contractSha256": "d70eddb77564f81417b110d1b8943204b6b195f9ba0be56c12f780f46c7b9626",
+  "registryEntries": [
+    {
+      "order": 10,
+      "version": "007_d7_artifacts",
+      "upAsset": "007_d7_artifacts.up.sql",
+      "upSha256": "43243bae6140f2b301023966e2db55e02fadb55237f842a7c333d1251ad7dfaa",
+      "downAsset": null,
+      "downSha256": null,
+      "reversible": false,
+      "predecessorIds": [
+        "003_d2_artifact_capability_policy"
+      ]
+    },
+    {
+      "order": 11,
+      "version": "008_d7_artifact_versions",
+      "upAsset": "008_d7_artifact_versions.up.sql",
+      "upSha256": "129dd63204bd956cb90d4ed0387390e6abf967e21056a8d22d0a79f05cf725b8",
+      "downAsset": null,
+      "downSha256": null,
+      "reversible": false,
+      "predecessorIds": [
+        "007_d7_artifacts"
+      ]
+    },
+    {
+      "order": 12,
+      "version": "009_d7_artifact_resources",
+      "upAsset": "009_d7_artifact_resources.up.sql",
+      "upSha256": "e41707f2624ac887a300dfce03bd41b1c1f171bdd7d300634e3b43ad8349840d",
+      "downAsset": null,
+      "downSha256": null,
+      "reversible": false,
+      "predecessorIds": [
+        "008_d7_artifact_versions"
+      ]
+    },
+    {
+      "order": 13,
+      "version": "010_d7_artifact_runtime_states",
+      "upAsset": "010_d7_artifact_runtime_states.up.sql",
+      "upSha256": "bbe4090574093a3daa349c192a69bd99b8aa0f5a71cf3e19952598070f97ac08",
+      "downAsset": null,
+      "downSha256": null,
+      "reversible": false,
+      "predecessorIds": [
+        "009_d7_artifact_resources"
+      ]
+    },
+    {
+      "order": 14,
+      "version": "011_d7_artifact_board_usage",
+      "upAsset": "011_d7_artifact_board_usage.up.sql",
+      "upSha256": "13ae7d6149f541868965e7c5048d81e0f26fd51c0f8f31142db16133d434f664",
+      "downAsset": null,
+      "downSha256": null,
+      "reversible": false,
+      "predecessorIds": [
+        "010_d7_artifact_runtime_states"
+      ]
+    }
+  ],
+  "tables": [
+    {
+      "name": "artifacts",
+      "sourceAsset": "007_d7_artifacts.up.sql",
+      "sourceSha256": "43243bae6140f2b301023966e2db55e02fadb55237f842a7c333d1251ad7dfaa"
+    },
+    {
+      "name": "artifact_versions",
+      "sourceAsset": "008_d7_artifact_versions.up.sql",
+      "sourceSha256": "129dd63204bd956cb90d4ed0387390e6abf967e21056a8d22d0a79f05cf725b8"
+    },
+    {
+      "name": "artifact_resources",
+      "sourceAsset": "009_d7_artifact_resources.up.sql",
+      "sourceSha256": "e41707f2624ac887a300dfce03bd41b1c1f171bdd7d300634e3b43ad8349840d"
+    },
+    {
+      "name": "artifact_runtime_states",
+      "sourceAsset": "010_d7_artifact_runtime_states.up.sql",
+      "sourceSha256": "bbe4090574093a3daa349c192a69bd99b8aa0f5a71cf3e19952598070f97ac08"
+    },
+    {
+      "name": "artifact_board_usage",
+      "sourceAsset": "011_d7_artifact_board_usage.up.sql",
+      "sourceSha256": "13ae7d6149f541868965e7c5048d81e0f26fd51c0f8f31142db16133d434f664"
+    }
+  ]
+}

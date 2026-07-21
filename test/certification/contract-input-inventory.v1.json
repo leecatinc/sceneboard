@@ -1,0 +1,3923 @@
+{
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "id": "D1-SCHEMA-ROOT",
+      "kind": "source-contract",
+      "resources": [
+        {
+          "resourceId": "D1-SCHEMA-01",
+          "owner": "D1",
+          "path": "packages/board-schema/src/actors.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-SCHEMA-02",
+          "owner": "D1",
+          "path": "packages/board-schema/src/artifacts.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-SCHEMA-03",
+          "owner": "D1",
+          "path": "packages/board-schema/src/capabilities.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-SCHEMA-04",
+          "owner": "D1",
+          "path": "packages/board-schema/src/catalogs.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-SCHEMA-05",
+          "owner": "D1",
+          "path": "packages/board-schema/src/commands.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-SCHEMA-06",
+          "owner": "D1",
+          "path": "packages/board-schema/src/errors.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-SCHEMA-07",
+          "owner": "D1",
+          "path": "packages/board-schema/src/events.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-SCHEMA-08",
+          "owner": "D1",
+          "path": "packages/board-schema/src/hitl.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-SCHEMA-09",
+          "owner": "D1",
+          "path": "packages/board-schema/src/identifiers.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-SCHEMA-10",
+          "owner": "D1",
+          "path": "packages/board-schema/src/index.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-SCHEMA-11",
+          "owner": "D1",
+          "path": "packages/board-schema/src/json.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-SCHEMA-12",
+          "owner": "D1",
+          "path": "packages/board-schema/src/limits.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-SCHEMA-13",
+          "owner": "D1",
+          "path": "packages/board-schema/src/nodes/base.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-SCHEMA-14",
+          "owner": "D1",
+          "path": "packages/board-schema/src/nodes/content.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-SCHEMA-15",
+          "owner": "D1",
+          "path": "packages/board-schema/src/nodes/drawing.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-SCHEMA-16",
+          "owner": "D1",
+          "path": "packages/board-schema/src/nodes/geojson.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-SCHEMA-17",
+          "owner": "D1",
+          "path": "packages/board-schema/src/nodes/index.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-SCHEMA-18",
+          "owner": "D1",
+          "path": "packages/board-schema/src/nodes/layout.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-SCHEMA-19",
+          "owner": "D1",
+          "path": "packages/board-schema/src/operations.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-SCHEMA-20",
+          "owner": "D1",
+          "path": "packages/board-schema/src/parser-kernel.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-SCHEMA-21",
+          "owner": "D1",
+          "path": "packages/board-schema/src/parsers.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-SCHEMA-22",
+          "owner": "D1",
+          "path": "packages/board-schema/src/protocol-version.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-SCHEMA-23",
+          "owner": "D1",
+          "path": "packages/board-schema/src/scene.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-SCHEMA-24",
+          "owner": "D1",
+          "path": "packages/board-schema/src/snapshots.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        }
+      ],
+      "expectedCardinality": 24,
+      "canonicalization": "utf8-lf",
+      "materializationPredecessor": null,
+      "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
+    },
+    {
+      "id": "D1-FACADES",
+      "kind": "facade-contract",
+      "resources": [
+        {
+          "resourceId": "D1-FACADE-SDK",
+          "owner": "D1",
+          "path": "packages/board-sdk/src/index.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-FACADE-UI",
+          "owner": "D1",
+          "path": "packages/board-ui/src/index.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-FACADE-ARTIFACT-RUNTIME",
+          "owner": "D1",
+          "path": "packages/artifact-runtime/src/index.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        }
+      ],
+      "expectedCardinality": 3,
+      "canonicalization": "utf8-lf",
+      "materializationPredecessor": "D1-SCHEMA-ROOT",
+      "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
+    },
+    {
+      "id": "D1-CORPUS",
+      "kind": "fixture-corpus",
+      "resources": [
+        {
+          "resourceId": "D1-CORPUS-001",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixture-catalog.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-002",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/artifact-resource-path-traversal.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-003",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/capabilities-limit-mismatch.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-004",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/capabilities-missing-catalog-entry.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-005",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/capabilities-unknown-node-type.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-006",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/command-unknown-type.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-007",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/error-details-code-mismatch.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-008",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/error-revision-conflict-null-actual-head.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-009",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/event-resync-null-head.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-010",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/event-snapshot-board-id-mismatch.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-011",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/event-snapshot-sequence-mismatch.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-012",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/event-unknown-type.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-013",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/hitl-answered-before-created.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-014",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/hitl-duplicate-option-id.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-015",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/hitl-expired-without-expires-at.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-016",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/hitl-invalid-state.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-017",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/hitl-nonexpired-terminal-at-expiry.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-018",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/hitl-response-scalar-mismatch.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-019",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/json-container-entries-exceeded.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-020",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/json-depth-exceeded.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-021",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/json-lone-surrogate.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-022",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/json-unknown-field.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-023",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/mutation-envelope-unsorted-scopes.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-024",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/mutation-request-caller-actor.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-025",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/mutation-request-idempotency-key-too-long.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-026",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/mutation-request-missing-expected-revision.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-027",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/mutation-request-null-expected-revision.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-028",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/mutation-request-restore-missing-source-revision.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-029",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/mutation-result-command-mismatch.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-030",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/operation-board-archive-confirm-false.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-031",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/operation-board-create-missing-title.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-032",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/operation-result-type-mismatch.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-033",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/operation-unknown-type.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-034",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/protocol-v1-added-field.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-035",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/protocol-version-unsupported-v2.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-036",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/scene-canvas-extent-exceeded.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-037",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/scene-depth-exceeded.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-038",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/scene-duplicate-node-id.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-039",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/scene-grid-out-of-bounds.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-040",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/scene-grid-overlap.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-041",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/scene-image-untrusted-source.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-042",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/scene-node-count-exceeded.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-043",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/scene-progress-complete-not-one.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-044",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/scene-split-child-limit.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-045",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/scene-status-unknown-kind.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-046",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/scene-tabs-missing-active.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-047",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/scene-text-limit-exceeded.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-048",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/scene-unknown-node-type.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-049",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/snapshot-invalid-timestamp.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-050",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/snapshot-null-head.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-051",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/snapshot-unresolved-artifact-reference.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-052",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/snapshot-unresolved-hitl-reference.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-053",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/snapshot-unresolved-image-artifact-reference.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-054",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/scenarios/board-archive-idempotency-replay.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-055",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/scenarios/board-archive-idempotency-reuse-conflicts.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-056",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/scenarios/board-create-idempotency-replay.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-057",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/scenarios/board-create-idempotency-reuse-conflicts.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-058",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/scenarios/board-create-initial-empty-head.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-059",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/scenarios/board-get-initial-snapshot.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-060",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/scenarios/canonical-unicode-key-order.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-061",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/scenarios/compatibility-major-mismatch-bidirectional.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-062",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/scenarios/compatibility-v1-added-field-rejected.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-063",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/scenarios/compatibility-v1-exact.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-064",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/scenarios/first-scene-replace-from-created-head.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-065",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/scenarios/hitl-placement-reconnect-correlation.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-066",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/scenarios/hitl-request-result-outcomes.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-067",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/scenarios/hitl-respond-result-outcomes.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-068",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/scenarios/hitl-terminal-chronology-boundaries.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-069",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/scenarios/idempotency-changed-expected-revision-conflict.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-070",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/scenarios/idempotency-changed-grant-conflict.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-071",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/scenarios/idempotency-changed-payload-conflict.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-072",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/scenarios/idempotency-changed-scopes-conflict.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-073",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/scenarios/idempotency-scopes-reordered-replay.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-074",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/scenarios/scene-clear-after-create.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-075",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/scenarios/scene-clear-idempotent-replay.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-076",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/scenarios/scene-replace-request-id-replay.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-077",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/scenarios/snapshot-event-reconnect-watermark.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-078",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/artifact-manifest.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-079",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/artifact-reference.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-080",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/artifact-resource.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-081",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/artifact-runtime-summary-ready.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-082",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/board-node-markdown.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-083",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/capabilities-default.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-084",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/error-artifact-not-found.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-085",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/error-board-already-archived.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-086",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/error-board-not-found.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-087",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/error-capability-denied.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-088",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/error-duplicate-node-id.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-089",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/error-forbidden.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-090",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/error-hitl-request-expired.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-091",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/error-hitl-request-id-conflict.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-092",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/error-hitl-request-not-found.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-093",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/error-hitl-response-conflict.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-094",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/error-idempotency-key-reused.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-095",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/error-internal.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-096",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/error-invalid-layout.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-097",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/error-invalid-payload.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-098",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/error-limit-exceeded.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-099",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/error-payload-too-large.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-100",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/error-protocol-version-mismatch.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-101",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/error-rate-limited.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-102",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/error-revision-conflict.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-103",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/error-revision-not-found.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-104",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/error-service-unavailable.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-105",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/error-unauthenticated.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-106",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/error-unknown-command-type.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-107",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/error-unknown-node-type.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-108",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/error-unknown-operation-type.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-109",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/event-artifact-status-changed.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-110",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/event-board-snapshot.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-111",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/event-hitl-updated.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-112",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/event-presence-updated.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-113",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/event-revision-created.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-114",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/event-stream-error.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-115",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/event-stream-heartbeat.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-116",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/event-stream-resync-required.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-117",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/hitl-interaction-answered.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-118",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/hitl-interaction-cancelled.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-119",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/hitl-interaction-expired.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-120",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/hitl-interaction-open.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-121",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/hitl-interaction-superseded.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-122",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/hitl-request-choice.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-123",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/hitl-request-confirmation.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-124",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/hitl-request-form.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-125",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/hitl-request-info.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-126",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/hitl-response-choice.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-127",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/hitl-response-confirmation.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-128",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/hitl-response-form.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-129",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/hitl-response-info.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-130",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/mutation-envelope-artifact-publish.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-131",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/mutation-envelope-artifact-stop.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-132",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/mutation-envelope-hitl-request.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-133",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/mutation-envelope-hitl-respond.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-134",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/mutation-envelope-scene-clear.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-135",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/mutation-envelope-scene-replace.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-136",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/mutation-envelope-scene-restore.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-137",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/mutation-request-artifact-publish.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-138",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/mutation-request-artifact-stop.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-139",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/mutation-request-hitl-request.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-140",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/mutation-request-hitl-respond.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-141",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/mutation-request-scene-clear.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-142",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/mutation-request-scene-replace.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-143",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/mutation-request-scene-restore.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-144",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/mutation-result-artifact-publish.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-145",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/mutation-result-artifact-stop.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-146",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/mutation-result-hitl-request.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-147",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/mutation-result-hitl-respond.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-148",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/mutation-result-scene-clear.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-149",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/mutation-result-scene-replace.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-150",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/mutation-result-scene-restore.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-151",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/operation-envelope-artifact-get.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-152",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/operation-envelope-board-archive.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-153",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/operation-envelope-board-create.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-154",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/operation-envelope-board-get.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-155",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/operation-envelope-board-list.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-156",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/operation-envelope-capabilities-get.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-157",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/operation-envelope-history-get.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-158",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/operation-envelope-history-list.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-159",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/operation-envelope-hitl-read.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-160",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/operation-request-artifact-get.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-161",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/operation-request-board-archive.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-162",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/operation-request-board-create.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-163",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/operation-request-board-get.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-164",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/operation-request-board-list.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-165",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/operation-request-capabilities-get.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-166",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/operation-request-history-get.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-167",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/operation-request-history-list.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-168",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/operation-request-hitl-read.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-169",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/operation-result-artifact-get.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-170",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/operation-result-board-archive.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-171",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/operation-result-board-create.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-172",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/operation-result-board-get.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-173",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/operation-result-board-list.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-174",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/operation-result-capabilities-get.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-175",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/operation-result-history-get.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-176",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/operation-result-history-list.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-177",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/operation-result-hitl-read.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-178",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/scene-all-node-types.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-179",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/scene-empty.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-180",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/scene-recursive-layout.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-181",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/scene-renderer-families.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-182",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/snapshot-board.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        }
+      ],
+      "expectedCardinality": 182,
+      "canonicalization": "canonical-json",
+      "materializationPredecessor": null,
+      "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
+    },
+    {
+      "id": "D2-AUTHZ",
+      "kind": "named-exports",
+      "resources": [
+        {
+          "resourceId": "D2-AUTHZ-AuthorizedBoardOperationV1",
+          "owner": "D2",
+          "path": "sceneboard-be/src/grants/board-access.policy.ts",
+          "exportName": "AuthorizedBoardOperationV1",
+          "exportKind": "type",
+          "projectionId": null,
+          "selector": "type AuthorizedBoardOperationV1"
+        },
+        {
+          "resourceId": "D2-AUTHZ-D3BoardOperationV1",
+          "owner": "D2",
+          "path": "sceneboard-be/src/grants/board-access.policy.ts",
+          "exportName": "D3BoardOperationV1",
+          "exportKind": "type",
+          "projectionId": null,
+          "selector": "type D3BoardOperationV1"
+        },
+        {
+          "resourceId": "D2-AUTHZ-ResolvedBoardPrincipalV1",
+          "owner": "D2",
+          "path": "sceneboard-be/src/grants/board-access.policy.ts",
+          "exportName": "ResolvedBoardPrincipalV1",
+          "exportKind": "type",
+          "projectionId": null,
+          "selector": "type ResolvedBoardPrincipalV1"
+        },
+        {
+          "resourceId": "D2-AUTHZ-CreateBoardBindingCapabilityV1",
+          "owner": "D2",
+          "path": "sceneboard-be/src/grants/board-access.policy.ts",
+          "exportName": "CreateBoardBindingCapabilityV1",
+          "exportKind": "type",
+          "projectionId": null,
+          "selector": "type CreateBoardBindingCapabilityV1"
+        },
+        {
+          "resourceId": "D2-AUTHZ-AuthorizedBoardContextV1",
+          "owner": "D2",
+          "path": "sceneboard-be/src/grants/board-access.policy.ts",
+          "exportName": "AuthorizedBoardContextV1",
+          "exportKind": "type",
+          "projectionId": null,
+          "selector": "type AuthorizedBoardContextV1"
+        },
+        {
+          "resourceId": "D2-AUTHZ-CurrentArtifactCapabilityPolicyV1",
+          "owner": "D2",
+          "path": "sceneboard-be/src/grants/board-access.policy.ts",
+          "exportName": "CurrentArtifactCapabilityPolicyV1",
+          "exportKind": "type",
+          "projectionId": null,
+          "selector": "type CurrentArtifactCapabilityPolicyV1"
+        },
+        {
+          "resourceId": "D2-AUTHZ-AuthorizedBoardTransactionInputV1",
+          "owner": "D2",
+          "path": "sceneboard-be/src/grants/board-access.policy.ts",
+          "exportName": "AuthorizedBoardTransactionInputV1",
+          "exportKind": "type",
+          "projectionId": null,
+          "selector": "type AuthorizedBoardTransactionInputV1"
+        },
+        {
+          "resourceId": "D2-AUTHZ-BoardAccessPolicy",
+          "owner": "D2",
+          "path": "sceneboard-be/src/grants/board-access.policy.ts",
+          "exportName": "BoardAccessPolicy",
+          "exportKind": "interface",
+          "projectionId": null,
+          "selector": "interface BoardAccessPolicy"
+        }
+      ],
+      "expectedCardinality": 8,
+      "canonicalization": "utf8-lf",
+      "materializationPredecessor": null,
+      "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
+    },
+    {
+      "id": "D2-HTTP-CONFIG",
+      "kind": "configuration-contract",
+      "resources": [
+        {
+          "resourceId": "D2-HTTP-ENV",
+          "owner": "D2",
+          "path": "sceneboard-be/src/config/env.schema.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D2-HTTP-RAW-BODY",
+          "owner": "D2",
+          "path": "sceneboard-be/src/common/http/raw-body-profiles.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D2-HTTP-CORS",
+          "owner": "D2",
+          "path": "sceneboard-be/src/common/http/cors-policy.middleware.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D2-HTTP-TOPOLOGY-VERIFY",
+          "owner": "D2",
+          "path": "scripts/verify-auth-origin-topology.mjs",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        }
+      ],
+      "expectedCardinality": 4,
+      "canonicalization": "utf8-lf",
+      "materializationPredecessor": "D2-AUTHZ",
+      "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
+    },
+    {
+      "id": "D3-PUBLISHER",
+      "kind": "owner-publisher",
+      "resources": [
+        {
+          "resourceId": "D3-PUBLISHER-JSON",
+          "owner": "D3",
+          "path": "sceneboard-be/test/contracts/certification-handoffs/d3-application-seams.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D3-PUBLISHER-TEST",
+          "owner": "D3",
+          "path": "sceneboard-be/test/contracts/d3-application-seams.contract.test.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        }
+      ],
+      "expectedCardinality": 2,
+      "canonicalization": "utf8-lf",
+      "materializationPredecessor": null,
+      "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
+    },
+    {
+      "id": "D3-PERSISTENCE",
+      "kind": "persistence-contract",
+      "resources": [
+        {
+          "resourceId": "D3-PERSISTENCE-TYPES",
+          "owner": "D3",
+          "path": "sceneboard-be/src/bootstrap/persistence-certification.types.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D3-PERSISTENCE-SERVICE",
+          "owner": "D3",
+          "path": "sceneboard-be/src/bootstrap/persistence-certification.service.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D3-PERSISTENCE-PROGRESS",
+          "owner": "D3",
+          "path": "sceneboard-be/src/bootstrap/persistence-certification-progress.store.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D3-PERSISTENCE-BOOTSTRAP",
+          "owner": "D3",
+          "path": "sceneboard-be/src/bootstrap/persistence-certification.bootstrap.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D3-PERSISTENCE-MYSQL-PROBES",
+          "owner": "D3",
+          "path": "sceneboard-be/src/bootstrap/mysql-persistence-certification.probes.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D3-PERSISTENCE-MODULE",
+          "owner": "D3",
+          "path": "sceneboard-be/src/bootstrap/persistence-certification.module.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D3-PERSISTENCE-LISTENER-GATE",
+          "owner": "D3",
+          "path": "sceneboard-be/src/main.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D3-PERSISTENCE-HITL-SUMMARY-PORT",
+          "owner": "D3",
+          "path": "sceneboard-be/src/snapshots/ports/current-hitl-summary.port.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D3-PERSISTENCE-ARTIFACT-SUMMARY-PORT",
+          "owner": "D3",
+          "path": "sceneboard-be/src/snapshots/ports/current-artifact-runtime-summary.port.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D3-PERSISTENCE-CAPABILITIES-PORT",
+          "owner": "D3",
+          "path": "sceneboard-be/src/grants/current-board-capabilities.port.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        }
+      ],
+      "expectedCardinality": 10,
+      "canonicalization": "utf8-lf",
+      "materializationPredecessor": "D3-PUBLISHER",
+      "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
+    },
+    {
+      "id": "D3-BOARD-SEAMS",
+      "kind": "member-selectors",
+      "resources": [
+        {
+          "resourceId": "D3-BOARD-LIST",
+          "owner": "D3",
+          "path": "sceneboard-be/src/boards/board-list.service.ts",
+          "exportName": "BoardListService",
+          "exportKind": "class",
+          "projectionId": "D3-BOARD-LIST",
+          "selector": "ClassDeclaration[name=BoardListService]/MethodDeclaration[name=list]"
+        },
+        {
+          "resourceId": "D3-BOARD-GET",
+          "owner": "D3",
+          "path": "sceneboard-be/src/boards/board-get.service.ts",
+          "exportName": "BoardGetService",
+          "exportKind": "class",
+          "projectionId": "D3-BOARD-GET",
+          "selector": "ClassDeclaration[name=BoardGetService]/MethodDeclaration[name=get]"
+        },
+        {
+          "resourceId": "D3-BOARD-CREATE",
+          "owner": "D3",
+          "path": "sceneboard-be/src/boards/board-create.service.ts",
+          "exportName": "BoardCreateService",
+          "exportKind": "class",
+          "projectionId": "D3-BOARD-CREATE",
+          "selector": "ClassDeclaration[name=BoardCreateService]/MethodDeclaration[name=create]"
+        },
+        {
+          "resourceId": "D3-BOARD-CREATE-IN-TRANSACTION",
+          "owner": "D3",
+          "path": "sceneboard-be/src/boards/board-create.service.ts",
+          "exportName": "BoardCreateService",
+          "exportKind": "class",
+          "projectionId": "D3-BOARD-CREATE-IN-TRANSACTION",
+          "selector": "ClassDeclaration[name=BoardCreateService]/MethodDeclaration[name=createInTransaction]"
+        },
+        {
+          "resourceId": "D3-BOARD-ARCHIVE",
+          "owner": "D3",
+          "path": "sceneboard-be/src/boards/board-archive.service.ts",
+          "exportName": "BoardArchiveService",
+          "exportKind": "class",
+          "projectionId": "D3-BOARD-ARCHIVE",
+          "selector": "ClassDeclaration[name=BoardArchiveService]/MethodDeclaration[name=archive]"
+        },
+        {
+          "resourceId": "D3-SCENE-MUTATE",
+          "owner": "D3",
+          "path": "sceneboard-be/src/revisions/board-mutation.service.ts",
+          "exportName": "BoardMutationService",
+          "exportKind": "class",
+          "projectionId": "D3-SCENE-MUTATE",
+          "selector": "ClassDeclaration[name=BoardMutationService]/MethodDeclaration[name=applySceneMutation]"
+        },
+        {
+          "resourceId": "D3-HISTORY-LIST",
+          "owner": "D3",
+          "path": "sceneboard-be/src/history/history-list.service.ts",
+          "exportName": "HistoryListService",
+          "exportKind": "class",
+          "projectionId": "D3-HISTORY-LIST",
+          "selector": "ClassDeclaration[name=HistoryListService]/MethodDeclaration[name=list]"
+        },
+        {
+          "resourceId": "D3-HISTORY-LIST-METADATA",
+          "owner": "D3",
+          "path": "sceneboard-be/src/history/history-list.service.ts",
+          "exportName": "HistoryListService",
+          "exportKind": "class",
+          "projectionId": "D3-HISTORY-LIST-METADATA",
+          "selector": "ClassDeclaration[name=HistoryListService]/MethodDeclaration[name=listWithMetadata]"
+        },
+        {
+          "resourceId": "D3-HISTORY-GET",
+          "owner": "D3",
+          "path": "sceneboard-be/src/history/history-get.service.ts",
+          "exportName": "HistoryGetService",
+          "exportKind": "class",
+          "projectionId": "D3-HISTORY-GET",
+          "selector": "ClassDeclaration[name=HistoryGetService]/MethodDeclaration[name=get]"
+        },
+        {
+          "resourceId": "D3-HISTORY-GET-METADATA",
+          "owner": "D3",
+          "path": "sceneboard-be/src/history/history-get.service.ts",
+          "exportName": "HistoryGetService",
+          "exportKind": "class",
+          "projectionId": "D3-HISTORY-GET-METADATA",
+          "selector": "ClassDeclaration[name=HistoryGetService]/MethodDeclaration[name=getWithMetadata]"
+        },
+        {
+          "resourceId": "D3-SNAPSHOT-COMPOSE",
+          "owner": "D3",
+          "path": "sceneboard-be/src/revisions/snapshot-composition.service.ts",
+          "exportName": "SnapshotCompositionService",
+          "exportKind": "class",
+          "projectionId": "D3-SNAPSHOT-COMPOSE",
+          "selector": "ClassDeclaration[name=SnapshotCompositionService]/MethodDeclaration[name=compose]"
+        },
+        {
+          "resourceId": "D3-OUTBOX-LIST-PENDING",
+          "owner": "D3",
+          "path": "sceneboard-be/src/events/board-event-outbox.repository.ts",
+          "exportName": "BoardEventOutboxRepository",
+          "exportKind": "class",
+          "projectionId": "D3-OUTBOX-LIST-PENDING",
+          "selector": "ClassDeclaration[name=BoardEventOutboxRepository]/MethodDeclaration[name=listPendingCandidates]"
+        },
+        {
+          "resourceId": "D3-OUTBOX-LOAD-PENDING",
+          "owner": "D3",
+          "path": "sceneboard-be/src/events/board-event-outbox.repository.ts",
+          "exportName": "BoardEventOutboxRepository",
+          "exportKind": "class",
+          "projectionId": "D3-OUTBOX-LOAD-PENDING",
+          "selector": "ClassDeclaration[name=BoardEventOutboxRepository]/MethodDeclaration[name=loadPendingEvent]"
+        },
+        {
+          "resourceId": "D3-OUTBOX-MARK-DELIVERED",
+          "owner": "D3",
+          "path": "sceneboard-be/src/events/board-event-outbox.repository.ts",
+          "exportName": "BoardEventOutboxRepository",
+          "exportKind": "class",
+          "projectionId": "D3-OUTBOX-MARK-DELIVERED",
+          "selector": "ClassDeclaration[name=BoardEventOutboxRepository]/MethodDeclaration[name=markDelivered]"
+        },
+        {
+          "resourceId": "D3-OUTBOX-HEAD",
+          "owner": "D3",
+          "path": "sceneboard-be/src/events/board-event-outbox.repository.ts",
+          "exportName": "BoardEventOutboxRepository",
+          "exportKind": "class",
+          "projectionId": "D3-OUTBOX-HEAD",
+          "selector": "ClassDeclaration[name=BoardEventOutboxRepository]/MethodDeclaration[name=getHead]"
+        },
+        {
+          "resourceId": "D3-OUTBOX-EVENT",
+          "owner": "D3",
+          "path": "sceneboard-be/src/events/board-event-outbox.repository.ts",
+          "exportName": "BoardEventOutboxRepository",
+          "exportKind": "class",
+          "projectionId": "D3-OUTBOX-EVENT",
+          "selector": "ClassDeclaration[name=BoardEventOutboxRepository]/MethodDeclaration[name=getEvent]"
+        },
+        {
+          "resourceId": "D3-OUTBOX-CONTIGUOUS",
+          "owner": "D3",
+          "path": "sceneboard-be/src/events/board-event-outbox.repository.ts",
+          "exportName": "BoardEventOutboxRepository",
+          "exportKind": "class",
+          "projectionId": "D3-OUTBOX-CONTIGUOUS",
+          "selector": "ClassDeclaration[name=BoardEventOutboxRepository]/MethodDeclaration[name=listContiguousEvents]"
+        },
+        {
+          "resourceId": "D3-OUTBOX-HEALTH",
+          "owner": "D3",
+          "path": "sceneboard-be/src/events/board-event-outbox.repository.ts",
+          "exportName": "BoardEventOutboxRepository",
+          "exportKind": "class",
+          "projectionId": "D3-OUTBOX-HEALTH",
+          "selector": "ClassDeclaration[name=BoardEventOutboxRepository]/MethodDeclaration[name=getHealth]"
+        }
+      ],
+      "expectedCardinality": 18,
+      "canonicalization": "typescript-ast",
+      "materializationPredecessor": "D3-PUBLISHER",
+      "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
+    },
+    {
+      "id": "D4-SEAMS",
+      "kind": "source-contract",
+      "resources": [
+        {
+          "resourceId": "D4-SEAM-01",
+          "owner": "D4",
+          "path": "packages/board-sdk/src/events/index.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D4-SEAM-02",
+          "owner": "D4",
+          "path": "packages/board-sdk/src/sse/index.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D4-SEAM-03",
+          "owner": "D4",
+          "path": "sceneboard-be/src/presence/ports/authorized-browser-presence.port.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D4-SEAM-04",
+          "owner": "D4",
+          "path": "sceneboard-be/src/presence/presence.module.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D4-SEAM-05",
+          "owner": "D4",
+          "path": "sceneboard-be/src/events/ports/board-event-delivery.port.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D4-SEAM-06",
+          "owner": "D3",
+          "path": "sceneboard-be/src/events/ports/board-event-outbox-health.port.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D4-SEAM-07",
+          "owner": "D4",
+          "path": "sceneboard-be/src/sse/board-stream-cut.service.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D4-SEAM-08",
+          "owner": "D4",
+          "path": "sceneboard-be/src/sse/sse-response-writer.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D4-SEAM-09",
+          "owner": "D4",
+          "path": "sceneboard-be/src/sse/ports/board-stream-operational-health.port.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D4-SEAM-10",
+          "owner": "D4",
+          "path": "sceneboard-be/src/sse/board-stream-health.service.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        }
+      ],
+      "expectedCardinality": 10,
+      "canonicalization": "utf8-lf",
+      "materializationPredecessor": null,
+      "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
+    },
+    {
+      "id": "D2-D5-D7-D8-BROWSER-PUBLISHERS",
+      "kind": "owner-publisher",
+      "resources": [
+        {
+          "resourceId": "D2-BROWSER-PUBLISHER",
+          "owner": "D2",
+          "path": "sceneboard-fe/test/contracts/certification-handoffs/d2-board-api-tuples.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D2-BROWSER-PUBLISHER-TEST",
+          "owner": "D2",
+          "path": "sceneboard-fe/test/contracts/d2-board-api-tuples.contract.test.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D5-BROWSER-PUBLISHER",
+          "owner": "D5",
+          "path": "sceneboard-fe/test/contracts/certification-handoffs/d5-board-api-tuples.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D5-BROWSER-PUBLISHER-TEST",
+          "owner": "D5",
+          "path": "sceneboard-fe/test/contracts/d5-board-api-tuples.contract.test.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D7-BROWSER-PUBLISHER",
+          "owner": "D7",
+          "path": "sceneboard-fe/test/contracts/certification-handoffs/d7-board-api-tuples.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D7-BROWSER-PUBLISHER-TEST",
+          "owner": "D7",
+          "path": "sceneboard-fe/test/contracts/d7-board-api-tuples.contract.test.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D8-BROWSER-PUBLISHER",
+          "owner": "D8",
+          "path": "sceneboard-fe/test/contracts/certification-handoffs/d8-board-api-tuples.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D8-BROWSER-PUBLISHER-TEST",
+          "owner": "D8",
+          "path": "sceneboard-fe/test/contracts/d8-board-api-tuples.contract.test.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "BROWSER-PUBLISHER-CROSS-TEST",
+          "owner": "D9",
+          "path": "sceneboard-fe/test/contracts/board-api-owner-tuples.contract.test.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        }
+      ],
+      "expectedCardinality": 9,
+      "canonicalization": "utf8-lf",
+      "materializationPredecessor": null,
+      "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
+    },
+    {
+      "id": "D5-BROWSER-API-SEAMS",
+      "kind": "member-selectors",
+      "resources": [
+        {
+          "resourceId": "D2-PAIRING-LIST-ACTIVE-SELECTOR",
+          "owner": "D2",
+          "path": "sceneboard-fe/lib/api/board-api.ts",
+          "exportName": "BoardApiClient",
+          "exportKind": "class",
+          "projectionId": "D2-PAIRING-LIST-ACTIVE-SELECTOR",
+          "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=listActivePairings]"
+        },
+        {
+          "resourceId": "D2-GRANT-LIST-SELECTOR",
+          "owner": "D2",
+          "path": "sceneboard-fe/lib/api/board-api.ts",
+          "exportName": "BoardApiClient",
+          "exportKind": "class",
+          "projectionId": "D2-GRANT-LIST-SELECTOR",
+          "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=listGrants]"
+        },
+        {
+          "resourceId": "D2-PAIRING-CREATE-SELECTOR",
+          "owner": "D2",
+          "path": "sceneboard-fe/lib/api/board-api.ts",
+          "exportName": "BoardApiClient",
+          "exportKind": "class",
+          "projectionId": "D2-PAIRING-CREATE-SELECTOR",
+          "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=createPairing]"
+        },
+        {
+          "resourceId": "D2-PAIRING-DECIDE-SELECTOR",
+          "owner": "D2",
+          "path": "sceneboard-fe/lib/api/board-api.ts",
+          "exportName": "BoardApiClient",
+          "exportKind": "class",
+          "projectionId": "D2-PAIRING-DECIDE-SELECTOR",
+          "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=decidePairing]"
+        },
+        {
+          "resourceId": "D2-PAIRING-CANCEL-SELECTOR",
+          "owner": "D2",
+          "path": "sceneboard-fe/lib/api/board-api.ts",
+          "exportName": "BoardApiClient",
+          "exportKind": "class",
+          "projectionId": "D2-PAIRING-CANCEL-SELECTOR",
+          "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=cancelPairing]"
+        },
+        {
+          "resourceId": "D2-GRANT-REVOKE-SELECTOR",
+          "owner": "D2",
+          "path": "sceneboard-fe/lib/api/board-api.ts",
+          "exportName": "BoardApiClient",
+          "exportKind": "class",
+          "projectionId": "D2-GRANT-REVOKE-SELECTOR",
+          "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=revokeGrant]"
+        },
+        {
+          "resourceId": "D2-GRANT-ROTATE-SELECTOR",
+          "owner": "D2",
+          "path": "sceneboard-fe/lib/api/board-api.ts",
+          "exportName": "BoardApiClient",
+          "exportKind": "class",
+          "projectionId": "D2-GRANT-ROTATE-SELECTOR",
+          "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=rotateGrant]"
+        },
+        {
+          "resourceId": "D5-BOARD-LIST-SELECTOR",
+          "owner": "D5",
+          "path": "sceneboard-fe/lib/api/board-api.ts",
+          "exportName": "BoardApiClient",
+          "exportKind": "class",
+          "projectionId": "D5-BOARD-LIST-SELECTOR",
+          "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=listBoards]"
+        },
+        {
+          "resourceId": "D5-BOARD-CREATE-SELECTOR",
+          "owner": "D5",
+          "path": "sceneboard-fe/lib/api/board-api.ts",
+          "exportName": "BoardApiClient",
+          "exportKind": "class",
+          "projectionId": "D5-BOARD-CREATE-SELECTOR",
+          "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=createBoard]"
+        },
+        {
+          "resourceId": "D5-BOARD-GET-SELECTOR",
+          "owner": "D5",
+          "path": "sceneboard-fe/lib/api/board-api.ts",
+          "exportName": "BoardApiClient",
+          "exportKind": "class",
+          "projectionId": "D5-BOARD-GET-SELECTOR",
+          "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=getBoard]"
+        },
+        {
+          "resourceId": "D5-BOARD-ARCHIVE-SELECTOR",
+          "owner": "D5",
+          "path": "sceneboard-fe/lib/api/board-api.ts",
+          "exportName": "BoardApiClient",
+          "exportKind": "class",
+          "projectionId": "D5-BOARD-ARCHIVE-SELECTOR",
+          "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=archiveBoard]"
+        },
+        {
+          "resourceId": "D5-BOARD-RENAME-SELECTOR",
+          "owner": "D5",
+          "path": "sceneboard-fe/lib/api/board-api.ts",
+          "exportName": "BoardApiClient",
+          "exportKind": "class",
+          "projectionId": "D5-BOARD-RENAME",
+          "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=renameBoard]"
+        },
+        {
+          "resourceId": "D5-HISTORY-LIST-SELECTOR",
+          "owner": "D5",
+          "path": "sceneboard-fe/lib/api/board-api.ts",
+          "exportName": "BoardApiClient",
+          "exportKind": "class",
+          "projectionId": "D5-HISTORY-LIST-SELECTOR",
+          "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=listHistory]"
+        },
+        {
+          "resourceId": "D5-HISTORY-GET-SELECTOR",
+          "owner": "D5",
+          "path": "sceneboard-fe/lib/api/board-api.ts",
+          "exportName": "BoardApiClient",
+          "exportKind": "class",
+          "projectionId": "D5-HISTORY-GET-SELECTOR",
+          "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=getHistoryRevision]"
+        },
+        {
+          "resourceId": "D7-ARTIFACT-METADATA-GET-SELECTOR",
+          "owner": "D7",
+          "path": "sceneboard-fe/lib/api/board-api.ts",
+          "exportName": "BoardApiClient",
+          "exportKind": "class",
+          "projectionId": "D7-ARTIFACT-METADATA-GET-SELECTOR",
+          "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=getArtifact]"
+        },
+        {
+          "resourceId": "D7-ARTIFACT-PACKAGE-GET-SELECTOR",
+          "owner": "D7",
+          "path": "sceneboard-fe/lib/api/board-api.ts",
+          "exportName": "BoardApiClient",
+          "exportKind": "class",
+          "projectionId": "D7-ARTIFACT-PACKAGE-GET-SELECTOR",
+          "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=getArtifactPackage]"
+        },
+        {
+          "resourceId": "D7-ARTIFACT-NETWORK-FETCH-SELECTOR",
+          "owner": "D7",
+          "path": "sceneboard-fe/lib/api/board-api.ts",
+          "exportName": "BoardApiClient",
+          "exportKind": "class",
+          "projectionId": "D7-ARTIFACT-NETWORK-FETCH-SELECTOR",
+          "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=requestArtifactNetworkFetch]"
+        },
+        {
+          "resourceId": "D8-HITL-MUTATION-REQUEST-SELECTOR",
+          "owner": "D8",
+          "path": "sceneboard-fe/lib/api/board-api.ts",
+          "exportName": "BoardApiClient",
+          "exportKind": "class",
+          "projectionId": "D8-HITL-MUTATION-REQUEST-SELECTOR",
+          "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=requestInteraction]"
+        },
+        {
+          "resourceId": "D8-HITL-MUTATION-RESPOND-SELECTOR",
+          "owner": "D8",
+          "path": "sceneboard-fe/lib/api/board-api.ts",
+          "exportName": "BoardApiClient",
+          "exportKind": "class",
+          "projectionId": "D8-HITL-MUTATION-RESPOND-SELECTOR",
+          "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=respondToInteraction]"
+        },
+        {
+          "resourceId": "D8-HITL-READ-WAIT-SELECTOR",
+          "owner": "D8",
+          "path": "sceneboard-fe/lib/api/board-api.ts",
+          "exportName": "BoardApiClient",
+          "exportKind": "class",
+          "projectionId": "D8-HITL-READ-WAIT-SELECTOR",
+          "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=readInteraction]"
+        },
+        {
+          "resourceId": "D8-HITL-LIFECYCLE-CANCEL-SELECTOR",
+          "owner": "D8",
+          "path": "sceneboard-fe/lib/api/board-api.ts",
+          "exportName": "BoardApiClient",
+          "exportKind": "class",
+          "projectionId": "D8-HITL-LIFECYCLE-CANCEL-SELECTOR",
+          "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=cancelInteraction]"
+        },
+        {
+          "resourceId": "D8-HITL-LIFECYCLE-SUPERSEDE-SELECTOR",
+          "owner": "D8",
+          "path": "sceneboard-fe/lib/api/board-api.ts",
+          "exportName": "BoardApiClient",
+          "exportKind": "class",
+          "projectionId": "D8-HITL-LIFECYCLE-SUPERSEDE-SELECTOR",
+          "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=supersedeInteraction]"
+        }
+      ],
+      "expectedCardinality": 22,
+      "canonicalization": "typescript-ast",
+      "materializationPredecessor": "D2-D5-D7-D8-BROWSER-PUBLISHERS",
+      "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
+    },
+    {
+      "id": "D5-UI-ROUTES",
+      "kind": "source-contract",
+      "resources": [
+        {
+          "resourceId": "D5-UI-01",
+          "owner": "D5",
+          "path": "packages/board-sdk/src/client/history-metadata.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D5-UI-02",
+          "owner": "D5",
+          "path": "packages/board-sdk/src/state/live-board-state.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D5-UI-03",
+          "owner": "D5",
+          "path": "packages/board-sdk/src/request/request-epoch.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D5-UI-04",
+          "owner": "D5",
+          "path": "packages/board-ui/src/renderer/BoardRenderer.tsx",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D5-UI-05",
+          "owner": "D5",
+          "path": "packages/board-ui/src/renderer/renderer-registry.tsx",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D5-UI-06",
+          "owner": "D5",
+          "path": "sceneboard-fe/lib/board/use-board-session.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D5-UI-07",
+          "owner": "D2",
+          "path": "sceneboard-fe/app/(auth)/login/page.tsx",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D5-UI-08",
+          "owner": "D2",
+          "path": "sceneboard-fe/app/(auth)/signup/page.tsx",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D5-UI-09",
+          "owner": "D2",
+          "path": "sceneboard-fe/app/settings/ai-connections/page.tsx",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D5-UI-10",
+          "owner": "D5",
+          "path": "sceneboard-fe/app/boards/page.tsx",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D5-UI-11",
+          "owner": "D5",
+          "path": "sceneboard-fe/app/boards/[boardId]/page.tsx",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        }
+      ],
+      "expectedCardinality": 11,
+      "canonicalization": "utf8-lf",
+      "materializationPredecessor": null,
+      "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
+    },
+    {
+      "id": "D6-MCP-SDK",
+      "kind": "source-contract",
+      "resources": [
+        {
+          "resourceId": "D6-SEAM-01",
+          "owner": "D6",
+          "path": "sceneboard-mcp/src/server.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SEAM-02",
+          "owner": "D6",
+          "path": "sceneboard-mcp/src/tools/register-tools.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SEAM-03",
+          "owner": "D6",
+          "path": "sceneboard-mcp/src/tools/connection.tools.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SEAM-04",
+          "owner": "D6",
+          "path": "sceneboard-mcp/src/tools/board.tools.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SEAM-05",
+          "owner": "D6",
+          "path": "sceneboard-mcp/src/tools/scene.tools.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SEAM-06",
+          "owner": "D6",
+          "path": "sceneboard-mcp/src/tools/artifact.tools.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SEAM-07",
+          "owner": "D6",
+          "path": "sceneboard-mcp/src/tools/history.tools.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SEAM-08",
+          "owner": "D6",
+          "path": "sceneboard-mcp/src/tools/interaction.tools.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SEAM-09",
+          "owner": "D6",
+          "path": "packages/board-sdk/src/http/index.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SEAM-10",
+          "owner": "D6",
+          "path": "packages/board-sdk/src/scene-transform/index.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        }
+      ],
+      "expectedCardinality": 10,
+      "canonicalization": "utf8-lf",
+      "materializationPredecessor": null,
+      "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
+    },
+    {
+      "id": "D6-INSTALLED-SKILL",
+      "kind": "external-readonly",
+      "resources": [
+        {
+          "resourceId": "D6-SKILL-01",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/agents/openai.yaml",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-02",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/assets/artifact-templates/animated-data-story.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-03",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/assets/artifact-templates/architecture-map.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-04",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/assets/artifact-templates/metric-story.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-05",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/assets/artifact-templates/process-flow.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-06",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/assets/artifact-templates/timeline.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-07",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/assets/visual-presets/architecture-overview.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-08",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/assets/visual-presets/comparison.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-09",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/assets/visual-presets/dashboard.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-10",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/assets/visual-presets/presentation.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-11",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/assets/visual-presets/roadmap-status.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-12",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/assets/visual-presets/study-brief.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-13",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/references/api-fallback.md",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-14",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/references/artifacts.md",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-15",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/references/auth-and-config.md",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-16",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/references/commands.md",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-17",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/references/fallback.md",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-18",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/references/history.md",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-19",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/references/platform.md",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-20",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/references/scene-contract.md",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-21",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/references/visual-composer.md",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-22",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/scripts/scene-artifact-core.mjs",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-23",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/scripts/scene-artifact.mjs",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-24",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/scripts/scene-recipe-compiler-internal.mjs",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-25",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/scripts/scene-recipe-core.mjs",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-26",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/scripts/scene-recipe-validation-internal.mjs",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-27",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/scripts/scene-recipe.mjs",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-28",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/scripts/sceneboard-api-core.mjs",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-29",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/scripts/sceneboard-api.mjs",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-30",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/SKILL.md",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-31",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/assets/artifact-templates/demo-showcase.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-32",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/assets/artifact-templates/threejs-showcase.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-33",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/assets/artifact-templates/webgl-showcase.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-34",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/scripts/sceneboard-api.ps1",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-35",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/scripts/sceneboard-api-error.mjs",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-36",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/scripts/sceneboard-scene-patch.mjs",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-37",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/scripts/sceneboard-api-config.mjs",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-38",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/scripts/sceneboard-api-json.mjs",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-39",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/scripts/sceneboard-api-contract.mjs",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-40",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/scripts/sceneboard-api-request.mjs",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-41",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/scripts/sceneboard-api-response.mjs",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-42",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/scripts/sceneboard-api-public.mjs",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        }
+      ],
+      "expectedCardinality": 42,
+      "canonicalization": "utf8-lf",
+      "materializationPredecessor": null,
+      "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
+    },
+    {
+      "id": "D7-ARTIFACT-SEAM",
+      "kind": "source-contract",
+      "resources": [
+        {
+          "resourceId": "D7-SEAM-01",
+          "owner": "D7",
+          "path": "sceneboard-be/src/artifacts/index.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D7-SEAM-02",
+          "owner": "D7",
+          "path": "sceneboard-be/src/artifacts/artifact-application.port.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D7-SEAM-03",
+          "owner": "D7",
+          "path": "sceneboard-be/src/artifacts/current-artifact-runtime-summary.provider.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D7-SEAM-04",
+          "owner": "D7",
+          "path": "packages/artifact-runtime/src/topology/index.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D7-SEAM-05",
+          "owner": "D7",
+          "path": "packages/artifact-runtime/src/server/headers.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D7-SEAM-06",
+          "owner": "D7",
+          "path": "packages/artifact-runtime/src/server/routes.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D7-SEAM-07",
+          "owner": "D7",
+          "path": "packages/artifact-runtime/src/server/main.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        }
+      ],
+      "expectedCardinality": 7,
+      "canonicalization": "utf8-lf",
+      "materializationPredecessor": null,
+      "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
+    },
+    {
+      "id": "D8-HITL-SEAM",
+      "kind": "source-contract",
+      "resources": [
+        {
+          "resourceId": "D8-SEAM-01",
+          "owner": "D8",
+          "path": "sceneboard-be/src/interactions/index.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D8-SEAM-02",
+          "owner": "D8",
+          "path": "sceneboard-be/src/interactions/application/hitl-mutation-application.port.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D8-SEAM-03",
+          "owner": "D8",
+          "path": "sceneboard-be/src/interactions/application/hitl-query-application.port.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D8-SEAM-04",
+          "owner": "D8",
+          "path": "sceneboard-be/src/interactions/application/hitl-lifecycle-application.port.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D8-SEAM-05",
+          "owner": "D8",
+          "path": "sceneboard-be/src/interactions/current-hitl-summary.provider.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D8-SEAM-06",
+          "owner": "D8",
+          "path": "sceneboard-be/src/interactions/interaction-http.dto.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        }
+      ],
+      "expectedCardinality": 6,
+      "canonicalization": "utf8-lf",
+      "materializationPredecessor": null,
+      "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
+    },
+    {
+      "id": "MIGRATION-REGISTRY-ASSETS",
+      "kind": "migration-contract",
+      "resources": [
+        {
+          "resourceId": "MIGRATION-REGISTRY",
+          "owner": "D2",
+          "path": "sceneboard-be/src/database/migrations/registry.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "MIGRATION-ASSET-01",
+          "owner": "D2",
+          "path": "sceneboard-be/src/database/migrations/sql/001_d2_identity_sessions_audit.down.sql",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "MIGRATION-ASSET-02",
+          "owner": "D2",
+          "path": "sceneboard-be/src/database/migrations/sql/001_d2_identity_sessions_audit.up.sql",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "MIGRATION-ASSET-03",
+          "owner": "D3",
+          "path": "sceneboard-be/src/database/migrations/sql/001_d3_boards.up.sql",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "MIGRATION-ASSET-04",
+          "owner": "D2",
+          "path": "sceneboard-be/src/database/migrations/sql/002_d2_pairing_grants.down.sql",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "MIGRATION-ASSET-05",
+          "owner": "D2",
+          "path": "sceneboard-be/src/database/migrations/sql/002_d2_pairing_grants.up.sql",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "MIGRATION-ASSET-06",
+          "owner": "D3",
+          "path": "sceneboard-be/src/database/migrations/sql/002_d3_board_revisions.up.sql",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "MIGRATION-ASSET-07",
+          "owner": "D2",
+          "path": "sceneboard-be/src/database/migrations/sql/003_d2_artifact_capability_policy.down.sql",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "MIGRATION-ASSET-08",
+          "owner": "D2",
+          "path": "sceneboard-be/src/database/migrations/sql/003_d2_artifact_capability_policy.up.sql",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "MIGRATION-ASSET-09",
+          "owner": "D3",
+          "path": "sceneboard-be/src/database/migrations/sql/003_d3_board_heads.up.sql",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "MIGRATION-ASSET-10",
+          "owner": "D3",
+          "path": "sceneboard-be/src/database/migrations/sql/004_d3_board_idempotency_records.up.sql",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "MIGRATION-ASSET-11",
+          "owner": "D3",
+          "path": "sceneboard-be/src/database/migrations/sql/005_d3_board_revision_artifact_refs.up.sql",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "MIGRATION-ASSET-12",
+          "owner": "D3",
+          "path": "sceneboard-be/src/database/migrations/sql/006_d3_board_event_outbox.up.sql",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "MIGRATION-ASSET-13",
+          "owner": "D7",
+          "path": "sceneboard-be/src/database/migrations/sql/007_d7_artifacts.up.sql",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "MIGRATION-ASSET-14",
+          "owner": "D7",
+          "path": "sceneboard-be/src/database/migrations/sql/008_d7_artifact_versions.up.sql",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "MIGRATION-ASSET-15",
+          "owner": "D7",
+          "path": "sceneboard-be/src/database/migrations/sql/009_d7_artifact_resources.up.sql",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "MIGRATION-ASSET-16",
+          "owner": "D7",
+          "path": "sceneboard-be/src/database/migrations/sql/010_d7_artifact_runtime_states.up.sql",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "MIGRATION-ASSET-17",
+          "owner": "D7",
+          "path": "sceneboard-be/src/database/migrations/sql/011_d7_artifact_board_usage.up.sql",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "MIGRATION-ASSET-18",
+          "owner": "D8",
+          "path": "sceneboard-be/src/database/migrations/sql/012_d8_board_hitl_interactions.up.sql",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        }
+      ],
+      "expectedCardinality": 19,
+      "canonicalization": "utf8-lf",
+      "materializationPredecessor": null,
+      "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
+    },
+    {
+      "id": "D2-MIGRATION-RUNNER",
+      "kind": "migration-runner-contract",
+      "resources": [
+        {
+          "resourceId": "D2-MIGRATION-RUNNER-STATE",
+          "owner": "D2",
+          "path": "sceneboard-be/src/database/migrations/certification-state.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D2-MIGRATION-RUNNER-RUNNER",
+          "owner": "D2",
+          "path": "sceneboard-be/src/database/migrations/runner.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D2-MIGRATION-RUNNER-SPLITTER",
+          "owner": "D2",
+          "path": "sceneboard-be/src/database/migrations/sql-splitter.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D2-MIGRATION-RUNNER-CLI",
+          "owner": "D2",
+          "path": "sceneboard-be/src/database/migrations/cli.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D2-MIGRATION-RUNNER-COPIER",
+          "owner": "D2",
+          "path": "sceneboard-be/scripts/copy-sql-assets.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        }
+      ],
+      "expectedCardinality": 5,
+      "canonicalization": "utf8-lf",
+      "materializationPredecessor": "MIGRATION-REGISTRY-ASSETS",
+      "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
+    },
+    {
+      "id": "RUNTIME-TOPOLOGY",
+      "kind": "configuration-contract",
+      "resources": [
+        {
+          "resourceId": "TOPOLOGY-02",
+          "owner": "D2",
+          "path": "sceneboard-fe/.env.example",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "TOPOLOGY-03",
+          "owner": "D2",
+          "path": "sceneboard-be/.env.example",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "TOPOLOGY-04",
+          "owner": "D7",
+          "path": "packages/artifact-runtime/.env.example",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        }
+      ],
+      "expectedCardinality": 3,
+      "canonicalization": "utf8-lf",
+      "materializationPredecessor": null,
+      "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
+    },
+    {
+      "id": "DEPENDENCY-EVIDENCE",
+      "kind": "dependency-contract",
+      "resources": [
+        {
+          "resourceId": "PACKAGE-MANIFEST-01",
+          "owner": "D9",
+          "path": "package.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "PACKAGE-MANIFEST-02",
+          "owner": "D9",
+          "path": "packages/artifact-runtime/package.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "PACKAGE-MANIFEST-03",
+          "owner": "D9",
+          "path": "packages/board-schema/package.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "PACKAGE-MANIFEST-04",
+          "owner": "D9",
+          "path": "packages/board-sdk/package.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "PACKAGE-MANIFEST-05",
+          "owner": "D9",
+          "path": "packages/board-ui/package.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "PACKAGE-MANIFEST-NEXT",
+          "owner": "D9",
+          "path": "sceneboard-fe/package.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "PACKAGE-MANIFEST-NEST",
+          "owner": "D9",
+          "path": "sceneboard-be/package.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "PACKAGE-MANIFEST-MCP",
+          "owner": "D9",
+          "path": "sceneboard-mcp/package.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "ROOT-LOCKFILE",
+          "owner": "D9",
+          "path": "package-lock.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "DEPENDENCY-INVENTORY",
+          "owner": "D9",
+          "path": "test/certification/dependency-inventory.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "DEPENDENCY-LICENSE-POLICY",
+          "owner": "D9",
+          "path": "test/certification/policy/dependency-license-policy.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        }
+      ],
+      "expectedCardinality": 11,
+      "canonicalization": "canonical-json",
+      "materializationPredecessor": null,
+      "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
+    },
+    {
+      "id": "SCHEMA-MODEL-EVIDENCE",
+      "kind": "schema-projection",
+      "resources": [
+        {
+          "resourceId": "SCHEMA-PROJECTION-01",
+          "owner": "D2",
+          "path": "sceneboard-be/test/contracts/schema-projections/expected-schema.v1.schema.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "SCHEMA-PROJECTION-02",
+          "owner": "D2",
+          "path": "sceneboard-be/test/contracts/schema-projections/d2.expected-schema.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "SCHEMA-PROJECTION-03",
+          "owner": "D3",
+          "path": "sceneboard-be/test/contracts/schema-projections/d3.expected-schema.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "SCHEMA-PROJECTION-04",
+          "owner": "D7",
+          "path": "sceneboard-be/test/contracts/schema-projections/d7.expected-schema.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "SCHEMA-PROJECTION-05",
+          "owner": "D8",
+          "path": "sceneboard-be/test/contracts/schema-projections/d8.expected-schema.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "SCHEMA-PROJECTION-AGGREGATE-TEST",
+          "owner": "D2",
+          "path": "sceneboard-be/test/contracts/schema-projections/owner-projections.contract.test.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        }
+      ],
+      "expectedCardinality": 6,
+      "canonicalization": "canonical-json",
+      "materializationPredecessor": "MIGRATION-REGISTRY-ASSETS",
+      "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
+    }
+  ]
+}

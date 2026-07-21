@@ -1,0 +1,1 @@
+{"protocolVersion":1,"type":"board.event","boardId":"board_1","eventId":"event_1","sequence":1,"occurredAt":"2026-07-16T00:00:00.000Z","revisionId":"revision_1","data":{"type":"board.revision.created","revision":{"revisionId":"revision_1","revisionNumber":1,"createdAt":"2026-07-16T00:00:00.000Z"},"originType":"board.create","sourceRevisionId":null}}

@@ -1,0 +1,1 @@
+{"protocolVersion":1,"requestId":"request_1","idempotencyKey":"idempotency-key-1","boardId":"board_1","expectedRevisionId":"revision_1","command":{"type":"hitl.respond","hitlRequestId":"hitl_1","response":{"kind":"info","acknowledged":true}},"actor":{"principalKind":"user","principalId":"user_1","grantId":"grant_1","scopes":["board.read"]}}

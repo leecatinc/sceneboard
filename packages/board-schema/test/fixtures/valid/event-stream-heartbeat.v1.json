@@ -1,0 +1,1 @@
+{"protocolVersion":1,"type":"board.event","boardId":"board_1","eventId":"event_1","sequence":1,"occurredAt":"2026-07-16T00:00:00.000Z","revisionId":null,"data":{"type":"stream.heartbeat","sentAt":"2026-07-16T00:00:00.000Z"}}

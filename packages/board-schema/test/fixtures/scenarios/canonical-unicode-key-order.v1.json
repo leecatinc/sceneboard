@@ -1,0 +1,1 @@
+{"scenario":"canonical-unicode-key-order","expectedRelation":"canonical-bytes","input":{"𐀀":0,"":"é","a":","},"expected":{"canonicalJson":"{\"a\":\",\",\"\":\"é\",\"𐀀\":0}","unicodeNormalization":"none","negativeZeroSerializedAs":"0"}}

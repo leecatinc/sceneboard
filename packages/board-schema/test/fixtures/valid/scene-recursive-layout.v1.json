@@ -1,0 +1,1 @@
+{"protocolVersion":1,"type":"scene","root":{"id":"split","type":"layout.split","direction":"vertical","gap":0,"children":[{"node":{"id":"a","type":"content.markdown","markdown":"Hello"},"weight":1},{"node":{"id":"b","type":"content.markdown","markdown":"Hello"},"weight":1}]}}

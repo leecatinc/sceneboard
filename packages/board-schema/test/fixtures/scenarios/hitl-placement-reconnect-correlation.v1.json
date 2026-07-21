@@ -1,0 +1,1 @@
+{"scenario":"hitl-placement-reconnect-correlation","expectedRelation":"same-id","snapshotFixture":"invalid/snapshot-unresolved-hitl-reference.v1.json","eventFixture":"valid/event-hitl-updated.v1.json","expected":{"hitlRequestId":"hitl_1","placedReferenceCount":1,"liveReplacementByStableId":true}}
