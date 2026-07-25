@@ -45,19 +45,62 @@ Requirements:
 
 - Node.js 22 or later
 - npm 10.9.3
-- MySQL 8.0.16 through 8.0.x
-- Redis
+- MySQL 8.0.16 through 8.0.x (a database named `sceneboard`)
+- Redis (key prefix `sceneboard:`)
 
-Install from the repository root and run the deterministic checks:
+### 1. Install and verify
 
 ```bash
 npm ci
-npm run check
+npm run check   # config audit → contracts → lint → typecheck → tests → build check
 ```
 
-Copy only the required `.env.example` files to local ignored `.env` files.
-Never commit credentials, generated recordings, screenshots containing personal
-data, or runtime state.
+### 2. Configure environment
+
+Copy each service's `.env.example` to a local, git-ignored `.env` and fill it in:
+
+```bash
+cp sceneboard-be/.env.example  sceneboard-be/.env
+cp sceneboard-fe/.env.example  sceneboard-fe/.env
+cp sceneboard-mcp/.env.example sceneboard-mcp/.env
+cp packages/artifact-runtime/.env.example packages/artifact-runtime/.env
+```
+
+The backend validates its environment strictly and refuses to boot unless
+`MYSQL_DATABASE=sceneboard` and `REDIS_KEY_PREFIX=sceneboard:`. The signing
+secrets (the `*_KEY_B64` and `*_PEPPER_B64` entries in `sceneboard-be/.env.example`)
+must each be high-entropy material of at least 32 bytes, in the exact encoding that
+key documents — most are canonical unpadded base64url, while `BOARD_STREAM_KEY_B64`
+is padded RFC 4648 base64. Services read configuration from the process
+environment, so export the variables (or use a dotenv runner) before starting each
+service — copying `.env.example` alone does not load them. Never commit
+credentials, generated recordings, screenshots with personal data, or runtime state.
+
+### 3. Prepare the database
+
+```bash
+npm run db:migrate:up --workspace sceneboard-be   # applies the checksummed migration ledger
+```
+
+### 4. Build and run
+
+Run each long-lived service in its own terminal (the `start` commands block).
+
+```bash
+# Backend needs a compiled dist; the dev frontend compiles on demand.
+npm run build --workspace sceneboard-be
+npm run build:runtime --workspace @sceneboard/artifact-runtime
+
+npm run start --workspace sceneboard-be     # NestJS API on :3411 (PORT-driven)
+npm run dev   --workspace sceneboard-fe     # Next.js web on :3410
+```
+
+The sandboxed artifact runtime (`:3412`) runs on a **separate origin** and is
+launched with regenerated auth-origin evidence via
+`packages/artifact-runtime/deploy/launch-dev-runtime.sh` (run from the repository
+root with its required environment exported). The hosted deployment — app, API, and
+artifact runtime on distinct origins — is documented in the release runbook
+maintained outside this repository.
 
 ## Engineering policy
 

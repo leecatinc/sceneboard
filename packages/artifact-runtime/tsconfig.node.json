@@ -5,7 +5,7 @@
     "moduleResolution": "NodeNext",
     "noEmit": false,
     "rootDir": "./src",
-    "outDir": "./dist/node",
+    "outDir": "./.runtime-build/node",
     "types": ["node"]
   },
   "include": [

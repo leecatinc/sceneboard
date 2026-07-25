@@ -40,3 +40,7 @@ screenshots/
 .DS_Store
 .idea/
 .vscode/
+
+# artifact-runtime build staging
+packages/artifact-runtime/.runtime-build/
+packages/artifact-runtime/.runtime-build-prior/

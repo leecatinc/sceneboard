@@ -46,6 +46,12 @@ export const buildSceneBoardContentSecurityPolicyV1 = (input: {
 
 const config: NextConfig = {
   distDir: process.env.SCENEBOARD_NEXT_DIST_DIR === '.next-check' ? '.next-check' : '.next',
+  transpilePackages: [
+    '@sceneboard/board-schema',
+    '@sceneboard/board-sdk',
+    '@sceneboard/board-ui',
+    '@sceneboard/artifact-runtime',
+  ],
   webpack(webpackConfig) {
     webpackConfig.resolve.extensionAlias = {
       ...webpackConfig.resolve.extensionAlias,

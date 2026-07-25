@@ -1,15 +1,16 @@
 import { createHash } from 'node:crypto';
 import { access, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { build } from 'esbuild';
 
-const packageRoot = resolve(new URL('..', import.meta.url).pathname);
-const staging = '/workspace/.tmp/agent/sceneboard-artifact-runtime-build';
+const packageRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
+const staging = resolve(packageRoot, '.runtime-build');
 const publicDirectory = resolve(staging, 'public');
 const assetsDirectory = resolve(publicDirectory, 'assets');
 const output = resolve(packageRoot, 'dist');
-const prior = '/workspace/.tmp/agent/sceneboard-artifact-runtime-prior';
+const prior = resolve(packageRoot, '.runtime-build-prior');
 const source = resolve(packageRoot, 'src/runner');
 const mediaType = 'application/javascript; charset=utf-8';
 
