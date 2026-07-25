@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import { mkdir, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 import { CertificationEvidenceWriter } from '../../scripts/lib/certification/evidence-writer.mjs';
 import { assertSafeCommand } from '../../scripts/lib/certification/safe-command-policy.mjs';
 
-const tempRoot = `/workspace/.tmp/agent/sceneboard-evidence-writer-${process.pid}`;
+const tempRoot = join(tmpdir(), `sceneboard-evidence-writer-${process.pid}`);
 const hash = 'a'.repeat(64);
 
 test('evidence writer is append-only, token-bound, bounded, and non-self-referential', async (context) => {

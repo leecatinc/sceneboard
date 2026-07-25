@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import { lstat, mkdir, readFile, rm, symlink } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { test } from 'node:test';
 
 import {
@@ -8,7 +10,7 @@ import {
 } from '../../src/bootstrap/persistence-certification-progress.store.js';
 import { PERSISTENCE_PROBE_ORDER_V1 } from '../../src/bootstrap/persistence-certification.types.js';
 
-const root = '/workspace/.tmp/agent/sceneboard-persistence-progress-tests';
+const root = join(tmpdir(), 'sceneboard-persistence-progress-tests');
 const highWater = Object.fromEntries(
   PERSISTENCE_PROBE_ORDER_V1.map((probeId) => [probeId, '100']),
 ) as Record<(typeof PERSISTENCE_PROBE_ORDER_V1)[number], string>;

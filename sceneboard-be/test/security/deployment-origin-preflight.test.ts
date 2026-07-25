@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { dirname, join, parse, resolve } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -25,7 +26,7 @@ function findWorkspaceRoot(startDirectory: string): string {
 const root = findWorkspaceRoot(dirname(fileURLToPath(import.meta.url)));
 
 test('writes non-secret joint origin evidence and rejects a frontend/backend mismatch', async () => {
-  const directory = `/workspace/.tmp/agent/auth-origin-${process.pid}`;
+  const directory = join(tmpdir(), `auth-origin-${process.pid}`);
   await rm(directory, { force: true, recursive: true });
   await mkdir(directory, { recursive: true });
   const frontend = join(directory, 'frontend.json');
