@@ -10,3 +10,7 @@
 ## Scope
 
 These instructions apply to the SceneBoard monorepo only. Parent-workspace rules do not override this repository's explicit engineering, language, Git, or QA policies.
+
+## Git identity
+
+Every commit and push in this repository must use `leecatdev <leecat.dev@gmail.com>`.

@@ -3,8 +3,8 @@
 ## Commit language and identity
 
 - Write commit messages in English using Conventional Commits: `<type>(optional-scope): <imperative summary>`.
-- Use the repository-local author name `LeeCat` and the owner-approved repository-local email configured in `.git/config`.
-- Do not commit the author email into source files or shared configuration.
+- Use the repository-local identity `leecatdev <leecat.dev@gmail.com>` for every commit and push.
+- Verify `git config user.name` and `git config user.email` immediately before committing and pushing; stop and correct the local configuration if either value differs.
 - Do not include AI agent metadata or `Co-Authored-By` trailers.
 
 ## Commit boundaries
