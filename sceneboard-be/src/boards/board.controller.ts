@@ -4,8 +4,10 @@ import {
   BoardIdParserV1,
   BoardOperationRequestParserV1,
   MutationRequestParserV1,
+  MutationRequestParserV2,
   type BoardId,
   type MutationRequestV1,
+  type MutationRequestV2,
   type RequestId,
   type ShortText,
 } from '@sceneboard/board-schema';
@@ -105,8 +107,8 @@ const readArchiveRequest = (
   return parsed.data.value as BoardArchiveRequestV1;
 };
 
-const readMutationRequest = (request: BoardHttpRequest, pathBoardId: string): MutationRequestV1 => {
-  const parsed = MutationRequestParserV1.parse(body(request));
+const readMutationRequest = (request: BoardHttpRequest, pathBoardId: string): MutationRequestV2 => {
+  const parsed = MutationRequestParserV2.parse(body(request));
   if (!parsed.ok) throw new BoardContractError(parsed.error);
   if (parsed.data.value.boardId !== pathBoardId)
     throw invalid('path and body board IDs differ', ['boardId']);
@@ -389,11 +391,12 @@ export class BoardController {
   }
 
   @Post(':boardId/mutations')
-  @HttpCode(200)
+  @HttpCode(201)
   @RequireCsrf('session')
   async mutate(
     @Req() request: BoardHttpRequest,
     @Param('boardId') pathBoardId: string,
+    @Res({ passthrough: true }) response: StatusResponse,
   ): Promise<BoardHttpSuccessEnvelopeV1> {
     const parsedRequest = readMutationRequest(request, pathBoardId);
     const actor = principal(request, this.actors);
@@ -405,8 +408,20 @@ export class BoardController {
           })
         : parsedRequest.command.type === 'hitl.request' ||
             parsedRequest.command.type === 'hitl.respond'
-          ? await this.interactions.apply({ principal: actor, request: parsedRequest })
-          : await this.mutations.applySceneMutation({ principal: actor, request: parsedRequest });
+          ? await this.interactions.apply({
+              principal: actor,
+              request: parsedRequest as MutationRequestV1,
+            })
+          : parsedRequest.command.type === 'document.replace'
+            ? await this.mutations.applyDocumentMutation({
+                principal: actor,
+                request: parsedRequest,
+              })
+            : await this.mutations.applySceneMutation({
+                principal: actor,
+                request: parsedRequest as MutationRequestV1,
+              });
+    if (result.replayed) response.status(200);
     return boardHttpSuccess(result);
   }
 

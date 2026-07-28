@@ -15,7 +15,7 @@ import { BOARD_TOOL_NAMES_V1 } from '../../src/tools/register-tools.js';
 const token = `lcbg_v1.${'a'.repeat(22)}.${'b'.repeat(43)}`;
 const require = createRequire(import.meta.url);
 
-test('real stdio process publishes the authenticated terminal 21-tool surface and shuts down without secret output', async () => {
+test('real stdio process publishes the authenticated terminal 28-tool surface and shuts down without secret output', async () => {
   const requests: Array<{ authorization: string | undefined; boardId: string | null }> = [];
   const backend = createServer((request, response) => {
     const url = new URL(request.url ?? '/', 'http://127.0.0.1');

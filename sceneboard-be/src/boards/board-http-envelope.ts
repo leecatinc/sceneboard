@@ -2,6 +2,7 @@ import {
   canonicalizeJsonV1,
   type BoardOperationResultV1,
   type MutationResultV1,
+  type MutationResultV2,
   type RequestId,
 } from '@sceneboard/board-schema';
 
@@ -12,12 +13,12 @@ export interface BoardHttpSuccessEnvelopeV1 {
   protocolVersion: 1;
   type: 'board.http.success';
   requestId: RequestId;
-  result: BoardOperationResultV1 | MutationResultV1;
+  result: BoardOperationResultV1 | MutationResultV1 | MutationResultV2;
   metadata: { history: HistoryAdapterMetadataV1 | null };
 }
 
 export const boardHttpSuccess = (
-  result: BoardOperationResultV1 | MutationResultV1,
+  result: BoardOperationResultV1 | MutationResultV1 | MutationResultV2,
   history: HistoryAdapterMetadataV1 | null = null,
 ): BoardHttpSuccessEnvelopeV1 => {
   const resultType = result.result.type;

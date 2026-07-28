@@ -54,6 +54,25 @@ export const SceneClearInputSchemaV1 = z
   })
   .strict();
 
+const documentMismatch = (
+  tool: 'board_scene_get' | 'board_scene_patch',
+  requestId: string,
+): CallToolResult =>
+  toolFailureV1(tool, requestId, 'board', {
+    protocolVersion: 1,
+    type: 'board.error',
+    code: 'DOCUMENT_VERSION_MISMATCH',
+    message: 'Document version mismatch',
+    category: 'conflict',
+    retryable: false,
+    httpStatusHint: 409,
+    details: {
+      headSchemaVersion: 2,
+      commandSchemaVersion: 1,
+      commandType: 'scene.replace',
+    },
+  });
+
 export class SceneToolHandlersV1 {
   constructor(private readonly gateway: ProtectedBoardGatewayV1) {}
 
@@ -73,6 +92,13 @@ export class SceneToolHandlersV1 {
           signal,
         ),
       );
+      if (
+        result.connected &&
+        result.value.ok &&
+        result.value.result.result.type === 'board.get' &&
+        'document' in result.value.result.result.snapshot
+      )
+        return documentMismatch('board_scene_get', requestId);
       return result.connected
         ? sdkToolResultV1('board_scene_get', requestId, result.value, null)
         : toolFailureV1(
@@ -94,6 +120,13 @@ export class SceneToolHandlersV1 {
         signal,
       ),
     );
+    if (
+      result.connected &&
+      result.value.ok &&
+      result.value.result.result.type === 'history.get' &&
+      'document' in result.value.result.result.snapshot
+    )
+      return documentMismatch('board_scene_get', requestId);
     return result.connected
       ? sdkToolResultV1(
           'board_scene_get',
@@ -169,6 +202,7 @@ export class SceneToolHandlersV1 {
     if (!head.value.ok) return sdkToolResultV1('board_scene_patch', requestId, head.value, null);
     const snapshot = head.value.result.result;
     if (snapshot.type !== 'board.get') throw new Error('board.get result invariant failed');
+    if ('document' in snapshot.snapshot) return documentMismatch('board_scene_patch', requestId);
     const transformed = applySceneTransformV1(
       snapshot.snapshot.scene,
       parsed.data.operations as SceneTransformOperationV1[],

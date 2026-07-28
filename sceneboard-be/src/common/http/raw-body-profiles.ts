@@ -2,8 +2,11 @@ import { randomBytes } from 'node:crypto';
 
 import {
   BOARD_LIMITS_V1,
+  BOARD_DOCUMENT_LIMITS_V2,
   BoardOperationRequestParserV1,
   MutationRequestParserV1,
+  MutationRequestParserV2,
+  type BoardContractParser,
   type BoardContractParserV1,
 } from '@sceneboard/board-schema';
 
@@ -16,6 +19,7 @@ export type RawBodyProfileKind =
   | 'd2-rest-json-body'
   | 'd2-no-body'
   | 'd1-contract-body'
+  | 'd1-document-contract-body'
   | 'd1-adapter-body'
   | 'd1-no-body'
   | 'd7-artifact-source-body'
@@ -27,7 +31,8 @@ export interface RawBodyProfile {
   kind: RawBodyProfileKind;
   method: HttpMethod;
   pathTemplate: string;
-  d1Parser?: BoardContractParserV1<unknown>;
+  mediaType?: string;
+  d1Parser?: BoardContractParser<unknown> | BoardContractParserV1<unknown>;
 }
 
 const d2BodyRoutes = [
@@ -61,6 +66,10 @@ const d1Routes: ReadonlyArray<readonly [HttpMethod, string, BoardContractParserV
   ['POST', '/api/v1/boards', BoardOperationRequestParserV1],
   ['POST', '/api/v1/boards/:boardId/archive', BoardOperationRequestParserV1],
   ['POST', '/api/v1/boards/:boardId/mutations', MutationRequestParserV1],
+];
+
+const documentRoutes: ReadonlyArray<readonly [HttpMethod, string, BoardContractParser<unknown>]> = [
+  ['POST', '/api/v1/boards/:boardId/mutations', MutationRequestParserV2],
 ];
 
 const d1AdapterBodyRoutes = [
@@ -107,6 +116,15 @@ export const RAW_BODY_PROFILES: readonly RawBodyProfile[] = [
       kind: 'd1-contract-body',
       method,
       pathTemplate,
+      d1Parser,
+    }),
+  ),
+  ...documentRoutes.map(
+    ([method, pathTemplate, d1Parser]): RawBodyProfile => ({
+      kind: 'd1-document-contract-body',
+      method,
+      pathTemplate,
+      mediaType: 'application/vnd.sceneboard.document+json;version=2',
       d1Parser,
     }),
   ),
@@ -159,13 +177,22 @@ const templateMatches = (template: string, pathname: string): boolean => {
   );
 };
 
-export const matchRawBodyProfile = (method: string, pathname: string): RawBodyProfile | null => {
+export const matchRawBodyProfile = (
+  method: string,
+  pathname: string,
+  contentType?: string,
+): RawBodyProfile | null => {
   const normalizedMethod = method.toUpperCase();
+  const candidates = RAW_BODY_PROFILES.filter(
+    (profile) =>
+      profile.method === normalizedMethod && templateMatches(profile.pathTemplate, pathname),
+  );
   return (
-    RAW_BODY_PROFILES.find(
-      (profile) =>
-        profile.method === normalizedMethod && templateMatches(profile.pathTemplate, pathname),
-    ) ?? null
+    candidates.find(
+      (profile) => profile.mediaType !== undefined && profile.mediaType === contentType,
+    ) ??
+    candidates.find((profile) => profile.mediaType === undefined) ??
+    null
   );
 };
 
@@ -178,6 +205,7 @@ const parseContentLength = (value: string | undefined): number | null => {
 };
 
 const assertJsonContentType = (profile: RawBodyProfile, value: string | undefined): void => {
+  if (profile.mediaType !== undefined && value === profile.mediaType) return;
   if (value !== undefined && value.toLowerCase() === 'application/json' && value === value.trim())
     return;
   if (profile.kind === 'd7-artifact-network-body') {
@@ -185,6 +213,7 @@ const assertJsonContentType = (profile: RawBodyProfile, value: string | undefine
   }
   if (
     profile.kind === 'd1-contract-body' ||
+    profile.kind === 'd1-document-contract-body' ||
     profile.kind === 'd1-adapter-body' ||
     profile.kind === 'd7-artifact-source-body'
   ) {
@@ -200,11 +229,13 @@ export type ProfiledBodyResult =
   | { kind: 'd1-adapter-body'; rawBody: Uint8Array; parsedBody: unknown }
   | { kind: 'd7-artifact-source-body'; rawBody: Uint8Array; parsedBody: unknown }
   | { kind: 'd7-artifact-network-body'; rawBody: Uint8Array; parsedBody: unknown }
-  | { kind: 'd1-contract-body'; rawBody: Uint8Array; parsedBody: unknown };
+  | { kind: 'd1-contract-body'; rawBody: Uint8Array; parsedBody: unknown }
+  | { kind: 'd1-document-contract-body'; rawBody: Uint8Array; parsedBody: unknown };
 
 export interface ProfiledBodyInput {
   contentType?: string | undefined;
   contentLength?: string | undefined;
+  contentEncoding?: string | undefined;
   body: Uint8Array;
 }
 
@@ -223,6 +254,13 @@ export const parseProfiledBody = (
   profile: RawBodyProfile,
   input: ProfiledBodyInput,
 ): ProfiledBodyResult => {
+  if (
+    profile.kind === 'd1-document-contract-body' &&
+    input.contentEncoding !== undefined &&
+    input.contentEncoding !== 'identity'
+  ) {
+    throw new BoardContractError(invalidBoardPayload('content encoding must be identity'));
+  }
   let declaredLength: number | null;
   try {
     declaredLength = parseContentLength(input.contentLength);
@@ -232,6 +270,7 @@ export const parseProfiledBody = (
     }
     if (
       profile.kind === 'd1-contract-body' ||
+      profile.kind === 'd1-document-contract-body' ||
       profile.kind === 'd1-adapter-body' ||
       profile.kind === 'd7-artifact-source-body'
     ) {
@@ -250,15 +289,20 @@ export const parseProfiledBody = (
   }
 
   assertJsonContentType(profile, input.contentType);
-  const isD1Body = profile.kind === 'd1-contract-body' || profile.kind === 'd1-adapter-body';
+  const isD1Body =
+    profile.kind === 'd1-contract-body' ||
+    profile.kind === 'd1-document-contract-body' ||
+    profile.kind === 'd1-adapter-body';
   const maximumBytes =
     profile.kind === 'd7-artifact-source-body'
       ? 11_534_336
       : profile.kind === 'd7-artifact-network-body'
         ? 8_192
-        : isD1Body
-          ? BOARD_LIMITS_V1.maxEnvelopeBytes
-          : 65_536;
+        : profile.kind === 'd1-document-contract-body'
+          ? BOARD_DOCUMENT_LIMITS_V2.maxDocumentEnvelopeBytes
+          : isD1Body
+            ? BOARD_LIMITS_V1.maxEnvelopeBytes
+            : 65_536;
   if (declaredLength !== null && declaredLength > maximumBytes) {
     if (profile.kind === 'd7-artifact-network-body') {
       throw new ArtifactBrokerError('INVALID_REQUEST', randomBytes(16).toString('base64url'));
@@ -333,11 +377,15 @@ export const parseProfiledBody = (
   };
 };
 
-const routeKey = (profile: RawBodyProfile): string => `${profile.method} ${profile.pathTemplate}`;
+const routeKey = (profile: RawBodyProfile): string =>
+  `${profile.method} ${profile.pathTemplate} ${profile.mediaType ?? 'default'}`;
 if (new Set(RAW_BODY_PROFILES.map(routeKey)).size !== RAW_BODY_PROFILES.length) {
   throw new Error('raw-body route profiles overlap');
 }
 for (const profile of RAW_BODY_PROFILES) {
-  if (profile.kind === 'd1-contract-body' && !profile.d1Parser)
+  if (
+    (profile.kind === 'd1-contract-body' || profile.kind === 'd1-document-contract-body') &&
+    !profile.d1Parser
+  )
     throw new Error(`D1 profile ${routeKey(profile)} has no parser`);
 }

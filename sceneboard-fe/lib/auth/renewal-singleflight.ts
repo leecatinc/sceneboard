@@ -1,10 +1,11 @@
 'use client';
 
 import {
+  BOARD_DOCUMENT_LIMITS_V2,
   BOARD_LIMITS_V1,
-  BoardErrorParserV1,
+  BoardErrorParser,
   BoardIdParserV1,
-  type BoardErrorV1,
+  type BoardError,
 } from '@sceneboard/board-schema';
 import type {
   BoardStreamDispatchPortV1,
@@ -71,7 +72,8 @@ export interface SharedCookieRequest {
   body?: unknown;
   csrfToken?: string;
   signal?: AbortSignal;
-  responseKind?: 'json' | 'artifact-package' | 'artifact-network';
+  responseKind?: 'json' | 'document-json' | 'artifact-package' | 'artifact-network';
+  contentType?: 'application/vnd.sceneboard.document+json;version=2';
 }
 
 export interface ConsumedResponse {
@@ -217,7 +219,8 @@ export class SessionRequestCoordinator implements BoardStreamDispatchPortV1 {
     if (!this.ensureSupported()) return { kind: 'unsupported_browser' };
     return this.withApplicationLease('shared', async () => {
       const headers = new Headers();
-      if (request.body !== undefined) headers.set('Content-Type', 'application/json');
+      if (request.body !== undefined)
+        headers.set('Content-Type', request.contentType ?? 'application/json');
       if (request.csrfToken !== undefined) headers.set('X-CSRF-Token', request.csrfToken);
       const response = await this.dependencies.fetcher(`${this.apiOrigin}${request.path}`, {
         method: request.method,
@@ -254,6 +257,7 @@ export class SessionRequestCoordinator implements BoardStreamDispatchPortV1 {
       const headers = new Headers({ Accept: 'text/event-stream' });
       if (input.cursor !== null) headers.set('Last-Event-ID', input.cursor);
       const query = new URLSearchParams({ tabId: input.tabId, presenceState: input.presenceState });
+      if (input.documentSchemaVersion === 2) query.set('documentSchemaVersion', '2');
       const response = await this.dependencies.fetcher(
         `${this.apiOrigin}/api/v1/boards/${encodeURIComponent(input.boardId)}/events?${query.toString()}`,
         { method: 'GET', credentials: 'include', headers, signal: input.signal },
@@ -294,6 +298,7 @@ export class SessionRequestCoordinator implements BoardStreamDispatchPortV1 {
         (response.status === 400 && error.code === 'INVALID_PAYLOAD') ||
         (response.status === 403 && error.code === 'FORBIDDEN') ||
         (response.status === 404 && error.code === 'BOARD_NOT_FOUND') ||
+        (response.status === 409 && error.code === 'DOCUMENT_VERSION_MISMATCH') ||
         (response.status === 429 && error.code === 'RATE_LIMITED') ||
         (response.status === 500 && error.code === 'INTERNAL_ERROR')
       ) {
@@ -535,7 +540,7 @@ const hasNoStore = (value: string | null): boolean =>
     .map((part) => part.trim().toLowerCase())
     .includes('no-store');
 
-const readBoardStreamError = async (response: Response): Promise<BoardErrorV1 | null> => {
+const readBoardStreamError = async (response: Response): Promise<BoardError | null> => {
   if (!hasNoStore(response.headers.get('cache-control')) || response.body === null) return null;
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -574,11 +579,11 @@ const readBoardStreamError = async (response: Response): Promise<BoardErrorV1 | 
     !Object.hasOwn(decoded, 'error')
   )
     return null;
-  const parsed = BoardErrorParserV1.parse((decoded as { error: unknown }).error);
+  const parsed = BoardErrorParser.parse((decoded as { error: unknown }).error);
   return parsed.ok ? parsed.data.value : null;
 };
 
-const retryAfterMilliseconds = (response: Response, error: BoardErrorV1): number | null => {
+const retryAfterMilliseconds = (response: Response, error: BoardError): number | null => {
   const source = response.headers.get('retry-after');
   if (source === null) return null;
   if (!/^(?:[1-9]|[1-5][0-9]|60)$/.test(source)) return null;
@@ -642,7 +647,9 @@ const consume = async (
       ? BOARD_LIMITS_V1.maxArtifactTotalBytes + 262_144
       : responseKind === 'artifact-network'
         ? 1_048_640
-        : 2_097_152;
+        : responseKind === 'document-json'
+          ? BOARD_DOCUMENT_LIMITS_V2.maxDocumentEnvelopeBytes
+          : 2_097_152;
   const read =
     response.status === 204 && response.body === null
       ? new Uint8Array()

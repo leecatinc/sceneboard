@@ -1,7 +1,10 @@
 import {
+  BOARD_DOCUMENT_LIMITS_V2,
   BOARD_LIMITS_V1,
   BoardEventEnvelopeParserV1,
-  type BoardErrorV1,
+  BoardEventEnvelopeParserV2,
+  type BoardEventEnvelopeV2,
+  type BoardError,
 } from '@sceneboard/board-schema';
 
 import type { BoardEventReconcileInputV1 } from '../events/index.js';
@@ -13,7 +16,7 @@ export type ParsedSseRecordV1 =
 export class SseProtocolErrorV1 extends Error {
   constructor(
     message: string,
-    readonly boardError: BoardErrorV1 | null = null,
+    readonly boardError: BoardError | null = null,
   ) {
     super(message);
     this.name = 'SseProtocolErrorV1';
@@ -28,9 +31,6 @@ export type SseFrameParserV1 = {
 const EVENT_LINE_BYTES = 21;
 const MAX_CURSOR_BYTES = BOARD_LIMITS_V1.maxPageCursorChars;
 const MAX_ID_LINE_BYTES = 4 + MAX_CURSOR_BYTES;
-const MAX_DATA_LINE_BYTES = 6 + BOARD_LIMITS_V1.maxEnvelopeBytes;
-const MAX_RECORD_BYTES_LF = 1_049_123;
-const MAX_RECORD_BYTES_CRLF = 1_049_127;
 const fatalDecoder = new TextDecoder('utf-8', { fatal: true });
 
 const isVisibleAscii = (bytes: Uint8Array): boolean => {
@@ -53,10 +53,10 @@ const decodeAscii = (bytes: Uint8Array): string => {
   return value;
 };
 
-const joinData = (parts: readonly Uint8Array[]): Uint8Array => {
+const joinData = (parts: readonly Uint8Array[], maximumBytes: number): Uint8Array => {
   const byteLength = parts.reduce((total, part) => total + part.byteLength, 0) + parts.length - 1;
-  if (byteLength > BOARD_LIMITS_V1.maxEnvelopeBytes) {
-    throw new SseProtocolErrorV1('SSE data exceeds the D1 envelope byte limit');
+  if (byteLength > maximumBytes) {
+    throw new SseProtocolErrorV1('SSE data exceeds the negotiated envelope byte limit');
   }
   const output = new Uint8Array(byteLength);
   let offset = 0;
@@ -70,7 +70,10 @@ const joinData = (parts: readonly Uint8Array[]): Uint8Array => {
   return output;
 };
 
-const parseRecord = (lines: readonly Uint8Array[]): ParsedSseRecordV1 | null => {
+const parseRecord = (
+  lines: readonly Uint8Array[],
+  documentSchemaVersion: 1 | 2,
+): ParsedSseRecordV1 | null => {
   if (lines.length === 0) return null;
   let commentCount = 0;
   let eventSeen = false;
@@ -78,6 +81,11 @@ const parseRecord = (lines: readonly Uint8Array[]): ParsedSseRecordV1 | null => 
   let dataSeen = false;
   let cursor: string | null = null;
   const dataParts: Uint8Array[] = [];
+  const maximumEnvelopeBytes =
+    documentSchemaVersion === 2
+      ? BOARD_DOCUMENT_LIMITS_V2.maxDocumentEnvelopeBytes
+      : BOARD_LIMITS_V1.maxEnvelopeBytes;
+  const maximumDataLineBytes = 6 + maximumEnvelopeBytes;
 
   for (const line of lines) {
     if (line.byteLength === 0) throw new SseProtocolErrorV1('unexpected empty line in SSE record');
@@ -130,7 +138,7 @@ const parseRecord = (lines: readonly Uint8Array[]): ParsedSseRecordV1 | null => 
       continue;
     }
     if (field === 'data') {
-      if (!eventSeen || line.byteLength > MAX_DATA_LINE_BYTES) {
+      if (!eventSeen || line.byteLength > maximumDataLineBytes) {
         throw new SseProtocolErrorV1('data must follow the event field within its byte limit');
       }
       dataSeen = true;
@@ -141,9 +149,13 @@ const parseRecord = (lines: readonly Uint8Array[]): ParsedSseRecordV1 | null => 
   }
   if (commentCount > 0) return { kind: 'keepalive' };
   if (!eventSeen || !dataSeen) throw new SseProtocolErrorV1('SSE board record is incomplete');
-  const dataBytes = joinData(dataParts);
-  const parsed = BoardEventEnvelopeParserV1.parseBytes(dataBytes);
-  if (!parsed.ok) throw new SseProtocolErrorV1('invalid D1 board event envelope', parsed.error);
+  const dataBytes = joinData(dataParts, maximumEnvelopeBytes);
+  const parsed =
+    documentSchemaVersion === 2
+      ? BoardEventEnvelopeParserV2.parseBytes(dataBytes)
+      : BoardEventEnvelopeParserV1.parseBytes(dataBytes);
+  if (!parsed.ok)
+    throw new SseProtocolErrorV1('invalid negotiated board event envelope', parsed.error);
   const durable =
     parsed.data.value.data.type === 'board.snapshot' ||
     parsed.data.value.data.type === 'board.revision.created' ||
@@ -155,19 +167,25 @@ const parseRecord = (lines: readonly Uint8Array[]): ParsedSseRecordV1 | null => 
   return {
     kind: 'event',
     input: {
-      envelope: parsed.data.value,
+      envelope: parsed.data.value as BoardEventEnvelopeV2,
       canonicalBytes: parsed.data.canonicalBytes,
       cursor,
     },
   };
 };
 
-export const createSseFrameParserV1 = (): SseFrameParserV1 => {
+const createSseFrameParser = (documentSchemaVersion: 1 | 2): SseFrameParserV1 => {
   let pending = new Uint8Array(0);
   let recordLines: Uint8Array[] = [];
   let recordBytes = 0;
   let delimiter: 'lf' | 'crlf' | null = null;
   let firstBytesChecked = false;
+  const maximumEnvelopeBytes =
+    documentSchemaVersion === 2
+      ? BOARD_DOCUMENT_LIMITS_V2.maxDocumentEnvelopeBytes
+      : BOARD_LIMITS_V1.maxEnvelopeBytes;
+  const maximumRecordBytesLf = maximumEnvelopeBytes + 547;
+  const maximumRecordBytesCrlf = maximumEnvelopeBytes + 551;
 
   const push = (chunk: Uint8Array): ParsedSseRecordV1[] => {
     if (!(chunk instanceof Uint8Array)) throw new SseProtocolErrorV1('SSE chunk must be bytes');
@@ -197,11 +215,11 @@ export const createSseFrameParserV1 = (): SseFrameParserV1 => {
       const lineEnd = hasCr ? index - 1 : index;
       const line = combined.slice(lineStart, lineEnd);
       recordBytes += index - lineStart + 1;
-      const maximumRecordBytes = style === 'lf' ? MAX_RECORD_BYTES_LF : MAX_RECORD_BYTES_CRLF;
+      const maximumRecordBytes = style === 'lf' ? maximumRecordBytesLf : maximumRecordBytesCrlf;
       if (recordBytes > maximumRecordBytes)
         throw new SseProtocolErrorV1('SSE record byte limit exceeded');
       if (line.byteLength === 0) {
-        const parsed = parseRecord(recordLines);
+        const parsed = parseRecord(recordLines, documentSchemaVersion);
         if (parsed !== null) output.push(parsed);
         recordLines = [];
         recordBytes = 0;
@@ -214,7 +232,7 @@ export const createSseFrameParserV1 = (): SseFrameParserV1 => {
     }
     pending = combined.slice(lineStart);
     const maximumPendingRecordBytes =
-      delimiter === 'lf' ? MAX_RECORD_BYTES_LF : MAX_RECORD_BYTES_CRLF;
+      delimiter === 'lf' ? maximumRecordBytesLf : maximumRecordBytesCrlf;
     if (recordBytes + pending.byteLength > maximumPendingRecordBytes) {
       throw new SseProtocolErrorV1('SSE record byte limit exceeded');
     }
@@ -229,3 +247,6 @@ export const createSseFrameParserV1 = (): SseFrameParserV1 => {
 
   return { push, finish };
 };
+
+export const createSseFrameParserV1 = (): SseFrameParserV1 => createSseFrameParser(1);
+export const createSseFrameParserV2 = (): SseFrameParserV1 => createSseFrameParser(2);

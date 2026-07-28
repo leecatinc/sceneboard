@@ -1,16 +1,21 @@
 import {
+  BoardErrorParser,
   BoardErrorParserV1,
   BoardOperationResultParserV1,
+  BoardOperationResultParserV2,
   GlobalIdStringParserV1,
   MutationResultParserV1,
+  MutationResultParserV2,
   canonicalizeJsonV1,
   type ArtifactReferenceV1,
   type BoardErrorV1,
+  type BoardError,
   type BoardId,
   type BoardOperationResultDataV1,
   type BoardOperationResultV1,
   type HistoryEntryV1,
   type MutationResultV1,
+  type MutationResultV2,
   type RequestId,
   type RevisionId,
 } from '@sceneboard/board-schema';
@@ -39,6 +44,16 @@ export type BoardHttpSuccessEnvelopeV1 = {
   metadata: BoardHttpMetadataV1;
 };
 
+export type BoardDocumentHttpSuccessEnvelopeV2 = {
+  protocolVersion: 1;
+  type: 'board.http.success';
+  requestId: RequestId;
+  result: MutationResultV2 & {
+    result: Extract<MutationResultV2['result'], { type: 'document.replace' }>;
+  };
+  metadata: { history: null };
+};
+
 export type BoardHttpErrorResponseV1 = { error: BoardErrorV1 };
 
 export type BoardHttpParsedResultV1 =
@@ -54,6 +69,22 @@ export type BoardHttpResultParseFailureReasonV1 =
 
 export type BoardHttpResultParseV1 =
   | { ok: true; value: BoardHttpParsedResultV1 }
+  | { ok: false; reason: BoardHttpResultParseFailureReasonV1 };
+
+export type BoardDocumentHttpResultParseV2 =
+  | {
+      ok: true;
+      value:
+        | { ok: true; value: BoardDocumentHttpSuccessEnvelopeV2 }
+        | { ok: false; error: BoardError };
+    }
+  | { ok: false; reason: BoardHttpResultParseFailureReasonV1 };
+
+export type BoardOperationHttpResultParseV2 =
+  | {
+      ok: true;
+      value: { ok: true; value: BoardHttpSuccessEnvelopeV1 } | { ok: false; error: BoardError };
+    }
   | { ok: false; reason: BoardHttpResultParseFailureReasonV1 };
 
 type ParseExpectation = {
@@ -260,6 +291,114 @@ export const parseBoardHttpResultV1 = (
         requestId: expectation.requestId,
         result,
         metadata: { history },
+      },
+    },
+  };
+};
+
+export const parseBoardOperationHttpResultV2 = (
+  bytes: Uint8Array,
+  expectation: ParseExpectation,
+): BoardOperationHttpResultParseV2 => {
+  const strict = parseStrictJsonBytesV1(bytes);
+  if (!strict.ok) return strict;
+  const decoded = strict.value;
+  if (!isRecord(decoded)) return { ok: false, reason: 'schema' };
+
+  if (hasExactKeys(decoded, ['error'])) {
+    const error = BoardErrorParser.parse(decoded.error);
+    if (!error.ok) return { ok: false, reason: 'schema' };
+    if (expectation.status !== error.data.value.httpStatusHint)
+      return { ok: false, reason: 'correlation' };
+    return { ok: true, value: { ok: false, error: error.data.value } };
+  }
+
+  if (
+    !hasExactKeys(decoded, ['protocolVersion', 'type', 'requestId', 'result', 'metadata']) ||
+    decoded.protocolVersion !== 1 ||
+    decoded.type !== 'board.http.success' ||
+    decoded.requestId !== expectation.requestId ||
+    !isRecord(decoded.metadata) ||
+    !hasExactKeys(decoded.metadata, ['history'])
+  )
+    return { ok: false, reason: 'schema' };
+  const operation = BoardOperationResultParserV2.parse(decoded.result);
+  if (!operation.ok) return { ok: false, reason: 'schema' };
+  const result = operation.data.value;
+  if (result.requestId !== expectation.requestId || !pathCorrelates(result, expectation))
+    return { ok: false, reason: 'correlation' };
+  const historyValue = decoded.metadata.history;
+  const history = historyValue === null ? null : parseHistory(historyValue);
+  if ((historyValue !== null && history === null) || !historyCorrelates(result, history))
+    return { ok: false, reason: 'correlation' };
+  if (expectation.status !== 200) return { ok: false, reason: 'correlation' };
+  return {
+    ok: true,
+    value: {
+      ok: true,
+      value: {
+        protocolVersion: 1,
+        type: 'board.http.success',
+        requestId: expectation.requestId,
+        result,
+        metadata: { history },
+      },
+    },
+  };
+};
+
+export const parseBoardDocumentHttpResultV2 = (
+  bytes: Uint8Array,
+  expectation: {
+    status: number;
+    requestId: RequestId;
+    boardId: BoardId;
+  },
+): BoardDocumentHttpResultParseV2 => {
+  const strict = parseStrictJsonBytesV1(bytes);
+  if (!strict.ok) return strict;
+  const decoded = strict.value;
+  if (!isRecord(decoded)) return { ok: false, reason: 'schema' };
+
+  if (hasExactKeys(decoded, ['error'])) {
+    const error = BoardErrorParser.parse(decoded.error);
+    if (!error.ok) return { ok: false, reason: 'schema' };
+    if (expectation.status !== error.data.value.httpStatusHint)
+      return { ok: false, reason: 'correlation' };
+    return { ok: true, value: { ok: false, error: error.data.value } };
+  }
+
+  if (
+    !hasExactKeys(decoded, ['protocolVersion', 'type', 'requestId', 'result', 'metadata']) ||
+    decoded.protocolVersion !== 1 ||
+    decoded.type !== 'board.http.success' ||
+    decoded.requestId !== expectation.requestId ||
+    !isRecord(decoded.metadata) ||
+    !hasExactKeys(decoded.metadata, ['history']) ||
+    decoded.metadata.history !== null
+  )
+    return { ok: false, reason: 'schema' };
+
+  const parsed = MutationResultParserV2.parse(decoded.result);
+  if (!parsed.ok || parsed.data.value.result.type !== 'document.replace')
+    return { ok: false, reason: 'schema' };
+  const result = parsed.data.value;
+  if (
+    result.requestId !== expectation.requestId ||
+    result.boardId !== expectation.boardId ||
+    expectation.status !== (result.replayed ? 200 : 201)
+  )
+    return { ok: false, reason: 'correlation' };
+  return {
+    ok: true,
+    value: {
+      ok: true,
+      value: {
+        protocolVersion: 1,
+        type: 'board.http.success',
+        requestId: expectation.requestId,
+        result: result as BoardDocumentHttpSuccessEnvelopeV2['result'],
+        metadata: { history: null },
       },
     },
   };

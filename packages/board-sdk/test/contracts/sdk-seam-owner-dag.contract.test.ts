@@ -19,7 +19,7 @@ const tasks: Readonly<Record<string, Task>> = {
     consumes: ['src/index.ts'],
   },
   d6_leaf: {
-    owns: ['src/http/index.ts', 'src/scene-transform/index.ts'],
+    owns: ['src/http/index.ts', 'src/scene-transform/index.ts', 'src/document-transform/index.ts'],
     dependsOn: ['d1_root'],
     consumes: ['src/index.ts'],
   },
@@ -31,6 +31,7 @@ const tasks: Readonly<Record<string, Task>> = {
       'src/sse/index.ts',
       'src/http/index.ts',
       'src/scene-transform/index.ts',
+      'src/document-transform/index.ts',
     ],
   },
   d6_core: {

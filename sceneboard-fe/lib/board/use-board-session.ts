@@ -1,7 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BoardIdParserV1, type BoardSnapshotV1, type RevisionId } from '@sceneboard/board-schema';
+import {
+  BoardIdParserV1,
+  DEFAULT_BOARD_CAPABILITIES_V1,
+  type BoardSnapshot,
+  type BoardSnapshotV1,
+  type RevisionId,
+} from '@sceneboard/board-schema';
 import {
   correlateHistoryNavigationV1,
   RequestEpochV1,
@@ -10,8 +16,11 @@ import {
 } from '@sceneboard/board-sdk/client';
 import {
   createBoardStreamClientV1,
+  createBoardStreamClientV2,
   createBoardStreamTabIdV1,
+  type BoardStreamCallbacksV2,
   type BoardStreamClientV1,
+  type BoardStreamPresenceStateV1,
 } from '@sceneboard/board-sdk/sse';
 import {
   applyDurableEventV1,
@@ -56,6 +65,42 @@ const localError = (result: Exclude<ApiResult<unknown>, { kind: 'ok' }>): SafeBo
   };
 };
 
+const renderableSnapshot = (snapshot: BoardSnapshot): BoardSnapshotV1 => {
+  if ('scene' in snapshot) return snapshot;
+  const page = snapshot.document.pages.find(
+    (candidate) => candidate.pageId === snapshot.document.defaultPageId,
+  );
+  if (page === undefined) throw new TypeError('document default page is unavailable');
+  return {
+    protocolVersion: 1,
+    type: 'board.snapshot',
+    boardId: snapshot.boardId,
+    revision: snapshot.revision,
+    scene: page.scene,
+    hitl: snapshot.hitl,
+    artifacts: snapshot.artifacts,
+    capabilities: {
+      ...DEFAULT_BOARD_CAPABILITIES_V1,
+      supported: {
+        nodeTypes: [...DEFAULT_BOARD_CAPABILITIES_V1.supported.nodeTypes],
+        commandTypes: [...DEFAULT_BOARD_CAPABILITIES_V1.supported.commandTypes],
+        operationTypes: [...DEFAULT_BOARD_CAPABILITIES_V1.supported.operationTypes],
+        eventTypes: [...DEFAULT_BOARD_CAPABILITIES_V1.supported.eventTypes],
+        hitlKinds: [...DEFAULT_BOARD_CAPABILITIES_V1.supported.hitlKinds],
+        artifactRequestCapabilities: [
+          ...DEFAULT_BOARD_CAPABILITIES_V1.supported.artifactRequestCapabilities,
+        ],
+      },
+      limits: { ...DEFAULT_BOARD_CAPABILITIES_V1.limits },
+      grantedCapabilities: [...snapshot.capabilities.grantedCapabilities],
+      allowedArtifactRequestCapabilities: [
+        ...snapshot.capabilities.allowedArtifactRequestCapabilities,
+      ],
+    },
+    lastEventSequence: snapshot.lastEventSequence,
+  };
+};
+
 export function useBoardSession(boardIdValue: string) {
   const [phase, setPhase] = useState<BoardScreenPhase>('loading');
   const [state, setState] = useState<LiveBoardStateV1 | null>(null);
@@ -69,63 +114,68 @@ export function useBoardSession(boardIdValue: string) {
   const apiOrigin = process.env.NEXT_PUBLIC_BOARD_API_URL;
 
   const startStream = useCallback(
-    async (snapshot: BoardSnapshotV1) => {
+    async (snapshot: BoardSnapshot) => {
       if (apiOrigin === undefined) throw new TypeError('NEXT_PUBLIC_BOARD_API_URL is required');
       if (stream.current !== null) await stream.current.stop('context_loss');
       const epoch = routeEpoch.current.advance();
-      const client = createBoardStreamClientV1({
+      const callbacks: BoardStreamCallbacksV2 = {
+        replaceSnapshot(next) {
+          if (!routeEpoch.current.isCurrent(epoch)) throw new TypeError('stale route callback');
+          setState((current) =>
+            current === null ? createLiveBoardStateV1(next) : replaceLiveSnapshotV1(current, next),
+          );
+        },
+        async refreshRevisionSnapshot() {
+          if (!routeEpoch.current.isCurrent(epoch)) throw new TypeError('stale route callback');
+          const result = await api.getBoard(snapshot.boardId);
+          if (!routeEpoch.current.isCurrent(epoch) || result.kind !== 'ok')
+            throw new TypeError('revision refresh was not admitted');
+          setState((current) =>
+            current === null
+              ? createLiveBoardStateV1(result.value.snapshot)
+              : replaceLiveSnapshotV1(current, result.value.snapshot),
+          );
+          return {
+            kind: 'authoritative_revision_snapshot',
+            lastEventSequence: result.value.snapshot.lastEventSequence,
+          };
+        },
+        applyDurableEvent(event) {
+          if (!routeEpoch.current.isCurrent(epoch)) throw new TypeError('stale route callback');
+          setState((current) => {
+            if (current === null) throw new TypeError('live state is unavailable');
+            return applyDurableEventV1(current, event);
+          });
+        },
+        replacePresence(presence) {
+          if (!routeEpoch.current.isCurrent(epoch)) throw new TypeError('stale route callback');
+          setState((current) =>
+            current === null ? current : replacePresenceV1(current, presence),
+          );
+        },
+        onState(connection) {
+          if (!routeEpoch.current.isCurrent(epoch)) throw new TypeError('stale route callback');
+          setState((current) =>
+            current === null ? current : replaceConnectionStateV1(current, connection),
+          );
+        },
+      };
+      const initialPresenceState: BoardStreamPresenceStateV1 =
+        document.visibilityState === 'visible' ? 'online' : 'away';
+      const common = {
         apiOrigin,
         boardId: snapshot.boardId,
         tabId: createBoardStreamTabIdV1(),
-        initialPresenceState: document.visibilityState === 'visible' ? 'online' : 'away',
+        initialPresenceState,
         minimumSnapshotSequence: snapshot.lastEventSequence,
         dispatch: authSessionClient().sharedCoordinator(),
         routeSignal: new AbortController().signal,
-        callbacks: {
-          replaceSnapshot(next) {
-            if (!routeEpoch.current.isCurrent(epoch)) throw new TypeError('stale route callback');
-            setState((current) =>
-              current === null
-                ? createLiveBoardStateV1(next)
-                : replaceLiveSnapshotV1(current, next),
-            );
-          },
-          async refreshRevisionSnapshot() {
-            if (!routeEpoch.current.isCurrent(epoch)) throw new TypeError('stale route callback');
-            const result = await api.getBoard(snapshot.boardId);
-            if (!routeEpoch.current.isCurrent(epoch) || result.kind !== 'ok')
-              throw new TypeError('revision refresh was not admitted');
-            setState((current) =>
-              current === null
-                ? createLiveBoardStateV1(result.value.snapshot)
-                : replaceLiveSnapshotV1(current, result.value.snapshot),
-            );
-            return {
-              kind: 'authoritative_revision_snapshot',
-              lastEventSequence: result.value.snapshot.lastEventSequence,
-            };
-          },
-          applyDurableEvent(event) {
-            if (!routeEpoch.current.isCurrent(epoch)) throw new TypeError('stale route callback');
-            setState((current) => {
-              if (current === null) throw new TypeError('live state is unavailable');
-              return applyDurableEventV1(current, event);
-            });
-          },
-          replacePresence(presence) {
-            if (!routeEpoch.current.isCurrent(epoch)) throw new TypeError('stale route callback');
-            setState((current) =>
-              current === null ? current : replacePresenceV1(current, presence),
-            );
-          },
-          onState(connection) {
-            if (!routeEpoch.current.isCurrent(epoch)) throw new TypeError('stale route callback');
-            setState((current) =>
-              current === null ? current : replaceConnectionStateV1(current, connection),
-            );
-          },
-        },
-      });
+        callbacks,
+      };
+      const client =
+        'document' in snapshot
+          ? createBoardStreamClientV2({ ...common, documentSchemaVersion: 2 })
+          : createBoardStreamClientV1(common);
       stream.current = client;
       const visibility = () =>
         client.setPresenceState(document.visibilityState === 'visible' ? 'online' : 'away');
@@ -256,7 +306,7 @@ export function useBoardSession(boardIdValue: string) {
     title,
     state,
     error,
-    visibleSnapshot: state === null ? null : visibleBoardSnapshotV1(state),
+    visibleSnapshot: state === null ? null : renderableSnapshot(visibleBoardSnapshotV1(state)),
     liveUpdated: state === null ? false : hasLiveUpdateV1(state),
     retry: load,
     previous,

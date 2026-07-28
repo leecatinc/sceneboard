@@ -1,7 +1,7 @@
 import test from 'node:test';
 import { assertPublisher } from './certification-publisher.test-helper';
 
-test('D5 publishes exactly seven disjoint browser API selectors', () => {
+test('D5 publishes exactly nine disjoint browser API selectors', () => {
   assertPublisher({
     name: 'd5-board-api-tuples.v1.json',
     owner: 'D5',
@@ -14,6 +14,8 @@ test('D5 publishes exactly seven disjoint browser API selectors', () => {
       'D5-BOARD-RENAME',
       'D5-HISTORY-LIST',
       'D5-HISTORY-GET',
+      'D5-DOCUMENT-REPLACE',
+      'D5-DOCUMENT-TRANSFORM',
     ],
     memberNames: [
       'listBoards',
@@ -23,6 +25,8 @@ test('D5 publishes exactly seven disjoint browser API selectors', () => {
       'renameBoard',
       'listHistory',
       'getHistoryRevision',
+      'replaceDocument',
+      'transformDocument',
     ],
   });
 });

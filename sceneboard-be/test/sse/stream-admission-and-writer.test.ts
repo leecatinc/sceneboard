@@ -34,7 +34,16 @@ test('stream admission accepts only the exact browser fetch shape', () => {
       tabId: 'AAAAAAAAAAAAAAAAAAAAAA',
       presenceState: 'online',
       cursor: 'opaque_cursor',
+      documentSchemaVersion: 1,
     },
+  );
+  const v2 = request();
+  v2.query = { ...v2.query, documentSchemaVersion: '2' } as never;
+  assert.equal(guard.canActivate(makeContext(v2) as never), true);
+  assert.equal(
+    (v2 as typeof v2 & { boardStreamAdmission: { documentSchemaVersion: number } })
+      .boardStreamAdmission.documentSchemaVersion,
+    2,
   );
 
   for (const mutate of [
@@ -49,6 +58,12 @@ test('stream admission accepts only the exact browser fetch shape', () => {
     },
     (value: ReturnType<typeof request>) => {
       value.query = { ...value.query, tabId: ['a', 'b'] } as never;
+    },
+    (value: ReturnType<typeof request>) => {
+      value.query = { ...value.query, documentSchemaVersion: '1' } as never;
+    },
+    (value: ReturnType<typeof request>) => {
+      value.query = { ...value.query, documentSchemaVersion: ['2', '2'] } as never;
     },
     (value: ReturnType<typeof request>) => {
       value.headers['last-event-id'] = 'bad\nvalue';

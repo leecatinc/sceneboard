@@ -1,4 +1,4 @@
-import type { BoardSnapshotV1, PresenceSummaryV1, RevisionId } from '@sceneboard/board-schema';
+import type { BoardSnapshot, PresenceSummaryV1, RevisionId } from '@sceneboard/board-schema';
 import type { BoardIncrementalDurableEnvelopeV1 } from '../events/index.js';
 import type { BoardStreamStateV1 } from '../sse/index.js';
 
@@ -8,13 +8,13 @@ export type BoardViewModeV1 =
   | { kind: 'live' }
   | {
       kind: 'history';
-      snapshot: BoardSnapshotV1;
+      snapshot: BoardSnapshot;
       navigation: CorrelatedHistoryNavigationV1;
       observedLiveRevisionId: RevisionId;
     };
 
 export type LiveBoardStateV1 = {
-  liveSnapshot: BoardSnapshotV1;
+  liveSnapshot: BoardSnapshot;
   mode: BoardViewModeV1;
   presence: readonly PresenceSummaryV1[];
   connection: BoardStreamStateV1;
@@ -22,7 +22,7 @@ export type LiveBoardStateV1 = {
   navigationError: SafeBoardUiErrorV1 | null;
 };
 
-export const createLiveBoardStateV1 = (snapshot: BoardSnapshotV1): LiveBoardStateV1 => ({
+export const createLiveBoardStateV1 = (snapshot: BoardSnapshot): LiveBoardStateV1 => ({
   liveSnapshot: snapshot,
   mode: { kind: 'live' },
   presence: [],
@@ -31,7 +31,7 @@ export const createLiveBoardStateV1 = (snapshot: BoardSnapshotV1): LiveBoardStat
   navigationError: null,
 });
 
-export const visibleBoardSnapshotV1 = (state: LiveBoardStateV1): BoardSnapshotV1 =>
+export const visibleBoardSnapshotV1 = (state: LiveBoardStateV1): BoardSnapshot =>
   state.mode.kind === 'history' ? state.mode.snapshot : state.liveSnapshot;
 
 export const hasLiveUpdateV1 = (state: LiveBoardStateV1): boolean =>
@@ -40,7 +40,7 @@ export const hasLiveUpdateV1 = (state: LiveBoardStateV1): boolean =>
 
 export const replaceLiveSnapshotV1 = (
   state: LiveBoardStateV1,
-  snapshot: BoardSnapshotV1,
+  snapshot: BoardSnapshot,
 ): LiveBoardStateV1 => ({ ...state, liveSnapshot: snapshot });
 
 export const replacePresenceV1 = (
@@ -103,7 +103,7 @@ export const beginHistoryNavigationV1 = (state: LiveBoardStateV1): LiveBoardStat
 
 export const enterHistoryV1 = (
   state: LiveBoardStateV1,
-  snapshot: BoardSnapshotV1,
+  snapshot: BoardSnapshot,
   navigation: CorrelatedHistoryNavigationV1,
 ): LiveBoardStateV1 => {
   if (
@@ -132,7 +132,7 @@ export const failHistoryNavigationV1 = (
 
 export const enterLatestV1 = (
   state: LiveBoardStateV1,
-  snapshot: BoardSnapshotV1,
+  snapshot: BoardSnapshot,
 ): LiveBoardStateV1 => {
   if (snapshot.boardId !== state.liveSnapshot.boardId)
     throw new TypeError('latest snapshot targets another board');

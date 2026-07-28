@@ -3,12 +3,19 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
+  adaptLegacySceneToDocumentV2,
   BoardEventEnvelopeParserV1,
+  BoardEventEnvelopeParserV2,
+  DEFAULT_BOARD_CAPABILITIES_V2,
   canonicalizeJsonV1,
   type BoardEventEnvelopeV1,
 } from '@sceneboard/board-schema';
 
-import { createSseFrameParserV1, SseProtocolErrorV1 } from '../../src/sse/sse-frame-parser.js';
+import {
+  createSseFrameParserV1,
+  createSseFrameParserV2,
+  SseProtocolErrorV1,
+} from '../../src/sse/sse-frame-parser.js';
 
 const fixtureRoot = new URL('../../../board-schema/test/fixtures/valid/', import.meta.url);
 const encoder = new TextEncoder();
@@ -71,6 +78,57 @@ test('supports arbitrary transport fragmentation without decoding partial UTF-8'
   parser.finish();
   assert.equal(records.length, 1);
   assert.equal(records[0]?.kind, 'event');
+});
+
+test('binds V2 document snapshots to the 32 MiB parser and keeps the V1 parser fail-closed', () => {
+  const source = readEvent('event-board-snapshot.v1.json');
+  assert.equal(source.data.type, 'board.snapshot');
+  if (source.data.type !== 'board.snapshot') return;
+  const base = source.data.snapshot;
+  const { scene, capabilities, ...shared } = base;
+  const snapshot = {
+    ...shared,
+    document: adaptLegacySceneToDocumentV2({ boardId: base.boardId, scene }),
+    capabilities: {
+      ...DEFAULT_BOARD_CAPABILITIES_V2,
+      supported: {
+        ...DEFAULT_BOARD_CAPABILITIES_V2.supported,
+        nodeTypes: [...DEFAULT_BOARD_CAPABILITIES_V2.supported.nodeTypes],
+        commandTypes: [...DEFAULT_BOARD_CAPABILITIES_V2.supported.commandTypes],
+        operationTypes: [...DEFAULT_BOARD_CAPABILITIES_V2.supported.operationTypes],
+        eventTypes: [...DEFAULT_BOARD_CAPABILITIES_V2.supported.eventTypes],
+        hitlKinds: [...DEFAULT_BOARD_CAPABILITIES_V2.supported.hitlKinds],
+        artifactRequestCapabilities: [
+          ...DEFAULT_BOARD_CAPABILITIES_V2.supported.artifactRequestCapabilities,
+        ],
+      },
+      limits: { ...DEFAULT_BOARD_CAPABILITIES_V2.limits },
+      grantedCapabilities: [...capabilities.grantedCapabilities],
+      allowedArtifactRequestCapabilities: [...capabilities.allowedArtifactRequestCapabilities],
+    },
+  };
+  const parsed = BoardEventEnvelopeParserV2.parse({
+    ...source,
+    data: { type: 'board.snapshot', snapshot },
+  });
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) return;
+  const canonical = canonicalizeJsonV1(parsed.data.value);
+  assert.equal(canonical.ok, true);
+  if (!canonical.ok) return;
+  const bytes = concat(
+    encoder.encode('event: board.event.v1\nid: cursor_v2\ndata: '),
+    canonical.data.canonicalBytes,
+    encoder.encode('\n\n'),
+  );
+  const v2 = createSseFrameParserV2();
+  const records = v2.push(bytes);
+  v2.finish();
+  assert.equal(records[0]?.kind, 'event');
+  if (records[0]?.kind === 'event' && records[0].input.envelope.data.type === 'board.snapshot') {
+    assert.equal('document' in records[0].input.envelope.data.snapshot, true);
+  }
+  assert.throws(() => createSseFrameParserV1().push(bytes), SseProtocolErrorV1);
 });
 
 test('accepts empty and UTF-8 comment keepalives without producing board data', () => {

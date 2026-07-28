@@ -1,4 +1,4 @@
-import type { BoardErrorV1, BoardId } from '@sceneboard/board-schema';
+import type { BoardError, BoardId } from '@sceneboard/board-schema';
 
 import type {
   BoardIncrementalDurableEnvelopeV1,
@@ -15,6 +15,7 @@ export type BoardStreamOpenInputV1 = {
   presenceState: BoardStreamPresenceStateV1;
   cursor: string | null;
   signal: AbortSignal;
+  documentSchemaVersion?: 1 | 2;
 };
 
 export type BoardStreamDispatchResultV1<T> =
@@ -22,20 +23,20 @@ export type BoardStreamDispatchResultV1<T> =
   | {
       kind: 'reconciliation_required';
       sourceStatus: 401 | 503;
-      error: BoardErrorV1;
+      error: BoardError;
       acquisitionGeneration: string;
       retryAfterMs: number | null;
     }
   | {
       kind: 'http_error';
-      sourceStatus: 400 | 403 | 404 | 429 | 500;
-      error: BoardErrorV1;
+      sourceStatus: 400 | 403 | 404 | 409 | 429 | 500;
+      error: BoardError;
       retryAfterMs: number | null;
     }
   | {
       kind: 'protocol_error';
       sourceStatus: number | null;
-      error: BoardErrorV1 | null;
+      error: BoardError | null;
     };
 
 export type BoardStreamDispatchPortV1 = {
@@ -63,21 +64,22 @@ export type BoardStreamFailureV1 =
   | {
       kind: 'reconciliation_required';
       sourceStatus: 401 | 503;
-      error: BoardErrorV1;
+      error: BoardError;
       acquisitionGeneration: string;
       retryAfterMs: number | null;
     }
-  | { kind: 'forbidden'; sourceStatus: 403; error: BoardErrorV1 }
-  | { kind: 'not_found'; sourceStatus: 404; error: BoardErrorV1 }
-  | { kind: 'invalid_request'; sourceStatus: 400; error: BoardErrorV1 }
-  | { kind: 'rate_limited'; sourceStatus: 429; error: BoardErrorV1; retryAfterMs: number }
-  | { kind: 'internal_error'; sourceStatus: 500; error: BoardErrorV1 }
-  | { kind: 'server_error'; error: BoardErrorV1; retryable: boolean; retryAfterMs: number | null }
+  | { kind: 'forbidden'; sourceStatus: 403; error: BoardError }
+  | { kind: 'not_found'; sourceStatus: 404; error: BoardError }
+  | { kind: 'document_version_mismatch'; sourceStatus: 409; error: BoardError }
+  | { kind: 'invalid_request'; sourceStatus: 400; error: BoardError }
+  | { kind: 'rate_limited'; sourceStatus: 429; error: BoardError; retryAfterMs: number }
+  | { kind: 'internal_error'; sourceStatus: 500; error: BoardError }
+  | { kind: 'server_error'; error: BoardError; retryable: boolean; retryAfterMs: number | null }
   | {
       kind: 'consumer_callback';
       callback: 'snapshot' | 'revision_snapshot' | 'durable_event' | 'presence' | 'state';
     }
-  | { kind: 'protocol'; sourceStatus: number | null; error: BoardErrorV1 | null }
+  | { kind: 'protocol'; sourceStatus: number | null; error: BoardError | null }
   | { kind: 'transport'; retryable: true; reason: 'network' | 'heartbeat_timeout' | 'offline' };
 
 export type BoardStreamStateV1 =
@@ -110,6 +112,7 @@ export type BoardStreamStateV1 =
           kind:
             | 'forbidden'
             | 'not_found'
+            | 'document_version_mismatch'
             | 'invalid_request'
             | 'internal_error'
             | 'server_error'
@@ -128,6 +131,15 @@ export type BoardStreamClientOptionsV1 = {
   dispatch: BoardStreamDispatchPortV1;
   callbacks: BoardStreamCallbacksV1;
   routeSignal: AbortSignal;
+};
+
+export type BoardStreamCallbacksV2 = Omit<BoardStreamCallbacksV1, 'replaceSnapshot'> & {
+  replaceSnapshot(snapshot: import('@sceneboard/board-schema').BoardSnapshot): void | Promise<void>;
+};
+
+export type BoardStreamClientOptionsV2 = Omit<BoardStreamClientOptionsV1, 'callbacks'> & {
+  documentSchemaVersion: 2;
+  callbacks: BoardStreamCallbacksV2;
 };
 
 export type BoardStreamRunResultV1 =

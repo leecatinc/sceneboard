@@ -4,6 +4,8 @@ import test from 'node:test';
 
 import {
   BoardOperationRequestParserV1,
+  DEFAULT_BOARD_CAPABILITIES_V2,
+  adaptLegacySceneToDocumentV2,
   type ArtifactReferenceV1,
   type BoardErrorV1,
   type BoardId,
@@ -12,6 +14,8 @@ import {
   type BoardOperationRequestV1,
   type BoardOperationResultV1,
   type RequestId,
+  type MutationRequestV2,
+  type MutationResultV2,
 } from '@sceneboard/board-schema';
 
 import {
@@ -167,6 +171,122 @@ test('artifact put preserves the finalized eight-key D7 source body and request 
   });
   assert.equal(response.ok, true);
   if (response.ok) assert.equal(response.result.result.type, 'artifact.publish');
+});
+
+test('document mutation binds the V2 media profile, 201/200 replay status, and nested result', async () => {
+  const document = fixture<MutationRequestV2['command'] & { type: 'document.replace' }>(
+    'document-basic.v2.json',
+  );
+  const request = {
+    protocolVersion: 1,
+    requestId: 'request_1',
+    idempotencyKey: 'idempotency-key-1',
+    boardId: 'board_1',
+    expectedRevisionId: 'revision_1',
+    command: { type: 'document.replace', document },
+  } as unknown as MutationRequestV2 & {
+    command: Extract<MutationRequestV2['command'], { type: 'document.replace' }>;
+  };
+  const responseResult = {
+    protocolVersion: 1,
+    type: 'mutation.result',
+    requestId: request.requestId,
+    boardId: request.boardId,
+    replayed: false,
+    eventIds: [],
+    result: {
+      type: 'document.replace',
+      revision: {
+        revisionId: 'revision_2',
+        revisionNumber: 2,
+        createdAt: '2026-07-16T00:01:00.000Z',
+      },
+      originType: 'document.replace',
+      sourceRevisionId: null,
+      document,
+    },
+  } as unknown as MutationResultV2;
+  const fetchValue: typeof fetch = async (input, init) => {
+    assert.equal(new URL(input.toString()).pathname, '/api/v1/boards/board_1/mutations');
+    assert.equal(
+      new Headers(init?.headers).get('content-type'),
+      'application/vnd.sceneboard.document+json;version=2',
+    );
+    assert.deepEqual(JSON.parse(new TextDecoder().decode(init?.body as ArrayBuffer)), request);
+    return new Response(
+      JSON.stringify({
+        protocolVersion: 1,
+        type: 'board.http.success',
+        requestId: request.requestId,
+        result: responseResult,
+        metadata: { history: null },
+      }),
+      {
+        status: 201,
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'X-Request-Id': request.requestId,
+        },
+      },
+    );
+  };
+  const result = await client(fetchValue).mutateDocument(request);
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.result.result.type, 'document.replace');
+    assert.deepEqual(result.result.result.document, document);
+  }
+});
+
+test('document read uses the 32 MiB parser profile and preserves the snapshot branch', async () => {
+  const request = operationRequest('operation-request-board-get.v1.json', 'board.get');
+  const responseResult = fixture<BoardOperationResultV1>('operation-result-board-get.v1.json');
+  assert.equal(responseResult.result.type, 'board.get');
+  if (responseResult.result.type !== 'board.get') return;
+  const legacy = responseResult.result.snapshot;
+  assert.equal('scene' in legacy, true);
+  if (!('scene' in legacy)) return;
+  const documentResult: BoardOperationResultV1 = {
+    ...responseResult,
+    result: {
+      ...responseResult.result,
+      snapshot: {
+        ...legacy,
+        document: adaptLegacySceneToDocumentV2({
+          boardId: legacy.boardId,
+          scene: legacy.scene,
+        }),
+        capabilities: {
+          ...DEFAULT_BOARD_CAPABILITIES_V2,
+          supported: {
+            nodeTypes: [...DEFAULT_BOARD_CAPABILITIES_V2.supported.nodeTypes],
+            commandTypes: [...DEFAULT_BOARD_CAPABILITIES_V2.supported.commandTypes],
+            operationTypes: [...DEFAULT_BOARD_CAPABILITIES_V2.supported.operationTypes],
+            eventTypes: [...DEFAULT_BOARD_CAPABILITIES_V2.supported.eventTypes],
+            hitlKinds: [...DEFAULT_BOARD_CAPABILITIES_V2.supported.hitlKinds],
+            artifactRequestCapabilities: [
+              ...DEFAULT_BOARD_CAPABILITIES_V2.supported.artifactRequestCapabilities,
+            ],
+          },
+          limits: { ...DEFAULT_BOARD_CAPABILITIES_V2.limits },
+          grantedCapabilities: [...legacy.capabilities.grantedCapabilities],
+          allowedArtifactRequestCapabilities: [
+            ...legacy.capabilities.allowedArtifactRequestCapabilities,
+          ],
+        },
+        scene: undefined,
+      } as never,
+    },
+  };
+  delete (documentResult.result.snapshot as unknown as { scene?: unknown }).scene;
+  const fetchValue: typeof fetch = async (_input, init) => {
+    assert.equal(new Headers(init?.headers).has('content-type'), false);
+    return successResponse(documentResult);
+  };
+  const result = await client(fetchValue).getDocumentBoard(request);
+  assert.equal(result.ok, true);
+  if (result.ok && result.result.result.type === 'board.get')
+    assert.equal('document' in result.result.result.snapshot, true);
 });
 
 test('preserves an exact D1 error and never retries a terminal authorization result', async () => {

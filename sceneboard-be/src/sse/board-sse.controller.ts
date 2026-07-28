@@ -47,6 +47,7 @@ export class BoardSseController {
       allowedOrigin: this.environment.browserOrigin,
       request,
       response,
+      documentSchemaVersion: admission.documentSchemaVersion,
     });
   }
 }

@@ -24872,6 +24872,10 @@ var BOARD_MUTATION_COMMAND_TYPES_V1 = [
   "artifact.publish",
   "artifact.stop"
 ];
+var BOARD_MUTATION_COMMAND_TYPES_V2 = [
+  ...BOARD_MUTATION_COMMAND_TYPES_V1,
+  "document.replace"
+];
 var BOARD_OPERATION_TYPES_V1 = [
   "board.list",
   "board.get",
@@ -24936,6 +24940,11 @@ var BOARD_ERROR_CODES_V1 = [
   "SERVICE_UNAVAILABLE",
   "INTERNAL_ERROR"
 ];
+var BOARD_ERROR_CODES_V2 = [
+  ...BOARD_ERROR_CODES_V1,
+  "DOCUMENT_VERSION_MISMATCH",
+  "INVALID_DOCUMENT"
+];
 
 // packages/board-schema/src/limits.ts
 var MAX_ENVELOPE_BYTES = 1048576;
@@ -24976,6 +24985,11 @@ var MAX_HITL_RESPONSE_BYTES = 65536;
 var MAX_PAGE_SIZE = 100;
 var MAX_PAGE_CURSOR_CHARS = 512;
 var MAX_HITL_WAIT_MS = 3e4;
+var MAX_DOCUMENT_PAGES = 100;
+var MAX_DOCUMENT_BYTES = 20971520;
+var MAX_DOCUMENT_PAGE_BYTES = 1048576;
+var MAX_DOCUMENT_NODES = 5e3;
+var MAX_DOCUMENT_ENVELOPE_BYTES = 33554432;
 var BOARD_LIMITS_V1 = {
   maxEnvelopeBytes: MAX_ENVELOPE_BYTES,
   maxSceneBytes: MAX_SCENE_BYTES,
@@ -25015,6 +25029,14 @@ var BOARD_LIMITS_V1 = {
   maxPageSize: MAX_PAGE_SIZE,
   maxPageCursorChars: MAX_PAGE_CURSOR_CHARS,
   maxHitlWaitMs: MAX_HITL_WAIT_MS
+};
+var BOARD_DOCUMENT_LIMITS_V2 = {
+  ...BOARD_LIMITS_V1,
+  maxDocumentPages: MAX_DOCUMENT_PAGES,
+  maxDocumentBytes: MAX_DOCUMENT_BYTES,
+  maxDocumentPageBytes: MAX_DOCUMENT_PAGE_BYTES,
+  maxDocumentNodes: MAX_DOCUMENT_NODES,
+  maxDocumentEnvelopeBytes: MAX_DOCUMENT_ENVELOPE_BYTES
 };
 
 // packages/board-schema/src/json.ts
@@ -25060,6 +25082,7 @@ var EventIdSchemaV1 = globalId("EventId");
 var ArtifactIdSchemaV1 = globalId("ArtifactId");
 var ArtifactVersionIdSchemaV1 = globalId("ArtifactVersionId");
 var HitlRequestIdSchemaV1 = globalId("HitlRequestId");
+var PageIdSchemaV1 = globalId("PageId");
 var NodeIdSchemaV1 = z.string().regex(LOCAL_ID_PATTERN).brand();
 var TabIdSchemaV1 = z.string().regex(LOCAL_ID_PATTERN).brand();
 var LocalFieldIdSchemaV1 = z.string().regex(LOCAL_ID_PATTERN).brand();
@@ -25068,6 +25091,10 @@ var TimestampSchemaV1 = z.string().regex(TIMESTAMP_PATTERN).refine((value) => {
   const instant = Date.parse(value);
   return Number.isFinite(instant) && new Date(instant).toISOString() === value;
 }).brand();
+var createScalarTextSchemaV1 = (minimum, maximum) => z.string().refine((value) => !hasLoneSurrogateV1(value), "lone surrogate is not allowed").refine((value) => {
+  const count = scalarLengthV1(value);
+  return count >= minimum && count <= maximum;
+}, `must contain ${minimum}-${maximum} Unicode scalar values`);
 var ShortTextSchemaV1 = z.string().refine((value) => !hasLoneSurrogateV1(value), "lone surrogate is not allowed").refine((value) => scalarLengthV1(value) >= 1, "must contain at least one Unicode scalar value").refine(
   (value) => scalarLengthV1(value) <= MAX_TITLE_CHARS,
   "[LIMIT:maxTitleChars] text is too long"
@@ -25080,7 +25107,8 @@ var RevisionOriginTypeSchemaV1 = z.enum([
   "board.create",
   "scene.replace",
   "scene.clear",
-  "scene.restore"
+  "scene.restore",
+  "document.replace"
 ]);
 var RevisionSummarySchemaV1 = z.object({
   revisionId: RevisionIdSchemaV1,
@@ -25088,25 +25116,78 @@ var RevisionSummarySchemaV1 = z.object({
   createdAt: TimestampSchemaV1
 }).strict();
 
-// packages/board-schema/src/actors.ts
-var ClientGrantCapabilitySchemaV1 = z.enum(CLIENT_GRANT_CAPABILITIES_V1);
-var isSortedUniqueScopesV1 = (scopes) => scopes.every((scope, index) => index === 0 || (scopes[index - 1] ?? "") < scope);
-var ActorContextSchemaV1 = z.object({
-  principalKind: z.enum(["user", "mcp_client", "service"]),
-  principalId: PrincipalIdSchemaV1,
-  grantId: GrantIdSchemaV1.nullable(),
-  scopes: z.array(ClientGrantCapabilitySchemaV1).superRefine((scopes, context) => {
-    if (!isSortedUniqueScopesV1(scopes)) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "scopes must be sorted and unique"
-      });
-    }
-  })
+// packages/board-schema/src/nodes/base.ts
+var NodeBaseShapeV1 = {
+  id: NodeIdSchemaV1,
+  title: ShortTextSchemaV1.optional()
+};
+var PointSchemaV1 = z.object({ x: z.number().finite(), y: z.number().finite() }).strict();
+
+// packages/board-schema/src/nodes/drawing.ts
+var color = z.string().regex(/^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$/);
+var DrawingStyleSchemaV1 = z.object({
+  stroke: color.optional(),
+  fill: color.optional(),
+  strokeWidth: z.number().finite().positive().optional(),
+  opacity: z.number().finite().min(0).max(1).optional()
 }).strict();
-var ActorReferenceSchemaV1 = z.object({
-  principalKind: z.enum(["user", "mcp_client", "service"]),
-  principalId: PrincipalIdSchemaV1
+var PathSchemaV1 = z.object({
+  id: LocalFieldIdSchemaV1,
+  type: z.literal("path"),
+  points: z.array(PointSchemaV1).min(2),
+  closed: z.boolean(),
+  style: DrawingStyleSchemaV1
+}).strict();
+var RectSchemaV1 = z.object({
+  id: LocalFieldIdSchemaV1,
+  type: z.literal("rect"),
+  x: z.number().finite(),
+  y: z.number().finite(),
+  width: z.number().finite().positive(),
+  height: z.number().finite().positive(),
+  style: DrawingStyleSchemaV1
+}).strict();
+var EllipseSchemaV1 = z.object({
+  id: LocalFieldIdSchemaV1,
+  type: z.literal("ellipse"),
+  cx: z.number().finite(),
+  cy: z.number().finite(),
+  rx: z.number().finite().positive(),
+  ry: z.number().finite().positive(),
+  style: DrawingStyleSchemaV1
+}).strict();
+var LineSchemaV1 = z.object({
+  id: LocalFieldIdSchemaV1,
+  type: z.literal("line"),
+  from: PointSchemaV1,
+  to: PointSchemaV1,
+  style: DrawingStyleSchemaV1
+}).strict();
+var TextSchemaV1 = z.object({
+  id: LocalFieldIdSchemaV1,
+  type: z.literal("text"),
+  x: z.number().finite(),
+  y: z.number().finite(),
+  text: ShortTextSchemaV1,
+  style: DrawingStyleSchemaV1
+}).strict();
+var DrawingElementSchemaV1 = z.discriminatedUnion("type", [
+  PathSchemaV1,
+  RectSchemaV1,
+  EllipseSchemaV1,
+  LineSchemaV1,
+  TextSchemaV1
+]);
+var DrawingNodeSchemaV1 = z.object({
+  ...NodeBaseShapeV1,
+  type: z.literal("content.drawing"),
+  viewBox: z.object({
+    x: z.number().finite(),
+    y: z.number().finite(),
+    width: z.number().finite().positive(),
+    height: z.number().finite().positive()
+  }).strict(),
+  elements: z.array(DrawingElementSchemaV1).max(MAX_DRAWING_ELEMENTS)
 }).strict();
 
 // packages/board-schema/src/artifacts.ts
@@ -25184,440 +25265,6 @@ var ArtifactRuntimeSummarySchemaV1 = z.object({
       message: "failure must match artifact status"
     });
 });
-
-// packages/board-schema/src/capabilities.ts
-var exactCatalog = (catalog) => z.array(z.enum(catalog)).length(catalog.length).superRefine((values, context) => {
-  if (values.some((value, index) => value !== catalog[index]))
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "catalog order must match protocol"
-    });
-});
-var sortedSubset = (catalog) => z.array(z.enum(catalog)).superRefine((values, context) => {
-  for (let index = 1; index < values.length; index += 1)
-    if ((values[index - 1] ?? "") >= (values[index] ?? "")) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "capabilities must be sorted and unique"
-      });
-      break;
-    }
-});
-var BoardLimitsSchemaV1 = z.object(
-  Object.fromEntries(
-    Object.entries(BOARD_LIMITS_V1).map(([key, value]) => [key, z.literal(value)])
-  )
-).strict();
-var BoardCapabilitiesSchemaV1 = z.object({
-  protocolVersion: z.literal(PROTOCOL_VERSION),
-  type: z.literal("board.capabilities"),
-  schemaVersion: z.literal(PROTOCOL_SEMVER),
-  compatibilityMode: z.literal("frozen-major"),
-  supported: z.object({
-    nodeTypes: exactCatalog(NODE_TYPES_V1),
-    commandTypes: exactCatalog(BOARD_MUTATION_COMMAND_TYPES_V1),
-    operationTypes: exactCatalog(BOARD_OPERATION_TYPES_V1),
-    eventTypes: exactCatalog(BOARD_EVENT_TYPES_V1),
-    hitlKinds: exactCatalog(HITL_KINDS_V1),
-    artifactRequestCapabilities: exactCatalog(ARTIFACT_REQUEST_CAPABILITIES_V1)
-  }).strict(),
-  limits: BoardLimitsSchemaV1,
-  grantedCapabilities: sortedSubset(CLIENT_GRANT_CAPABILITIES_V1),
-  allowedArtifactRequestCapabilities: sortedSubset(ARTIFACT_REQUEST_CAPABILITIES_V1)
-}).strict();
-var DEFAULT_BOARD_CAPABILITIES_V1 = {
-  protocolVersion: PROTOCOL_VERSION,
-  type: "board.capabilities",
-  schemaVersion: PROTOCOL_SEMVER,
-  compatibilityMode: "frozen-major",
-  supported: {
-    nodeTypes: [...NODE_TYPES_V1],
-    commandTypes: [...BOARD_MUTATION_COMMAND_TYPES_V1],
-    operationTypes: [...BOARD_OPERATION_TYPES_V1],
-    eventTypes: [...BOARD_EVENT_TYPES_V1],
-    hitlKinds: [...HITL_KINDS_V1],
-    artifactRequestCapabilities: [...ARTIFACT_REQUEST_CAPABILITIES_V1]
-  },
-  limits: { ...BOARD_LIMITS_V1 },
-  grantedCapabilities: [],
-  allowedArtifactRequestCapabilities: []
-};
-
-// packages/board-schema/src/hitl.ts
-var HitlContentSchemaV1 = ContentTextSchemaV1.refine(
-  (value) => scalarLengthV1(value) <= MAX_MARKDOWN_CHARS,
-  "[LIMIT:maxMarkdownChars] HITL body is too long"
-);
-var HitlTextValueSchemaV1 = ContentTextSchemaV1.refine(
-  (value) => scalarLengthV1(value) <= MAX_HITL_TEXT_CHARS,
-  "[LIMIT:maxHitlTextChars] HITL text is too long"
-);
-var HitlOptionSchemaV1 = z.object({
-  id: LocalFieldIdSchemaV1,
-  label: ShortTextSchemaV1,
-  description: ShortTextSchemaV1.optional()
-}).strict();
-var uniqueOptions = (options) => new Set(options.map((option) => option.id)).size === options.length;
-var TextFieldSchemaV1 = z.object({
-  id: LocalFieldIdSchemaV1,
-  type: z.literal("text"),
-  label: ShortTextSchemaV1,
-  required: z.boolean(),
-  defaultValue: HitlTextValueSchemaV1.nullable(),
-  minLength: z.number().int().safe().min(0).max(MAX_HITL_TEXT_CHARS),
-  maxLength: z.number().int().safe().min(1).max(MAX_HITL_TEXT_CHARS)
-}).strict();
-var NumberFieldSchemaV1 = z.object({
-  id: LocalFieldIdSchemaV1,
-  type: z.literal("number"),
-  label: ShortTextSchemaV1,
-  required: z.boolean(),
-  defaultValue: z.number().finite().nullable(),
-  min: z.number().finite().nullable(),
-  max: z.number().finite().nullable()
-}).strict();
-var BooleanFieldSchemaV1 = z.object({
-  id: LocalFieldIdSchemaV1,
-  type: z.literal("boolean"),
-  label: ShortTextSchemaV1,
-  required: z.boolean(),
-  defaultValue: z.boolean().nullable()
-}).strict();
-var SelectFieldSchemaV1 = z.object({
-  id: LocalFieldIdSchemaV1,
-  type: z.literal("select"),
-  label: ShortTextSchemaV1,
-  required: z.boolean(),
-  defaultValue: LocalFieldIdSchemaV1.nullable(),
-  options: z.array(HitlOptionSchemaV1).min(1).max(MAX_HITL_OPTIONS)
-}).strict();
-var HitlFieldSchemaV1 = z.discriminatedUnion("type", [
-  TextFieldSchemaV1,
-  NumberFieldSchemaV1,
-  BooleanFieldSchemaV1,
-  SelectFieldSchemaV1
-]);
-var InfoRequestSchemaV1 = z.object({
-  kind: z.literal("info"),
-  title: ShortTextSchemaV1,
-  body: HitlContentSchemaV1,
-  acknowledgeLabel: ShortTextSchemaV1
-}).strict();
-var ChoiceRequestSchemaV1 = z.object({
-  kind: z.literal("choice"),
-  title: ShortTextSchemaV1,
-  body: HitlContentSchemaV1.optional(),
-  multiple: z.boolean(),
-  minSelections: z.number().int().safe().min(1).max(MAX_HITL_OPTIONS),
-  maxSelections: z.number().int().safe().min(1).max(MAX_HITL_OPTIONS),
-  options: z.array(HitlOptionSchemaV1).min(1).max(MAX_HITL_OPTIONS)
-}).strict();
-var FormRequestSchemaV1 = z.object({
-  kind: z.literal("form"),
-  title: ShortTextSchemaV1,
-  body: HitlContentSchemaV1.optional(),
-  fields: z.array(HitlFieldSchemaV1).min(1).max(MAX_HITL_FIELDS),
-  submitLabel: ShortTextSchemaV1
-}).strict();
-var ConfirmationRequestSchemaV1 = z.object({
-  kind: z.literal("confirmation"),
-  title: ShortTextSchemaV1,
-  body: HitlContentSchemaV1,
-  impact: z.enum(["standard", "destructive"]),
-  confirmLabel: ShortTextSchemaV1,
-  cancelLabel: ShortTextSchemaV1
-}).strict();
-var HitlRequestDefinitionSchemaV1 = z.discriminatedUnion("kind", [
-  InfoRequestSchemaV1,
-  ChoiceRequestSchemaV1,
-  FormRequestSchemaV1,
-  ConfirmationRequestSchemaV1
-]).superRefine((definition, context) => {
-  if (definition.kind === "choice") {
-    if (!uniqueOptions(definition.options))
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["options"],
-        message: "option IDs must be unique"
-      });
-    if (!definition.multiple && (definition.minSelections !== 1 || definition.maxSelections !== 1))
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["minSelections"],
-        message: "single choice requires bounds of one"
-      });
-    if (definition.minSelections > definition.maxSelections || definition.maxSelections > definition.options.length)
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["maxSelections"],
-        message: "selection bounds are invalid"
-      });
-  }
-  if (definition.kind === "form") {
-    const ids = /* @__PURE__ */ new Set();
-    definition.fields.forEach((field, index) => {
-      if (ids.has(field.id))
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["fields", index, "id"],
-          message: "field IDs must be unique"
-        });
-      ids.add(field.id);
-      if (field.type === "text") {
-        if (field.minLength > field.maxLength)
-          context.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ["fields", index, "maxLength"],
-            message: "text bounds are invalid"
-          });
-        if (field.defaultValue !== null) {
-          const length = Array.from(field.defaultValue).length;
-          if (length < field.minLength || length > field.maxLength)
-            context.addIssue({
-              code: z.ZodIssueCode.custom,
-              path: ["fields", index, "defaultValue"],
-              message: "text default is outside bounds"
-            });
-        }
-      } else if (field.type === "number") {
-        if (field.min !== null && field.max !== null && field.min > field.max)
-          context.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ["fields", index, "max"],
-            message: "number bounds are invalid"
-          });
-        if (field.defaultValue !== null && (field.min !== null && field.defaultValue < field.min || field.max !== null && field.defaultValue > field.max))
-          context.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ["fields", index, "defaultValue"],
-            message: "number default is outside bounds"
-          });
-      } else if (field.type === "select") {
-        if (!uniqueOptions(field.options))
-          context.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ["fields", index, "options"],
-            message: "option IDs must be unique"
-          });
-        if (field.defaultValue !== null && !field.options.some((option) => option.id === field.defaultValue))
-          context.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ["fields", index, "defaultValue"],
-            message: "select default is unknown"
-          });
-      }
-    });
-  }
-});
-var InfoResponseSchemaV1 = z.object({ kind: z.literal("info"), acknowledged: z.literal(true) }).strict();
-var ChoiceResponseSchemaV1 = z.object({
-  kind: z.literal("choice"),
-  selectedOptionIds: z.array(LocalFieldIdSchemaV1).min(1).max(MAX_HITL_OPTIONS)
-}).strict();
-var FormResponseSchemaV1 = z.object({
-  kind: z.literal("form"),
-  values: z.record(
-    LocalFieldIdSchemaV1,
-    z.union([HitlTextValueSchemaV1, z.number().finite(), z.boolean(), z.null()])
-  )
-}).strict();
-var ConfirmationResponseSchemaV1 = z.object({ kind: z.literal("confirmation"), confirmed: z.boolean() }).strict();
-var HitlResponseSchemaV1 = z.discriminatedUnion("kind", [
-  InfoResponseSchemaV1,
-  ChoiceResponseSchemaV1,
-  FormResponseSchemaV1,
-  ConfirmationResponseSchemaV1
-]).superRefine((response, context) => {
-  if (response.kind === "choice" && new Set(response.selectedOptionIds).size !== response.selectedOptionIds.length)
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["selectedOptionIds"],
-      message: "selected option IDs must be unique"
-    });
-  if (response.kind === "form") {
-    const count = Object.keys(response.values).length;
-    if (count < 1 || count > MAX_HITL_FIELDS)
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["values"],
-        message: "[LIMIT:maxHitlFields] form value count is invalid"
-      });
-  }
-});
-var validateResponseAgainstDefinition = (definition, response) => {
-  if (definition.kind !== response.kind) return "response kind does not match definition";
-  if (definition.kind === "choice" && response.kind === "choice") {
-    const known = new Set(definition.options.map((option) => option.id));
-    if (response.selectedOptionIds.some((id) => !known.has(id)))
-      return "response contains an unknown option";
-    if (response.selectedOptionIds.length < definition.minSelections || response.selectedOptionIds.length > definition.maxSelections)
-      return "response selection count is outside bounds";
-  }
-  if (definition.kind === "form" && response.kind === "form") {
-    const keys = Object.keys(response.values);
-    if (keys.length !== definition.fields.length || definition.fields.some((field) => !Object.hasOwn(response.values, field.id)))
-      return "form response keys do not match fields";
-    for (const field of definition.fields) {
-      const value = response.values[field.id];
-      if (value === null) {
-        if (field.required) return "required form value is null";
-        continue;
-      }
-      if (field.type === "text") {
-        if (typeof value !== "string") return "text field value has wrong type";
-        const length = Array.from(value).length;
-        if (length < field.minLength || length > field.maxLength)
-          return "text field value is outside bounds";
-      } else if (field.type === "number") {
-        if (typeof value !== "number") return "number field value has wrong type";
-        if (field.min !== null && value < field.min || field.max !== null && value > field.max)
-          return "number field value is outside bounds";
-      } else if (field.type === "boolean") {
-        if (typeof value !== "boolean") return "boolean field value has wrong type";
-      } else if (typeof value !== "string" || !field.options.some((option) => option.id === value))
-        return "select field value is unknown";
-    }
-  }
-  return null;
-};
-var HitlInteractionSchemaV1 = z.object({
-  hitlRequestId: HitlRequestIdSchemaV1,
-  definition: HitlRequestDefinitionSchemaV1,
-  state: z.enum(["open", "answered", "superseded", "expired", "cancelled"]),
-  createdAt: TimestampSchemaV1,
-  expiresAt: TimestampSchemaV1.nullable(),
-  stateUpdatedAt: TimestampSchemaV1,
-  response: HitlResponseSchemaV1.nullable(),
-  answeredAt: TimestampSchemaV1.nullable()
-}).strict().superRefine((interaction, context) => {
-  const created = Date.parse(interaction.createdAt);
-  const updated = Date.parse(interaction.stateUpdatedAt);
-  const expires = interaction.expiresAt === null ? null : Date.parse(interaction.expiresAt);
-  const answered = interaction.answeredAt === null ? null : Date.parse(interaction.answeredAt);
-  if (expires !== null && expires <= created)
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["expiresAt"],
-      message: "expiry must follow creation"
-    });
-  if (interaction.state === "open") {
-    if (interaction.response !== null || interaction.answeredAt !== null || updated !== created)
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["stateUpdatedAt"],
-        message: "open chronology is invalid"
-      });
-  } else if (interaction.state === "answered") {
-    if (interaction.response === null || answered === null || answered <= created || updated !== answered || expires !== null && answered >= expires)
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["answeredAt"],
-        message: "answered chronology is invalid"
-      });
-    else {
-      const problem = validateResponseAgainstDefinition(
-        interaction.definition,
-        interaction.response
-      );
-      if (problem)
-        context.addIssue({ code: z.ZodIssueCode.custom, path: ["response"], message: problem });
-    }
-  } else if (interaction.state === "expired") {
-    if (interaction.response !== null || interaction.answeredAt !== null || expires === null || updated < expires)
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["expiresAt"],
-        message: "expired chronology is invalid"
-      });
-  } else if (interaction.response !== null || interaction.answeredAt !== null || updated <= created || expires !== null && updated >= expires)
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["stateUpdatedAt"],
-      message: "terminal chronology is invalid"
-    });
-});
-var HitlRequestSuccessSchemaV1 = HitlInteractionSchemaV1.refine(
-  (interaction) => interaction.state === "open",
-  { path: ["state"], message: "request success must be open" }
-);
-var HitlRespondSuccessSchemaV1 = HitlInteractionSchemaV1.refine(
-  (interaction) => interaction.state === "answered",
-  { path: ["state"], message: "respond success must be answered" }
-);
-
-// packages/board-schema/src/nodes/base.ts
-var NodeBaseShapeV1 = {
-  id: NodeIdSchemaV1,
-  title: ShortTextSchemaV1.optional()
-};
-var PointSchemaV1 = z.object({ x: z.number().finite(), y: z.number().finite() }).strict();
-
-// packages/board-schema/src/nodes/drawing.ts
-var color = z.string().regex(/^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$/);
-var DrawingStyleSchemaV1 = z.object({
-  stroke: color.optional(),
-  fill: color.optional(),
-  strokeWidth: z.number().finite().positive().optional(),
-  opacity: z.number().finite().min(0).max(1).optional()
-}).strict();
-var PathSchemaV1 = z.object({
-  id: LocalFieldIdSchemaV1,
-  type: z.literal("path"),
-  points: z.array(PointSchemaV1).min(2),
-  closed: z.boolean(),
-  style: DrawingStyleSchemaV1
-}).strict();
-var RectSchemaV1 = z.object({
-  id: LocalFieldIdSchemaV1,
-  type: z.literal("rect"),
-  x: z.number().finite(),
-  y: z.number().finite(),
-  width: z.number().finite().positive(),
-  height: z.number().finite().positive(),
-  style: DrawingStyleSchemaV1
-}).strict();
-var EllipseSchemaV1 = z.object({
-  id: LocalFieldIdSchemaV1,
-  type: z.literal("ellipse"),
-  cx: z.number().finite(),
-  cy: z.number().finite(),
-  rx: z.number().finite().positive(),
-  ry: z.number().finite().positive(),
-  style: DrawingStyleSchemaV1
-}).strict();
-var LineSchemaV1 = z.object({
-  id: LocalFieldIdSchemaV1,
-  type: z.literal("line"),
-  from: PointSchemaV1,
-  to: PointSchemaV1,
-  style: DrawingStyleSchemaV1
-}).strict();
-var TextSchemaV1 = z.object({
-  id: LocalFieldIdSchemaV1,
-  type: z.literal("text"),
-  x: z.number().finite(),
-  y: z.number().finite(),
-  text: ShortTextSchemaV1,
-  style: DrawingStyleSchemaV1
-}).strict();
-var DrawingElementSchemaV1 = z.discriminatedUnion("type", [
-  PathSchemaV1,
-  RectSchemaV1,
-  EllipseSchemaV1,
-  LineSchemaV1,
-  TextSchemaV1
-]);
-var DrawingNodeSchemaV1 = z.object({
-  ...NodeBaseShapeV1,
-  type: z.literal("content.drawing"),
-  viewBox: z.object({
-    x: z.number().finite(),
-    y: z.number().finite(),
-    width: z.number().finite().positive(),
-    height: z.number().finite().positive()
-  }).strict(),
-  elements: z.array(DrawingElementSchemaV1).max(MAX_DRAWING_ELEMENTS)
-}).strict();
 
 // packages/board-schema/src/nodes/geojson.ts
 var PositionSchemaV1 = z.tuple([
@@ -26019,6 +25666,500 @@ var SceneSchemaV1 = z.object({
   (scene, context) => validateNodeRelationsV1(scene.root, context)
 );
 
+// packages/board-schema/src/documents.ts
+var PageDisplayModeSchemaV1 = z.enum(["fit-page", "fit-width", "actual-size"]);
+var BoardPageSchemaV2 = z.object({
+  pageId: PageIdSchemaV1,
+  title: createScalarTextSchemaV1(0, MAX_TITLE_CHARS),
+  displayMode: PageDisplayModeSchemaV1,
+  scene: SceneSchemaV1
+}).strict();
+var invalidDocument = (context, path, reason, message) => context.addIssue({
+  code: z.ZodIssueCode.custom,
+  path,
+  message: `[INVALID_DOCUMENT:${reason}] ${message}`
+});
+var BoardDocumentSchemaV2 = z.object({
+  schemaVersion: z.literal(2),
+  defaultPageId: PageIdSchemaV1,
+  pages: z.array(BoardPageSchemaV2).min(1).max(MAX_DOCUMENT_PAGES)
+}).strict().superRefine((document, context) => {
+  if (document.pages.length < 1 || document.pages.length > MAX_DOCUMENT_PAGES)
+    invalidDocument(context, ["pages"], "page_count", "document page count is invalid");
+  const pageIds = /* @__PURE__ */ new Set();
+  const nodeIds = /* @__PURE__ */ new Map();
+  let nodeCount = 0;
+  document.pages.forEach((page, pageIndex2) => {
+    if (pageIds.has(page.pageId))
+      invalidDocument(
+        context,
+        ["pages", pageIndex2, "pageId"],
+        "duplicate_page_id",
+        "page IDs must be unique"
+      );
+    pageIds.add(page.pageId);
+    for (const item of collectSceneNodesV1(page.scene.root)) {
+      nodeCount += 1;
+      const path = ["pages", pageIndex2, "scene", ...item.path, "id"];
+      const firstPath = nodeIds.get(item.node.id);
+      if (firstPath)
+        invalidDocument(
+          context,
+          path,
+          "duplicate_node_id",
+          `duplicate node ID ${item.node.id}; first path ${JSON.stringify(firstPath)}`
+        );
+      else nodeIds.set(item.node.id, path);
+    }
+  });
+  if (!pageIds.has(document.defaultPageId))
+    invalidDocument(
+      context,
+      ["defaultPageId"],
+      "default_page_missing",
+      "default page is not present"
+    );
+  if (nodeCount > MAX_DOCUMENT_NODES)
+    invalidDocument(context, ["pages"], "limit", "document node count exceeded");
+});
+var collectDocumentNodesV2 = (document) => {
+  const output = [];
+  document.pages.forEach((page, pageIndex2) => {
+    for (const item of collectSceneNodesV1(page.scene.root))
+      output.push({
+        page,
+        pageIndex: pageIndex2,
+        node: item.node,
+        path: ["document", "pages", pageIndex2, "scene", ...item.path]
+      });
+  });
+  return output;
+};
+
+// packages/board-schema/src/capabilities.ts
+var exactCatalog = (catalog) => z.array(z.enum(catalog)).length(catalog.length).superRefine((values, context) => {
+  if (values.some((value, index) => value !== catalog[index]))
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "catalog order must match protocol"
+    });
+});
+var sortedSubset = (catalog) => z.array(z.enum(catalog)).superRefine((values, context) => {
+  for (let index = 1; index < values.length; index += 1)
+    if ((values[index - 1] ?? "") >= (values[index] ?? "")) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "capabilities must be sorted and unique"
+      });
+      break;
+    }
+});
+var BoardLimitsSchemaV1 = z.object(
+  Object.fromEntries(
+    Object.entries(BOARD_LIMITS_V1).map(([key, value]) => [key, z.literal(value)])
+  )
+).strict();
+var BoardLimitsSchemaV2 = z.object(
+  Object.fromEntries(
+    Object.entries(BOARD_DOCUMENT_LIMITS_V2).map(([key, value]) => [key, z.literal(value)])
+  )
+).strict();
+var BoardCapabilitiesSchemaV1 = z.object({
+  protocolVersion: z.literal(PROTOCOL_VERSION),
+  type: z.literal("board.capabilities"),
+  schemaVersion: z.literal(PROTOCOL_SEMVER),
+  compatibilityMode: z.literal("frozen-major"),
+  supported: z.object({
+    nodeTypes: exactCatalog(NODE_TYPES_V1),
+    commandTypes: exactCatalog(BOARD_MUTATION_COMMAND_TYPES_V1),
+    operationTypes: exactCatalog(BOARD_OPERATION_TYPES_V1),
+    eventTypes: exactCatalog(BOARD_EVENT_TYPES_V1),
+    hitlKinds: exactCatalog(HITL_KINDS_V1),
+    artifactRequestCapabilities: exactCatalog(ARTIFACT_REQUEST_CAPABILITIES_V1)
+  }).strict(),
+  limits: BoardLimitsSchemaV1,
+  grantedCapabilities: sortedSubset(CLIENT_GRANT_CAPABILITIES_V1),
+  allowedArtifactRequestCapabilities: sortedSubset(ARTIFACT_REQUEST_CAPABILITIES_V1)
+}).strict();
+var DEFAULT_BOARD_CAPABILITIES_V1 = {
+  protocolVersion: PROTOCOL_VERSION,
+  type: "board.capabilities",
+  schemaVersion: PROTOCOL_SEMVER,
+  compatibilityMode: "frozen-major",
+  supported: {
+    nodeTypes: [...NODE_TYPES_V1],
+    commandTypes: [...BOARD_MUTATION_COMMAND_TYPES_V1],
+    operationTypes: [...BOARD_OPERATION_TYPES_V1],
+    eventTypes: [...BOARD_EVENT_TYPES_V1],
+    hitlKinds: [...HITL_KINDS_V1],
+    artifactRequestCapabilities: [...ARTIFACT_REQUEST_CAPABILITIES_V1]
+  },
+  limits: { ...BOARD_LIMITS_V1 },
+  grantedCapabilities: [],
+  allowedArtifactRequestCapabilities: []
+};
+var BoardCapabilitiesSchemaV2 = z.object({
+  protocolVersion: z.literal(PROTOCOL_VERSION),
+  type: z.literal("board.capabilities"),
+  schemaVersion: z.literal("1.1.0"),
+  compatibilityMode: z.literal("frozen-major"),
+  supported: z.object({
+    nodeTypes: exactCatalog(NODE_TYPES_V1),
+    commandTypes: exactCatalog(BOARD_MUTATION_COMMAND_TYPES_V2),
+    operationTypes: exactCatalog(BOARD_OPERATION_TYPES_V1),
+    eventTypes: exactCatalog(BOARD_EVENT_TYPES_V1),
+    hitlKinds: exactCatalog(HITL_KINDS_V1),
+    artifactRequestCapabilities: exactCatalog(ARTIFACT_REQUEST_CAPABILITIES_V1)
+  }).strict(),
+  limits: BoardLimitsSchemaV2,
+  grantedCapabilities: sortedSubset(CLIENT_GRANT_CAPABILITIES_V1),
+  allowedArtifactRequestCapabilities: sortedSubset(ARTIFACT_REQUEST_CAPABILITIES_V1)
+}).strict();
+var DEFAULT_BOARD_CAPABILITIES_V2 = {
+  protocolVersion: PROTOCOL_VERSION,
+  type: "board.capabilities",
+  schemaVersion: "1.1.0",
+  compatibilityMode: "frozen-major",
+  supported: {
+    nodeTypes: [...NODE_TYPES_V1],
+    commandTypes: [...BOARD_MUTATION_COMMAND_TYPES_V2],
+    operationTypes: [...BOARD_OPERATION_TYPES_V1],
+    eventTypes: [...BOARD_EVENT_TYPES_V1],
+    hitlKinds: [...HITL_KINDS_V1],
+    artifactRequestCapabilities: [...ARTIFACT_REQUEST_CAPABILITIES_V1]
+  },
+  limits: { ...BOARD_DOCUMENT_LIMITS_V2 },
+  grantedCapabilities: [],
+  allowedArtifactRequestCapabilities: []
+};
+var BoardCapabilitiesSchema = z.union([
+  BoardCapabilitiesSchemaV1,
+  BoardCapabilitiesSchemaV2
+]);
+
+// packages/board-schema/src/actors.ts
+var ClientGrantCapabilitySchemaV1 = z.enum(CLIENT_GRANT_CAPABILITIES_V1);
+var isSortedUniqueScopesV1 = (scopes) => scopes.every((scope, index) => index === 0 || (scopes[index - 1] ?? "") < scope);
+var ActorContextSchemaV1 = z.object({
+  principalKind: z.enum(["user", "mcp_client", "service"]),
+  principalId: PrincipalIdSchemaV1,
+  grantId: GrantIdSchemaV1.nullable(),
+  scopes: z.array(ClientGrantCapabilitySchemaV1).superRefine((scopes, context) => {
+    if (!isSortedUniqueScopesV1(scopes)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "scopes must be sorted and unique"
+      });
+    }
+  })
+}).strict();
+var ActorReferenceSchemaV1 = z.object({
+  principalKind: z.enum(["user", "mcp_client", "service"]),
+  principalId: PrincipalIdSchemaV1
+}).strict();
+
+// packages/board-schema/src/hitl.ts
+var HitlContentSchemaV1 = ContentTextSchemaV1.refine(
+  (value) => scalarLengthV1(value) <= MAX_MARKDOWN_CHARS,
+  "[LIMIT:maxMarkdownChars] HITL body is too long"
+);
+var HitlTextValueSchemaV1 = ContentTextSchemaV1.refine(
+  (value) => scalarLengthV1(value) <= MAX_HITL_TEXT_CHARS,
+  "[LIMIT:maxHitlTextChars] HITL text is too long"
+);
+var HitlOptionSchemaV1 = z.object({
+  id: LocalFieldIdSchemaV1,
+  label: ShortTextSchemaV1,
+  description: ShortTextSchemaV1.optional()
+}).strict();
+var uniqueOptions = (options) => new Set(options.map((option) => option.id)).size === options.length;
+var TextFieldSchemaV1 = z.object({
+  id: LocalFieldIdSchemaV1,
+  type: z.literal("text"),
+  label: ShortTextSchemaV1,
+  required: z.boolean(),
+  defaultValue: HitlTextValueSchemaV1.nullable(),
+  minLength: z.number().int().safe().min(0).max(MAX_HITL_TEXT_CHARS),
+  maxLength: z.number().int().safe().min(1).max(MAX_HITL_TEXT_CHARS)
+}).strict();
+var NumberFieldSchemaV1 = z.object({
+  id: LocalFieldIdSchemaV1,
+  type: z.literal("number"),
+  label: ShortTextSchemaV1,
+  required: z.boolean(),
+  defaultValue: z.number().finite().nullable(),
+  min: z.number().finite().nullable(),
+  max: z.number().finite().nullable()
+}).strict();
+var BooleanFieldSchemaV1 = z.object({
+  id: LocalFieldIdSchemaV1,
+  type: z.literal("boolean"),
+  label: ShortTextSchemaV1,
+  required: z.boolean(),
+  defaultValue: z.boolean().nullable()
+}).strict();
+var SelectFieldSchemaV1 = z.object({
+  id: LocalFieldIdSchemaV1,
+  type: z.literal("select"),
+  label: ShortTextSchemaV1,
+  required: z.boolean(),
+  defaultValue: LocalFieldIdSchemaV1.nullable(),
+  options: z.array(HitlOptionSchemaV1).min(1).max(MAX_HITL_OPTIONS)
+}).strict();
+var HitlFieldSchemaV1 = z.discriminatedUnion("type", [
+  TextFieldSchemaV1,
+  NumberFieldSchemaV1,
+  BooleanFieldSchemaV1,
+  SelectFieldSchemaV1
+]);
+var InfoRequestSchemaV1 = z.object({
+  kind: z.literal("info"),
+  title: ShortTextSchemaV1,
+  body: HitlContentSchemaV1,
+  acknowledgeLabel: ShortTextSchemaV1
+}).strict();
+var ChoiceRequestSchemaV1 = z.object({
+  kind: z.literal("choice"),
+  title: ShortTextSchemaV1,
+  body: HitlContentSchemaV1.optional(),
+  multiple: z.boolean(),
+  minSelections: z.number().int().safe().min(1).max(MAX_HITL_OPTIONS),
+  maxSelections: z.number().int().safe().min(1).max(MAX_HITL_OPTIONS),
+  options: z.array(HitlOptionSchemaV1).min(1).max(MAX_HITL_OPTIONS)
+}).strict();
+var FormRequestSchemaV1 = z.object({
+  kind: z.literal("form"),
+  title: ShortTextSchemaV1,
+  body: HitlContentSchemaV1.optional(),
+  fields: z.array(HitlFieldSchemaV1).min(1).max(MAX_HITL_FIELDS),
+  submitLabel: ShortTextSchemaV1
+}).strict();
+var ConfirmationRequestSchemaV1 = z.object({
+  kind: z.literal("confirmation"),
+  title: ShortTextSchemaV1,
+  body: HitlContentSchemaV1,
+  impact: z.enum(["standard", "destructive"]),
+  confirmLabel: ShortTextSchemaV1,
+  cancelLabel: ShortTextSchemaV1
+}).strict();
+var HitlRequestDefinitionSchemaV1 = z.discriminatedUnion("kind", [
+  InfoRequestSchemaV1,
+  ChoiceRequestSchemaV1,
+  FormRequestSchemaV1,
+  ConfirmationRequestSchemaV1
+]).superRefine((definition, context) => {
+  if (definition.kind === "choice") {
+    if (!uniqueOptions(definition.options))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["options"],
+        message: "option IDs must be unique"
+      });
+    if (!definition.multiple && (definition.minSelections !== 1 || definition.maxSelections !== 1))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["minSelections"],
+        message: "single choice requires bounds of one"
+      });
+    if (definition.minSelections > definition.maxSelections || definition.maxSelections > definition.options.length)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["maxSelections"],
+        message: "selection bounds are invalid"
+      });
+  }
+  if (definition.kind === "form") {
+    const ids = /* @__PURE__ */ new Set();
+    definition.fields.forEach((field, index) => {
+      if (ids.has(field.id))
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["fields", index, "id"],
+          message: "field IDs must be unique"
+        });
+      ids.add(field.id);
+      if (field.type === "text") {
+        if (field.minLength > field.maxLength)
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["fields", index, "maxLength"],
+            message: "text bounds are invalid"
+          });
+        if (field.defaultValue !== null) {
+          const length = Array.from(field.defaultValue).length;
+          if (length < field.minLength || length > field.maxLength)
+            context.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ["fields", index, "defaultValue"],
+              message: "text default is outside bounds"
+            });
+        }
+      } else if (field.type === "number") {
+        if (field.min !== null && field.max !== null && field.min > field.max)
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["fields", index, "max"],
+            message: "number bounds are invalid"
+          });
+        if (field.defaultValue !== null && (field.min !== null && field.defaultValue < field.min || field.max !== null && field.defaultValue > field.max))
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["fields", index, "defaultValue"],
+            message: "number default is outside bounds"
+          });
+      } else if (field.type === "select") {
+        if (!uniqueOptions(field.options))
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["fields", index, "options"],
+            message: "option IDs must be unique"
+          });
+        if (field.defaultValue !== null && !field.options.some((option) => option.id === field.defaultValue))
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ["fields", index, "defaultValue"],
+            message: "select default is unknown"
+          });
+      }
+    });
+  }
+});
+var InfoResponseSchemaV1 = z.object({ kind: z.literal("info"), acknowledged: z.literal(true) }).strict();
+var ChoiceResponseSchemaV1 = z.object({
+  kind: z.literal("choice"),
+  selectedOptionIds: z.array(LocalFieldIdSchemaV1).min(1).max(MAX_HITL_OPTIONS)
+}).strict();
+var FormResponseSchemaV1 = z.object({
+  kind: z.literal("form"),
+  values: z.record(
+    LocalFieldIdSchemaV1,
+    z.union([HitlTextValueSchemaV1, z.number().finite(), z.boolean(), z.null()])
+  )
+}).strict();
+var ConfirmationResponseSchemaV1 = z.object({ kind: z.literal("confirmation"), confirmed: z.boolean() }).strict();
+var HitlResponseSchemaV1 = z.discriminatedUnion("kind", [
+  InfoResponseSchemaV1,
+  ChoiceResponseSchemaV1,
+  FormResponseSchemaV1,
+  ConfirmationResponseSchemaV1
+]).superRefine((response, context) => {
+  if (response.kind === "choice" && new Set(response.selectedOptionIds).size !== response.selectedOptionIds.length)
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["selectedOptionIds"],
+      message: "selected option IDs must be unique"
+    });
+  if (response.kind === "form") {
+    const count = Object.keys(response.values).length;
+    if (count < 1 || count > MAX_HITL_FIELDS)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["values"],
+        message: "[LIMIT:maxHitlFields] form value count is invalid"
+      });
+  }
+});
+var validateResponseAgainstDefinition = (definition, response) => {
+  if (definition.kind !== response.kind) return "response kind does not match definition";
+  if (definition.kind === "choice" && response.kind === "choice") {
+    const known = new Set(definition.options.map((option) => option.id));
+    if (response.selectedOptionIds.some((id) => !known.has(id)))
+      return "response contains an unknown option";
+    if (response.selectedOptionIds.length < definition.minSelections || response.selectedOptionIds.length > definition.maxSelections)
+      return "response selection count is outside bounds";
+  }
+  if (definition.kind === "form" && response.kind === "form") {
+    const keys = Object.keys(response.values);
+    if (keys.length !== definition.fields.length || definition.fields.some((field) => !Object.hasOwn(response.values, field.id)))
+      return "form response keys do not match fields";
+    for (const field of definition.fields) {
+      const value = response.values[field.id];
+      if (value === null) {
+        if (field.required) return "required form value is null";
+        continue;
+      }
+      if (field.type === "text") {
+        if (typeof value !== "string") return "text field value has wrong type";
+        const length = Array.from(value).length;
+        if (length < field.minLength || length > field.maxLength)
+          return "text field value is outside bounds";
+      } else if (field.type === "number") {
+        if (typeof value !== "number") return "number field value has wrong type";
+        if (field.min !== null && value < field.min || field.max !== null && value > field.max)
+          return "number field value is outside bounds";
+      } else if (field.type === "boolean") {
+        if (typeof value !== "boolean") return "boolean field value has wrong type";
+      } else if (typeof value !== "string" || !field.options.some((option) => option.id === value))
+        return "select field value is unknown";
+    }
+  }
+  return null;
+};
+var HitlInteractionSchemaV1 = z.object({
+  hitlRequestId: HitlRequestIdSchemaV1,
+  definition: HitlRequestDefinitionSchemaV1,
+  state: z.enum(["open", "answered", "superseded", "expired", "cancelled"]),
+  createdAt: TimestampSchemaV1,
+  expiresAt: TimestampSchemaV1.nullable(),
+  stateUpdatedAt: TimestampSchemaV1,
+  response: HitlResponseSchemaV1.nullable(),
+  answeredAt: TimestampSchemaV1.nullable()
+}).strict().superRefine((interaction, context) => {
+  const created = Date.parse(interaction.createdAt);
+  const updated = Date.parse(interaction.stateUpdatedAt);
+  const expires = interaction.expiresAt === null ? null : Date.parse(interaction.expiresAt);
+  const answered = interaction.answeredAt === null ? null : Date.parse(interaction.answeredAt);
+  if (expires !== null && expires <= created)
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["expiresAt"],
+      message: "expiry must follow creation"
+    });
+  if (interaction.state === "open") {
+    if (interaction.response !== null || interaction.answeredAt !== null || updated !== created)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["stateUpdatedAt"],
+        message: "open chronology is invalid"
+      });
+  } else if (interaction.state === "answered") {
+    if (interaction.response === null || answered === null || answered <= created || updated !== answered || expires !== null && answered >= expires)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["answeredAt"],
+        message: "answered chronology is invalid"
+      });
+    else {
+      const problem = validateResponseAgainstDefinition(
+        interaction.definition,
+        interaction.response
+      );
+      if (problem)
+        context.addIssue({ code: z.ZodIssueCode.custom, path: ["response"], message: problem });
+    }
+  } else if (interaction.state === "expired") {
+    if (interaction.response !== null || interaction.answeredAt !== null || expires === null || updated < expires)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["expiresAt"],
+        message: "expired chronology is invalid"
+      });
+  } else if (interaction.response !== null || interaction.answeredAt !== null || updated <= created || expires !== null && updated >= expires)
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["stateUpdatedAt"],
+      message: "terminal chronology is invalid"
+    });
+});
+var HitlRequestSuccessSchemaV1 = HitlInteractionSchemaV1.refine(
+  (interaction) => interaction.state === "open",
+  { path: ["state"], message: "request success must be open" }
+);
+var HitlRespondSuccessSchemaV1 = HitlInteractionSchemaV1.refine(
+  (interaction) => interaction.state === "answered",
+  { path: ["state"], message: "respond success must be answered" }
+);
+
 // packages/board-schema/src/commands.ts
 var SceneReplaceCommandSchemaV1 = z.object({ type: z.literal("scene.replace"), scene: SceneSchemaV1 }).strict();
 var SceneClearCommandSchemaV1 = z.object({ type: z.literal("scene.clear") }).strict();
@@ -26039,6 +26180,7 @@ var ArtifactStopCommandSchemaV1 = z.object({
   artifact: ArtifactReferenceSchemaV1,
   reason: ShortTextSchemaV1.optional()
 }).strict();
+var DocumentReplaceCommandSchemaV2 = z.object({ type: z.literal("document.replace"), document: BoardDocumentSchemaV2 }).strict();
 var BoardMutationCommandSchemaV1 = z.discriminatedUnion("type", [
   SceneReplaceCommandSchemaV1,
   SceneClearCommandSchemaV1,
@@ -26048,6 +26190,16 @@ var BoardMutationCommandSchemaV1 = z.discriminatedUnion("type", [
   ArtifactPublishCommandSchemaV1,
   ArtifactStopCommandSchemaV1
 ]);
+var BoardMutationCommandSchemaV2 = z.discriminatedUnion("type", [
+  SceneReplaceCommandSchemaV1,
+  SceneClearCommandSchemaV1,
+  SceneRestoreCommandSchemaV1,
+  HitlRequestCommandSchemaV1,
+  HitlRespondCommandSchemaV1,
+  ArtifactPublishCommandSchemaV1,
+  ArtifactStopCommandSchemaV1,
+  DocumentReplaceCommandSchemaV2
+]);
 var MutationRequestShapeV1 = {
   protocolVersion: z.literal(1),
   requestId: RequestIdSchemaV1,
@@ -26056,8 +26208,14 @@ var MutationRequestShapeV1 = {
   expectedRevisionId: RevisionIdSchemaV1,
   command: BoardMutationCommandSchemaV1
 };
+var MutationRequestShapeV2 = {
+  ...MutationRequestShapeV1,
+  command: BoardMutationCommandSchemaV2
+};
 var MutationRequestSchemaV1 = z.object(MutationRequestShapeV1).strict();
 var MutationEnvelopeSchemaV1 = z.object({ ...MutationRequestShapeV1, actor: ActorContextSchemaV1 }).strict();
+var MutationRequestSchemaV2 = z.object(MutationRequestShapeV2).strict();
+var MutationEnvelopeSchemaV2 = z.object({ ...MutationRequestShapeV2, actor: ActorContextSchemaV1 }).strict();
 var MutationResultDataSchemaV1 = z.discriminatedUnion("type", [
   z.object({ type: z.literal("scene.replace"), revision: RevisionSummarySchemaV1 }).strict(),
   z.object({ type: z.literal("scene.clear"), revision: RevisionSummarySchemaV1 }).strict(),
@@ -26071,22 +26229,35 @@ var MutationResultDataSchemaV1 = z.discriminatedUnion("type", [
   z.object({ type: z.literal("artifact.publish"), artifact: ArtifactRuntimeSummarySchemaV1 }).strict(),
   z.object({ type: z.literal("artifact.stop"), artifact: ArtifactRuntimeSummarySchemaV1 }).strict()
 ]);
-var MutationResultSchemaV1 = z.object({
+var DocumentReplaceResultDataSchemaV2 = z.object({
+  type: z.literal("document.replace"),
+  revision: RevisionSummarySchemaV1,
+  originType: z.literal("document.replace"),
+  sourceRevisionId: z.null(),
+  document: BoardDocumentSchemaV2
+}).strict();
+var MutationResultDataSchemaV2 = z.discriminatedUnion("type", [
+  ...MutationResultDataSchemaV1.options,
+  DocumentReplaceResultDataSchemaV2
+]);
+var mutationResultSchema = (result) => z.object({
   protocolVersion: z.literal(1),
   type: z.literal("mutation.result"),
   requestId: RequestIdSchemaV1,
   boardId: BoardIdSchemaV1,
   replayed: z.boolean(),
   eventIds: z.array(EventIdSchemaV1),
-  result: MutationResultDataSchemaV1
-}).strict().superRefine((result, context) => {
-  if (new Set(result.eventIds).size !== result.eventIds.length)
+  result
+}).strict().superRefine((envelope, context) => {
+  if (new Set(envelope.eventIds).size !== envelope.eventIds.length)
     context.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["eventIds"],
       message: "event IDs must be unique"
     });
 });
+var MutationResultSchemaV1 = mutationResultSchema(MutationResultDataSchemaV1);
+var MutationResultSchemaV2 = mutationResultSchema(MutationResultDataSchemaV2);
 
 // packages/board-schema/src/errors.ts
 var PathSchemaV12 = z.array(z.union([z.string(), z.number().int().min(0)]));
@@ -26216,7 +26387,10 @@ var BoardErrorSchemaV1 = z.discriminatedUnion("code", [
         "scene",
         "hitl.response",
         "artifact.resource",
-        "artifact.total"
+        "artifact.total",
+        "document",
+        "document.page",
+        "document.envelope"
       ]),
       actualBytes: z.number().int().safe().min(0),
       maximumBytes: z.number().int().safe().positive()
@@ -26314,6 +26488,55 @@ var BoardErrorSchemaV1 = z.discriminatedUnion("code", [
   ),
   branch("INTERNAL_ERROR", "internal", false, 500, z.null())
 ]);
+var BoardErrorSchemaV2Only = z.discriminatedUnion("code", [
+  branch(
+    "IDEMPOTENCY_KEY_REUSED",
+    "conflict",
+    false,
+    409,
+    z.object({
+      scope: z.literal("board.mutation"),
+      boardId: BoardIdSchemaV1,
+      operationType: z.enum(BOARD_MUTATION_COMMAND_TYPES_V2),
+      reason: z.enum([
+        "grant_changed",
+        "scopes_changed",
+        "expected_revision_changed",
+        "payload_changed"
+      ])
+    }).strict()
+  ),
+  branch(
+    "DOCUMENT_VERSION_MISMATCH",
+    "conflict",
+    false,
+    409,
+    z.object({
+      headSchemaVersion: z.union([z.literal(1), z.literal(2)]),
+      commandSchemaVersion: z.union([z.literal(1), z.literal(2)]),
+      commandType: z.enum(["scene.replace", "scene.clear", "scene.restore", "document.replace"])
+    }).strict()
+  ),
+  branch(
+    "INVALID_DOCUMENT",
+    "validation",
+    false,
+    422,
+    z.object({
+      path: PathSchemaV12,
+      reason: z.enum([
+        "page_count",
+        "duplicate_page_id",
+        "default_page_missing",
+        "invalid_display_mode",
+        "duplicate_node_id",
+        "unresolved_reference",
+        "limit"
+      ])
+    }).strict()
+  )
+]);
+var BoardErrorSchema = z.union([BoardErrorSchemaV1, BoardErrorSchemaV2Only]);
 
 // packages/board-schema/src/snapshots.ts
 var SnapshotRevisionSchemaV1 = RevisionSummarySchemaV1.extend({
@@ -26388,6 +26611,89 @@ var BoardSnapshotSchemaV1 = z.object({
       });
   }
 });
+var BoardSnapshotSchemaV2 = z.object({
+  protocolVersion: z.literal(1),
+  type: z.literal("board.snapshot"),
+  boardId: BoardIdSchemaV1,
+  revision: SnapshotRevisionSchemaV1,
+  document: BoardDocumentSchemaV2,
+  hitl: z.array(HitlInteractionSchemaV1),
+  artifacts: z.array(ArtifactRuntimeSummarySchemaV1),
+  capabilities: BoardCapabilitiesSchemaV2,
+  lastEventSequence: z.number().int().safe().min(0)
+}).strict().superRefine((snapshot, context) => {
+  if (snapshot.revision.revisionNumber === 1) {
+    if (snapshot.revision.previousRevisionId !== null || snapshot.revision.originType !== "board.create" || snapshot.revision.sourceRevisionId !== null)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["revision"],
+        message: "[INVALID_LAYOUT] initial revision metadata is invalid"
+      });
+  } else if (snapshot.revision.previousRevisionId === null || snapshot.revision.originType === "board.create" || snapshot.revision.originType === "scene.restore" !== (snapshot.revision.sourceRevisionId !== null))
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["revision"],
+      message: "[INVALID_LAYOUT] revision lineage is invalid"
+    });
+  const hitlIds = /* @__PURE__ */ new Set();
+  snapshot.hitl.forEach((interaction, index) => {
+    if (hitlIds.has(interaction.hitlRequestId))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["hitl", index, "hitlRequestId"],
+        message: "[INVALID_LAYOUT] duplicate HITL interaction"
+      });
+    hitlIds.add(interaction.hitlRequestId);
+  });
+  const artifactKeys = /* @__PURE__ */ new Set();
+  snapshot.artifacts.forEach((runtime2, index) => {
+    const key = artifactKey(runtime2.artifact);
+    if (artifactKeys.has(key))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["artifacts", index, "artifact"],
+        message: "[INVALID_LAYOUT] duplicate artifact runtime summary"
+      });
+    artifactKeys.add(key);
+  });
+  for (const item of collectDocumentNodesV2(snapshot.document)) {
+    if (item.node.type === "content.hitl" && !hitlIds.has(item.node.hitlRequestId))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [...item.path, "hitlRequestId"],
+        message: "[INVALID_DOCUMENT:unresolved_reference] unresolved HITL reference"
+      });
+    const reference = item.node.type === "content.artifact" ? item.node.artifact : item.node.type === "content.image" ? item.node.source.artifact : null;
+    if (reference && !artifactKeys.has(artifactKey(reference)))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [
+          ...item.path,
+          ...item.node.type === "content.image" ? ["source", "artifact"] : ["artifact"]
+        ],
+        message: "[INVALID_DOCUMENT:unresolved_reference] unresolved artifact reference"
+      });
+  }
+});
+var BoardSnapshotSchema = z.any().transform((value, context) => {
+  const record2 = value !== null && typeof value === "object" && !Array.isArray(value) ? value : null;
+  const hasScene = record2 ? Object.hasOwn(record2, "scene") : false;
+  const hasDocument = record2 ? Object.hasOwn(record2, "document") : false;
+  if (hasScene && hasDocument) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: [],
+      message: "snapshot must contain exactly one of scene or document"
+    });
+    return z.NEVER;
+  }
+  const parsed = (hasDocument ? BoardSnapshotSchemaV2 : BoardSnapshotSchemaV1).safeParse(value);
+  if (!parsed.success) {
+    parsed.error.issues.forEach((issue2) => context.addIssue(issue2));
+    return z.NEVER;
+  }
+  return parsed.data;
+});
 
 // packages/board-schema/src/events.ts
 var PresenceSummarySchemaV1 = z.object({
@@ -26418,16 +26724,30 @@ var BoardEventDataSchemaV1 = z.discriminatedUnion("type", [
   z.object({ type: z.literal("stream.heartbeat"), sentAt: TimestampSchemaV1 }).strict(),
   z.object({ type: z.literal("stream.error"), error: BoardErrorSchemaV1 }).strict()
 ]);
-var BoardEventEnvelopeSchemaV1 = z.object({
-  protocolVersion: z.literal(1),
-  type: z.literal("board.event"),
-  boardId: BoardIdSchemaV1,
-  eventId: EventIdSchemaV1,
-  sequence: z.number().int().safe().positive(),
-  occurredAt: TimestampSchemaV1,
-  revisionId: RevisionIdSchemaV1.nullable(),
-  data: BoardEventDataSchemaV1
-}).strict().superRefine((event, context) => {
+var BoardEventDataSchemaV2 = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("board.snapshot"), snapshot: BoardSnapshotSchema }).strict(),
+  z.object({
+    type: z.literal("board.revision.created"),
+    revision: RevisionSummarySchemaV1,
+    originType: RevisionOriginTypeSchemaV1,
+    sourceRevisionId: RevisionIdSchemaV1.nullable()
+  }).strict(),
+  z.object({ type: z.literal("hitl.updated"), hitl: HitlInteractionSchemaV1 }).strict(),
+  z.object({
+    type: z.literal("artifact.status.changed"),
+    artifact: ArtifactRuntimeSummarySchemaV1
+  }).strict(),
+  z.object({ type: z.literal("presence.updated"), presence: z.array(PresenceSummarySchemaV1) }).strict(),
+  z.object({
+    type: z.literal("stream.resync.required"),
+    durableHeadRevisionId: RevisionIdSchemaV1,
+    lastUsableSequence: z.number().int().safe().min(0),
+    reason: z.enum(["gap", "expired_cursor", "server_reset"])
+  }).strict(),
+  z.object({ type: z.literal("stream.heartbeat"), sentAt: TimestampSchemaV1 }).strict(),
+  z.object({ type: z.literal("stream.error"), error: BoardErrorSchema }).strict()
+]);
+var validateBoardEventEnvelope = (event, context) => {
   const data = event.data;
   if (data.type === "board.snapshot") {
     if (event.boardId !== data.snapshot.boardId)
@@ -26495,7 +26815,21 @@ var BoardEventEnvelopeSchemaV1 = z.object({
         }
     }
   }
-});
+};
+var createBoardEventEnvelopeSchema = (dataSchema) => z.object({
+  protocolVersion: z.literal(1),
+  type: z.literal("board.event"),
+  boardId: BoardIdSchemaV1,
+  eventId: EventIdSchemaV1,
+  sequence: z.number().int().safe().positive(),
+  occurredAt: TimestampSchemaV1,
+  revisionId: RevisionIdSchemaV1.nullable(),
+  data: dataSchema
+}).strict().superRefine(
+  (event, context) => validateBoardEventEnvelope(event, context)
+);
+var BoardEventEnvelopeSchemaV1 = createBoardEventEnvelopeSchema(BoardEventDataSchemaV1);
+var BoardEventEnvelopeSchemaV2 = createBoardEventEnvelopeSchema(BoardEventDataSchemaV2);
 
 // packages/board-schema/src/operations.ts
 var PageCursorSchemaV1 = z.string().min(1).max(MAX_PAGE_CURSOR_CHARS).regex(/^[A-Za-z0-9_-]+$/).brand();
@@ -26600,15 +26934,15 @@ var results = [
   z.object({
     type: z.literal("board.get"),
     board: BoardSummarySchemaV1,
-    snapshot: BoardSnapshotSchemaV1
+    snapshot: BoardSnapshotSchema
   }).strict(),
   z.object({
     type: z.literal("board.create"),
     board: BoardSummarySchemaV1,
-    snapshot: BoardSnapshotSchemaV1
+    snapshot: BoardSnapshotSchema
   }).strict(),
   z.object({ type: z.literal("board.archive"), board: BoardSummarySchemaV1 }).strict(),
-  z.object({ type: z.literal("capabilities.get"), capabilities: BoardCapabilitiesSchemaV1 }).strict(),
+  z.object({ type: z.literal("capabilities.get"), capabilities: BoardCapabilitiesSchema }).strict(),
   z.object({
     type: z.literal("history.list"),
     entries: z.array(HistoryEntrySchemaV1).max(MAX_PAGE_SIZE),
@@ -26617,7 +26951,7 @@ var results = [
   z.object({
     type: z.literal("history.get"),
     entry: HistoryEntrySchemaV1,
-    snapshot: BoardSnapshotSchemaV1
+    snapshot: BoardSnapshotSchema
   }).strict(),
   z.object({
     type: z.literal("artifact.get"),
@@ -26648,7 +26982,9 @@ var BoardOperationResultSchemaV1 = z.object({
         path: ["result", "snapshot"],
         message: "[INVALID_LAYOUT] board and snapshot do not correlate"
       });
-    if (result.type === "board.create" && (result.snapshot.revision.revisionNumber !== 1 || result.snapshot.scene.root !== null))
+    if (result.type === "board.create" && (result.snapshot.revision.revisionNumber !== 1 || ("scene" in result.snapshot ? result.snapshot.scene.root !== null : result.snapshot.document.pages.some(
+      (page) => page.scene.root !== null
+    ))))
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ["result", "snapshot"],
@@ -26880,16 +27216,16 @@ var hasDuplicateObjectKeysV1 = (source) => {
   return false;
 };
 var runDecodedKernelV1 = validateJsonValueV1;
-var runBytesKernelV1 = (bytes) => {
-  if (bytes.byteLength > MAX_ENVELOPE_BYTES) {
+var runBytesKernel = (bytes, maximumBytes, message) => {
+  if (bytes.byteLength > maximumBytes) {
     return {
       ok: false,
       issue: {
         kind: "payload_too_large",
         path: [],
-        message: "envelope byte limit exceeded",
+        message,
         actual: bytes.byteLength,
-        maximum: MAX_ENVELOPE_BYTES
+        maximum: maximumBytes
       }
     };
   }
@@ -26913,6 +27249,8 @@ var runBytesKernelV1 = (bytes) => {
   }
   return validateJsonValueV1(input);
 };
+var runBytesKernelV1 = (bytes) => runBytesKernel(bytes, MAX_ENVELOPE_BYTES, "envelope byte limit exceeded");
+var runDocumentBytesKernelV2 = (bytes) => runBytesKernel(bytes, MAX_DOCUMENT_ENVELOPE_BYTES, "document envelope byte limit exceeded");
 var applySchemaV1 = (schema, kernel) => {
   if (!kernel.ok) return kernel;
   const parsed = schema.safeParse(kernel.value);
@@ -26941,7 +27279,7 @@ var invalidPayload = (path, issue2) => ({
   httpStatusHint: 400,
   details: { path, issue: issue2.slice(0, 200) || "invalid payload" }
 });
-var protocolMismatch = (receivedMajor) => ({
+var protocolMismatch = (receivedMajor, reason = "major", field = "protocolVersion") => ({
   protocolVersion: 1,
   type: "board.error",
   code: "PROTOCOL_VERSION_MISMATCH",
@@ -26949,7 +27287,7 @@ var protocolMismatch = (receivedMajor) => ({
   category: "protocol",
   retryable: false,
   httpStatusHint: 409,
-  details: { reason: "major", supportedMajor: 1, receivedMajor, field: "protocolVersion" }
+  details: { reason, supportedMajor: 1, receivedMajor, field }
 });
 var payloadTooLarge = (scope, actualBytes, maximumBytes) => ({
   protocolVersion: 1,
@@ -26981,12 +27319,12 @@ var invalidLayout = (path, reason) => ({
   httpStatusHint: 422,
   details: { path, reason }
 });
-var kernelError = (issue2) => {
+var kernelError = (issue2, documentProfile = false) => {
   if (issue2.kind === "payload_too_large")
     return payloadTooLarge(
-      "envelope",
+      documentProfile ? "document.envelope" : "envelope",
       issue2.actual ?? 0,
-      issue2.maximum ?? BOARD_LIMITS_V1.maxEnvelopeBytes
+      issue2.maximum ?? (documentProfile ? MAX_DOCUMENT_ENVELOPE_BYTES : BOARD_LIMITS_V1.maxEnvelopeBytes)
     );
   if (issue2.kind === "json_depth")
     return limitExceeded(
@@ -27002,6 +27340,7 @@ var kernelError = (issue2) => {
     );
   return invalidPayload(issue2.path, issue2.message);
 };
+var kernelErrorV1 = (issue2) => kernelError(issue2);
 var valueAtPath = (input, path) => path.reduce(
   (value, key) => value !== null && typeof value === "object" ? value[key] : void 0,
   input
@@ -27056,7 +27395,33 @@ var inferLimitKey = (input, path, message) => {
   if (field === "timeoutMs") return "maxHitlWaitMs";
   return null;
 };
+var invalidDocument2 = (path, reason) => ({
+  protocolVersion: 1,
+  type: "board.error",
+  code: "INVALID_DOCUMENT",
+  message: "Invalid document",
+  category: "validation",
+  retryable: false,
+  httpStatusHint: 422,
+  details: { path, reason }
+});
 var mapSchemaIssue = (input, issue2, kind) => {
+  const documentMatch = /^\[INVALID_DOCUMENT:([^\]]+)\]/u.exec(issue2.message);
+  if (documentMatch)
+    return invalidDocument2(
+      issue2.path,
+      documentMatch[1]
+    );
+  const knownDocument = kind === "document" || findDocumentValues(input).some(({ value }) => value.schemaVersion === 2);
+  if (knownDocument) {
+    if (issue2.path.at(-1) === "displayMode")
+      return invalidDocument2(issue2.path, "invalid_display_mode");
+    if (issue2.message.startsWith("[DUPLICATE_NODE_ID:"))
+      return invalidDocument2(issue2.path, "duplicate_node_id");
+    if (issue2.message.includes("reference") || issue2.message.includes("missing"))
+      return invalidDocument2(issue2.path, "unresolved_reference");
+    return invalidDocument2(issue2.path, "limit");
+  }
   const limitMatch = /^\[LIMIT:([^\]]+)\]/.exec(issue2.message);
   if (limitMatch) {
     const key = limitMatch[1];
@@ -27227,6 +27592,71 @@ var guardSceneLimits = (input, kind) => {
   }
   return null;
 };
+var findDocumentValues = (input) => {
+  const documents = [];
+  const stack = [
+    { value: input, path: [] }
+  ];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current) break;
+    if (isRecord(current.value) && Object.hasOwn(current.value, "schemaVersion") && Object.hasOwn(current.value, "pages") && Object.hasOwn(current.value, "defaultPageId"))
+      documents.push({ value: current.value, path: current.path });
+    if (Array.isArray(current.value))
+      current.value.forEach(
+        (value, index) => stack.push({ value, path: [...current.path, index] })
+      );
+    else if (isRecord(current.value))
+      Object.entries(current.value).forEach(
+        ([key, value]) => stack.push({ value, path: [...current.path, key] })
+      );
+  }
+  return documents;
+};
+var guardDocumentLimits = (input, kind) => {
+  const documents = findDocumentValues(input);
+  if (kind === "document" && documents.length === 0 && isRecord(input))
+    documents.push({ value: input, path: [] });
+  for (const document of documents) {
+    if (document.value.schemaVersion !== 2)
+      return protocolMismatch(1, "schema_revision", "document.schemaVersion");
+    const canonical = runDecodedKernelV1(document.value);
+    if (canonical.ok && canonical.canonicalBytes.byteLength > MAX_DOCUMENT_BYTES)
+      return payloadTooLarge("document", canonical.canonicalBytes.byteLength, MAX_DOCUMENT_BYTES);
+    const pages = document.value.pages;
+    if (!Array.isArray(pages)) continue;
+    if (pages.length < 1 || pages.length > BOARD_DOCUMENT_LIMITS_V2.maxDocumentPages)
+      return invalidDocument2([...document.path, "pages"], "page_count");
+    let nodeCount = 0;
+    for (let pageIndex2 = 0; pageIndex2 < pages.length; pageIndex2 += 1) {
+      const page = pages[pageIndex2];
+      const pageCanonical = runDecodedKernelV1(page);
+      if (pageCanonical.ok && pageCanonical.canonicalBytes.byteLength > MAX_DOCUMENT_PAGE_BYTES)
+        return payloadTooLarge(
+          "document.page",
+          pageCanonical.canonicalBytes.byteLength,
+          MAX_DOCUMENT_PAGE_BYTES
+        );
+      if (!isRecord(page) || !isRecord(page.scene)) continue;
+      const root = page.scene.root;
+      if (root === null || !isRecord(root)) continue;
+      const stack = [root];
+      while (stack.length > 0) {
+        const node = stack.pop();
+        if (!node) break;
+        nodeCount += 1;
+        const children = node.type === "layout.tabs" ? node.tabs : node.children;
+        if (Array.isArray(children))
+          children.forEach((item) => {
+            if (isRecord(item) && isRecord(item.node)) stack.push(item.node);
+          });
+      }
+    }
+    if (nodeCount > BOARD_DOCUMENT_LIMITS_V2.maxDocumentNodes)
+      return invalidDocument2([...document.path, "pages"], "limit");
+  }
+  return null;
+};
 var guardHitlResponseBytes = (input, kind) => {
   const candidates = kind === "hitl-response" ? [input] : [];
   const stack = [input];
@@ -27252,8 +27682,8 @@ var guardHitlResponseBytes = (input, kind) => {
   }
   return null;
 };
-var processKernel = (schema, kernel, kind) => {
-  if (!kernel.ok) return { ok: false, error: kernelError(kernel.issue) };
+var processKernel = (schema, kernel, kind, documentProfile = false) => {
+  if (!kernel.ok) return { ok: false, error: kernelError(kernel.issue, documentProfile) };
   const input = kernel.value;
   if (isRecord(input) && Object.hasOwn(input, "protocolVersion") && input.protocolVersion !== 1)
     return {
@@ -27264,50 +27694,77 @@ var processKernel = (schema, kernel, kind) => {
     };
   const sceneIssue = guardSceneLimits(input, kind);
   if (sceneIssue) return { ok: false, error: sceneIssue };
+  const documentIssue = guardDocumentLimits(input, kind);
+  if (documentIssue) return { ok: false, error: documentIssue };
   const hitlByteIssue = guardHitlResponseBytes(input, kind);
   if (hitlByteIssue) return { ok: false, error: hitlByteIssue };
   const result = applySchemaV1(schema, kernel);
   if (!result.ok) return { ok: false, error: mapSchemaIssue(input, result.issue, kind) };
   return { ok: true, data: { value: result.value, canonicalBytes: result.canonicalBytes } };
 };
-var createParser = (schema, kind = "generic") => ({
-  parse: (input) => processKernel(schema, runDecodedKernelV1(input), kind),
-  parseBytes: (bytes) => processKernel(schema, runBytesKernelV1(bytes), kind)
+var createParser = (schema, kind = "generic", documentProfile = false) => ({
+  parse: (input) => processKernel(schema, runDecodedKernelV1(input), kind, documentProfile),
+  parseBytes: (bytes) => processKernel(
+    schema,
+    documentProfile ? runDocumentBytesKernelV2(bytes) : runBytesKernelV1(bytes),
+    kind,
+    documentProfile
+  )
 });
-var GlobalIdStringParserV1 = createParser(GlobalIdStringSchemaV1);
-var BoardIdParserV1 = createParser(BoardIdSchemaV1);
-var GrantIdParserV1 = createParser(GrantIdSchemaV1);
-var PrincipalIdParserV1 = createParser(PrincipalIdSchemaV1);
-var NodeIdParserV1 = createParser(NodeIdSchemaV1);
-var ShortTextParserV1 = createParser(ShortTextSchemaV1);
-var SceneParserV1 = createParser(SceneSchemaV1, "scene");
-var BoardNodeParserV1 = createParser(BoardNodeSchemaV1, "node");
-var MutationRequestParserV1 = createParser(MutationRequestSchemaV1, "mutation");
-var MutationEnvelopeParserV1 = createParser(MutationEnvelopeSchemaV1, "mutation");
-var MutationResultParserV1 = createParser(MutationResultSchemaV1, "mutation");
-var BoardOperationRequestParserV1 = createParser(
+var createParserV1 = (schema, kind = "generic") => createParser(schema, kind);
+var GlobalIdStringParserV1 = createParserV1(GlobalIdStringSchemaV1);
+var BoardIdParserV1 = createParserV1(BoardIdSchemaV1);
+var GrantIdParserV1 = createParserV1(GrantIdSchemaV1);
+var PrincipalIdParserV1 = createParserV1(PrincipalIdSchemaV1);
+var NodeIdParserV1 = createParserV1(NodeIdSchemaV1);
+var PageIdParserV1 = createParserV1(PageIdSchemaV1);
+var ShortTextParserV1 = createParserV1(ShortTextSchemaV1);
+var SceneParserV1 = createParserV1(SceneSchemaV1, "scene");
+var BoardNodeParserV1 = createParserV1(BoardNodeSchemaV1, "node");
+var MutationRequestParserV1 = createParserV1(MutationRequestSchemaV1, "mutation");
+var MutationEnvelopeParserV1 = createParserV1(MutationEnvelopeSchemaV1, "mutation");
+var MutationResultParserV1 = createParserV1(MutationResultSchemaV1, "mutation");
+var BoardOperationRequestParserV1 = createParserV1(
   BoardOperationRequestSchemaV1,
   "operation"
 );
-var BoardOperationEnvelopeParserV1 = createParser(
+var BoardOperationEnvelopeParserV1 = createParserV1(
   BoardOperationEnvelopeSchemaV1,
   "operation"
 );
-var BoardOperationResultParserV1 = createParser(BoardOperationResultSchemaV1, "operation");
-var BoardSnapshotParserV1 = createParser(BoardSnapshotSchemaV1, "scene");
-var BoardEventEnvelopeParserV1 = createParser(BoardEventEnvelopeSchemaV1, "event");
-var BoardCapabilitiesParserV1 = createParser(BoardCapabilitiesSchemaV1);
-var ArtifactReferenceParserV1 = createParser(ArtifactReferenceSchemaV1);
-var ArtifactResourceParserV1 = createParser(ArtifactResourceSchemaV1);
-var ArtifactManifestParserV1 = createParser(ArtifactManifestSchemaV1);
-var ArtifactRuntimeSummaryParserV1 = createParser(ArtifactRuntimeSummarySchemaV1);
-var HitlRequestDefinitionParserV1 = createParser(HitlRequestDefinitionSchemaV1);
-var HitlResponseParserV1 = createParser(HitlResponseSchemaV1, "hitl-response");
-var HitlInteractionParserV1 = createParser(HitlInteractionSchemaV1);
-var BoardErrorParserV1 = createParser(BoardErrorSchemaV1);
+var BoardOperationResultParserV1 = createParserV1(
+  BoardOperationResultSchemaV1,
+  "operation"
+);
+var BoardSnapshotParserV1 = createParserV1(BoardSnapshotSchemaV1, "scene");
+var BoardEventEnvelopeParserV1 = createParserV1(BoardEventEnvelopeSchemaV1, "event");
+var BoardCapabilitiesParserV1 = createParserV1(BoardCapabilitiesSchemaV1);
+var ArtifactReferenceParserV1 = createParserV1(ArtifactReferenceSchemaV1);
+var ArtifactResourceParserV1 = createParserV1(ArtifactResourceSchemaV1);
+var ArtifactManifestParserV1 = createParserV1(ArtifactManifestSchemaV1);
+var ArtifactRuntimeSummaryParserV1 = createParserV1(ArtifactRuntimeSummarySchemaV1);
+var HitlRequestDefinitionParserV1 = createParserV1(HitlRequestDefinitionSchemaV1);
+var HitlResponseParserV1 = createParserV1(HitlResponseSchemaV1, "hitl-response");
+var HitlInteractionParserV1 = createParserV1(HitlInteractionSchemaV1);
+var BoardErrorParserV1 = createParserV1(BoardErrorSchemaV1);
+var BoardDocumentParserV2 = createParser(BoardDocumentSchemaV2, "document", true);
+var MutationRequestParserV2 = createParser(MutationRequestSchemaV2, "mutation", true);
+var MutationEnvelopeParserV2 = createParser(MutationEnvelopeSchemaV2, "mutation", true);
+var MutationResultParserV2 = createParser(MutationResultSchemaV2, "mutation", true);
+var BoardOperationResultParserV2 = createParser(
+  BoardOperationResultSchemaV1,
+  "operation",
+  true
+);
+var BoardSnapshotParserV2 = createParser(BoardSnapshotSchemaV2, "document", true);
+var BoardSnapshotParser = createParser(BoardSnapshotSchema, "generic", true);
+var BoardEventEnvelopeParserV2 = createParser(BoardEventEnvelopeSchemaV2, "event", true);
+var BoardCapabilitiesParserV2 = createParser(BoardCapabilitiesSchemaV2);
+var BoardCapabilitiesParser = createParser(BoardCapabilitiesSchema);
+var BoardErrorParser = createParser(BoardErrorSchema);
 var canonicalizeJsonV1 = (input) => {
   const result = runDecodedKernelV1(input);
-  return result.ok ? { ok: true, data: { value: result.value, canonicalBytes: result.canonicalBytes } } : { ok: false, error: kernelError(result.issue) };
+  return result.ok ? { ok: true, data: { value: result.value, canonicalBytes: result.canonicalBytes } } : { ok: false, error: kernelErrorV1(result.issue) };
 };
 var ActorCandidateSchemaV1 = z.object({
   principalKind: z.enum(["user", "mcp_client", "service"]),
@@ -27501,6 +27958,78 @@ var parseBoardHttpResultV1 = (bytes, expectation) => {
     }
   };
 };
+var parseBoardOperationHttpResultV2 = (bytes, expectation) => {
+  const strict = parseStrictJsonBytesV1(bytes);
+  if (!strict.ok) return strict;
+  const decoded = strict.value;
+  if (!isRecord2(decoded)) return { ok: false, reason: "schema" };
+  if (hasExactKeys(decoded, ["error"])) {
+    const error2 = BoardErrorParser.parse(decoded.error);
+    if (!error2.ok) return { ok: false, reason: "schema" };
+    if (expectation.status !== error2.data.value.httpStatusHint)
+      return { ok: false, reason: "correlation" };
+    return { ok: true, value: { ok: false, error: error2.data.value } };
+  }
+  if (!hasExactKeys(decoded, ["protocolVersion", "type", "requestId", "result", "metadata"]) || decoded.protocolVersion !== 1 || decoded.type !== "board.http.success" || decoded.requestId !== expectation.requestId || !isRecord2(decoded.metadata) || !hasExactKeys(decoded.metadata, ["history"]))
+    return { ok: false, reason: "schema" };
+  const operation = BoardOperationResultParserV2.parse(decoded.result);
+  if (!operation.ok) return { ok: false, reason: "schema" };
+  const result = operation.data.value;
+  if (result.requestId !== expectation.requestId || !pathCorrelates(result, expectation))
+    return { ok: false, reason: "correlation" };
+  const historyValue = decoded.metadata.history;
+  const history = historyValue === null ? null : parseHistory(historyValue);
+  if (historyValue !== null && history === null || !historyCorrelates(result, history))
+    return { ok: false, reason: "correlation" };
+  if (expectation.status !== 200) return { ok: false, reason: "correlation" };
+  return {
+    ok: true,
+    value: {
+      ok: true,
+      value: {
+        protocolVersion: 1,
+        type: "board.http.success",
+        requestId: expectation.requestId,
+        result,
+        metadata: { history }
+      }
+    }
+  };
+};
+var parseBoardDocumentHttpResultV2 = (bytes, expectation) => {
+  const strict = parseStrictJsonBytesV1(bytes);
+  if (!strict.ok) return strict;
+  const decoded = strict.value;
+  if (!isRecord2(decoded)) return { ok: false, reason: "schema" };
+  if (hasExactKeys(decoded, ["error"])) {
+    const error2 = BoardErrorParser.parse(decoded.error);
+    if (!error2.ok) return { ok: false, reason: "schema" };
+    if (expectation.status !== error2.data.value.httpStatusHint)
+      return { ok: false, reason: "correlation" };
+    return { ok: true, value: { ok: false, error: error2.data.value } };
+  }
+  if (!hasExactKeys(decoded, ["protocolVersion", "type", "requestId", "result", "metadata"]) || decoded.protocolVersion !== 1 || decoded.type !== "board.http.success" || decoded.requestId !== expectation.requestId || !isRecord2(decoded.metadata) || !hasExactKeys(decoded.metadata, ["history"]) || decoded.metadata.history !== null)
+    return { ok: false, reason: "schema" };
+  const parsed = MutationResultParserV2.parse(decoded.result);
+  if (!parsed.ok || parsed.data.value.result.type !== "document.replace")
+    return { ok: false, reason: "schema" };
+  const result = parsed.data.value;
+  if (result.requestId !== expectation.requestId || result.boardId !== expectation.boardId || expectation.status !== (result.replayed ? 200 : 201))
+    return { ok: false, reason: "correlation" };
+  return {
+    ok: true,
+    value: {
+      ok: true,
+      value: {
+        protocolVersion: 1,
+        type: "board.http.success",
+        requestId: expectation.requestId,
+        result,
+        metadata: { history: null }
+      }
+    }
+  };
+};
 
 // packages/board-sdk/src/http/bounded-response.ts
 var readBoundedResponseBodyV1 = async (response, limit, signal) => {
@@ -27600,6 +28129,7 @@ var sleepWithinDeadlineV1 = async (milliseconds, remainingMs, signal) => {
 // packages/board-sdk/src/http/board-sdk-http.client.ts
 var SUCCESS_BODY_LIMIT = 2097152;
 var ERROR_BODY_LIMIT = 65536;
+var DOCUMENT_MEDIA_TYPE = "application/vnd.sceneboard.document+json;version=2";
 var TOKEN_PATTERN = /^lcbg_v1\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$/;
 var localFailure = (error2) => ({
   ok: false,
@@ -27676,6 +28206,24 @@ var BoardSdkHttpClient = class {
       signal
     );
   }
+  getDocumentBoard(request, signal) {
+    const parsed = this.#operation(request, "board.get");
+    return this.#call(
+      {
+        method: "GET",
+        routeTemplate: "/api/v1/boards/:boardId",
+        path: `/api/v1/boards/${parsed.boardId}`,
+        query: new URLSearchParams({ requestId: parsed.requestId }),
+        body: null,
+        requestId: parsed.requestId,
+        resultType: "board.get",
+        boardId: parsed.boardId,
+        retryKind: "read",
+        profile: "document-v2"
+      },
+      signal
+    );
+  }
   createBoard(request, signal) {
     const parsed = this.#operation(request, "board.create");
     return this.#call(
@@ -27730,6 +28278,25 @@ var BoardSdkHttpClient = class {
         resultType: request.command.type,
         boardId: parsed.data.value.boardId,
         retryKind: "mutation"
+      },
+      signal
+    );
+  }
+  mutateDocument(request, signal) {
+    const parsed = MutationRequestParserV2.parse(request);
+    if (!parsed.ok || parsed.data.value.command.type !== "document.replace")
+      throw new TypeError("invalid document.replace request");
+    return this.#call(
+      {
+        method: "POST",
+        routeTemplate: "/api/v1/boards/:boardId/mutations",
+        path: `/api/v1/boards/${parsed.data.value.boardId}/mutations`,
+        body: parsed.data.canonicalBytes,
+        requestId: parsed.data.value.requestId,
+        resultType: "document.replace",
+        boardId: parsed.data.value.boardId,
+        retryKind: "mutation",
+        profile: "document-v2"
       },
       signal
     );
@@ -27795,6 +28362,25 @@ var BoardSdkHttpClient = class {
         boardId: parsed.boardId,
         revisionId: parsed.revisionId,
         retryKind: "read"
+      },
+      signal
+    );
+  }
+  getDocumentHistory(request, signal) {
+    const parsed = this.#operation(request, "history.get");
+    return this.#call(
+      {
+        method: "GET",
+        routeTemplate: "/api/v1/boards/:boardId/revisions/:revisionId",
+        path: `/api/v1/boards/${parsed.boardId}/revisions/${parsed.revisionId}`,
+        query: new URLSearchParams({ requestId: parsed.requestId }),
+        body: null,
+        requestId: parsed.requestId,
+        resultType: "history.get",
+        boardId: parsed.boardId,
+        revisionId: parsed.revisionId,
+        retryKind: "read",
+        profile: "document-v2"
       },
       signal
     );
@@ -27922,7 +28508,9 @@ var BoardSdkHttpClient = class {
               Accept: "application/json",
               Authorization: `Bearer ${token}`,
               "X-Request-Id": spec.requestId,
-              ...spec.body === null ? {} : { "Content-Type": "application/json" }
+              ...spec.body === null ? {} : {
+                "Content-Type": spec.profile === "document-v2" ? DOCUMENT_MEDIA_TYPE : "application/json"
+              }
             },
             ...spec.body === null ? {} : { body: spec.body.slice().buffer },
             signal: deadline.signal
@@ -27949,7 +28537,7 @@ var BoardSdkHttpClient = class {
             reason: "content_type"
           });
         }
-        const cap = response.status >= 200 && response.status < 300 ? SUCCESS_BODY_LIMIT : ERROR_BODY_LIMIT;
+        const cap = response.status >= 200 && response.status < 300 ? spec.profile === "document-v2" ? BOARD_DOCUMENT_LIMITS_V2.maxDocumentEnvelopeBytes : SUCCESS_BODY_LIMIT : ERROR_BODY_LIMIT;
         const bytes = await readBoundedResponseBodyV1(response, cap, deadline.signal);
         if (bytes === "body_too_large")
           return localFailure({
@@ -27972,7 +28560,17 @@ var BoardSdkHttpClient = class {
             reason: "correlation"
           });
         }
-        const parsed = parseBoardHttpResultV1(bytes, {
+        const parsed = spec.profile === "document-v2" && spec.resultType === "document.replace" ? parseBoardDocumentHttpResultV2(bytes, {
+          status: response.status,
+          requestId: spec.requestId,
+          boardId: spec.boardId
+        }) : spec.profile === "document-v2" ? parseBoardOperationHttpResultV2(bytes, {
+          status: response.status,
+          requestId: spec.requestId,
+          resultType: spec.resultType,
+          ...spec.boardId === void 0 ? {} : { boardId: spec.boardId },
+          ...spec.revisionId === void 0 ? {} : { revisionId: spec.revisionId }
+        }) : parseBoardHttpResultV1(bytes, {
           status: response.status,
           requestId: spec.requestId,
           resultType: spec.resultType,
@@ -33651,6 +34249,101 @@ var ProtectedBoardGatewayV1 = class {
 // sceneboard-mcp/src/tools/register-tools.ts
 import { randomBytes as randomBytes7 } from "node:crypto";
 
+// packages/board-sdk/src/document-transform/document-transform.ts
+var invalidDocument3 = (path, reason) => ({
+  protocolVersion: 1,
+  type: "board.error",
+  code: "INVALID_DOCUMENT",
+  message: "Invalid document",
+  category: "validation",
+  retryable: false,
+  httpStatusHint: 422,
+  details: { path, reason }
+});
+var failed = (error2) => ({ ok: false, error: error2 });
+var exactKeys = (value, keys) => {
+  const actual = Object.keys(value).sort();
+  const expected = [...keys].sort();
+  return actual.length === expected.length && actual.every((key, index) => key === expected[index]);
+};
+var safeIndex = (value) => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+var pageIndex = (document, pageId) => document.pages.findIndex((page) => page.pageId === pageId);
+var applyDocumentTransformV2 = (source, operation) => {
+  const document = BoardDocumentParserV2.parse(source);
+  if (!document.ok) return document;
+  if (operation === null || typeof operation !== "object" || Array.isArray(operation))
+    return failed(invalidDocument3(["operation"], "limit"));
+  if (operation.type === "document.replace") {
+    if (!exactKeys(operation, ["type", "document"]))
+      return failed(invalidDocument3(["operation"], "limit"));
+    return BoardDocumentParserV2.parse(operation.document);
+  }
+  const current = document.data.value;
+  if (operation.type === "page.add") {
+    if (!exactKeys(operation, ["type", "page", "index"]) || !safeIndex(operation.index))
+      return failed(invalidDocument3(["operation", "index"], "limit"));
+    if (operation.index > current.pages.length)
+      return failed(invalidDocument3(["operation", "index"], "page_count"));
+    const pages = [...current.pages];
+    pages.splice(operation.index, 0, operation.page);
+    return BoardDocumentParserV2.parse({ ...current, pages });
+  }
+  if (operation.type === "page.remove") {
+    if (!exactKeys(operation, ["type", "pageId"]))
+      return failed(invalidDocument3(["operation"], "limit"));
+    const index = pageIndex(current, operation.pageId);
+    if (index < 0) return failed(invalidDocument3(["operation", "pageId"], "unresolved_reference"));
+    if (current.pages.length === 1)
+      return failed(invalidDocument3(["operation", "pageId"], "page_count"));
+    if (operation.pageId === current.defaultPageId)
+      return failed(invalidDocument3(["operation", "pageId"], "default_page_missing"));
+    return BoardDocumentParserV2.parse({
+      ...current,
+      pages: current.pages.filter((_, pagePosition) => pagePosition !== index)
+    });
+  }
+  if (operation.type === "page.reorder") {
+    if (!exactKeys(operation, ["type", "pageId", "toIndex"]) || !safeIndex(operation.toIndex) || operation.toIndex >= current.pages.length)
+      return failed(invalidDocument3(["operation", "toIndex"], "page_count"));
+    const index = pageIndex(current, operation.pageId);
+    if (index < 0) return failed(invalidDocument3(["operation", "pageId"], "unresolved_reference"));
+    if (index === operation.toIndex) return document;
+    const pages = [...current.pages];
+    const [selected] = pages.splice(index, 1);
+    if (selected === void 0) return failed(invalidDocument3(["operation", "pageId"], "limit"));
+    pages.splice(operation.toIndex, 0, selected);
+    return BoardDocumentParserV2.parse({ ...current, pages });
+  }
+  if (operation.type === "page.update") {
+    const allowed = /* @__PURE__ */ new Set(["type", "pageId", "title", "displayMode", "scene"]);
+    const keys = Object.keys(operation);
+    if (keys.some((key) => !allowed.has(key)) || !Object.hasOwn(operation, "pageId") || !Object.hasOwn(operation, "type") || !["title", "displayMode", "scene"].some((key) => Object.hasOwn(operation, key)))
+      return failed(invalidDocument3(["operation"], "limit"));
+    const index = pageIndex(current, operation.pageId);
+    if (index < 0) return failed(invalidDocument3(["operation", "pageId"], "unresolved_reference"));
+    const existing2 = current.pages[index];
+    if (existing2 === void 0)
+      return failed(invalidDocument3(["operation", "pageId"], "unresolved_reference"));
+    const updated = {
+      ...existing2,
+      ...operation.title === void 0 ? {} : { title: operation.title },
+      ...operation.displayMode === void 0 ? {} : { displayMode: operation.displayMode },
+      ...operation.scene === void 0 ? {} : { scene: operation.scene }
+    };
+    const pages = [...current.pages];
+    pages[index] = updated;
+    return BoardDocumentParserV2.parse({ ...current, pages });
+  }
+  if (operation.type === "page.default.set") {
+    if (!exactKeys(operation, ["type", "pageId"]))
+      return failed(invalidDocument3(["operation"], "limit"));
+    if (pageIndex(current, operation.pageId) < 0)
+      return failed(invalidDocument3(["operation", "pageId"], "unresolved_reference"));
+    return BoardDocumentParserV2.parse({ ...current, defaultPageId: operation.pageId });
+  }
+  return failed(invalidDocument3(["operation", "type"], "limit"));
+};
+
 // sceneboard-mcp/src/tools/tool-schemas.ts
 import { randomBytes as randomBytes6 } from "node:crypto";
 var GlobalIdSchemaV1 = external_exports.string().regex(/^[A-Za-z0-9_-]{1,128}$/);
@@ -33776,6 +34469,13 @@ var D1_RESULT_TYPES_V1 = {
   board_scene_replace: ["scene.replace"],
   board_scene_patch: ["scene.replace"],
   board_scene_clear: ["scene.clear"],
+  board_document_get: ["board.get", "history.get"],
+  board_document_replace: ["document.replace"],
+  board_page_add: ["document.replace"],
+  board_page_remove: ["document.replace"],
+  board_page_reorder: ["document.replace"],
+  board_page_update: ["document.replace"],
+  board_page_default_set: ["document.replace"],
   board_artifact_get: ["artifact.get"],
   board_artifact_put: ["artifact.publish"],
   board_artifact_stop: ["artifact.stop"],
@@ -33835,7 +34535,9 @@ var toolOutputSchemaV1 = (tool, reachableCodes) => {
       }
       const expected = D1_RESULT_TYPES_V1[tool];
       if (expected !== void 0) {
-        const parsed = output.result.type === "mutation.result" ? MutationResultParserV1.parse(output.result) : BoardOperationResultParserV1.parse(output.result);
+        const documentTool = tool === "board_document_replace" || tool === "board_page_add" || tool === "board_page_remove" || tool === "board_page_reorder" || tool === "board_page_update" || tool === "board_page_default_set";
+        const documentReadTool = tool === "board_document_get";
+        const parsed = output.result.type === "mutation.result" ? documentTool ? MutationResultParserV2.parse(output.result) : MutationResultParserV1.parse(output.result) : documentReadTool ? BoardOperationResultParserV2.parse(output.result) : BoardOperationResultParserV1.parse(output.result);
         if (!parsed.ok) {
           context.addIssue({
             code: external_exports.ZodIssueCode.custom,
@@ -34007,6 +34709,238 @@ var validationFailureV1 = (tool, requestId, error2) => {
   );
 };
 
+// sceneboard-mcp/src/tools/document.tools.ts
+var CommonMutationShape = {
+  boardId: GlobalIdSchemaV1,
+  expectedRevisionId: GlobalIdSchemaV1,
+  idempotencyKey: IdempotencyKeySchemaV12
+};
+var DocumentGetInputSchemaV2 = external_exports.object({ boardId: GlobalIdSchemaV1, revisionId: GlobalIdSchemaV1.nullable() }).strict();
+var DocumentReplaceInputSchemaV2 = external_exports.object({ ...CommonMutationShape, document: external_exports.unknown() }).strict();
+var PageAddInputSchemaV2 = external_exports.object({
+  ...CommonMutationShape,
+  page: external_exports.unknown(),
+  index: external_exports.number().int().safe().nonnegative()
+}).strict();
+var PageRemoveInputSchemaV2 = external_exports.object({ ...CommonMutationShape, pageId: GlobalIdSchemaV1 }).strict();
+var PageReorderInputSchemaV2 = external_exports.object({
+  ...CommonMutationShape,
+  pageId: GlobalIdSchemaV1,
+  toIndex: external_exports.number().int().safe().nonnegative()
+}).strict();
+var PageUpdateInputSchemaV2 = external_exports.object({
+  ...CommonMutationShape,
+  pageId: GlobalIdSchemaV1,
+  title: external_exports.string().optional(),
+  displayMode: external_exports.enum(["fit-page", "fit-width", "actual-size"]).optional(),
+  scene: external_exports.unknown().optional()
+}).strict().refine(
+  (value) => Object.hasOwn(value, "title") || Object.hasOwn(value, "displayMode") || Object.hasOwn(value, "scene"),
+  { message: "at least one page update member is required" }
+);
+var PageDefaultSetInputSchemaV2 = external_exports.object({ ...CommonMutationShape, pageId: GlobalIdSchemaV1 }).strict();
+var mismatch = (tool, requestId, commandType) => toolFailureV1(tool, requestId, "board", {
+  protocolVersion: 1,
+  type: "board.error",
+  code: "DOCUMENT_VERSION_MISMATCH",
+  message: "Document version mismatch",
+  category: "conflict",
+  retryable: false,
+  httpStatusHint: 409,
+  details: {
+    headSchemaVersion: commandType === "document.replace" ? 1 : 2,
+    commandSchemaVersion: commandType === "document.replace" ? 2 : 1,
+    commandType
+  }
+});
+var disconnected = (tool, requestId) => toolFailureV1(tool, requestId, "mcp", notConnectedV1());
+var DocumentToolHandlersV2 = class {
+  constructor(gateway) {
+    this.gateway = gateway;
+  }
+  async get(raw, signal) {
+    const requestId = createRequestIdV1();
+    const parsed = DocumentGetInputSchemaV2.safeParse(raw);
+    if (!parsed.success) return validationFailureV1("board_document_get", requestId, parsed.error);
+    const result = parsed.data.revisionId === null ? await this.gateway.call(
+      (client) => client.getDocumentBoard(
+        {
+          protocolVersion: 1,
+          requestId,
+          type: "board.get",
+          boardId: parsed.data.boardId
+        },
+        signal
+      )
+    ) : await this.gateway.call(
+      (client) => client.getDocumentHistory(
+        {
+          protocolVersion: 1,
+          requestId,
+          type: "history.get",
+          boardId: parsed.data.boardId,
+          revisionId: parsed.data.revisionId
+        },
+        signal
+      )
+    );
+    if (!result.connected) return disconnected("board_document_get", requestId);
+    if (!result.value.ok)
+      return sdkToolResultV1("board_document_get", requestId, result.value, null);
+    const nested = result.value.result.result;
+    const snapshot = nested.type === "board.get" ? nested.snapshot : nested.type === "history.get" ? nested.snapshot : null;
+    if (snapshot === null) throw new Error("document get result invariant failed");
+    if (!("document" in snapshot))
+      return mismatch("board_document_get", requestId, "document.replace");
+    return sdkToolResultV1(
+      "board_document_get",
+      requestId,
+      result.value,
+      nested.type === "history.get" ? { type: "history", history: result.value.metadata.history } : null
+    );
+  }
+  replace(raw, signal) {
+    return this.mutate(
+      "board_document_replace",
+      DocumentReplaceInputSchemaV2,
+      raw,
+      (value) => ({
+        type: "document.replace",
+        document: value.document
+      }),
+      signal
+    );
+  }
+  add(raw, signal) {
+    return this.mutate(
+      "board_page_add",
+      PageAddInputSchemaV2,
+      raw,
+      (value) => ({
+        type: "page.add",
+        page: value.page,
+        index: value.index
+      }),
+      signal
+    );
+  }
+  remove(raw, signal) {
+    return this.mutate(
+      "board_page_remove",
+      PageRemoveInputSchemaV2,
+      raw,
+      (value) => ({ type: "page.remove", pageId: value.pageId }),
+      signal
+    );
+  }
+  reorder(raw, signal) {
+    return this.mutate(
+      "board_page_reorder",
+      PageReorderInputSchemaV2,
+      raw,
+      (value) => ({
+        type: "page.reorder",
+        pageId: value.pageId,
+        toIndex: value.toIndex
+      }),
+      signal
+    );
+  }
+  update(raw, signal) {
+    return this.mutate(
+      "board_page_update",
+      PageUpdateInputSchemaV2,
+      raw,
+      (value) => ({
+        type: "page.update",
+        pageId: value.pageId,
+        ...Object.hasOwn(value, "title") ? { title: value.title } : {},
+        ...Object.hasOwn(value, "displayMode") ? { displayMode: value.displayMode } : {},
+        ...Object.hasOwn(value, "scene") ? { scene: value.scene } : {}
+      }),
+      signal
+    );
+  }
+  defaultSet(raw, signal) {
+    return this.mutate(
+      "board_page_default_set",
+      PageDefaultSetInputSchemaV2,
+      raw,
+      (value) => ({ type: "page.default.set", pageId: value.pageId }),
+      signal
+    );
+  }
+  async mutate(tool, schema, raw, operation, signal) {
+    const requestId = createRequestIdV1();
+    const parsed = schema.safeParse(raw);
+    if (!parsed.success) return validationFailureV1(tool, requestId, parsed.error);
+    const value = parsed.data;
+    const head = await this.gateway.call(
+      (client) => client.getDocumentBoard(
+        {
+          protocolVersion: 1,
+          requestId,
+          type: "board.get",
+          boardId: value.boardId
+        },
+        signal
+      )
+    );
+    if (!head.connected) return disconnected(tool, requestId);
+    if (!head.value.ok) return sdkToolResultV1(tool, requestId, head.value, null);
+    const nested = head.value.result.result;
+    if (nested.type !== "board.get") throw new Error("board.get result invariant failed");
+    if (!("document" in nested.snapshot)) return mismatch(tool, requestId, "document.replace");
+    if (nested.snapshot.revision.revisionId !== value.expectedRevisionId)
+      return toolFailureV1(tool, requestId, "board", {
+        protocolVersion: 1,
+        type: "board.error",
+        code: "REVISION_CONFLICT",
+        message: "Revision conflict",
+        category: "conflict",
+        retryable: false,
+        httpStatusHint: 409,
+        details: {
+          boardId: value.boardId,
+          expectedRevisionId: value.expectedRevisionId,
+          actualRevisionId: nested.snapshot.revision.revisionId,
+          actualRevisionNumber: nested.snapshot.revision.revisionNumber,
+          recovery: "fetch_latest_then_retry"
+        }
+      });
+    const source = BoardDocumentParserV2.parse(nested.snapshot.document);
+    if (!source.ok)
+      return toolFailureV1(
+        tool,
+        requestId,
+        "board",
+        source.error
+      );
+    const transformed = applyDocumentTransformV2(source.data.value, operation(value));
+    if (!transformed.ok)
+      return toolFailureV1(
+        tool,
+        requestId,
+        "board",
+        transformed.error
+      );
+    const result = await this.gateway.call(
+      (client) => client.mutateDocument(
+        {
+          protocolVersion: 1,
+          requestId,
+          boardId: value.boardId,
+          expectedRevisionId: value.expectedRevisionId,
+          idempotencyKey: value.idempotencyKey,
+          command: { type: "document.replace", document: transformed.data.value }
+        },
+        signal
+      )
+    );
+    return result.connected ? sdkToolResultV1(tool, requestId, result.value, null) : disconnected(tool, requestId);
+  }
+};
+
 // sceneboard-mcp/src/tools/artifact.tools.ts
 var SourceTextSchemaV1 = external_exports.string().refine((value) => !/[\uD800-\uDFFF]/u.test(value), "lone surrogate is not allowed");
 var RequestedCapabilitiesSchemaV1 = external_exports.array(external_exports.enum(ARTIFACT_REQUEST_CAPABILITIES_V1)).max(ARTIFACT_REQUEST_CAPABILITIES_V1.length).superRefine((capabilities, context) => {
@@ -34148,7 +35082,7 @@ var BoardArchiveInputSchemaV1 = external_exports.object({
 }).strict();
 var BoardCapabilitiesInputSchemaV1 = BoardGetInputSchemaV1;
 var invalid = (tool, requestId, parsed) => validationFailureV1(tool, requestId, parsed.error);
-var disconnected = (tool, requestId) => toolFailureV1(tool, requestId, "mcp", notConnectedV1());
+var disconnected2 = (tool, requestId) => toolFailureV1(tool, requestId, "mcp", notConnectedV1());
 var BoardToolHandlersV1 = class {
   constructor(gateway) {
     this.gateway = gateway;
@@ -34170,7 +35104,7 @@ var BoardToolHandlersV1 = class {
         signal
       )
     );
-    return result.connected ? sdkToolResultV1("board_list", requestId, result.value, null) : disconnected("board_list", requestId);
+    return result.connected ? sdkToolResultV1("board_list", requestId, result.value, null) : disconnected2("board_list", requestId);
   }
   async get(raw, signal) {
     const requestId = createRequestIdV1();
@@ -34187,7 +35121,7 @@ var BoardToolHandlersV1 = class {
         signal
       )
     );
-    return result.connected ? sdkToolResultV1("board_get", requestId, result.value, null) : disconnected("board_get", requestId);
+    return result.connected ? sdkToolResultV1("board_get", requestId, result.value, null) : disconnected2("board_get", requestId);
   }
   async create(raw, signal) {
     const requestId = createRequestIdV1();
@@ -34205,7 +35139,7 @@ var BoardToolHandlersV1 = class {
         signal
       )
     );
-    return result.connected ? sdkToolResultV1("board_create", requestId, result.value, null) : disconnected("board_create", requestId);
+    return result.connected ? sdkToolResultV1("board_create", requestId, result.value, null) : disconnected2("board_create", requestId);
   }
   async archive(raw, signal) {
     const requestId = createRequestIdV1();
@@ -34224,7 +35158,7 @@ var BoardToolHandlersV1 = class {
         signal
       )
     );
-    return result.connected ? sdkToolResultV1("board_archive", requestId, result.value, null) : disconnected("board_archive", requestId);
+    return result.connected ? sdkToolResultV1("board_archive", requestId, result.value, null) : disconnected2("board_archive", requestId);
   }
   async capabilities(raw, signal) {
     const requestId = createRequestIdV1();
@@ -34241,7 +35175,7 @@ var BoardToolHandlersV1 = class {
         signal
       )
     );
-    return result.connected ? sdkToolResultV1("board_capabilities_get", requestId, result.value, null) : disconnected("board_capabilities_get", requestId);
+    return result.connected ? sdkToolResultV1("board_capabilities_get", requestId, result.value, null) : disconnected2("board_capabilities_get", requestId);
   }
 };
 
@@ -35202,6 +36136,20 @@ var SceneClearInputSchemaV1 = external_exports.object({
   expectedRevisionId: GlobalIdSchemaV1,
   idempotencyKey: IdempotencyKeySchemaV12
 }).strict();
+var documentMismatch = (tool, requestId) => toolFailureV1(tool, requestId, "board", {
+  protocolVersion: 1,
+  type: "board.error",
+  code: "DOCUMENT_VERSION_MISMATCH",
+  message: "Document version mismatch",
+  category: "conflict",
+  retryable: false,
+  httpStatusHint: 409,
+  details: {
+    headSchemaVersion: 2,
+    commandSchemaVersion: 1,
+    commandType: "scene.replace"
+  }
+});
 var SceneToolHandlersV1 = class {
   constructor(gateway) {
     this.gateway = gateway;
@@ -35222,6 +36170,8 @@ var SceneToolHandlersV1 = class {
           signal
         )
       );
+      if (result2.connected && result2.value.ok && result2.value.result.result.type === "board.get" && "document" in result2.value.result.result.snapshot)
+        return documentMismatch("board_scene_get", requestId);
       return result2.connected ? sdkToolResultV1("board_scene_get", requestId, result2.value, null) : toolFailureV1(
         "board_scene_get",
         requestId,
@@ -35241,6 +36191,8 @@ var SceneToolHandlersV1 = class {
         signal
       )
     );
+    if (result.connected && result.value.ok && result.value.result.result.type === "history.get" && "document" in result.value.result.result.snapshot)
+      return documentMismatch("board_scene_get", requestId);
     return result.connected ? sdkToolResultV1(
       "board_scene_get",
       requestId,
@@ -35310,6 +36262,7 @@ var SceneToolHandlersV1 = class {
     if (!head.value.ok) return sdkToolResultV1("board_scene_patch", requestId, head.value, null);
     const snapshot = head.value.result.result;
     if (snapshot.type !== "board.get") throw new Error("board.get result invariant failed");
+    if ("document" in snapshot.snapshot) return documentMismatch("board_scene_patch", requestId);
     const transformed = applySceneTransformV1(
       snapshot.snapshot.scene,
       parsed.data.operations
@@ -35384,6 +36337,13 @@ var CORE_TOOL_NAMES_V1 = [
   "board_scene_replace",
   "board_scene_patch",
   "board_scene_clear",
+  "board_document_get",
+  "board_document_replace",
+  "board_page_add",
+  "board_page_remove",
+  "board_page_reorder",
+  "board_page_update",
+  "board_page_default_set",
   "board_history_list",
   "board_history_get",
   "board_history_restore"
@@ -35399,9 +36359,9 @@ var DOWNSTREAM_TOOL_NAMES_V1 = [
   "board_interaction_respond"
 ];
 var BOARD_TOOL_NAMES_V1 = [
-  ...CORE_TOOL_NAMES_V1.slice(0, 12),
+  ...CORE_TOOL_NAMES_V1.slice(0, 19),
   ...DOWNSTREAM_TOOL_NAMES_V1.slice(0, 3),
-  ...CORE_TOOL_NAMES_V1.slice(12),
+  ...CORE_TOOL_NAMES_V1.slice(19),
   ...DOWNSTREAM_TOOL_NAMES_V1.slice(3)
 ];
 var BOARD_TOOL_ERROR_CODES_V1 = {
@@ -35486,6 +36446,7 @@ var BOARD_TOOL_ERROR_CODES_V1 = {
     "FORBIDDEN",
     "BOARD_NOT_FOUND",
     "REVISION_NOT_FOUND",
+    "DOCUMENT_VERSION_MISMATCH",
     "RATE_LIMITED",
     "SERVICE_UNAVAILABLE",
     "INTERNAL_ERROR"
@@ -35498,6 +36459,7 @@ var BOARD_TOOL_ERROR_CODES_V1 = {
     "BOARD_NOT_FOUND",
     "REVISION_CONFLICT",
     "IDEMPOTENCY_KEY_REUSED",
+    "DOCUMENT_VERSION_MISMATCH",
     "UNKNOWN_NODE_TYPE",
     "INVALID_LAYOUT",
     "DUPLICATE_NODE_ID",
@@ -35515,6 +36477,7 @@ var BOARD_TOOL_ERROR_CODES_V1 = {
     "BOARD_NOT_FOUND",
     "REVISION_CONFLICT",
     "IDEMPOTENCY_KEY_REUSED",
+    "DOCUMENT_VERSION_MISMATCH",
     "UNKNOWN_NODE_TYPE",
     "INVALID_LAYOUT",
     "DUPLICATE_NODE_ID",
@@ -35532,6 +36495,133 @@ var BOARD_TOOL_ERROR_CODES_V1 = {
     "BOARD_NOT_FOUND",
     "REVISION_CONFLICT",
     "IDEMPOTENCY_KEY_REUSED",
+    "DOCUMENT_VERSION_MISMATCH",
+    "RATE_LIMITED",
+    "SERVICE_UNAVAILABLE",
+    "INTERNAL_ERROR"
+  ],
+  board_document_get: [
+    "INVALID_PAYLOAD",
+    "PROTOCOL_VERSION_MISMATCH",
+    "UNAUTHENTICATED",
+    "FORBIDDEN",
+    "BOARD_NOT_FOUND",
+    "REVISION_NOT_FOUND",
+    "DOCUMENT_VERSION_MISMATCH",
+    "RATE_LIMITED",
+    "SERVICE_UNAVAILABLE",
+    "INTERNAL_ERROR"
+  ],
+  board_document_replace: [
+    "INVALID_PAYLOAD",
+    "PROTOCOL_VERSION_MISMATCH",
+    "UNAUTHENTICATED",
+    "FORBIDDEN",
+    "BOARD_NOT_FOUND",
+    "REVISION_CONFLICT",
+    "IDEMPOTENCY_KEY_REUSED",
+    "DOCUMENT_VERSION_MISMATCH",
+    "INVALID_DOCUMENT",
+    "UNKNOWN_NODE_TYPE",
+    "INVALID_LAYOUT",
+    "DUPLICATE_NODE_ID",
+    "LIMIT_EXCEEDED",
+    "PAYLOAD_TOO_LARGE",
+    "RATE_LIMITED",
+    "SERVICE_UNAVAILABLE",
+    "INTERNAL_ERROR"
+  ],
+  board_page_add: [
+    "INVALID_PAYLOAD",
+    "PROTOCOL_VERSION_MISMATCH",
+    "UNAUTHENTICATED",
+    "FORBIDDEN",
+    "BOARD_NOT_FOUND",
+    "REVISION_CONFLICT",
+    "IDEMPOTENCY_KEY_REUSED",
+    "DOCUMENT_VERSION_MISMATCH",
+    "INVALID_DOCUMENT",
+    "UNKNOWN_NODE_TYPE",
+    "INVALID_LAYOUT",
+    "DUPLICATE_NODE_ID",
+    "LIMIT_EXCEEDED",
+    "PAYLOAD_TOO_LARGE",
+    "RATE_LIMITED",
+    "SERVICE_UNAVAILABLE",
+    "INTERNAL_ERROR"
+  ],
+  board_page_remove: [
+    "INVALID_PAYLOAD",
+    "PROTOCOL_VERSION_MISMATCH",
+    "UNAUTHENTICATED",
+    "FORBIDDEN",
+    "BOARD_NOT_FOUND",
+    "REVISION_CONFLICT",
+    "IDEMPOTENCY_KEY_REUSED",
+    "DOCUMENT_VERSION_MISMATCH",
+    "INVALID_DOCUMENT",
+    "UNKNOWN_NODE_TYPE",
+    "INVALID_LAYOUT",
+    "DUPLICATE_NODE_ID",
+    "LIMIT_EXCEEDED",
+    "PAYLOAD_TOO_LARGE",
+    "RATE_LIMITED",
+    "SERVICE_UNAVAILABLE",
+    "INTERNAL_ERROR"
+  ],
+  board_page_reorder: [
+    "INVALID_PAYLOAD",
+    "PROTOCOL_VERSION_MISMATCH",
+    "UNAUTHENTICATED",
+    "FORBIDDEN",
+    "BOARD_NOT_FOUND",
+    "REVISION_CONFLICT",
+    "IDEMPOTENCY_KEY_REUSED",
+    "DOCUMENT_VERSION_MISMATCH",
+    "INVALID_DOCUMENT",
+    "UNKNOWN_NODE_TYPE",
+    "INVALID_LAYOUT",
+    "DUPLICATE_NODE_ID",
+    "LIMIT_EXCEEDED",
+    "PAYLOAD_TOO_LARGE",
+    "RATE_LIMITED",
+    "SERVICE_UNAVAILABLE",
+    "INTERNAL_ERROR"
+  ],
+  board_page_update: [
+    "INVALID_PAYLOAD",
+    "PROTOCOL_VERSION_MISMATCH",
+    "UNAUTHENTICATED",
+    "FORBIDDEN",
+    "BOARD_NOT_FOUND",
+    "REVISION_CONFLICT",
+    "IDEMPOTENCY_KEY_REUSED",
+    "DOCUMENT_VERSION_MISMATCH",
+    "INVALID_DOCUMENT",
+    "UNKNOWN_NODE_TYPE",
+    "INVALID_LAYOUT",
+    "DUPLICATE_NODE_ID",
+    "LIMIT_EXCEEDED",
+    "PAYLOAD_TOO_LARGE",
+    "RATE_LIMITED",
+    "SERVICE_UNAVAILABLE",
+    "INTERNAL_ERROR"
+  ],
+  board_page_default_set: [
+    "INVALID_PAYLOAD",
+    "PROTOCOL_VERSION_MISMATCH",
+    "UNAUTHENTICATED",
+    "FORBIDDEN",
+    "BOARD_NOT_FOUND",
+    "REVISION_CONFLICT",
+    "IDEMPOTENCY_KEY_REUSED",
+    "DOCUMENT_VERSION_MISMATCH",
+    "INVALID_DOCUMENT",
+    "UNKNOWN_NODE_TYPE",
+    "INVALID_LAYOUT",
+    "DUPLICATE_NODE_ID",
+    "LIMIT_EXCEEDED",
+    "PAYLOAD_TOO_LARGE",
     "RATE_LIMITED",
     "SERVICE_UNAVAILABLE",
     "INTERNAL_ERROR"
@@ -35656,6 +36746,7 @@ var registerCoreToolsV1 = (server, options) => {
   const registered = /* @__PURE__ */ new Map();
   const boards = new BoardToolHandlersV1(options.gateway);
   const scenes = new SceneToolHandlersV1(options.gateway);
+  const documents = new DocumentToolHandlersV2(options.gateway);
   const history = new HistoryToolHandlersV1(options.gateway);
   const artifacts = new ArtifactToolHandlersV1(options.gateway);
   const interactions = new InteractionToolHandlersV1(options.gateway);
@@ -35787,6 +36878,55 @@ var registerCoreToolsV1 = (server, options) => {
     "Clear a scene and create a restorable checkpoint.",
     SceneClearInputSchemaV1,
     (raw, signal) => scenes.clear(raw, signal),
+    true
+  );
+  add(
+    "board_document_get",
+    "Read one exact current or historical V2 document snapshot.",
+    DocumentGetInputSchemaV2,
+    (raw, signal) => documents.get(raw, signal),
+    true
+  );
+  add(
+    "board_document_replace",
+    "Replace one V2 document at an explicitly observed head.",
+    DocumentReplaceInputSchemaV2,
+    (raw, signal) => documents.replace(raw, signal),
+    true
+  );
+  add(
+    "board_page_add",
+    "Add one caller-identified page through a whole-document replacement.",
+    PageAddInputSchemaV2,
+    (raw, signal) => documents.add(raw, signal),
+    true
+  );
+  add(
+    "board_page_remove",
+    "Remove one explicit non-default page through a whole-document replacement.",
+    PageRemoveInputSchemaV2,
+    (raw, signal) => documents.remove(raw, signal),
+    true
+  );
+  add(
+    "board_page_reorder",
+    "Move one explicit page to a resulting-list index.",
+    PageReorderInputSchemaV2,
+    (raw, signal) => documents.reorder(raw, signal),
+    true
+  );
+  add(
+    "board_page_update",
+    "Update one page title, display mode, or scene through a whole-document replacement.",
+    PageUpdateInputSchemaV2,
+    (raw, signal) => documents.update(raw, signal),
+    true
+  );
+  add(
+    "board_page_default_set",
+    "Set the existing default page through a whole-document replacement.",
+    PageDefaultSetInputSchemaV2,
+    (raw, signal) => documents.defaultSet(raw, signal),
     true
   );
   if (options.downstreamReady === true) {

@@ -9,7 +9,7 @@ Operate SceneBoard as an owner-scoped persistent visual surface outside chat. Pr
 
 ## Product boundaries
 
-- `sceneboard-mcp` (`sceneboard-mcp`) owns the preferred local stdio transport, full protected client validation, and all 21 terminal descriptors. This skill bundles a narrow dependency-free API adapter only for an absent MCP transport.
+- `sceneboard-mcp` (`sceneboard-mcp`) owns the preferred local stdio transport, full protected client validation, and all 28 terminal descriptors. This skill bundles a narrow dependency-free API adapter only for an absent MCP transport.
 - `sceneboard-be` (`sceneboard-be`) owns authentication, authorization, MySQL-authoritative boards/revisions/artifacts/interactions/pairing/grants, and browser APIs. Redis is ephemeral only.
 - `sceneboard-fe` (`sceneboard-fe`) owns live rendering, local history navigation, responder controls, and sandboxed artifact hosting.
 - `packages/board-schema` owns D1 wire DTOs, the recursive scene/node model, results, events, limits, and stable errors.
@@ -92,14 +92,15 @@ Keep `wait.timeoutMs` in `[0,30000]`. Effective wait is `min(30000, remaining SD
 
 ## Terminal command map
 
-| Intent                 | Tools                                                                                                          |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Connection/pairing     | `board_connection_status`, `board_pair_request`, `board_pair_status`; fallback uses one private `pair` process |
-| Lifecycle/capabilities | `board_list`, `board_get`, `board_create`, `board_archive`, `board_capabilities_get`                           |
-| Scene                  | `board_scene_get`, `board_scene_replace`, `board_scene_patch`, `board_scene_clear`                             |
-| Artifact               | `board_artifact_get`, `board_artifact_put`, `board_artifact_stop`                                              |
-| History                | `board_history_list`, `board_history_get`, `board_history_restore`                                             |
-| HITL                   | `board_interaction_request`, `board_interaction_status`, `board_interaction_respond`                           |
+| Intent                 | Tools                                                                                                                                                      |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Connection/pairing     | `board_connection_status`, `board_pair_request`, `board_pair_status`; fallback uses one private `pair` process                                             |
+| Lifecycle/capabilities | `board_list`, `board_get`, `board_create`, `board_archive`, `board_capabilities_get`                                                                       |
+| Scene                  | `board_scene_get`, `board_scene_replace`, `board_scene_patch`, `board_scene_clear`                                                                         |
+| Document/pages         | `board_document_get`, `board_document_replace`, `board_page_add`, `board_page_remove`, `board_page_reorder`, `board_page_update`, `board_page_default_set` |
+| Artifact               | `board_artifact_get`, `board_artifact_put`, `board_artifact_stop`                                                                                          |
+| History                | `board_history_list`, `board_history_get`, `board_history_restore`                                                                                         |
+| HITL                   | `board_interaction_request`, `board_interaction_status`, `board_interaction_respond`                                                                       |
 
 `board_artifact_remove` and `board_interaction_cancel` do not exist in v1. Artifact stop does not remove a scene reference.
 

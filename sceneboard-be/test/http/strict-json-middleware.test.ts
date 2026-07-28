@@ -55,3 +55,62 @@ test('passes transport failures to next and performs no body attachment', async 
   assert.ok(result instanceof Error);
   assert.equal(input.body, undefined);
 });
+
+test('selects the isolated V2 document media profile and preserves the nested shared request', async () => {
+  const source = JSON.stringify({
+    protocolVersion: 1,
+    requestId: 'request_document_1',
+    idempotencyKey: '0123456789abcdef',
+    boardId: 'AAECAwQFBgcICQoLDA0ODw',
+    expectedRevisionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    command: {
+      type: 'document.replace',
+      document: {
+        schemaVersion: 2,
+        defaultPageId: 'page_1',
+        pages: [
+          {
+            pageId: 'page_1',
+            title: '',
+            displayMode: 'fit-page',
+            scene: { protocolVersion: 1, type: 'scene', root: null },
+          },
+        ],
+      },
+    },
+  });
+  const input = request('POST', '/api/v1/boards/AAECAwQFBgcICQoLDA0ODw/mutations', source, {
+    'content-type': 'application/vnd.sceneboard.document+json;version=2',
+    'content-encoding': 'identity',
+    'content-length': String(Buffer.byteLength(source)),
+  });
+  assert.equal(await run(input), undefined);
+  const profiled = input as typeof input & Record<symbol, unknown>;
+  assert.deepEqual(profiled[D1_RAW_BODY], Buffer.from(source));
+  assert.equal(
+    (profiled[D1_PARSED_BODY] as { command?: { type?: string } }).command?.type,
+    'document.replace',
+  );
+});
+
+test('rejects unsupported V2 content encoding before consuming request bytes', async () => {
+  let reads = 0;
+  const input = {
+    method: 'POST',
+    url: '/api/v1/boards/AAECAwQFBgcICQoLDA0ODw/mutations',
+    headers: {
+      'content-type': 'application/vnd.sceneboard.document+json;version=2',
+      'content-encoding': 'gzip',
+    },
+    async *[Symbol.asyncIterator]() {
+      reads += 1;
+      yield Buffer.from('{}');
+    },
+  };
+  let nextValue: unknown;
+  await new StrictJsonBodyMiddleware().use(input as never, {}, (value?: unknown) => {
+    nextValue = value;
+  });
+  assert.ok(nextValue instanceof Error);
+  assert.equal(reads, 0);
+});

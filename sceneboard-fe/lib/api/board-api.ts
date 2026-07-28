@@ -11,6 +11,7 @@ import type { SessionRequestCoordinator } from '../auth/renewal-singleflight';
 import { BoardArtifactApi } from './board-artifact-api';
 import { createPublicId } from './board-api-core';
 import { BoardConnectionApi } from './board-connection-api';
+import { BoardDocumentApi } from './board-document-api';
 import { BoardHitlApi } from './board-hitl-api';
 import { BoardResourceApi } from './board-resource-api';
 import type {
@@ -25,8 +26,11 @@ import type {
   BoardGetResult,
   BoardListResult,
   BoardRenameResult,
+  BrowserDocumentMutationInput,
   CreateBoardInput,
   CreatedPairing,
+  DocumentMutationRequest,
+  DocumentMutationResult,
   GrantSummary,
   HistoryGetResult,
   HistoryListResult,
@@ -55,7 +59,10 @@ export type {
   BoardGetResult,
   BoardListResult,
   BoardRenameResult,
+  BrowserDocumentMutationInput,
   CreatedPairing,
+  DocumentMutationRequest,
+  DocumentMutationResult,
   GrantSummary,
   HistoryGetResult,
   HistoryListResult,
@@ -76,17 +83,21 @@ export type {
   RotatedGrantCredential,
 } from './board-api-types';
 
+export { resolveSelectedDocumentPageIdV2 } from './board-document-api';
+
 export class BoardApiClient {
   private readonly resources: BoardResourceApi;
   private readonly hitl: BoardHitlApi;
   private readonly artifacts: BoardArtifactApi;
   private readonly connections: BoardConnectionApi;
+  private readonly documents: BoardDocumentApi;
 
   constructor(coordinator: SessionRequestCoordinator) {
     this.resources = new BoardResourceApi(coordinator);
     this.hitl = new BoardHitlApi(coordinator);
     this.artifacts = new BoardArtifactApi(coordinator);
     this.connections = new BoardConnectionApi(coordinator);
+    this.documents = new BoardDocumentApi(coordinator);
   }
 
   private connectionApi(): BoardConnectionApi {
@@ -134,6 +145,20 @@ export class BoardApiClient {
     signal?: AbortSignal,
   ): Promise<ApiResult<HistoryGetResult>> {
     return this.resources.getHistoryRevision(boardId, revisionId, signal);
+  }
+
+  async replaceDocument(
+    request: DocumentMutationRequest,
+    signal?: AbortSignal,
+  ): Promise<ApiResult<DocumentMutationResult>> {
+    return this.documents.replace(request, signal);
+  }
+
+  async transformDocument(
+    input: BrowserDocumentMutationInput,
+    signal?: AbortSignal,
+  ): Promise<ApiResult<DocumentMutationResult>> {
+    return this.documents.transform(input, signal);
   }
 
   async requestInteraction(

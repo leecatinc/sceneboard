@@ -1,23 +1,23 @@
 import type {
-  BoardErrorV1,
-  BoardEventEnvelopeV1,
+  BoardError,
+  BoardEventEnvelopeV2,
   BoardId,
-  BoardSnapshotV1,
+  BoardSnapshot,
   PresenceSummaryV1,
 } from '@sceneboard/board-schema';
 
 export type BoardEventReconcileInputV1 = {
-  envelope: BoardEventEnvelopeV1;
+  envelope: BoardEventEnvelopeV2;
   canonicalBytes: Uint8Array;
   cursor: string | null;
 };
 
-export type BoardRevisionHintEnvelopeV1 = BoardEventEnvelopeV1 & {
-  data: Extract<BoardEventEnvelopeV1['data'], { type: 'board.revision.created' }>;
+export type BoardRevisionHintEnvelopeV1 = BoardEventEnvelopeV2 & {
+  data: Extract<BoardEventEnvelopeV2['data'], { type: 'board.revision.created' }>;
 };
 
-export type BoardIncrementalDurableEnvelopeV1 = BoardEventEnvelopeV1 & {
-  data: Extract<BoardEventEnvelopeV1['data'], { type: 'hitl.updated' | 'artifact.status.changed' }>;
+export type BoardIncrementalDurableEnvelopeV1 = BoardEventEnvelopeV2 & {
+  data: Extract<BoardEventEnvelopeV2['data'], { type: 'hitl.updated' | 'artifact.status.changed' }>;
 };
 
 export type BoardRevisionSnapshotAdmissionV1 = {
@@ -38,7 +38,7 @@ export type BoardEventReconcileResultV1 =
       kind: 'pending_effect';
       acceptanceId: number;
       effect:
-        | { kind: 'replace_snapshot'; snapshot: BoardSnapshotV1 }
+        | { kind: 'replace_snapshot'; snapshot: BoardSnapshot }
         | { kind: 'refresh_revision_snapshot'; event: BoardRevisionHintEnvelopeV1 }
         | { kind: 'apply_durable_event'; event: BoardIncrementalDurableEnvelopeV1 }
         | { kind: 'replace_presence'; presence: readonly PresenceSummaryV1[] };
@@ -58,7 +58,7 @@ export type BoardEventReconcileResultV1 =
     }
   | {
       kind: 'stream_error';
-      error: BoardErrorV1;
+      error: BoardError;
       action: 'reconnect' | 'terminal';
       retainCursor: true;
       retryAfterMs: number | null;
@@ -84,13 +84,13 @@ export type BoardEventReconcilerV1 = {
 type DurableEnvelope =
   | BoardRevisionHintEnvelopeV1
   | BoardIncrementalDurableEnvelopeV1
-  | (BoardEventEnvelopeV1 & {
-      data: Extract<BoardEventEnvelopeV1['data'], { type: 'board.snapshot' }>;
+  | (BoardEventEnvelopeV2 & {
+      data: Extract<BoardEventEnvelopeV2['data'], { type: 'board.snapshot' }>;
     });
 
 type PendingEffect = {
   acceptanceId: number;
-  envelope: BoardEventEnvelopeV1;
+  envelope: BoardEventEnvelopeV2;
   canonicalBytes: Uint8Array;
   cursor: string | null;
   effectKind: 'snapshot' | 'revision' | 'durable' | 'presence';
@@ -112,7 +112,7 @@ const equalBytes = (left: Uint8Array, right: Uint8Array): boolean => {
   return true;
 };
 
-const retryAfterMs = (error: BoardErrorV1): number | null => {
+const retryAfterMs = (error: BoardError): number | null => {
   const seconds =
     error.code === 'RATE_LIMITED'
       ? error.details.retryAfterSeconds
@@ -123,7 +123,7 @@ const retryAfterMs = (error: BoardErrorV1): number | null => {
   return Math.round(Math.min(60, Math.max(1, seconds)) * 1_000);
 };
 
-const isDurable = (envelope: BoardEventEnvelopeV1): envelope is DurableEnvelope =>
+const isDurable = (envelope: BoardEventEnvelopeV2): envelope is DurableEnvelope =>
   envelope.data.type === 'board.snapshot' ||
   envelope.data.type === 'board.revision.created' ||
   envelope.data.type === 'hitl.updated' ||

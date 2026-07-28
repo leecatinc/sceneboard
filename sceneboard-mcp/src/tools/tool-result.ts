@@ -1,8 +1,16 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 
-import { BoardOperationResultParserV1, MutationResultParserV1 } from '@sceneboard/board-schema';
-import type { BoardSdkHttpResultV1 } from '@sceneboard/board-sdk/http';
+import {
+  BoardOperationResultParserV1,
+  BoardOperationResultParserV2,
+  MutationResultParserV1,
+  MutationResultParserV2,
+} from '@sceneboard/board-schema';
+import type {
+  BoardSdkDocumentHttpResultV2,
+  BoardSdkHttpResultV1,
+} from '@sceneboard/board-sdk/http';
 
 export type BoardToolNameV1 =
   | 'board_connection_status'
@@ -17,6 +25,13 @@ export type BoardToolNameV1 =
   | 'board_scene_replace'
   | 'board_scene_patch'
   | 'board_scene_clear'
+  | 'board_document_get'
+  | 'board_document_replace'
+  | 'board_page_add'
+  | 'board_page_remove'
+  | 'board_page_reorder'
+  | 'board_page_update'
+  | 'board_page_default_set'
   | 'board_history_list'
   | 'board_history_get'
   | 'board_history_restore'
@@ -105,6 +120,13 @@ const D1_RESULT_TYPES_V1 = {
   board_scene_replace: ['scene.replace'],
   board_scene_patch: ['scene.replace'],
   board_scene_clear: ['scene.clear'],
+  board_document_get: ['board.get', 'history.get'],
+  board_document_replace: ['document.replace'],
+  board_page_add: ['document.replace'],
+  board_page_remove: ['document.replace'],
+  board_page_reorder: ['document.replace'],
+  board_page_update: ['document.replace'],
+  board_page_default_set: ['document.replace'],
   board_artifact_get: ['artifact.get'],
   board_artifact_put: ['artifact.publish'],
   board_artifact_stop: ['artifact.stop'],
@@ -173,10 +195,22 @@ export const toolOutputSchemaV1 = (
       }
       const expected = D1_RESULT_TYPES_V1[tool as keyof typeof D1_RESULT_TYPES_V1];
       if (expected !== undefined) {
+        const documentTool =
+          tool === 'board_document_replace' ||
+          tool === 'board_page_add' ||
+          tool === 'board_page_remove' ||
+          tool === 'board_page_reorder' ||
+          tool === 'board_page_update' ||
+          tool === 'board_page_default_set';
+        const documentReadTool = tool === 'board_document_get';
         const parsed =
           output.result.type === 'mutation.result'
-            ? MutationResultParserV1.parse(output.result)
-            : BoardOperationResultParserV1.parse(output.result);
+            ? documentTool
+              ? MutationResultParserV2.parse(output.result)
+              : MutationResultParserV1.parse(output.result)
+            : documentReadTool
+              ? BoardOperationResultParserV2.parse(output.result)
+              : BoardOperationResultParserV1.parse(output.result);
         if (!parsed.ok) {
           context.addIssue({
             code: z.ZodIssueCode.custom,
@@ -375,7 +409,7 @@ export const toolFailureV1 = (
 export const sdkToolResultV1 = <K extends string>(
   tool: BoardToolNameV1,
   requestId: string,
-  result: BoardSdkHttpResultV1<K>,
+  result: BoardSdkHttpResultV1<K> | BoardSdkDocumentHttpResultV2,
   metadata: unknown,
 ): CallToolResult => {
   if (result.ok)

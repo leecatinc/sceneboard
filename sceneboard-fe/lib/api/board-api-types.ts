@@ -1,6 +1,7 @@
 import type {
   ArtifactReferenceV1,
-  BoardErrorV1,
+  BoardError,
+  BoardDocumentV2,
   BoardId,
   BoardOperationRequestV1,
   BoardOperationResultDataV1,
@@ -8,7 +9,9 @@ import type {
   HitlRequestId,
   IdempotencyKey,
   MutationRequestV1,
+  MutationRequestV2,
   MutationResultV1,
+  MutationResultV2,
   RequestId,
   RevisionId,
   TimestampV1,
@@ -80,7 +83,7 @@ export interface RotatedGrantCredential {
 export type ApiResult<Value> =
   | CoordinatorResult<Value>
   | { kind: 'api_error'; status: number }
-  | { kind: 'board_error'; error: BoardErrorV1 }
+  | { kind: 'board_error'; error: BoardError }
   | { kind: 'corrupt_response' };
 
 export type OperationRequest<K extends BoardOperationRequestV1['type']> =
@@ -97,6 +100,18 @@ export type MutationData<K extends MutationResultV1['result']['type']> = Extract
   MutationResultV1['result'],
   { type: K }
 >;
+export type DocumentMutationRequest = MutationRequestV2 & {
+  command: Extract<MutationRequestV2['command'], { type: 'document.replace' }>;
+};
+export type DocumentMutationResult = MutationResultV2 & {
+  result: Extract<MutationResultV2['result'], { type: 'document.replace' }>;
+};
+export type DocumentMutationBase = Omit<DocumentMutationRequest, 'command'>;
+export type BrowserDocumentMutationInput = {
+  request: DocumentMutationBase;
+  source: BoardDocumentV2;
+  operation: import('@sceneboard/board-sdk/document-transform').DocumentTransformOperationV2;
+};
 
 export type BoardListResult = OperationData<'board.list'>;
 export type BoardCreateResult = OperationData<'board.create'>;

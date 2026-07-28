@@ -4,7 +4,10 @@ import test from 'node:test';
 import {
   BoardEventEnvelopeParserV1,
   BoardSnapshotParserV1,
+  DEFAULT_BOARD_CAPABILITIES_V2,
+  adaptLegacySceneToDocumentV2,
   type BoardSnapshotV1,
+  type BoardSnapshotV2,
   type RevisionId,
 } from '@sceneboard/board-schema';
 
@@ -28,6 +31,33 @@ const parsed = BoardSnapshotParserV1.parse(
 );
 if (!parsed.ok) throw new TypeError('snapshot fixture is invalid');
 const first = parsed.data.value;
+
+const firstDocument: BoardSnapshotV2 = {
+  protocolVersion: 1,
+  type: 'board.snapshot',
+  boardId: first.boardId,
+  revision: first.revision,
+  document: adaptLegacySceneToDocumentV2({ boardId: first.boardId, scene: first.scene }),
+  hitl: first.hitl,
+  artifacts: first.artifacts,
+  capabilities: {
+    ...DEFAULT_BOARD_CAPABILITIES_V2,
+    supported: {
+      nodeTypes: [...DEFAULT_BOARD_CAPABILITIES_V2.supported.nodeTypes],
+      commandTypes: [...DEFAULT_BOARD_CAPABILITIES_V2.supported.commandTypes],
+      operationTypes: [...DEFAULT_BOARD_CAPABILITIES_V2.supported.operationTypes],
+      eventTypes: [...DEFAULT_BOARD_CAPABILITIES_V2.supported.eventTypes],
+      hitlKinds: [...DEFAULT_BOARD_CAPABILITIES_V2.supported.hitlKinds],
+      artifactRequestCapabilities: [
+        ...DEFAULT_BOARD_CAPABILITIES_V2.supported.artifactRequestCapabilities,
+      ],
+    },
+    limits: { ...DEFAULT_BOARD_CAPABILITIES_V2.limits },
+    grantedCapabilities: [...first.capabilities.grantedCapabilities],
+    allowedArtifactRequestCapabilities: [...first.capabilities.allowedArtifactRequestCapabilities],
+  },
+  lastEventSequence: first.lastEventSequence,
+};
 
 const artifactEventParsed = BoardEventEnvelopeParserV1.parse(
   JSON.parse(
@@ -184,6 +214,14 @@ test('request epoch rejects late work after navigation and close', () => {
 test('artifact status arriving before scene placement is admitted into live state', () => {
   const state = applyDurableEventV1(createLiveBoardStateV1(first), artifactEvent);
 
+  assert.deepEqual(state.liveSnapshot.artifacts, [artifactEvent.data.artifact]);
+});
+
+test('V2 live state keeps its document branch while applying durable summaries', () => {
+  const state = applyDurableEventV1(createLiveBoardStateV1(firstDocument), artifactEvent);
+  assert.equal('document' in state.liveSnapshot, true);
+  if (!('document' in state.liveSnapshot)) return;
+  assert.equal(state.liveSnapshot.document, firstDocument.document);
   assert.deepEqual(state.liveSnapshot.artifacts, [artifactEvent.data.artifact]);
 });
 

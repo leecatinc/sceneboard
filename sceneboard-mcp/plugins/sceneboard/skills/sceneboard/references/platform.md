@@ -37,6 +37,6 @@ MCP and the skill adapter have no direct MySQL/Redis/Nest application import. Pa
 - `packages/board-sdk/http`: bounded Bearer HTTP transport, strict response parsing, retry/deadline/cancellation.
 - `packages/board-sdk/scene-transform`: the 11 local patch operations and one final scene validation.
 - Nest D2/D3/D7/D8 modules: policy, persistence, application ports, and browser routes.
-- MCP D6 exposes exactly 21 tool descriptors, including the connection/pairing projection; no aliases.
+- MCP exposes exactly 28 tool descriptors, including the connection/pairing projection and seven V2 document/page tools; no aliases.
 
 No lc-kits package is claimed as applied without concrete manifest/import/test evidence. Existing product contracts and code are authoritative over candidate scaffolds.

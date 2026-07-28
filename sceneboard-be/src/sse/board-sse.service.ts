@@ -55,8 +55,15 @@ export class BoardSseService {
     allowedOrigin: string;
     request: BoardSseRequestLifecycleV1;
     response: BoardSseResponseV1;
+    documentSchemaVersion?: 1 | 2;
   }): Promise<void> {
-    let cut = await this.cuts.prepare(input.principal, input.boardId, input.cursor);
+    const documentSchemaVersion = input.documentSchemaVersion ?? 1;
+    let cut = await this.cuts.prepare(
+      input.principal,
+      input.boardId,
+      input.cursor,
+      documentSchemaVersion,
+    );
     let sequence = cut.sequence;
     let durableDirty = false;
     let presenceDirty = false;
@@ -84,11 +91,20 @@ export class BoardSseService {
     const drain = async (): Promise<void> => {
       if (stopped) return;
       durableDirty = false;
-      const head = await this.cuts.reauthorize(input.principal, input.boardId);
+      const head = await this.cuts.reauthorize(
+        input.principal,
+        input.boardId,
+        documentSchemaVersion,
+      );
       lastAuthorizationAt = Date.now();
       if (head <= sequence) return;
       if (head - sequence > 1_000) throw new Error('SSE replay window exceeded');
-      const frames = await this.cuts.rangeAfter(input.boardId, sequence, head);
+      const frames = await this.cuts.rangeAfter(
+        input.boardId,
+        sequence,
+        head,
+        documentSchemaVersion,
+      );
       if (frames === null) throw new Error('SSE durable range gap');
       for (const frame of frames) {
         if (stopped) return;
@@ -124,15 +140,29 @@ export class BoardSseService {
     };
 
     try {
-      const postCutHead = await this.cuts.reauthorize(input.principal, input.boardId);
+      const postCutHead = await this.cuts.reauthorize(
+        input.principal,
+        input.boardId,
+        documentSchemaVersion,
+      );
       lastAuthorizationAt = Date.now();
       if (postCutHead > sequence) {
         const catchUp =
           postCutHead - sequence <= 1_000
-            ? await this.cuts.rangeAfter(input.boardId, sequence, postCutHead)
+            ? await this.cuts.rangeAfter(
+                input.boardId,
+                sequence,
+                postCutHead,
+                documentSchemaVersion,
+              )
             : null;
         if (catchUp === null) {
-          cut = await this.cuts.prepare(input.principal, input.boardId, null);
+          cut = await this.cuts.prepare(
+            input.principal,
+            input.boardId,
+            null,
+            documentSchemaVersion,
+          );
         } else {
           cut = { frames: [...cut.frames, ...catchUp], sequence: postCutHead };
         }

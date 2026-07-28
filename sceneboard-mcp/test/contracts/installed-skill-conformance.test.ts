@@ -31,7 +31,7 @@ test('downloadable sceneboard skill matches the exact terminal tool and authorit
 
   for (const name of BOARD_TOOL_NAMES_V1)
     assert.equal(combined.includes(`\`${name}\``), true, name);
-  assert.match(skill, /exactly the 21|all 21 terminal descriptors/u);
+  assert.match(skill, /exactly the 28|all 28 terminal descriptors/u);
   assert.match(skill, /board_artifact_remove.*do not exist|board_artifact_remove.*does not exist/u);
   assert.match(
     skill,

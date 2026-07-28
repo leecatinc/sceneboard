@@ -83,7 +83,7 @@ const expectedGroups = new Map([
   ['D3-BOARD-SEAMS', 20],
   ['D4-SEAMS', 10],
   ['D2-D5-D7-D8-BROWSER-PUBLISHERS', 9],
-  ['D5-BROWSER-API-SEAMS', 22],
+  ['D5-BROWSER-API-SEAMS', 24],
   ['D5-UI-ROUTES', 11],
   ['D6-MCP-SDK', 10],
   ['D6-INSTALLED-SKILL', 42],
@@ -108,6 +108,13 @@ const terminalToolNames = [
   'board_scene_replace',
   'board_scene_patch',
   'board_scene_clear',
+  'board_document_get',
+  'board_document_replace',
+  'board_page_add',
+  'board_page_remove',
+  'board_page_reorder',
+  'board_page_update',
+  'board_page_default_set',
   'board_artifact_get',
   'board_artifact_put',
   'board_artifact_stop',
@@ -523,7 +530,7 @@ const validatePublishers = async (observedById) => {
     publisherValues.push(publisher.value);
   }
   const browser = publishers.filter(({ owner }) => owner !== 'D3');
-  if (browser.reduce((count, publisher) => count + publisher.selectorCount, 0) !== 22)
+  if (browser.reduce((count, publisher) => count + publisher.selectorCount, 0) !== 24)
     fail('CONTRACT_OWNER_PUBLISHER_STALE');
   const browserNames = (
     await Promise.all(
@@ -547,6 +554,8 @@ const validatePublishers = async (observedById) => {
       'renameBoard',
       'listHistory',
       'getHistoryRevision',
+      'replaceDocument',
+      'transformDocument',
       'getArtifact',
       'getArtifactPackage',
       'requestArtifactNetworkFetch',
@@ -651,16 +660,16 @@ const observeToolRegistry = async () => {
   equal(core.slice(0, 3), terminalToolNames.slice(0, 3), 'TOOL_REGISTRY_DRIFT');
   equal(
     core,
-    [...terminalToolNames.slice(0, 12), ...terminalToolNames.slice(15, 18)],
+    [...terminalToolNames.slice(0, 19), ...terminalToolNames.slice(22, 25)],
     'TOOL_REGISTRY_DRIFT',
   );
   equal(
     downstream,
-    [...terminalToolNames.slice(12, 15), ...terminalToolNames.slice(18)],
+    [...terminalToolNames.slice(19, 22), ...terminalToolNames.slice(25)],
     'TOOL_REGISTRY_DRIFT',
   );
   equal(registered, terminalToolNames, 'TOOL_REGISTRY_DRIFT');
-  return { preAuthCount: 3, coreCount: 15, finalCount: 21, terminalNames: terminalToolNames };
+  return { preAuthCount: 3, coreCount: 22, finalCount: 28, terminalNames: terminalToolNames };
 };
 
 const observeMigrations = async (observedById) => {

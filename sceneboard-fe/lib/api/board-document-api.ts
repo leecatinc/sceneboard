@@ -1,0 +1,45 @@
+'use client';
+
+import type { BoardDocumentV2, PageId } from '@sceneboard/board-schema';
+import { applyDocumentTransformV2 } from '@sceneboard/board-sdk/document-transform';
+
+import { BoardApiTransport } from './board-api-core';
+import type {
+  ApiResult,
+  BrowserDocumentMutationInput,
+  DocumentMutationRequest,
+  DocumentMutationResult,
+} from './board-api-types';
+
+export class BoardDocumentApi extends BoardApiTransport {
+  replace(
+    request: DocumentMutationRequest,
+    signal?: AbortSignal,
+  ): Promise<ApiResult<DocumentMutationResult>> {
+    return this.writeDocumentMutation(request, signal);
+  }
+
+  transform(
+    input: BrowserDocumentMutationInput,
+    signal?: AbortSignal,
+  ): Promise<ApiResult<DocumentMutationResult>> {
+    const transformed = applyDocumentTransformV2(input.source, input.operation);
+    if (!transformed.ok) return Promise.resolve({ kind: 'board_error', error: transformed.error });
+    return this.writeDocumentMutation(
+      {
+        ...input.request,
+        command: { type: 'document.replace', document: transformed.data.value },
+      },
+      signal,
+    );
+  }
+}
+
+export const resolveSelectedDocumentPageIdV2 = (
+  document: BoardDocumentV2,
+  selectedPageId: PageId | null,
+): PageId => {
+  if (selectedPageId !== null && document.pages.some((page) => page.pageId === selectedPageId))
+    return selectedPageId;
+  return document.defaultPageId;
+};

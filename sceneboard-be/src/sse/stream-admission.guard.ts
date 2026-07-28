@@ -14,6 +14,7 @@ export type BrowserBoardStreamAdmissionV1 = {
   tabId: TabId;
   presenceState: 'online' | 'away';
   cursor: string | null;
+  documentSchemaVersion: 1 | 2;
 };
 
 export interface BrowserBoardStreamRequestV1 {
@@ -74,13 +75,19 @@ export class StreamAdmissionGuard implements CanActivate {
     if (!board.ok) throw invalid('invalid boardId', ['boardId']);
     const query = request.query ?? (Object.create(null) as Record<string, unknown>);
     const keys = Object.keys(query).sort();
-    if (keys.join(',') !== 'presenceState,tabId')
-      throw invalid('query must contain only tabId and presenceState');
+    const v1Keys = 'presenceState,tabId';
+    const v2Keys = 'documentSchemaVersion,presenceState,tabId';
+    if (keys.join(',') !== v1Keys && keys.join(',') !== v2Keys)
+      throw invalid(
+        'query must contain tabId and presenceState with at most one documentSchemaVersion',
+      );
     if (typeof query.tabId !== 'string' || !TAB_ID.test(query.tabId))
       throw invalid('invalid tabId', ['tabId']);
     if (query.presenceState !== 'online' && query.presenceState !== 'away') {
       throw invalid('invalid presenceState', ['presenceState']);
     }
+    if (Object.hasOwn(query, 'documentSchemaVersion') && query.documentSchemaVersion !== '2')
+      throw invalid('documentSchemaVersion must be exactly 2', ['documentSchemaVersion']);
     const cursorValue = request.headers['last-event-id'];
     if (
       Array.isArray(cursorValue) ||
@@ -93,6 +100,7 @@ export class StreamAdmissionGuard implements CanActivate {
       tabId: query.tabId as TabId,
       presenceState: query.presenceState,
       cursor: cursorValue ?? null,
+      documentSchemaVersion: query.documentSchemaVersion === '2' ? 2 : 1,
     };
     return true;
   }

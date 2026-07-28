@@ -1,14 +1,23 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
+  adaptLegacySceneToDocumentV2,
+  BOARD_DOCUMENT_LIMITS_V2,
+  BOARD_LIMITS_V1,
+  BoardEventEnvelopeParserV1,
   BoardEventEnvelopeParserV2,
+  DEFAULT_BOARD_CAPABILITIES_V2,
+  type BoardEventEnvelopeV1,
   type BoardEventEnvelopeV2,
   type BoardId,
   type BoardSnapshot,
+  type BoardSnapshotV1,
+  type BoardSnapshotV2,
   type RequestId,
   type TimestampV1,
 } from '@sceneboard/board-schema';
 
 import { BoardGetService } from '../boards/board-get.service.js';
+import { BoardContractError } from '../common/errors/app-error.js';
 import { CryptoService } from '../common/security/crypto.service.js';
 import type {
   BoardEventDeliveryPortV1,
@@ -19,7 +28,7 @@ import type { ResolvedBoardPrincipalV1 } from '../grants/board-access.policy.js'
 import { SseCursorCodec } from './sse-cursor.codec.js';
 
 export type PreparedBoardStreamFrameV1 = {
-  envelope: BoardEventEnvelopeV2;
+  envelope: BoardEventEnvelopeV1 | BoardEventEnvelopeV2;
   canonicalBytes: Uint8Array;
   cursor: string;
 };
@@ -42,8 +51,12 @@ export class BoardStreamCutService {
     principal: ResolvedBoardPrincipalV1,
     boardId: BoardId,
     cursorSource: string | null,
+    documentSchemaVersion: 1 | 2 = 1,
   ): Promise<PreparedBoardStreamCutV1> {
-    const snapshot = await this.#authorizedSnapshot(principal, boardId);
+    const snapshot = this.#projectSnapshot(
+      await this.#authorizedSnapshot(principal, boardId),
+      documentSchemaVersion,
+    );
     const watermark = snapshot.lastEventSequence;
     if (cursorSource === null) return this.#snapshotCut(snapshot);
     const cursor = this.cursors.decode(cursorSource);
@@ -61,27 +74,52 @@ export class BoardStreamCutService {
     }
     const events = await this.#range(boardId, cursor.s, watermark);
     if (events === null) return this.#snapshotCut(snapshot);
-    return { frames: events.map((event) => this.eventFrame(event)), sequence: watermark };
+    return {
+      frames: events.map((event) => this.eventFrame(event, documentSchemaVersion)),
+      sequence: watermark,
+    };
   }
 
-  async reauthorize(principal: ResolvedBoardPrincipalV1, boardId: BoardId): Promise<number> {
-    return (await this.#authorizedSnapshot(principal, boardId)).lastEventSequence;
+  async reauthorize(
+    principal: ResolvedBoardPrincipalV1,
+    boardId: BoardId,
+    documentSchemaVersion: 1 | 2 = 1,
+  ): Promise<number> {
+    return this.#projectSnapshot(
+      await this.#authorizedSnapshot(principal, boardId),
+      documentSchemaVersion,
+    ).lastEventSequence;
   }
 
   async rangeAfter(
     boardId: BoardId,
     afterSequence: number,
     headSequence: number,
+    documentSchemaVersion: 1 | 2 = 1,
   ): Promise<PreparedBoardStreamFrameV1[] | null> {
     const events = await this.#range(boardId, afterSequence, headSequence);
-    return events?.map((event) => this.eventFrame(event)) ?? null;
+    return events?.map((event) => this.eventFrame(event, documentSchemaVersion)) ?? null;
   }
 
-  eventFrame(event: DeliverableBoardEventV1): PreparedBoardStreamFrameV1 {
+  eventFrame(
+    event: DeliverableBoardEventV1,
+    documentSchemaVersion: 1 | 2 = 1,
+  ): PreparedBoardStreamFrameV1 {
     const issuedAt = new Date().toISOString() as TimestampV1;
+    const parsed =
+      documentSchemaVersion === 2
+        ? BoardEventEnvelopeParserV2.parseBytes(event.canonicalBytes)
+        : BoardEventEnvelopeParserV1.parseBytes(event.canonicalBytes);
+    if (!parsed.ok) throw new BoardContractError(parsed.error);
+    const limit =
+      documentSchemaVersion === 2
+        ? BOARD_DOCUMENT_LIMITS_V2.maxDocumentEnvelopeBytes
+        : BOARD_LIMITS_V1.maxEnvelopeBytes;
+    if (parsed.data.canonicalBytes.byteLength > limit)
+      throw new Error('projected SSE event exceeds negotiated envelope limit');
     return {
-      envelope: event.envelope,
-      canonicalBytes: event.canonicalBytes,
+      envelope: parsed.data.value,
+      canonicalBytes: parsed.data.canonicalBytes,
       cursor: this.cursors.encode({
         v: 1,
         k: 'event',
@@ -109,7 +147,8 @@ export class BoardStreamCutService {
   #snapshotCut(snapshot: BoardSnapshot): PreparedBoardStreamCutV1 {
     const occurredAt = new Date().toISOString() as TimestampV1;
     const eventId = this.cursors.createSnapshotEventId();
-    const parsed = BoardEventEnvelopeParserV2.parse({
+    const parser = 'document' in snapshot ? BoardEventEnvelopeParserV2 : BoardEventEnvelopeParserV1;
+    const parsed = parser.parse({
       protocolVersion: 1,
       type: 'board.event',
       boardId: snapshot.boardId,
@@ -137,6 +176,52 @@ export class BoardStreamCutService {
         },
       ],
     };
+  }
+
+  #projectSnapshot(snapshot: BoardSnapshot, documentSchemaVersion: 1 | 2): BoardSnapshot {
+    if (documentSchemaVersion === 1) {
+      if ('document' in snapshot) {
+        throw new BoardContractError({
+          protocolVersion: 1,
+          type: 'board.error',
+          code: 'DOCUMENT_VERSION_MISMATCH',
+          message: 'Document version mismatch',
+          category: 'conflict',
+          retryable: false,
+          httpStatusHint: 409,
+          details: {
+            headSchemaVersion: 2,
+            commandSchemaVersion: 1,
+            commandType: 'scene.replace',
+          },
+        });
+      }
+      return snapshot;
+    }
+    if ('document' in snapshot) return snapshot;
+    const source = snapshot as BoardSnapshotV1;
+    const { scene, capabilities, ...shared } = source;
+    return {
+      ...shared,
+      document: adaptLegacySceneToDocumentV2({ boardId: source.boardId, scene }),
+      capabilities: {
+        ...DEFAULT_BOARD_CAPABILITIES_V2,
+        supported: {
+          ...DEFAULT_BOARD_CAPABILITIES_V2.supported,
+          nodeTypes: [...DEFAULT_BOARD_CAPABILITIES_V2.supported.nodeTypes],
+          commandTypes: [...DEFAULT_BOARD_CAPABILITIES_V2.supported.commandTypes],
+          operationTypes: [...DEFAULT_BOARD_CAPABILITIES_V2.supported.operationTypes],
+          eventTypes: [...DEFAULT_BOARD_CAPABILITIES_V2.supported.eventTypes],
+          hitlKinds: [...DEFAULT_BOARD_CAPABILITIES_V2.supported.hitlKinds],
+          artifactRequestCapabilities: [
+            ...DEFAULT_BOARD_CAPABILITIES_V2.supported.artifactRequestCapabilities,
+          ],
+        },
+        limits: { ...DEFAULT_BOARD_CAPABILITIES_V2.limits },
+        grantedCapabilities: [...capabilities.grantedCapabilities],
+        allowedArtifactRequestCapabilities: [...capabilities.allowedArtifactRequestCapabilities],
+      },
+    } as BoardSnapshotV2;
   }
 
   async #range(

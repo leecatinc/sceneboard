@@ -6,12 +6,14 @@ import {
   BoardEventEnvelopeParserV1,
   canonicalizeJsonV1,
   type BoardErrorV1,
+  type BoardError,
   type BoardEventEnvelopeV1,
   type BoardId,
 } from '@sceneboard/board-schema';
 
 import {
   createBoardStreamClientV1,
+  createBoardStreamClientV2,
   createBoardStreamTabIdV1,
   type BoardStreamDispatchPortV1,
   type BoardStreamStateV1,
@@ -31,6 +33,21 @@ const forbiddenError: BoardErrorV1 = {
   retryable: false,
   httpStatusHint: 403,
   details: null,
+};
+
+const documentMismatchError: BoardError = {
+  protocolVersion: 1,
+  type: 'board.error',
+  code: 'DOCUMENT_VERSION_MISMATCH',
+  message: 'Document version mismatch',
+  category: 'conflict',
+  retryable: false,
+  httpStatusHint: 409,
+  details: {
+    headSchemaVersion: 2,
+    commandSchemaVersion: 1,
+    commandType: 'scene.replace',
+  },
 };
 
 const snapshotEvent = (): BoardEventEnvelopeV1 => {
@@ -101,6 +118,65 @@ test('classifies a closed 403 dispatch outcome without collapsing it into logout
     ['connecting', 'terminal'],
   );
   assert.equal(await client.stop(), result);
+});
+
+test('passes the negotiated document parser discriminator to every stream dispatch', async () => {
+  const states: BoardStreamStateV1[] = [];
+  let negotiated: number | null = null;
+  const dispatch: BoardStreamDispatchPortV1 = {
+    open: async (input) => {
+      negotiated = input.documentSchemaVersion ?? 1;
+      return {
+        kind: 'http_error',
+        sourceStatus: 403,
+        error: forbiddenError,
+        retryAfterMs: null,
+      };
+    },
+  };
+  const client = createBoardStreamClientV2({
+    apiOrigin: 'https://sceneboard.dev',
+    boardId: BOARD_ID,
+    tabId: TAB_ID,
+    initialPresenceState: 'online',
+    documentSchemaVersion: 2,
+    minimumSnapshotSequence: 1,
+    dispatch,
+    callbacks: callbacks(states),
+    routeSignal: new AbortController().signal,
+  });
+  await client.start();
+  assert.equal(negotiated, 2);
+});
+
+test('preserves a pre-header V1-to-V2 stream mismatch as a terminal error', async () => {
+  const states: BoardStreamStateV1[] = [];
+  const dispatch: BoardStreamDispatchPortV1 = {
+    open: async () => ({
+      kind: 'http_error',
+      sourceStatus: 409,
+      error: documentMismatchError,
+      retryAfterMs: null,
+    }),
+  };
+  const client = createBoardStreamClientV1({
+    apiOrigin: 'https://sceneboard.dev',
+    boardId: BOARD_ID,
+    tabId: TAB_ID,
+    initialPresenceState: 'online',
+    minimumSnapshotSequence: 1,
+    dispatch,
+    callbacks: callbacks(states),
+    routeSignal: new AbortController().signal,
+  });
+  assert.deepEqual(await client.start(), {
+    kind: 'terminal',
+    failure: {
+      kind: 'document_version_mismatch',
+      sourceStatus: 409,
+      error: documentMismatchError,
+    },
+  });
 });
 
 test('terminates on a snapshot callback rejection before committing its cursor', async () => {

@@ -1,10 +1,15 @@
-import { BoardIdParserV1 } from '@sceneboard/board-schema';
+import { BoardIdParserV1, type BoardSnapshot } from '@sceneboard/board-schema';
 
 import { createBoardEventReconcilerV1 } from '../events/index.js';
 import { plannedRecycleJitterMsV1, reconnectBackoffMsV1 } from './reconnect-backoff.js';
-import { createSseFrameParserV1, SseProtocolErrorV1 } from './sse-frame-parser.js';
+import {
+  createSseFrameParserV1,
+  createSseFrameParserV2,
+  SseProtocolErrorV1,
+} from './sse-frame-parser.js';
 import type {
   BoardStreamClientOptionsV1,
+  BoardStreamClientOptionsV2,
   BoardStreamClientV1,
   BoardStreamFailureV1,
   BoardStreamPresenceStateV1,
@@ -24,7 +29,9 @@ type ConsumeOutcome =
   | { kind: 'terminal'; failure: BoardStreamFailureV1 }
   | { kind: 'stopped'; reason: StopReason };
 
-const validateOptions = (options: BoardStreamClientOptionsV1): void => {
+const validateOptions = (
+  options: BoardStreamClientOptionsV1 | BoardStreamClientOptionsV2,
+): void => {
   let origin: URL;
   try {
     origin = new URL(options.apiOrigin);
@@ -36,6 +43,9 @@ const validateOptions = (options: BoardStreamClientOptionsV1): void => {
     origin.origin !== options.apiOrigin
   ) {
     throw new TypeError('apiOrigin must be an exact HTTP(S) origin without a path');
+  }
+  if ('documentSchemaVersion' in options && options.documentSchemaVersion !== 2) {
+    throw new TypeError('documentSchemaVersion must be 1 or 2');
   }
   if (!BoardIdParserV1.parse(options.boardId).ok) throw new TypeError('boardId is invalid');
   if (!TAB_ID_PATTERN.test(options.tabId))
@@ -90,10 +100,12 @@ const terminalState = (
   return { state: 'terminal', failure };
 };
 
-export const createBoardStreamClientV1 = (
-  options: BoardStreamClientOptionsV1,
+const createBoardStreamClient = (
+  options: BoardStreamClientOptionsV1 | BoardStreamClientOptionsV2,
 ): BoardStreamClientV1 => {
   validateOptions(options);
+  const documentSchemaVersion =
+    'documentSchemaVersion' in options ? options.documentSchemaVersion : 1;
 
   let presenceState: BoardStreamPresenceStateV1 = options.initialPresenceState;
   let minimumSnapshotSequence = options.minimumSnapshotSequence;
@@ -144,7 +156,8 @@ export const createBoardStreamClientV1 = (
     ) {
       return { kind: 'terminal', failure: { kind: 'protocol', sourceStatus: 200, error: null } };
     }
-    const parser = createSseFrameParserV1();
+    const parser =
+      documentSchemaVersion === 2 ? createSseFrameParserV2() : createSseFrameParserV1();
     const reader = response.body.getReader();
     let silenceBase = performance.now();
     try {
@@ -191,7 +204,11 @@ export const createBoardStreamClientV1 = (
           if (evaluation.kind === 'pending_effect') {
             try {
               if (evaluation.effect.kind === 'replace_snapshot') {
-                await options.callbacks.replaceSnapshot(evaluation.effect.snapshot);
+                await (
+                  options.callbacks.replaceSnapshot as (
+                    snapshot: BoardSnapshot,
+                  ) => void | Promise<void>
+                )(evaluation.effect.snapshot);
                 const commit = reconciler.commit(evaluation.acceptanceId, {
                   kind: 'effect_applied',
                 });
@@ -347,6 +364,7 @@ export const createBoardStreamClientV1 = (
             presenceState,
             cursor,
             signal: controller.signal,
+            documentSchemaVersion,
           },
           (response, heldSignal) =>
             consumeResponse(response, heldSignal, controller, () => planned),
@@ -432,6 +450,15 @@ export const createBoardStreamClientV1 = (
           kind: 'terminal',
           failure: { kind: 'not_found', sourceStatus: 404, error: dispatchResult.error },
         };
+      } else if (dispatchResult.sourceStatus === 409) {
+        outcome = {
+          kind: 'terminal',
+          failure: {
+            kind: 'document_version_mismatch',
+            sourceStatus: 409,
+            error: dispatchResult.error,
+          },
+        };
       } else if (dispatchResult.sourceStatus === 429) {
         const retryAfterMs = dispatchResult.retryAfterMs ?? 1_000;
         outcome = { kind: 'reconnect', reason: 'rate_limited', retryAfterMs, failureAttempt: true };
@@ -505,3 +532,11 @@ export const createBoardStreamClientV1 = (
 
   return { start, setPresenceState, stop };
 };
+
+export const createBoardStreamClientV1 = (
+  options: BoardStreamClientOptionsV1,
+): BoardStreamClientV1 => createBoardStreamClient(options);
+
+export const createBoardStreamClientV2 = (
+  options: BoardStreamClientOptionsV2,
+): BoardStreamClientV1 => createBoardStreamClient(options);

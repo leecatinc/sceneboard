@@ -2680,6 +2680,24 @@
           "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=getHistoryRevision]"
         },
         {
+          "resourceId": "D5-DOCUMENT-REPLACE-SELECTOR",
+          "owner": "D5",
+          "path": "sceneboard-fe/lib/api/board-api.ts",
+          "exportName": "BoardApiClient",
+          "exportKind": "class",
+          "projectionId": "D5-DOCUMENT-REPLACE-SELECTOR",
+          "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=replaceDocument]"
+        },
+        {
+          "resourceId": "D5-DOCUMENT-TRANSFORM-SELECTOR",
+          "owner": "D5",
+          "path": "sceneboard-fe/lib/api/board-api.ts",
+          "exportName": "BoardApiClient",
+          "exportKind": "class",
+          "projectionId": "D5-DOCUMENT-TRANSFORM-SELECTOR",
+          "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=transformDocument]"
+        },
+        {
           "resourceId": "D7-ARTIFACT-METADATA-GET-SELECTOR",
           "owner": "D7",
           "path": "sceneboard-fe/lib/api/board-api.ts",
@@ -2752,7 +2770,7 @@
           "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=supersedeInteraction]"
         }
       ],
-      "expectedCardinality": 22,
+      "expectedCardinality": 24,
       "canonicalization": "typescript-ast",
       "materializationPredecessor": "D2-D5-D7-D8-BROWSER-PUBLISHERS",
       "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"

@@ -18,6 +18,7 @@
     "./events": "./src/events/index.ts",
     "./sse": "./src/sse/index.ts",
     "./http": "./src/http/index.ts",
+    "./document-transform": "./src/document-transform/index.ts",
     "./scene-transform": "./src/scene-transform/index.ts",
     "./client": "./src/client/index.ts",
     "./state": "./src/state/index.ts"

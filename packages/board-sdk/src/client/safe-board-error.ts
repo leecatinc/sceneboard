@@ -1,4 +1,4 @@
-import type { BoardErrorV1 } from '@sceneboard/board-schema';
+import type { BoardError } from '@sceneboard/board-schema';
 
 import type { BoardSdkHttpLocalErrorV1 } from '../http/index.js';
 
@@ -17,7 +17,7 @@ export type SafeBoardUiErrorV1 = {
 };
 
 export const toSafeBoardUiErrorV1 = (
-  error: BoardErrorV1 | BoardSdkHttpLocalErrorV1,
+  error: BoardError | BoardSdkHttpLocalErrorV1,
 ): SafeBoardUiErrorV1 => {
   if (error.code === 'UNAUTHENTICATED')
     return {

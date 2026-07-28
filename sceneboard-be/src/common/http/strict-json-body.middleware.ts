@@ -41,6 +41,7 @@ const oneHeader = (request: ProfiledRequest, name: string): string | undefined =
 const maximumReadBytes = (profile: RawBodyProfile): number => {
   if (profile.kind === 'd7-artifact-source-body') return 11_534_337;
   if (profile.kind === 'd7-artifact-network-body') return 8_193;
+  if (profile.kind === 'd1-document-contract-body') return 33_554_433;
   if (profile.kind === 'd1-contract-body' || profile.kind === 'd1-adapter-body') return 1_048_577;
   if (profile.kind === 'd2-rest-json-body') return 65_537;
   return 1;
@@ -80,13 +81,38 @@ export class StrictJsonBodyMiddleware implements NestMiddleware {
       const method = request.method ?? '';
       const sourceUrl = request.url ?? '';
       const pathname = new URL(sourceUrl, 'http://sceneboard.internal').pathname;
-      const profile = matchRawBodyProfile(method, pathname);
+      const contentTypeHint = request.headers['content-type'];
+      const profile = matchRawBodyProfile(
+        method,
+        pathname,
+        typeof contentTypeHint === 'string' ? contentTypeHint : undefined,
+      );
       if (!profile) {
         next();
         return;
       }
       const contentType = oneHeader(request, 'content-type');
       const contentLength = oneHeader(request, 'content-length');
+      const contentEncoding = oneHeader(request, 'content-encoding');
+      if (
+        profile.kind === 'd1-document-contract-body' &&
+        contentEncoding !== undefined &&
+        contentEncoding !== 'identity'
+      ) {
+        throw new BoardContractError({
+          protocolVersion: 1,
+          type: 'board.error',
+          code: 'INVALID_PAYLOAD',
+          message: 'Invalid payload',
+          category: 'validation',
+          retryable: false,
+          httpStatusHint: 400,
+          details: {
+            path: [],
+            issue: 'content encoding must be identity',
+          },
+        });
+      }
       const declaredLength =
         contentLength !== undefined && /^(?:0|[1-9][0-9]*)$/.test(contentLength)
           ? Number(contentLength)
@@ -108,6 +134,7 @@ export class StrictJsonBodyMiddleware implements NestMiddleware {
         }
         if (
           (profile.kind === 'd1-contract-body' ||
+            profile.kind === 'd1-document-contract-body' ||
             profile.kind === 'd1-adapter-body' ||
             profile.kind === 'd7-artifact-source-body') &&
           error instanceof AppError &&
@@ -121,17 +148,23 @@ export class StrictJsonBodyMiddleware implements NestMiddleware {
         }
         throw error;
       }
-      const parsed = parseProfiledBody(profile, { contentType, contentLength, body });
+      const parsed = parseProfiledBody(profile, {
+        contentType,
+        contentLength,
+        contentEncoding,
+        body,
+      });
       if (parsed.kind === 'd2-rest-json-body') request.body = parsed.body;
       else if (
         parsed.kind === 'd1-contract-body' ||
+        parsed.kind === 'd1-document-contract-body' ||
         parsed.kind === 'd1-adapter-body' ||
         parsed.kind === 'd7-artifact-source-body' ||
         parsed.kind === 'd7-artifact-network-body'
       ) {
         request[D1_RAW_BODY] = Buffer.from(parsed.rawBody);
         request[D1_PARSED_BODY] = parsed.parsedBody;
-        if (parsed.kind === 'd1-contract-body') {
+        if (parsed.kind === 'd1-contract-body' || parsed.kind === 'd1-document-contract-body') {
           const candidate = parsed.parsedBody as { requestId?: unknown };
           admitBoardRequestId(request, candidate.requestId);
         }

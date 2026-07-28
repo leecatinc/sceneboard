@@ -57,6 +57,14 @@ test('no cursor yields one synthetic snapshot envelope and bound signed cursor',
   assert.equal(cursor.b, snapshot.boardId);
   assert.equal(cursor.s, snapshot.lastEventSequence);
   assert.equal(cursor.e, frame.envelope.eventId);
+
+  const projected = await service.prepare(principal as never, snapshot.boardId, null, 2);
+  const projectedFrame = projected.frames[0];
+  assert.equal(projectedFrame?.envelope.data.type, 'board.snapshot');
+  if (projectedFrame?.envelope.data.type === 'board.snapshot') {
+    assert.equal('document' in projectedFrame.envelope.data.snapshot, true);
+    assert.equal(projectedFrame.envelope.data.snapshot.capabilities.schemaVersion, '1.1.0');
+  }
 });
 
 test('no cursor emits a negotiated v2 document snapshot cut without a legacy Scene cast', async () => {
@@ -109,7 +117,15 @@ test('no cursor emits a negotiated v2 document snapshot cut without a legacy Sce
     codec,
     { generatePublicIdV1: () => 'request_1' } as never,
   );
-  const cut = await service.prepare(principal as never, snapshot.boardId, null);
+  await assert.rejects(
+    service.prepare(principal as never, snapshot.boardId, null),
+    (error: unknown) =>
+      typeof error === 'object' &&
+      error !== null &&
+      'boardError' in error &&
+      (error as { boardError: { code: string } }).boardError.code === 'DOCUMENT_VERSION_MISMATCH',
+  );
+  const cut = await service.prepare(principal as never, snapshot.boardId, null, 2);
   const frame = cut.frames[0];
   assert.ok(frame);
   assert.equal(BoardEventEnvelopeParserV2.parseBytes(frame.canonicalBytes).ok, true);

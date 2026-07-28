@@ -1,7 +1,10 @@
 import {
   BoardOperationRequestParserV1,
+  BOARD_DOCUMENT_LIMITS_V2,
   MutationRequestParserV1,
+  MutationRequestParserV2,
   type BoardErrorV1,
+  type BoardError,
   type ArtifactId,
   type ArtifactRequestCapabilityV1,
   type ArtifactReferenceV1,
@@ -10,6 +13,7 @@ import {
   type BoardOperationResultDataV1,
   type BoardOperationResultV1,
   type MutationRequestV1,
+  type MutationRequestV2,
   type MutationResultV1,
   type RequestId,
   type RevisionId,
@@ -18,6 +22,8 @@ import {
 
 import {
   parseBoardHttpResultV1,
+  parseBoardDocumentHttpResultV2,
+  parseBoardOperationHttpResultV2,
   type BoardHttpMetadataV1,
   type BoardHttpResultParseFailureReasonV1,
 } from './http-result.parser.js';
@@ -52,6 +58,23 @@ type ResultEnvelopeFor<K extends string> =
 export type BoardSdkHttpResultV1<K extends string> =
   | { ok: true; result: ResultEnvelopeFor<K>; metadata: BoardHttpMetadataV1 }
   | { ok: false; error: BoardErrorV1 | BoardSdkHttpLocalErrorV1 };
+
+export type BoardSdkDocumentHttpResultV2 =
+  | {
+      ok: true;
+      result: import('@sceneboard/board-schema').MutationResultV2 & {
+        result: Extract<
+          import('@sceneboard/board-schema').MutationResultV2['result'],
+          { type: 'document.replace' }
+        >;
+      };
+      metadata: { history: null };
+    }
+  | { ok: false; error: BoardError | BoardSdkHttpLocalErrorV1 };
+
+export type BoardSdkDocumentReadHttpResultV2<K extends 'board.get' | 'history.get'> =
+  | { ok: true; result: ResultEnvelopeFor<K>; metadata: BoardHttpMetadataV1 }
+  | { ok: false; error: BoardError | BoardSdkHttpLocalErrorV1 };
 
 export type BoardSdkHttpLogEventV1 = {
   route: string;
@@ -96,10 +119,12 @@ type CallSpec<K extends string> = {
   artifact?: ArtifactReferenceV1;
   revisionId?: MutationRequestV1['expectedRevisionId'];
   retryKind: 'read' | 'mutation';
+  profile?: 'v1' | 'document-v2';
 };
 
 const SUCCESS_BODY_LIMIT = 2_097_152;
 const ERROR_BODY_LIMIT = 65_536;
+const DOCUMENT_MEDIA_TYPE = 'application/vnd.sceneboard.document+json;version=2';
 const TOKEN_PATTERN = /^lcbg_v1\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$/;
 
 const localFailure = <K extends string>(
@@ -132,7 +157,7 @@ const validateBaseUrl = (value: string): string => {
   return url.origin;
 };
 
-const retryDelayFromError = (error: BoardErrorV1): number | null => {
+const retryDelayFromError = (error: BoardError): number | null => {
   const seconds =
     error.code === 'RATE_LIMITED'
       ? error.details.retryAfterSeconds
@@ -142,7 +167,7 @@ const retryDelayFromError = (error: BoardErrorV1): number | null => {
   return seconds === null ? null : seconds * 1_000;
 };
 
-const shouldRetryError = (error: BoardErrorV1): boolean =>
+const shouldRetryError = (error: BoardError): boolean =>
   error.retryable && (error.code === 'RATE_LIMITED' || error.code === 'SERVICE_UNAVAILABLE');
 
 export class BoardSdkHttpClient {
@@ -210,6 +235,28 @@ export class BoardSdkHttpClient {
       '/api/v1/boards/:boardId',
       signal,
     );
+  }
+
+  getDocumentBoard(
+    request: OperationRequest<'board.get'>,
+    signal?: AbortSignal,
+  ): Promise<BoardSdkDocumentReadHttpResultV2<'board.get'>> {
+    const parsed = this.#operation(request, 'board.get');
+    return this.#call(
+      {
+        method: 'GET',
+        routeTemplate: '/api/v1/boards/:boardId',
+        path: `/api/v1/boards/${parsed.boardId}`,
+        query: new URLSearchParams({ requestId: parsed.requestId }),
+        body: null,
+        requestId: parsed.requestId,
+        resultType: 'board.get',
+        boardId: parsed.boardId,
+        retryKind: 'read',
+        profile: 'document-v2',
+      },
+      signal,
+    ) as Promise<BoardSdkDocumentReadHttpResultV2<'board.get'>>;
   }
 
   createBoard(
@@ -284,6 +331,31 @@ export class BoardSdkHttpClient {
       },
       signal,
     ) as Promise<BoardSdkHttpResultV1<K>>;
+  }
+
+  mutateDocument(
+    request: MutationRequestV2 & {
+      command: Extract<MutationRequestV2['command'], { type: 'document.replace' }>;
+    },
+    signal?: AbortSignal,
+  ): Promise<BoardSdkDocumentHttpResultV2> {
+    const parsed = MutationRequestParserV2.parse(request);
+    if (!parsed.ok || parsed.data.value.command.type !== 'document.replace')
+      throw new TypeError('invalid document.replace request');
+    return this.#call(
+      {
+        method: 'POST',
+        routeTemplate: '/api/v1/boards/:boardId/mutations',
+        path: `/api/v1/boards/${parsed.data.value.boardId}/mutations`,
+        body: parsed.data.canonicalBytes,
+        requestId: parsed.data.value.requestId,
+        resultType: 'document.replace',
+        boardId: parsed.data.value.boardId,
+        retryKind: 'mutation',
+        profile: 'document-v2',
+      },
+      signal,
+    ) as Promise<BoardSdkDocumentHttpResultV2>;
   }
 
   restoreRevision(
@@ -363,6 +435,29 @@ export class BoardSdkHttpClient {
       },
       signal,
     );
+  }
+
+  getDocumentHistory(
+    request: OperationRequest<'history.get'>,
+    signal?: AbortSignal,
+  ): Promise<BoardSdkDocumentReadHttpResultV2<'history.get'>> {
+    const parsed = this.#operation(request, 'history.get');
+    return this.#call(
+      {
+        method: 'GET',
+        routeTemplate: '/api/v1/boards/:boardId/revisions/:revisionId',
+        path: `/api/v1/boards/${parsed.boardId}/revisions/${parsed.revisionId}`,
+        query: new URLSearchParams({ requestId: parsed.requestId }),
+        body: null,
+        requestId: parsed.requestId,
+        resultType: 'history.get',
+        boardId: parsed.boardId,
+        revisionId: parsed.revisionId,
+        retryKind: 'read',
+        profile: 'document-v2',
+      },
+      signal,
+    ) as Promise<BoardSdkDocumentReadHttpResultV2<'history.get'>>;
   }
 
   getArtifact(
@@ -517,7 +612,12 @@ export class BoardSdkHttpClient {
               Accept: 'application/json',
               Authorization: `Bearer ${token}`,
               'X-Request-Id': spec.requestId,
-              ...(spec.body === null ? {} : { 'Content-Type': 'application/json' }),
+              ...(spec.body === null
+                ? {}
+                : {
+                    'Content-Type':
+                      spec.profile === 'document-v2' ? DOCUMENT_MEDIA_TYPE : 'application/json',
+                  }),
             },
             ...(spec.body === null ? {} : { body: spec.body.slice().buffer as ArrayBuffer }),
             signal: deadline.signal,
@@ -551,7 +651,11 @@ export class BoardSdkHttpClient {
           });
         }
         const cap =
-          response.status >= 200 && response.status < 300 ? SUCCESS_BODY_LIMIT : ERROR_BODY_LIMIT;
+          response.status >= 200 && response.status < 300
+            ? spec.profile === 'document-v2'
+              ? BOARD_DOCUMENT_LIMITS_V2.maxDocumentEnvelopeBytes
+              : SUCCESS_BODY_LIMIT
+            : ERROR_BODY_LIMIT;
         const bytes = await readBoundedResponseBodyV1(response, cap, deadline.signal);
         if (bytes === 'body_too_large')
           return localFailure({
@@ -578,16 +682,31 @@ export class BoardSdkHttpClient {
             reason: 'correlation',
           });
         }
-        const parsed = parseBoardHttpResultV1(bytes, {
-          status: response.status,
-          requestId: spec.requestId,
-          resultType: spec.resultType as
-            | BoardOperationResultDataV1['type']
-            | MutationResultV1['result']['type'],
-          ...(spec.boardId === undefined ? {} : { boardId: spec.boardId }),
-          ...(spec.artifact === undefined ? {} : { artifact: spec.artifact }),
-          ...(spec.revisionId === undefined ? {} : { revisionId: spec.revisionId }),
-        });
+        const parsed =
+          spec.profile === 'document-v2' && spec.resultType === 'document.replace'
+            ? parseBoardDocumentHttpResultV2(bytes, {
+                status: response.status,
+                requestId: spec.requestId,
+                boardId: spec.boardId as BoardId,
+              })
+            : spec.profile === 'document-v2'
+              ? parseBoardOperationHttpResultV2(bytes, {
+                  status: response.status,
+                  requestId: spec.requestId,
+                  resultType: spec.resultType as BoardOperationResultDataV1['type'],
+                  ...(spec.boardId === undefined ? {} : { boardId: spec.boardId }),
+                  ...(spec.revisionId === undefined ? {} : { revisionId: spec.revisionId }),
+                })
+              : parseBoardHttpResultV1(bytes, {
+                  status: response.status,
+                  requestId: spec.requestId,
+                  resultType: spec.resultType as
+                    | BoardOperationResultDataV1['type']
+                    | MutationResultV1['result']['type'],
+                  ...(spec.boardId === undefined ? {} : { boardId: spec.boardId }),
+                  ...(spec.artifact === undefined ? {} : { artifact: spec.artifact }),
+                  ...(spec.revisionId === undefined ? {} : { revisionId: spec.revisionId }),
+                });
         if (!parsed.ok)
           return localFailure({
             code: 'RESPONSE_INVALID',
@@ -608,7 +727,7 @@ export class BoardSdkHttpClient {
             const delay = serverDelay ?? protectedRetryDelayMsV1(attempt);
             if (await sleepWithinDeadlineV1(delay, deadline.remainingMs, deadline.signal)) continue;
           }
-          return { ok: false, error };
+          return { ok: false, error: error as BoardErrorV1 };
         }
         this.#logger.log({
           route: spec.routeTemplate,

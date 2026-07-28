@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import * as root from '../../src/index.js';
 import * as http from '../../src/http/index.js';
+import * as documentTransform from '../../src/document-transform/index.js';
 import * as transform from '../../src/scene-transform/index.js';
 import type { BoardSdkHttpClientOptionsV1, BoardSdkHttpResultV1 } from '../../src/http/index.js';
 import type {
@@ -19,7 +20,13 @@ const compileTypes = (
 
 test('D6 HTTP and scene-transform leaf barrels expose only their closed runtimes', () => {
   compileTypes(null, null, null, null);
-  assert.deepEqual(Object.keys(http).sort(), ['BoardSdkHttpClient', 'parseBoardHttpResultV1']);
+  assert.deepEqual(Object.keys(http).sort(), [
+    'BoardSdkHttpClient',
+    'parseBoardDocumentHttpResultV2',
+    'parseBoardHttpResultV1',
+    'parseBoardOperationHttpResultV2',
+  ]);
+  assert.deepEqual(Object.keys(documentTransform).sort(), ['applyDocumentTransformV2']);
   assert.deepEqual(Object.keys(transform).sort(), ['applySceneTransformV1']);
 });
 

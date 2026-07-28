@@ -10,7 +10,9 @@
     "D5-BOARD-ARCHIVE",
     "D5-BOARD-RENAME",
     "D5-HISTORY-LIST",
-    "D5-HISTORY-GET"
+    "D5-HISTORY-GET",
+    "D5-DOCUMENT-REPLACE",
+    "D5-DOCUMENT-TRANSFORM"
   ],
   "selectors": [
     {
@@ -82,7 +84,27 @@
       "signature": "async getHistoryRevision( boardId: string, revisionId: string, signal?: AbortSignal, ): Promise<ApiResult<HistoryGetResult>>",
       "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=getHistoryRevision]",
       "contractId": "D5-HISTORY-GET"
+    },
+    {
+      "projectionId": "D5-DOCUMENT-REPLACE-SELECTOR",
+      "exportName": "BoardApiClient",
+      "exportKind": "class",
+      "memberName": "replaceDocument",
+      "memberKind": "method",
+      "signature": "async replaceDocument( request: DocumentMutationRequest, signal?: AbortSignal, ): Promise<ApiResult<DocumentMutationResult>>",
+      "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=replaceDocument]",
+      "contractId": "D5-DOCUMENT-REPLACE"
+    },
+    {
+      "projectionId": "D5-DOCUMENT-TRANSFORM-SELECTOR",
+      "exportName": "BoardApiClient",
+      "exportKind": "class",
+      "memberName": "transformDocument",
+      "memberKind": "method",
+      "signature": "async transformDocument( input: BrowserDocumentMutationInput, signal?: AbortSignal, ): Promise<ApiResult<DocumentMutationResult>>",
+      "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=transformDocument]",
+      "contractId": "D5-DOCUMENT-TRANSFORM"
     }
   ],
-  "tupleListSha256": "d738938861fcf8cb9514baadc219c6587701e055805c915f510900c78e263c21"
+  "tupleListSha256": "1d9ac1a9ad2b5e30a45bce163a77e57ca5195e13f1b532cf2bfd474646d7c0d1"
 }

@@ -19,7 +19,10 @@ test('D7 publishes exactly the metadata, package, and default-denied broker sele
   });
   const source = readFileSync(new URL('lib/api/board-artifact-api.ts', root), 'utf8');
   const coordinator = readFileSync(new URL('lib/auth/renewal-singleflight.ts', root), 'utf8');
-  assert.match(coordinator, /responseKind\?: 'json' \| 'artifact-package' \| 'artifact-network'/u);
+  assert.match(
+    coordinator,
+    /responseKind\?: 'json' \| 'document-json' \| 'artifact-package' \| 'artifact-network'/u,
+  );
   assert.match(source, /application\/vnd\.leecat\.artifact-package\.v1/u);
   assert.match(source, /application\/vnd\.leecat\.artifact-network-result\.v1/u);
 });

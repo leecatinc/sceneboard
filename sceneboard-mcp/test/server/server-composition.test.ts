@@ -94,7 +94,7 @@ test('unexpected handler failures become one correlated internal error without l
   }
 });
 
-test('terminal authentication failure invalidates the token and shrinks discovery from 21 tools to 3', async () => {
+test('terminal authentication failure invalidates the token and shrinks discovery from 28 tools to 3', async () => {
   const token = `lcbg_v1.${'a'.repeat(22)}.${'b'.repeat(43)}`;
   let calls = 0;
   const runtime = await createBoardMcpServerV1({
