@@ -1,6 +1,6 @@
 # SceneBoard command contract and test surface
 
-Prefer tools returned by MCP discovery. Before authentication exactly the three connection/pairing tools are visible; terminal authenticated discovery contains exactly the 28 tools below and no aliases. If SceneBoard descriptors are absent, the bundled adapter accepts the supported protected operation names and exact inputs over JSON stdin. Pairing is the sole transport-shaped exception: the fallback keeps the proof private inside one `pair` process instead of exposing separate request/status invocations.
+Prefer tools returned by MCP discovery. Before authentication exactly the three connection/pairing tools are visible; terminal authenticated discovery contains exactly the 30 tools below and no aliases. If SceneBoard descriptors are absent, the bundled adapter accepts the supported protected operation names and exact inputs over JSON stdin. Pairing is the sole transport-shaped exception: the fallback keeps the proof private inside one `pair` process instead of exposing separate request/status invocations.
 
 ## Shared rules
 
@@ -32,6 +32,8 @@ Prefer tools returned by MCP discovery. Before authentication exactly the three 
 | `board_page_reorder`        | `{boardId,expectedRevisionId,idempotencyKey,pageId,toIndex}`                                                                            | Whole-document `document.replace`; `toIndex` is in the resulting order.                                                                                                          |
 | `board_page_update`         | `{boardId,expectedRevisionId,idempotencyKey,pageId,title?,displayMode?,scene?}`                                                         | Whole-document `document.replace`; at least one update field is required.                                                                                                        |
 | `board_page_default_set`    | `{boardId,expectedRevisionId,idempotencyKey,pageId}`                                                                                    | Whole-document `document.replace`; the page must exist.                                                                                                                          |
+| `sceneboard_media_upload`   | `{boardId,path,idempotencyKey}`                                                                                                         | Immutable `media.ingest.result`; no path is returned and upload does not place it.                                                                                               |
+| `sceneboard_media_place`    | `{boardId,pageId,expectedRevisionId,idempotencyKey,image,placement}`                                                                    | Whole-document `document.replace` using the shared SDK placement transform.                                                                                                      |
 | `board_artifact_get`        | `{boardId,artifactId,versionId}`                                                                                                        | `artifact.get` manifest/runtime for the exact immutable pair.                                                                                                                    |
 | `board_artifact_put`        | `{boardId,expectedRevisionId,idempotencyKey,artifactId:null\|<id>,html,css:null\|string,javascript:null\|string,requestedCapabilities}` | `artifact.publish`                                                                                                                                                               |
 | `board_artifact_stop`       | `{boardId,expectedRevisionId,idempotencyKey,artifactId,versionId,reason}`                                                               | `artifact.stop`; does not remove scene placement.                                                                                                                                |
@@ -65,3 +67,69 @@ Protected tools share `INVALID_PAYLOAD`, `PROTOCOL_VERSION_MISMATCH`, `UNAUTHENT
 `CAPABILITY_DENIED` is invalid for every tool except `board_artifact_put`. MCP-local errors retain the `BOARD_MCP_*` namespace. The official fallback uses the closed `BOARD_API_*` local namespace for config, credential, profile, not-connected, transport, timeout, response-invalid, and internal failures while returning server D1 and pairing error codes unchanged.
 
 On `REVISION_CONFLICT`, re-read and consciously reapply with a new key. On `IDEMPOTENCY_KEY_REUSED`, stop unless replaying the byte-identical semantic request. Do not translate these into legacy `BOARD_REVISION_CONFLICT`, `IDEMPOTENCY_CONFLICT`, or open-ended skill-only codes.
+
+## Exact media upload then placement
+
+Tools generate `requestId`; never include it in caller input. The only local path example is:
+
+<!-- SCENEBOARD_EXAMPLE media-upload-input -->
+
+```json
+{
+  "boardId": "board_1",
+  "path": "/absolute/path/to/image.png",
+  "idempotencyKey": "media-upload-key-0001"
+}
+```
+
+<!-- /SCENEBOARD_EXAMPLE -->
+
+<!-- SCENEBOARD_EXAMPLE media-place-meaningful-page-end-input -->
+
+```json
+{
+  "boardId": "board_1",
+  "pageId": "page_1",
+  "expectedRevisionId": "revision_1",
+  "idempotencyKey": "media-place-key-0001",
+  "image": {
+    "nodeId": "image_1",
+    "mediaId": "media_1",
+    "decorative": false,
+    "alt": "A concise description",
+    "caption": "Optional caption",
+    "fit": "contain"
+  },
+  "placement": { "kind": "page-end", "wrapperNodeId": "image_wrapper_1" }
+}
+```
+
+<!-- /SCENEBOARD_EXAMPLE -->
+
+<!-- SCENEBOARD_EXAMPLE media-place-decorative-canvas-input -->
+
+```json
+{
+  "boardId": "board_1",
+  "pageId": "page_1",
+  "expectedRevisionId": "revision_1",
+  "idempotencyKey": "media-place-key-0002",
+  "image": {
+    "nodeId": "image_2",
+    "mediaId": "media_1",
+    "decorative": true,
+    "alt": "",
+    "fit": "cover"
+  },
+  "placement": { "kind": "canvas", "x": 40, "y": 40, "width": 640, "height": 360, "zIndex": 1 }
+}
+```
+
+<!-- /SCENEBOARD_EXAMPLE -->
+
+Upload never implies placement. No result, log, error, or state may contain a path, basename,
+credential, password, or share secret. A response-loss retry is a fresh tool invocation with a
+fresh tool-generated request ID, the same caller idempotency key, and a byte-identical recapture.
+Changed bytes or input stop on `BOARD_MCP_LOCAL_FILE_CHANGED` or `IDEMPOTENCY_KEY_REUSED`.
+Permission denial stays non-enumerating; unsupported magic returns
+`BOARD_MCP_LOCAL_MEDIA_UNSUPPORTED`; a placement head change returns `REVISION_CONFLICT`.

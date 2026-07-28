@@ -9,7 +9,7 @@ Operate SceneBoard as an owner-scoped persistent visual surface outside chat. Pr
 
 ## Product boundaries
 
-- `sceneboard-mcp` (`sceneboard-mcp`) owns the preferred local stdio transport, full protected client validation, and all 28 terminal descriptors. This skill bundles a narrow dependency-free API adapter only for an absent MCP transport.
+- `sceneboard-mcp` (`sceneboard-mcp`) owns the preferred local stdio transport, full protected client validation, and all 30 terminal descriptors. This skill bundles a narrow dependency-free API adapter only for an absent MCP transport.
 - `sceneboard-be` (`sceneboard-be`) owns authentication, authorization, MySQL-authoritative boards/revisions/artifacts/interactions/pairing/grants, and browser APIs. Redis is ephemeral only.
 - `sceneboard-fe` (`sceneboard-fe`) owns live rendering, local history navigation, responder controls, and sandboxed artifact hosting.
 - `packages/board-schema` owns D1 wire DTOs, the recursive scene/node model, results, events, limits, and stable errors.
@@ -57,6 +57,13 @@ Treat every complete person-facing Scene, HITL request or response, approval pro
 
 ## Rendering policy
 
+- Split distinct presentation topics into stable V2 pages before making one page tall. When a split
+  would damage comprehension, one bounded vertical PAGE scroll is allowed. Prefer `fit-width` for
+  narrow/mobile reading and `fit-page` for slide-like desktop presentation. Fullscreen presents
+  only the selected PAGE; page identity and immutable revision identity remain distinct.
+- Image authoring is two-step: call `sceneboard_media_upload`, inspect its immutable secret-free
+  result, then call `sceneboard_media_place` with the returned `mediaId`. Upload never implies
+  placement, and both tools generate their own request IDs.
 - Use `board_scene_replace` for a complete redraw, `board_scene_patch` for an ordered local transform, and `board_scene_clear` for an intentional blank restorable head.
 - Model splits, grids, tabs, and free positioning with the recursive node tree. Stable conceptual identity is `NodeId`; there is no blocks map or `blockId` indirection.
 - The trusted node catalog is closed. Fold unsupported content into markdown/code/status/layout, or use an approved artifact.
@@ -98,6 +105,7 @@ Keep `wait.timeoutMs` in `[0,30000]`. Effective wait is `min(30000, remaining SD
 | Lifecycle/capabilities | `board_list`, `board_get`, `board_create`, `board_archive`, `board_capabilities_get`                                                                       |
 | Scene                  | `board_scene_get`, `board_scene_replace`, `board_scene_patch`, `board_scene_clear`                                                                         |
 | Document/pages         | `board_document_get`, `board_document_replace`, `board_page_add`, `board_page_remove`, `board_page_reorder`, `board_page_update`, `board_page_default_set` |
+| Media                  | `sceneboard_media_upload`, `sceneboard_media_place`                                                                                                        |
 | Artifact               | `board_artifact_get`, `board_artifact_put`, `board_artifact_stop`                                                                                          |
 | History                | `board_history_list`, `board_history_get`, `board_history_restore`                                                                                         |
 | HITL                   | `board_interaction_request`, `board_interaction_status`, `board_interaction_respond`                                                                       |

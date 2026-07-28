@@ -405,11 +405,11 @@ var require_codegen = __commonJS({
         const rhs = this.rhs === void 0 ? "" : ` = ${this.rhs}`;
         return `${varKind} ${this.name}${rhs};` + _n;
       }
-      optimizeNames(names, constants4) {
+      optimizeNames(names, constants5) {
         if (!names[this.name.str])
           return;
         if (this.rhs)
-          this.rhs = optimizeExpr(this.rhs, names, constants4);
+          this.rhs = optimizeExpr(this.rhs, names, constants5);
         return this;
       }
       get names() {
@@ -426,10 +426,10 @@ var require_codegen = __commonJS({
       render({ _n }) {
         return `${this.lhs} = ${this.rhs};` + _n;
       }
-      optimizeNames(names, constants4) {
+      optimizeNames(names, constants5) {
         if (this.lhs instanceof code_1.Name && !names[this.lhs.str] && !this.sideEffects)
           return;
-        this.rhs = optimizeExpr(this.rhs, names, constants4);
+        this.rhs = optimizeExpr(this.rhs, names, constants5);
         return this;
       }
       get names() {
@@ -490,8 +490,8 @@ var require_codegen = __commonJS({
       optimizeNodes() {
         return `${this.code}` ? this : void 0;
       }
-      optimizeNames(names, constants4) {
-        this.code = optimizeExpr(this.code, names, constants4);
+      optimizeNames(names, constants5) {
+        this.code = optimizeExpr(this.code, names, constants5);
         return this;
       }
       get names() {
@@ -520,12 +520,12 @@ var require_codegen = __commonJS({
         }
         return nodes.length > 0 ? this : void 0;
       }
-      optimizeNames(names, constants4) {
+      optimizeNames(names, constants5) {
         const { nodes } = this;
         let i = nodes.length;
         while (i--) {
           const n = nodes[i];
-          if (n.optimizeNames(names, constants4))
+          if (n.optimizeNames(names, constants5))
             continue;
           subtractNames(names, n.names);
           nodes.splice(i, 1);
@@ -578,12 +578,12 @@ var require_codegen = __commonJS({
           return void 0;
         return this;
       }
-      optimizeNames(names, constants4) {
+      optimizeNames(names, constants5) {
         var _a;
-        this.else = (_a = this.else) === null || _a === void 0 ? void 0 : _a.optimizeNames(names, constants4);
-        if (!(super.optimizeNames(names, constants4) || this.else))
+        this.else = (_a = this.else) === null || _a === void 0 ? void 0 : _a.optimizeNames(names, constants5);
+        if (!(super.optimizeNames(names, constants5) || this.else))
           return;
-        this.condition = optimizeExpr(this.condition, names, constants4);
+        this.condition = optimizeExpr(this.condition, names, constants5);
         return this;
       }
       get names() {
@@ -606,10 +606,10 @@ var require_codegen = __commonJS({
       render(opts) {
         return `for(${this.iteration})` + super.render(opts);
       }
-      optimizeNames(names, constants4) {
-        if (!super.optimizeNames(names, constants4))
+      optimizeNames(names, constants5) {
+        if (!super.optimizeNames(names, constants5))
           return;
-        this.iteration = optimizeExpr(this.iteration, names, constants4);
+        this.iteration = optimizeExpr(this.iteration, names, constants5);
         return this;
       }
       get names() {
@@ -645,10 +645,10 @@ var require_codegen = __commonJS({
       render(opts) {
         return `for(${this.varKind} ${this.name} ${this.loop} ${this.iterable})` + super.render(opts);
       }
-      optimizeNames(names, constants4) {
-        if (!super.optimizeNames(names, constants4))
+      optimizeNames(names, constants5) {
+        if (!super.optimizeNames(names, constants5))
           return;
-        this.iterable = optimizeExpr(this.iterable, names, constants4);
+        this.iterable = optimizeExpr(this.iterable, names, constants5);
         return this;
       }
       get names() {
@@ -690,11 +690,11 @@ var require_codegen = __commonJS({
         (_b = this.finally) === null || _b === void 0 ? void 0 : _b.optimizeNodes();
         return this;
       }
-      optimizeNames(names, constants4) {
+      optimizeNames(names, constants5) {
         var _a, _b;
-        super.optimizeNames(names, constants4);
-        (_a = this.catch) === null || _a === void 0 ? void 0 : _a.optimizeNames(names, constants4);
-        (_b = this.finally) === null || _b === void 0 ? void 0 : _b.optimizeNames(names, constants4);
+        super.optimizeNames(names, constants5);
+        (_a = this.catch) === null || _a === void 0 ? void 0 : _a.optimizeNames(names, constants5);
+        (_b = this.finally) === null || _b === void 0 ? void 0 : _b.optimizeNames(names, constants5);
         return this;
       }
       get names() {
@@ -995,7 +995,7 @@ var require_codegen = __commonJS({
     function addExprNames(names, from) {
       return from instanceof code_1._CodeOrName ? addNames(names, from.names) : names;
     }
-    function optimizeExpr(expr, names, constants4) {
+    function optimizeExpr(expr, names, constants5) {
       if (expr instanceof code_1.Name)
         return replaceName(expr);
       if (!canOptimize(expr))
@@ -1010,14 +1010,14 @@ var require_codegen = __commonJS({
         return items;
       }, []));
       function replaceName(n) {
-        const c = constants4[n.str];
+        const c = constants5[n.str];
         if (c === void 0 || names[n.str] !== 1)
           return n;
         delete names[n.str];
         return c;
       }
       function canOptimize(e) {
-        return e instanceof code_1._Code && e._items.some((c) => c instanceof code_1.Name && names[c.str] === 1 && constants4[c.str] !== void 0);
+        return e instanceof code_1._Code && e._items.some((c) => c instanceof code_1.Name && names[c.str] === 1 && constants5[c.str] !== void 0);
       }
     }
     function subtractNames(names, from) {
@@ -2230,8 +2230,8 @@ var require_resolve = __commonJS({
       }
       return count;
     }
-    function getFullPath(resolver, id = "", normalize) {
-      if (normalize !== false)
+    function getFullPath(resolver, id = "", normalize2) {
+      if (normalize2 !== false)
         id = normalizeId(id);
       const p = resolver.parse(id);
       return _getFullPath(resolver, p);
@@ -3627,27 +3627,27 @@ var require_fast_uri = __commonJS({
     "use strict";
     var { normalizeIPv6, removeDotSegments, recomposeAuthority, normalizePercentEncoding, normalizePathEncoding, escapePreservingEscapes, reescapeHostDelimiters, isIPv4, nonSimpleDomain } = require_utils();
     var { SCHEMES, getSchemeHandler } = require_schemes();
-    function normalize(uri, options) {
+    function normalize2(uri, options) {
       if (typeof uri === "string") {
         uri = /** @type {T} */
         normalizeString(uri, options);
       } else if (typeof uri === "object") {
         uri = /** @type {T} */
-        parse4(serialize(uri, options), options);
+        parse5(serialize(uri, options), options);
       }
       return uri;
     }
     function resolve2(baseURI, relativeURI, options) {
       const schemelessOptions = options ? Object.assign({ scheme: "null" }, options) : { scheme: "null" };
-      const resolved = resolveComponent(parse4(baseURI, schemelessOptions), parse4(relativeURI, schemelessOptions), schemelessOptions, true);
+      const resolved = resolveComponent(parse5(baseURI, schemelessOptions), parse5(relativeURI, schemelessOptions), schemelessOptions, true);
       schemelessOptions.skipEscape = true;
       return serialize(resolved, schemelessOptions);
     }
     function resolveComponent(base, relative, options, skipNormalization) {
       const target = {};
       if (!skipNormalization) {
-        base = parse4(serialize(base, options), options);
-        relative = parse4(serialize(relative, options), options);
+        base = parse5(serialize(base, options), options);
+        relative = parse5(serialize(relative, options), options);
       }
       options = options || {};
       if (!options.tolerant && relative.scheme) {
@@ -3870,7 +3870,7 @@ var require_fast_uri = __commonJS({
       }
       return { parsed, malformedAuthorityOrPort };
     }
-    function parse4(uri, opts) {
+    function parse5(uri, opts) {
       return parseWithStatus(uri, opts).parsed;
     }
     function normalizeString(uri, opts) {
@@ -3894,12 +3894,12 @@ var require_fast_uri = __commonJS({
     }
     var fastUri = {
       SCHEMES,
-      normalize,
+      normalize: normalize2,
       resolve: resolve2,
       resolveComponent,
       equal,
       serialize,
-      parse: parse4
+      parse: parse5
     };
     module.exports = fastUri;
     module.exports.default = fastUri;
@@ -12996,7 +12996,7 @@ var StdioServerTransport = class {
 };
 
 // sceneboard-mcp/src/server.ts
-import { randomBytes as randomBytes8 } from "node:crypto";
+import { randomBytes as randomBytes9 } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 // node_modules/@modelcontextprotocol/sdk/node_modules/zod/v3/helpers/util.js
@@ -34966,31 +34966,209 @@ var UnavailablePairingCoordinatorV1 = class {
   }
 };
 
+// sceneboard-mcp/src/connection/connection-media-http.client.ts
+var local2 = (error2) => ({ ok: false, error: error2 });
+var exactRecord2 = (value, keys) => {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
+  const record2 = value;
+  const actual = Object.keys(record2).sort();
+  const expected = [...keys].sort();
+  return actual.length === expected.length && actual.every((key, index) => key === expected[index]) ? record2 : null;
+};
+var ConnectionMediaHttpClientV1 = class {
+  constructor(options) {
+    this.options = options;
+  }
+  async upload(input, outerSignal) {
+    const timeoutSignal = AbortSignal.timeout(this.options.timeoutMs);
+    const signal = outerSignal === void 0 ? timeoutSignal : AbortSignal.any([outerSignal, timeoutSignal]);
+    if (signal.aborted) return local2({ code: "CANCELLED", retryable: false });
+    const url = new URL(
+      `/api/v1/boards/${encodeURIComponent(input.boardId)}/media`,
+      this.options.baseUrl
+    );
+    url.search = new URLSearchParams({ requestId: input.requestId }).toString();
+    const startedAt = performance.now();
+    let response;
+    try {
+      response = await this.options.fetch(url, {
+        method: "POST",
+        redirect: "manual",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${input.accessToken}`,
+          "Content-Type": input.mime,
+          "Content-Length": String(input.bytes.length),
+          "Content-Digest": `sha-256=:${input.digestBase64}:`,
+          "Idempotency-Key": input.idempotencyKey
+        },
+        body: input.bytes,
+        signal
+      });
+    } catch {
+      if (outerSignal?.aborted) return local2({ code: "CANCELLED", retryable: false });
+      if (timeoutSignal.aborted)
+        return local2({ code: "TIMEOUT", retryable: true, timeoutMs: this.options.timeoutMs });
+      return local2({ code: "TRANSPORT_ERROR", retryable: true, phase: "request" });
+    }
+    if (response.redirected || response.status >= 300 && response.status < 400) {
+      await response.body?.cancel().catch(() => void 0);
+      return local2({ code: "RESPONSE_INVALID", retryable: false, reason: "status" });
+    }
+    if (response.headers.get("content-type")?.toLowerCase() !== "application/json; charset=utf-8") {
+      await response.body?.cancel().catch(() => void 0);
+      return local2({ code: "RESPONSE_INVALID", retryable: false, reason: "content_type" });
+    }
+    const successStatus = response.status === 200 || response.status === 201;
+    const body = await BoardSdkHttpClient.readBoundedResponseBodyV1(
+      response,
+      successStatus ? 2097152 : 65536,
+      signal
+    );
+    if (body === "body_too_large")
+      return local2({ code: "RESPONSE_INVALID", retryable: false, reason: "body_too_large" });
+    if (body === "response") {
+      if (outerSignal?.aborted) return local2({ code: "CANCELLED", retryable: false });
+      if (timeoutSignal.aborted)
+        return local2({ code: "TIMEOUT", retryable: true, timeoutMs: this.options.timeoutMs });
+      return local2({ code: "TRANSPORT_ERROR", retryable: true, phase: "response" });
+    }
+    if (response.headers.get("x-request-id") !== input.requestId)
+      return local2({ code: "RESPONSE_INVALID", retryable: false, reason: "correlation" });
+    const parsed = BoardSdkHttpClient.parseStrictJsonBytesV1(body);
+    if (!parsed.ok)
+      return local2({ code: "RESPONSE_INVALID", retryable: false, reason: parsed.reason });
+    if (successStatus) {
+      const envelope2 = exactRecord2(parsed.value, [
+        "protocolVersion",
+        "type",
+        "requestId",
+        "result"
+      ]);
+      const result = envelope2 === null ? null : MediaIngestResultParserV1.parse(envelope2.result);
+      if (envelope2 === null || envelope2.protocolVersion !== 1 || envelope2.type !== "board.http.success" || envelope2.requestId !== input.requestId || result === null || !result.ok || result.data.value.requestId !== input.requestId || response.status === 201 && result.data.value.status !== "created" || response.status === 200 && result.data.value.status !== "replayed")
+        return local2({ code: "RESPONSE_INVALID", retryable: false, reason: "correlation" });
+      this.options.logger.log({
+        route: "/api/v1/boards/:boardId/media",
+        attempt: 1,
+        durationMs: performance.now() - startedAt,
+        requestId: input.requestId,
+        resultCode: result.data.value.status
+      });
+      return { ok: true, result: result.data.value, metadata: null };
+    }
+    const envelope = exactRecord2(parsed.value, ["error"]);
+    const error2 = envelope === null ? null : BoardErrorParser.parse(envelope.error);
+    if (error2 === null || !error2.ok || error2.data.value.httpStatusHint !== response.status || ![
+      "INVALID_REQUEST",
+      "UNAUTHENTICATED",
+      "FORBIDDEN",
+      "BOARD_NOT_FOUND",
+      "IDEMPOTENCY_KEY_REUSED",
+      "IDEMPOTENCY_RESULT_EXPIRED",
+      "PAYLOAD_TOO_LARGE",
+      "INVALID_MEDIA_UPLOAD",
+      "RATE_LIMITED",
+      "SERVICE_UNAVAILABLE"
+    ].includes(error2.data.value.code))
+      return local2({ code: "RESPONSE_INVALID", retryable: false, reason: "status" });
+    this.options.logger.log({
+      route: "/api/v1/boards/:boardId/media",
+      attempt: 1,
+      durationMs: performance.now() - startedAt,
+      requestId: input.requestId,
+      resultCode: error2.data.value.code
+    });
+    return { ok: false, error: error2.data.value };
+  }
+};
+
 // sceneboard-mcp/src/tools/protected-board.gateway.ts
 var ProtectedBoardGatewayV1 = class {
   constructor(options) {
     this.options = options;
   }
-  async call(operation) {
-    const snapshot = await this.options.tokens.snapshot();
-    if (snapshot === null) return { connected: false };
-    const client = new BoardSdkHttpClient({
+  client(snapshot) {
+    return new BoardSdkHttpClient({
       baseUrl: this.options.baseUrl,
       fetch: this.options.fetch,
       timeoutPolicy: { timeoutMs: this.options.timeoutMs },
       bearerTokenProvider: () => snapshot.accessToken,
       logger: this.options.logger
     });
+  }
+  async call(operation) {
+    const snapshot = await this.options.tokens.snapshot();
+    if (snapshot === null) return { connected: false };
+    const client = this.client(snapshot);
     const value = await operation(client);
     if (value !== null && typeof value === "object" && "ok" in value && value.ok === false && "error" in value && value.error !== null && typeof value.error === "object" && "code" in value.error && value.error.code === "UNAUTHENTICATED") {
       await this.options.tokens.invalidate(snapshot);
     }
     return { connected: true, value };
   }
+  async withAuthorizedBoardOperation(input, operation) {
+    let rawSnapshot;
+    try {
+      rawSnapshot = await this.options.tokens.snapshot();
+    } catch {
+      return { authorized: false, reason: "credential_unavailable" };
+    }
+    if (rawSnapshot === null) return { authorized: false, reason: "not_connected" };
+    if (rawSnapshot.version !== 1 || typeof rawSnapshot.generation !== "string" || !GENERATION_PATTERN_V1.test(rawSnapshot.generation) || typeof rawSnapshot.accessToken !== "string" || !ACCESS_TOKEN_PATTERN_V1.test(rawSnapshot.accessToken))
+      return { authorized: false, reason: "credential_unavailable" };
+    const snapshot = Object.freeze({ ...rawSnapshot });
+    const connection = await new ConnectionHttpClientV1({
+      baseUrl: this.options.baseUrl,
+      fetch: this.options.fetch,
+      timeoutMs: this.options.timeoutMs,
+      logger: this.options.logger
+    }).get(input.boardId, input.requestId, snapshot.accessToken, input.signal);
+    if (!connection.ok) {
+      if (connection.source === "board") {
+        if (connection.error.code === "UNAUTHENTICATED")
+          await this.options.tokens.invalidate(snapshot);
+        return { authorized: false, reason: "board", error: connection.error };
+      }
+      return { authorized: false, reason: "local", error: connection.error };
+    }
+    const selected = connection.value.selectedBoard;
+    const grant = connection.value.grant;
+    if (selected === null || !input.requiredCapabilities.every(
+      (capability) => grant.scopes.includes(capability) && selected.capabilities.grantedCapabilities.includes(capability)
+    ))
+      return {
+        authorized: false,
+        reason: "board",
+        error: {
+          protocolVersion: 1,
+          type: "board.error",
+          code: "BOARD_NOT_FOUND",
+          message: "Board not found",
+          category: "not_found",
+          retryable: false,
+          httpStatusHint: 404,
+          details: null
+        }
+      };
+    return {
+      authorized: true,
+      value: await operation({
+        snapshot,
+        client: this.client(snapshot),
+        media: new ConnectionMediaHttpClientV1({
+          baseUrl: this.options.baseUrl,
+          fetch: this.options.fetch,
+          timeoutMs: this.options.timeoutMs,
+          logger: this.options.logger
+        })
+      })
+    };
+  }
 };
 
 // sceneboard-mcp/src/tools/register-tools.ts
-import { randomBytes as randomBytes7 } from "node:crypto";
+import { randomBytes as randomBytes8 } from "node:crypto";
 
 // packages/board-sdk/src/document-transform/document-transform.ts
 var invalidDocument3 = (path, reason) => ({
@@ -35011,6 +35189,71 @@ var exactKeys = (value, keys) => {
 };
 var safeIndex = (value) => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 var pageIndex = (document, pageId) => document.pages.findIndex((page) => page.pageId === pageId);
+var finiteCanvasPlacement = (placement) => Number.isFinite(placement.x) && Number.isFinite(placement.y) && Number.isFinite(placement.width) && Number.isFinite(placement.height) && placement.x >= 0 && placement.y >= 0 && placement.width > 0 && placement.height > 0 && Number.isSafeInteger(placement.zIndex);
+var placeMediaImageOnPageV1 = (input) => {
+  const source = BoardDocumentParserV2.parse(input.document);
+  if (!source.ok) return source;
+  const current = source.data.value;
+  const index = pageIndex(current, input.pageId);
+  if (index < 0) return failed(invalidDocument3(["pageId"], "unresolved_reference"));
+  if (input.image.type !== "content.image" || input.image.source.type !== "media")
+    return failed(invalidDocument3(["image"], "limit"));
+  const ids = new Set(collectDocumentNodesV2(current).map(({ node }) => node.id));
+  if (ids.has(input.image.id)) return failed(invalidDocument3(["image", "id"], "limit"));
+  if (input.placement.kind === "page-end" && (input.placement.wrapperNodeId === input.image.id || ids.has(input.placement.wrapperNodeId)))
+    return failed(invalidDocument3(["placement", "wrapperNodeId"], "limit"));
+  const page = current.pages[index];
+  if (page === void 0) return failed(invalidDocument3(["pageId"], "unresolved_reference"));
+  const root = page.scene.root;
+  let nextRoot;
+  if (root?.type === "layout.canvas") {
+    if (input.placement.kind !== "canvas" || !finiteCanvasPlacement(input.placement))
+      return failed(invalidDocument3(["placement"], "limit"));
+    if (root.children.length >= BOARD_LIMITS_V1.maxCanvasItems)
+      return failed(invalidDocument3(["placement"], "limit"));
+    if (input.placement.x + input.placement.width > root.width || input.placement.y + input.placement.height > root.height)
+      return failed(invalidDocument3(["placement"], "limit"));
+    nextRoot = {
+      ...root,
+      children: [
+        ...root.children,
+        {
+          node: input.image,
+          x: input.placement.x,
+          y: input.placement.y,
+          width: input.placement.width,
+          height: input.placement.height,
+          zIndex: input.placement.zIndex
+        }
+      ]
+    };
+  } else {
+    if (input.placement.kind !== "page-end") return failed(invalidDocument3(["placement"], "limit"));
+    if (root === null) nextRoot = input.image;
+    else if (root.type === "layout.split" && root.direction === "vertical") {
+      if (root.children.length >= BOARD_LIMITS_V1.maxSplitChildren)
+        return failed(invalidDocument3(["placement"], "limit"));
+      nextRoot = {
+        ...root,
+        children: [...root.children, { node: input.image, weight: 1 }]
+      };
+    } else {
+      nextRoot = {
+        id: input.placement.wrapperNodeId,
+        type: "layout.split",
+        direction: "vertical",
+        gap: 16,
+        children: [
+          { node: root, weight: 1 },
+          { node: input.image, weight: 1 }
+        ]
+      };
+    }
+  }
+  const pages = [...current.pages];
+  pages[index] = { ...page, scene: { ...page.scene, root: nextRoot } };
+  return BoardDocumentParserV2.parse({ ...current, pages });
+};
 var applyDocumentTransformV2 = (source, operation) => {
   const document = BoardDocumentParserV2.parse(source);
   if (!document.ok) return document;
@@ -35200,8 +35443,15 @@ var LOCAL_ERROR_CODES_V1 = [
   "BOARD_MCP_TIMEOUT",
   "BOARD_MCP_CANCELLED",
   "BOARD_MCP_RESPONSE_INVALID",
+  "BOARD_MCP_LOCAL_FILE_CHANGED",
+  "BOARD_MCP_LOCAL_FILE_PLATFORM_UNSUPPORTED",
+  "BOARD_MCP_LOCAL_FILE_TOO_LARGE",
+  "BOARD_MCP_LOCAL_MEDIA_UNSUPPORTED",
   "BOARD_MCP_INTERNAL_ERROR"
 ];
+var GENERIC_LOCAL_ERROR_CODES_V1 = LOCAL_ERROR_CODES_V1.filter(
+  (code) => code !== "BOARD_MCP_LOCAL_FILE_CHANGED" && code !== "BOARD_MCP_LOCAL_FILE_PLATFORM_UNSUPPORTED" && code !== "BOARD_MCP_LOCAL_FILE_TOO_LARGE" && code !== "BOARD_MCP_LOCAL_MEDIA_UNSUPPORTED"
+);
 var D1_RESULT_TYPES_V1 = {
   board_list: ["board.list"],
   board_get: ["board.get"],
@@ -35227,15 +35477,50 @@ var D1_RESULT_TYPES_V1 = {
   board_history_restore: ["scene.restore"],
   board_interaction_request: ["hitl.request"],
   board_interaction_status: ["hitl.read"],
-  board_interaction_respond: ["hitl.respond"]
+  board_interaction_respond: ["hitl.respond"],
+  sceneboard_media_upload: ["media.ingest.result"],
+  sceneboard_media_place: ["document.replace"]
 };
 var toolOutputSchemaV1 = (tool, reachableCodes) => {
   const upstreamCode = external_exports.enum(reachableCodes);
   const value = (code) => external_exports.object({ code }).passthrough();
+  const localValue2 = external_exports.union([
+    value(external_exports.enum(GENERIC_LOCAL_ERROR_CODES_V1)),
+    external_exports.object({
+      code: external_exports.literal("BOARD_MCP_LOCAL_FILE_CHANGED"),
+      message: external_exports.literal("Local media file changed during capture"),
+      retryable: external_exports.literal(false),
+      details: external_exports.null()
+    }).strict(),
+    external_exports.object({
+      code: external_exports.literal("BOARD_MCP_LOCAL_FILE_PLATFORM_UNSUPPORTED"),
+      message: external_exports.literal("Secure local media capture is unavailable on this platform"),
+      retryable: external_exports.literal(false),
+      details: external_exports.null()
+    }).strict(),
+    external_exports.object({
+      code: external_exports.literal("BOARD_MCP_LOCAL_FILE_TOO_LARGE"),
+      message: external_exports.literal("Local media file exceeds the upload limit"),
+      retryable: external_exports.literal(false),
+      details: external_exports.object({ limitBytes: external_exports.literal(10485760) }).strict()
+    }).strict(),
+    external_exports.object({
+      code: external_exports.literal("BOARD_MCP_LOCAL_MEDIA_UNSUPPORTED"),
+      message: external_exports.literal("Local media file format is unsupported"),
+      retryable: external_exports.literal(false),
+      details: external_exports.object({
+        allowedMimeTypes: external_exports.tuple([
+          external_exports.literal("image/png"),
+          external_exports.literal("image/jpeg"),
+          external_exports.literal("image/webp")
+        ])
+      }).strict()
+    }).strict()
+  ]);
   const error2 = external_exports.discriminatedUnion("source", [
     external_exports.object({ source: external_exports.literal("board"), value: value(upstreamCode) }).strict(),
     external_exports.object({ source: external_exports.literal("pairing"), value: value(upstreamCode) }).strict(),
-    external_exports.object({ source: external_exports.literal("mcp"), value: value(external_exports.enum(LOCAL_ERROR_CODES_V1)) }).strict()
+    external_exports.object({ source: external_exports.literal("mcp"), value: localValue2 }).strict()
   ]);
   const descriptor = external_exports.object({
     ok: external_exports.boolean(),
@@ -35278,7 +35563,25 @@ var toolOutputSchemaV1 = (tool, reachableCodes) => {
       }
       const expected = D1_RESULT_TYPES_V1[tool];
       if (expected !== void 0) {
-        const documentTool = tool === "board_document_replace" || tool === "board_page_add" || tool === "board_page_remove" || tool === "board_page_reorder" || tool === "board_page_update" || tool === "board_page_default_set";
+        if (tool === "sceneboard_media_upload") {
+          const media = MediaIngestResultParserV1.parse(output.result);
+          if (!media.ok) {
+            context.addIssue({
+              code: external_exports.ZodIssueCode.custom,
+              path: ["result"],
+              message: "result is not an exact media ingest result"
+            });
+          }
+          if (output.metadata !== null) {
+            context.addIssue({
+              code: external_exports.ZodIssueCode.custom,
+              path: ["metadata"],
+              message: "media ingest metadata must be null"
+            });
+          }
+          return;
+        }
+        const documentTool = tool === "board_document_replace" || tool === "board_page_add" || tool === "board_page_remove" || tool === "board_page_reorder" || tool === "board_page_update" || tool === "board_page_default_set" || tool === "sceneboard_media_place";
         const documentReadTool = tool === "board_document_get";
         const parsed = output.result.type === "mutation.result" ? documentTool ? MutationResultParserV2.parse(output.result) : MutationResultParserV1.parse(output.result) : documentReadTool ? BoardOperationResultParserV2.parse(output.result) : BoardOperationResultParserV1.parse(output.result);
         if (!parsed.ok) {
@@ -35373,6 +35676,47 @@ var notConnectedV1 = () => ({
   message: "SceneBoard is not connected",
   retryable: false,
   details: null
+});
+var credentialUnavailableV1 = () => ({
+  code: "BOARD_MCP_CREDENTIAL_UNAVAILABLE",
+  message: "SceneBoard credential is unavailable",
+  retryable: false,
+  details: null
+});
+var localMediaErrorV1 = (code) => {
+  if (code === "LOCAL_FILE_CHANGED")
+    return {
+      code: "BOARD_MCP_LOCAL_FILE_CHANGED",
+      message: "Local media file changed during capture",
+      retryable: false,
+      details: null
+    };
+  if (code === "LOCAL_FILE_PLATFORM_UNSUPPORTED")
+    return {
+      code: "BOARD_MCP_LOCAL_FILE_PLATFORM_UNSUPPORTED",
+      message: "Secure local media capture is unavailable on this platform",
+      retryable: false,
+      details: null
+    };
+  if (code === "LOCAL_FILE_TOO_LARGE")
+    return {
+      code: "BOARD_MCP_LOCAL_FILE_TOO_LARGE",
+      message: "Local media file exceeds the upload limit",
+      retryable: false,
+      details: { limitBytes: 10485760 }
+    };
+  return {
+    code: "BOARD_MCP_LOCAL_MEDIA_UNSUPPORTED",
+    message: "Local media file format is unsupported",
+    retryable: false,
+    details: { allowedMimeTypes: ["image/png", "image/jpeg", "image/webp"] }
+  };
+};
+var internalToolErrorV1 = (incidentId) => ({
+  code: "BOARD_MCP_INTERNAL_ERROR",
+  message: "SceneBoard tool execution failed",
+  retryable: false,
+  details: { incidentId }
 });
 var localFromSdkErrorV1 = (error2) => {
   if ("protocolVersion" in error2)
@@ -36437,6 +36781,362 @@ var InteractionToolHandlersV1 = class {
   }
 };
 
+// sceneboard-mcp/src/tools/media.tools.ts
+import { randomBytes as randomBytes7 } from "node:crypto";
+
+// sceneboard-mcp/src/media/local-media-file.ts
+import { createHash as createHash3 } from "node:crypto";
+import { constants as constants4 } from "node:fs";
+import { lstat as lstat5, open as open3 } from "node:fs/promises";
+import { isAbsolute as isAbsolute3, normalize, parse as parse4, sep } from "node:path";
+var LOCAL_MEDIA_MAX_BYTES_V1 = 10485760;
+var identity = (stat) => ({
+  dev: stat.dev,
+  ino: stat.ino,
+  mode: stat.mode,
+  size: stat.size,
+  mtimeNs: stat.mtimeNs,
+  ctimeNs: stat.ctimeNs
+});
+var sameIdentity = (left, right) => left.dev === right.dev && left.ino === right.ino && left.mode === right.mode && left.size === right.size && left.mtimeNs === right.mtimeNs && left.ctimeNs === right.ctimeNs;
+var lexicalPathValid = (value) => value.length > 0 && !value.includes("\0") && !/[*?[\]{}!]/u.test(value) && isAbsolute3(value) && value !== parse4(value).root && !value.endsWith(sep) && normalize(value) === value;
+var detectedMime = (bytes) => {
+  if (bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])))
+    return "image/png";
+  if (bytes.length >= 3 && bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255)
+    return "image/jpeg";
+  if (bytes.length >= 12 && bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP")
+    return "image/webp";
+  return null;
+};
+var changed = () => ({ ok: false, code: "LOCAL_FILE_CHANGED" });
+var captureLocalMediaFileV1 = async (path) => {
+  if (!lexicalPathValid(path)) return { ok: false, code: "INPUT_INVALID" };
+  if (process.platform === "win32" || typeof constants4.O_NOFOLLOW !== "number" || typeof constants4.O_NONBLOCK !== "number")
+    return { ok: false, code: "LOCAL_FILE_PLATFORM_UNSUPPORTED" };
+  let handle = null;
+  let bytes = null;
+  let retained = false;
+  try {
+    handle = await open3(path, constants4.O_RDONLY | constants4.O_NOFOLLOW | constants4.O_NONBLOCK);
+    const before = await handle.stat({ bigint: true });
+    if (!before.isFile()) return changed();
+    if (before.size < 1n) return changed();
+    if (before.size > BigInt(LOCAL_MEDIA_MAX_BYTES_V1))
+      return { ok: false, code: "LOCAL_FILE_TOO_LARGE" };
+    const first = identity(before);
+    const length = Number(before.size);
+    bytes = Buffer.allocUnsafe(length);
+    let offset = 0;
+    while (offset < length) {
+      const read = await handle.read(bytes, offset, length - offset, offset);
+      if (read.bytesRead <= 0) return changed();
+      offset += read.bytesRead;
+    }
+    const probe = Buffer.allocUnsafe(1);
+    try {
+      const extra = await handle.read(probe, 0, 1, length);
+      if (extra.bytesRead !== 0) return changed();
+    } finally {
+      probe.fill(0);
+    }
+    const mime = detectedMime(bytes);
+    if (mime === null) return { ok: false, code: "LOCAL_MEDIA_UNSUPPORTED" };
+    const digest = createHash3("sha256").update(bytes).digest();
+    const afterDescriptor = await handle.stat({ bigint: true });
+    const afterPath = await lstat5(path, { bigint: true });
+    if (!afterDescriptor.isFile() || !afterPath.isFile() || afterPath.isSymbolicLink() || !sameIdentity(first, identity(afterDescriptor)) || !sameIdentity(first, identity(afterPath)))
+      return changed();
+    retained = true;
+    let released = false;
+    const owned = bytes;
+    return {
+      ok: true,
+      value: {
+        bytes: owned,
+        mime,
+        sha256: digest.toString("hex"),
+        digestBase64: digest.toString("base64"),
+        release: () => {
+          if (released) return;
+          released = true;
+          owned.fill(0);
+        }
+      }
+    };
+  } catch {
+    return changed();
+  } finally {
+    await handle?.close().catch(() => void 0);
+    if (!retained) bytes?.fill(0);
+  }
+};
+
+// sceneboard-mcp/src/tools/media.tools.ts
+var FitSchema = external_exports.enum(["contain", "cover", "fill", "none"]);
+var MediaTextSchema = external_exports.string().refine((value) => {
+  const length = [...value].length;
+  return length >= 1 && length <= 500 && !/[\u0000-\u001f\u007f-\u009f\uD800-\uDFFF]/u.test(value);
+});
+var MeaningfulImageSchema = external_exports.object({
+  nodeId: GlobalIdSchemaV1,
+  mediaId: GlobalIdSchemaV1,
+  decorative: external_exports.literal(false),
+  alt: MediaTextSchema,
+  caption: MediaTextSchema.optional(),
+  fit: FitSchema.optional()
+}).strict();
+var DecorativeImageSchema = external_exports.object({
+  nodeId: GlobalIdSchemaV1,
+  mediaId: GlobalIdSchemaV1,
+  decorative: external_exports.literal(true),
+  alt: external_exports.literal(""),
+  fit: FitSchema.optional()
+}).strict();
+var MediaUploadInputSchemaV1 = external_exports.object({
+  boardId: GlobalIdSchemaV1,
+  path: external_exports.string(),
+  idempotencyKey: IdempotencyKeySchemaV12
+}).strict();
+var MediaPlaceInputSchemaV1 = external_exports.object({
+  boardId: GlobalIdSchemaV1,
+  pageId: GlobalIdSchemaV1,
+  expectedRevisionId: GlobalIdSchemaV1,
+  idempotencyKey: IdempotencyKeySchemaV12,
+  image: external_exports.discriminatedUnion("decorative", [MeaningfulImageSchema, DecorativeImageSchema]),
+  placement: external_exports.discriminatedUnion("kind", [
+    external_exports.object({ kind: external_exports.literal("page-end"), wrapperNodeId: GlobalIdSchemaV1 }).strict(),
+    external_exports.object({
+      kind: external_exports.literal("canvas"),
+      x: external_exports.number().finite().nonnegative(),
+      y: external_exports.number().finite().nonnegative(),
+      width: external_exports.number().finite().positive(),
+      height: external_exports.number().finite().positive(),
+      zIndex: external_exports.number().int().safe()
+    }).strict()
+  ])
+}).strict();
+var localConnectionError = (error2) => localFromSdkErrorV1(
+  error2.code === "TRANSPORT_ERROR" && error2.phase === "connect" ? { ...error2, phase: "credential" } : error2
+);
+var authorizationFailure = (tool, requestId, result) => {
+  if (result.reason === "not_connected")
+    return toolFailureV1(tool, requestId, "mcp", notConnectedV1());
+  if (result.reason === "credential_unavailable")
+    return toolFailureV1(
+      tool,
+      requestId,
+      "mcp",
+      credentialUnavailableV1()
+    );
+  if (result.reason === "board") return toolFailureV1(tool, requestId, "board", result.error);
+  if (!("error" in result))
+    return toolFailureV1(
+      tool,
+      requestId,
+      "mcp",
+      credentialUnavailableV1()
+    );
+  return toolFailureV1(
+    tool,
+    requestId,
+    "mcp",
+    localConnectionError(result.error)
+  );
+};
+var internalFailure = (tool, requestId) => toolFailureV1(
+  tool,
+  requestId,
+  "mcp",
+  internalToolErrorV1(randomBytes7(16).toString("base64url"))
+);
+var boardFailure = (tool, requestId, value) => toolFailureV1(tool, requestId, "board", value);
+var MediaToolHandlersV1 = class {
+  constructor(gateway) {
+    this.gateway = gateway;
+  }
+  async upload(raw, signal) {
+    const requestId = createRequestIdV1();
+    try {
+      const parsed = MediaUploadInputSchemaV1.safeParse(raw);
+      if (!parsed.success)
+        return validationFailureV1("sceneboard_media_upload", requestId, parsed.error);
+      const authorized = await this.gateway.withAuthorizedBoardOperation(
+        {
+          boardId: parsed.data.boardId,
+          requestId,
+          requiredCapabilities: ["board.media.write"],
+          ...signal === void 0 ? {} : { signal }
+        },
+        async ({ snapshot, media }) => {
+          const captured = await captureLocalMediaFileV1(parsed.data.path);
+          if (!captured.ok) return { kind: "capture_error", code: captured.code };
+          try {
+            return {
+              kind: "http",
+              value: await media.upload(
+                {
+                  boardId: parsed.data.boardId,
+                  requestId,
+                  idempotencyKey: parsed.data.idempotencyKey,
+                  accessToken: snapshot.accessToken,
+                  mime: captured.value.mime,
+                  digestBase64: captured.value.digestBase64,
+                  bytes: captured.value.bytes
+                },
+                signal
+              )
+            };
+          } finally {
+            captured.value.release();
+          }
+        }
+      );
+      if (!authorized.authorized)
+        return authorizationFailure("sceneboard_media_upload", requestId, authorized);
+      if (authorized.value.kind === "capture_error") {
+        if (authorized.value.code === "INPUT_INVALID")
+          return toolFailureV1(
+            "sceneboard_media_upload",
+            requestId,
+            "mcp",
+            inputInvalidV1(["path"], "absolute local media path is invalid")
+          );
+        return toolFailureV1(
+          "sceneboard_media_upload",
+          requestId,
+          "mcp",
+          localMediaErrorV1(authorized.value.code)
+        );
+      }
+      const result = authorized.value.value;
+      if (result.ok)
+        return toolSuccessV1("sceneboard_media_upload", requestId, result.result, null);
+      if ("protocolVersion" in result.error)
+        return boardFailure(
+          "sceneboard_media_upload",
+          requestId,
+          result.error
+        );
+      return toolFailureV1(
+        "sceneboard_media_upload",
+        requestId,
+        "mcp",
+        localFromSdkErrorV1(result.error)
+      );
+    } catch {
+      return internalFailure("sceneboard_media_upload", requestId);
+    }
+  }
+  async place(raw, signal) {
+    const requestId = createRequestIdV1();
+    try {
+      const parsed = MediaPlaceInputSchemaV1.safeParse(raw);
+      if (!parsed.success)
+        return validationFailureV1("sceneboard_media_place", requestId, parsed.error);
+      const authorized = await this.gateway.withAuthorizedBoardOperation(
+        {
+          boardId: parsed.data.boardId,
+          requestId,
+          requiredCapabilities: ["board.history.read", "board.write"],
+          ...signal === void 0 ? {} : { signal }
+        },
+        async ({ client }) => {
+          const history = await client.getDocumentHistory(
+            {
+              protocolVersion: 1,
+              requestId,
+              type: "history.get",
+              boardId: parsed.data.boardId,
+              revisionId: parsed.data.expectedRevisionId
+            },
+            signal
+          );
+          if (!history.ok) return { kind: "sdk", value: history };
+          const nested = history.result.result;
+          if (nested.type !== "history.get") throw new Error("history result invariant failed");
+          if (nested.snapshot.revision.revisionId !== parsed.data.expectedRevisionId || !("document" in nested.snapshot))
+            return {
+              kind: "mismatch",
+              version: !("document" in nested.snapshot)
+            };
+          const document = BoardDocumentParserV2.parse(nested.snapshot.document);
+          if (!document.ok)
+            return {
+              kind: "board",
+              error: document.error
+            };
+          const source = parsed.data.image;
+          const image = {
+            id: source.nodeId,
+            type: "content.image",
+            source: { type: "media", mediaId: source.mediaId },
+            decorative: source.decorative,
+            alt: source.alt,
+            ...source.decorative === false && source.caption !== void 0 ? { caption: source.caption } : {},
+            fit: source.fit ?? "contain"
+          };
+          const transformed = placeMediaImageOnPageV1({
+            document: document.data.value,
+            pageId: parsed.data.pageId,
+            image,
+            placement: parsed.data.placement.kind === "page-end" ? {
+              kind: "page-end",
+              wrapperNodeId: parsed.data.placement.wrapperNodeId
+            } : parsed.data.placement
+          });
+          if (!transformed.ok)
+            return {
+              kind: "board",
+              error: transformed.error
+            };
+          return {
+            kind: "sdk",
+            value: await client.mutateDocument(
+              {
+                protocolVersion: 1,
+                requestId,
+                boardId: parsed.data.boardId,
+                expectedRevisionId: parsed.data.expectedRevisionId,
+                idempotencyKey: parsed.data.idempotencyKey,
+                command: { type: "document.replace", document: transformed.data.value }
+              },
+              signal
+            )
+          };
+        }
+      );
+      if (!authorized.authorized)
+        return authorizationFailure("sceneboard_media_place", requestId, authorized);
+      const outcome = authorized.value;
+      if (outcome.kind === "sdk")
+        return sdkToolResultV1("sceneboard_media_place", requestId, outcome.value, null);
+      if (outcome.kind === "board")
+        return boardFailure(
+          "sceneboard_media_place",
+          requestId,
+          outcome.error
+        );
+      return boardFailure("sceneboard_media_place", requestId, {
+        protocolVersion: 1,
+        type: "board.error",
+        code: "DOCUMENT_VERSION_MISMATCH",
+        message: "Document version mismatch",
+        category: "conflict",
+        retryable: false,
+        httpStatusHint: 409,
+        details: {
+          headSchemaVersion: 1,
+          commandSchemaVersion: 2,
+          commandType: "document.replace"
+        }
+      });
+    } catch {
+      return internalFailure("sceneboard_media_place", requestId);
+    }
+  }
+};
+
 // packages/board-sdk/src/scene-transform/scene-transform.ts
 var LOCAL_ID_PATTERN2 = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
 var invalid2 = (operationIndex, field, issue2) => ({
@@ -37088,6 +37788,8 @@ var CORE_TOOL_NAMES_V1 = [
   "board_page_reorder",
   "board_page_update",
   "board_page_default_set",
+  "sceneboard_media_upload",
+  "sceneboard_media_place",
   "board_history_list",
   "board_history_get",
   "board_history_restore"
@@ -37103,9 +37805,9 @@ var DOWNSTREAM_TOOL_NAMES_V1 = [
   "board_interaction_respond"
 ];
 var BOARD_TOOL_NAMES_V1 = [
-  ...CORE_TOOL_NAMES_V1.slice(0, 19),
+  ...CORE_TOOL_NAMES_V1.slice(0, 21),
   ...DOWNSTREAM_TOOL_NAMES_V1.slice(0, 3),
-  ...CORE_TOOL_NAMES_V1.slice(19),
+  ...CORE_TOOL_NAMES_V1.slice(21),
   ...DOWNSTREAM_TOOL_NAMES_V1.slice(3)
 ];
 var BOARD_TOOL_ERROR_CODES_V1 = {
@@ -37370,6 +38072,41 @@ var BOARD_TOOL_ERROR_CODES_V1 = {
     "SERVICE_UNAVAILABLE",
     "INTERNAL_ERROR"
   ],
+  sceneboard_media_upload: [
+    "INVALID_PAYLOAD",
+    "PROTOCOL_VERSION_MISMATCH",
+    "UNAUTHENTICATED",
+    "FORBIDDEN",
+    "BOARD_NOT_FOUND",
+    "INVALID_REQUEST",
+    "IDEMPOTENCY_KEY_REUSED",
+    "IDEMPOTENCY_RESULT_EXPIRED",
+    "PAYLOAD_TOO_LARGE",
+    "INVALID_MEDIA_UPLOAD",
+    "RATE_LIMITED",
+    "SERVICE_UNAVAILABLE",
+    "INTERNAL_ERROR"
+  ],
+  sceneboard_media_place: [
+    "INVALID_PAYLOAD",
+    "PROTOCOL_VERSION_MISMATCH",
+    "UNAUTHENTICATED",
+    "FORBIDDEN",
+    "BOARD_NOT_FOUND",
+    "REVISION_NOT_FOUND",
+    "REVISION_CONFLICT",
+    "IDEMPOTENCY_KEY_REUSED",
+    "DOCUMENT_VERSION_MISMATCH",
+    "INVALID_DOCUMENT",
+    "UNKNOWN_NODE_TYPE",
+    "INVALID_LAYOUT",
+    "DUPLICATE_NODE_ID",
+    "LIMIT_EXCEEDED",
+    "PAYLOAD_TOO_LARGE",
+    "RATE_LIMITED",
+    "SERVICE_UNAVAILABLE",
+    "INTERNAL_ERROR"
+  ],
   board_history_list: [
     "INVALID_PAYLOAD",
     "PROTOCOL_VERSION_MISMATCH",
@@ -37494,6 +38231,7 @@ var registerCoreToolsV1 = (server, options) => {
   const history = new HistoryToolHandlersV1(options.gateway);
   const artifacts = new ArtifactToolHandlersV1(options.gateway);
   const interactions = new InteractionToolHandlersV1(options.gateway);
+  const media = new MediaToolHandlersV1(options.gateway);
   const names = options.downstreamReady === true ? BOARD_TOOL_NAMES_V1 : CORE_TOOL_NAMES_V1;
   const protectedNames = names.filter(
     (name) => !SAFE_TOOL_NAMES_V1.includes(name)
@@ -37526,11 +38264,11 @@ var registerCoreToolsV1 = (server, options) => {
         try {
           result = await handler(raw, extra.signal);
         } catch {
-          result = toolFailureV1(name, randomBytes7(16).toString("base64url"), "mcp", {
+          result = toolFailureV1(name, randomBytes8(16).toString("base64url"), "mcp", {
             code: "BOARD_MCP_INTERNAL_ERROR",
             message: "SceneBoard tool execution failed",
             retryable: false,
-            details: { incidentId: randomBytes7(16).toString("base64url") }
+            details: { incidentId: randomBytes8(16).toString("base64url") }
           });
         }
         const structured = result.structuredContent;
@@ -37671,6 +38409,20 @@ var registerCoreToolsV1 = (server, options) => {
     "Set the existing default page through a whole-document replacement.",
     PageDefaultSetInputSchemaV2,
     (raw, signal) => documents.defaultSet(raw, signal),
+    true
+  );
+  add(
+    "sceneboard_media_upload",
+    "Upload one explicitly authorized local PNG, JPEG, or WebP file.",
+    MediaUploadInputSchemaV1,
+    (raw, signal) => media.upload(raw, signal),
+    true
+  );
+  add(
+    "sceneboard_media_place",
+    "Place one immutable media image in an exact V2 document revision.",
+    MediaPlaceInputSchemaV1,
+    (raw, signal) => media.place(raw, signal),
     true
   );
   if (options.downstreamReady === true) {
@@ -37841,7 +38593,7 @@ var createBoardMcpServerV1 = async (options = {}) => {
       logger
     });
     if (options.probeOnStart !== false) {
-      const probe = await parts.connections.status(null, randomBytes8(16).toString("base64url"));
+      const probe = await parts.connections.status(null, randomBytes9(16).toString("base64url"));
       authenticated = probe.ok && probe.value.state === "connected";
     }
   } catch (error2) {

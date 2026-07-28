@@ -29,11 +29,9 @@ test('downloadable sceneboard skill matches the exact terminal tool and authorit
   );
   const combined = `${skill}\n${Object.values(references).join('\n')}`;
 
-  const i40SourceOnly = new Set(['sceneboard_media_upload', 'sceneboard_media_place']);
-  for (const name of BOARD_TOOL_NAMES_V1.filter((candidate) => !i40SourceOnly.has(candidate)))
+  for (const name of BOARD_TOOL_NAMES_V1)
     assert.equal(combined.includes(`\`${name}\``), true, name);
-  for (const name of i40SourceOnly) assert.equal(combined.includes(`\`${name}\``), false, name);
-  assert.match(skill, /exactly the 28|all 28 terminal descriptors/u);
+  assert.match(skill, /exactly the 30|all 30 terminal descriptors/u);
   assert.match(skill, /board_artifact_remove.*do not exist|board_artifact_remove.*does not exist/u);
   assert.match(
     skill,
