@@ -102,7 +102,7 @@ const toTables = (fixture: Fixture): RevisionRetentionTableProjection[] =>
   }));
 
 test('registers the exact forward-only retention expand migration after checkpoint widening', async () => {
-  const entry = MIGRATION_REGISTRY.at(-5);
+  const entry = MIGRATION_REGISTRY.at(-6);
   assert.deepEqual(entry, {
     version: '014_d9_revision_retention_expand',
     upAsset: '014_d9_revision_retention_expand.up.sql',
@@ -110,7 +110,7 @@ test('registers the exact forward-only retention expand migration after checkpoi
     downAsset: null,
     postcondition: 'd9_revision_retention_expand_v1',
   });
-  assert.equal(MIGRATION_REGISTRY.at(-6)?.version, '013_d9_v2_checkpoint_capacity');
+  assert.equal(MIGRATION_REGISTRY.at(-7)?.version, '013_d9_v2_checkpoint_capacity');
 
   const fixture = await readFixture();
   assert.deepEqual(

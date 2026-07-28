@@ -39,7 +39,10 @@ export type BrowserBoardOperationV1 =
   | 'share.publish'
   | 'share.update'
   | 'share.rotate'
-  | 'share.revoke';
+  | 'share.revoke'
+  | 'share.password.enable'
+  | 'share.password.regenerate'
+  | 'share.password.disable';
 export type BoardAccessOperationV1 = AuthorizedBoardOperationV1 | BrowserBoardOperationV1;
 
 const BOARD_ACCESS_OPERATIONS_V1: readonly BoardAccessOperationV1[] = [
@@ -54,6 +57,9 @@ const BOARD_ACCESS_OPERATIONS_V1: readonly BoardAccessOperationV1[] = [
   'share.update',
   'share.rotate',
   'share.revoke',
+  'share.password.enable',
+  'share.password.regenerate',
+  'share.password.disable',
 ];
 
 export type D3BoardOperationV1 = Extract<
@@ -193,6 +199,9 @@ const AUTHORIZATION_RULES: Readonly<Record<BoardAccessOperationV1, Authorization
   'share.update': { ...write([], 'D3'), activeBoardRequired: false },
   'share.rotate': { ...write([], 'D3'), activeBoardRequired: false },
   'share.revoke': { ...write([], 'D3'), activeBoardRequired: false },
+  'share.password.enable': { ...write([], 'D3'), activeBoardRequired: false },
+  'share.password.regenerate': { ...write([], 'D3'), activeBoardRequired: false },
+  'share.password.disable': { ...write([], 'D3'), activeBoardRequired: false },
   'capabilities.get': read(['board.read'], 'D6'),
   'board.create': {
     ...write(['board.write'], 'D3'),

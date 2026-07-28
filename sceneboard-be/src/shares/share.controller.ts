@@ -16,6 +16,7 @@ import {
   BoardIdParserV1,
   GlobalIdStringParserV1,
   ShareIdempotencyKeyParserV1,
+  SharePasswordSuccessParserV1,
   SharePublishRequestParserV1,
   ShareUpdateRequestParserV1,
   ShareVersionRequestParserV1,
@@ -32,6 +33,7 @@ import {
 import { RequireCsrf } from '../common/guards/csrf.guard.js';
 import type { ResolvedBoardPrincipalV1 } from '../grants/board-access.policy.js';
 import { SharePublicationService } from './share-publication.service.js';
+import { PasswordShareService } from './password-share.service.js';
 
 type ShareRequest = BoardPrincipalRequest & {
   authSession?: SessionRecord | undefined;
@@ -80,7 +82,10 @@ const ownerContext = (
 @Controller('api/v1/boards')
 @RequireBoardPrincipal()
 export class ShareController {
-  constructor(@Inject(SharePublicationService) private readonly shares: SharePublicationService) {}
+  constructor(
+    @Inject(SharePublicationService) private readonly shares: SharePublicationService,
+    @Inject(PasswordShareService) private readonly passwords: PasswordShareService,
+  ) {}
 
   @Get(':boardId/shares')
   async list(@Req() request: ShareRequest, @Param('boardId') rawBoardId: string) {
@@ -160,6 +165,71 @@ export class ShareController {
     const body = ShareVersionRequestParserV1.parse(rawBody);
     if (!body.ok) throw new ShareContractError('INVALID_REQUEST');
     await this.shares.revoke({
+      ...ownerContext(request, rawBoardId),
+      shareId: globalId(rawShareId),
+      expectedVersion: body.data.value.expectedVersion,
+      idempotencyKey: idempotencyKey(rawIdempotencyKey),
+    });
+  }
+
+  @Post(':boardId/shares/:shareId/password')
+  @HttpCode(200)
+  @RequireCsrf('session')
+  async enablePassword(
+    @Req() request: ShareRequest,
+    @Param('boardId') rawBoardId: string,
+    @Param('shareId') rawShareId: string,
+    @Headers('idempotency-key') rawIdempotencyKey: string | undefined,
+    @Body() rawBody: unknown,
+  ) {
+    const body = ShareVersionRequestParserV1.parse(rawBody);
+    if (!body.ok) throw new ShareContractError('INVALID_REQUEST', null, 'body');
+    return this.passwords.enable({
+      ...ownerContext(request, rawBoardId),
+      shareId: globalId(rawShareId),
+      expectedVersion: body.data.value.expectedVersion,
+      idempotencyKey: idempotencyKey(rawIdempotencyKey),
+    });
+  }
+
+  @Post(':boardId/shares/:shareId/password/regenerate')
+  @HttpCode(200)
+  @RequireCsrf('session')
+  async regeneratePassword(
+    @Req() request: ShareRequest,
+    @Param('boardId') rawBoardId: string,
+    @Param('shareId') rawShareId: string,
+    @Headers('idempotency-key') rawIdempotencyKey: string | undefined,
+    @Body() rawBody: unknown,
+  ) {
+    const body = ShareVersionRequestParserV1.parse(rawBody);
+    if (!body.ok) throw new ShareContractError('INVALID_REQUEST', null, 'body');
+    const result = await this.passwords.regenerate({
+      ...ownerContext(request, rawBoardId),
+      shareId: globalId(rawShareId),
+      expectedVersion: body.data.value.expectedVersion,
+      idempotencyKey: idempotencyKey(rawIdempotencyKey),
+    });
+    if ('password' in result) {
+      const parsed = SharePasswordSuccessParserV1.parse(result);
+      if (!parsed.ok) throw new ShareContractError('SHARE_PASSWORD_STATE_CONFLICT');
+    }
+    return result;
+  }
+
+  @Delete(':boardId/shares/:shareId/password')
+  @HttpCode(204)
+  @RequireCsrf('session')
+  async disablePassword(
+    @Req() request: ShareRequest,
+    @Param('boardId') rawBoardId: string,
+    @Param('shareId') rawShareId: string,
+    @Headers('idempotency-key') rawIdempotencyKey: string | undefined,
+    @Body() rawBody: unknown,
+  ): Promise<void> {
+    const body = ShareVersionRequestParserV1.parse(rawBody);
+    if (!body.ok) throw new ShareContractError('INVALID_REQUEST', null, 'body');
+    await this.passwords.disable({
       ...ownerContext(request, rawBoardId),
       shareId: globalId(rawShareId),
       expectedVersion: body.data.value.expectedVersion,

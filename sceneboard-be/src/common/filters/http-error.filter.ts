@@ -24,8 +24,9 @@ interface HttpRequest extends BoardRequestCorrelationCarrier {
   url?: string | undefined;
 }
 
-const isShareManagementPath = (url: string): boolean =>
-  /^\/api\/v1\/boards\/[^/?]+\/shares(?:\/|\?|$)/u.test(url);
+const isSharePath = (url: string): boolean =>
+  /^\/api\/v1\/boards\/[^/?]+\/shares(?:\/|\?|$)/u.test(url) ||
+  /^\/api\/v1\/public\/shares\/[^/?]+\/password-sessions(?:\?|$)/u.test(url);
 
 const boardInternalError = (): BoardErrorV1 => ({
   protocolVersion: 1,
@@ -141,32 +142,32 @@ export class HttpErrorFilter implements ExceptionFilter {
       return;
     }
 
-    if (isShareManagementPath(request.url ?? '')) {
-      if (exception instanceof AppError && exception.status === 401) {
-        response.status(exception.status).json({ error: exception.toPayload() });
-        return;
-      }
+    if (isSharePath(request.url ?? '')) {
       const shareError =
         exception instanceof ShareContractError
           ? exception
           : exception instanceof AppError && exception.code === 'INVALID_PAYLOAD'
             ? new ShareContractError('INVALID_REQUEST')
-            : exception instanceof AppError && exception.code === 'RATE_LIMITED'
-              ? new ShareContractError('RATE_LIMITED', exception.retryAfterSeconds)
-              : new ShareContractError('BOARD_NOT_FOUND');
+            : exception instanceof AppError && exception.status === 401
+              ? new ShareContractError('UNAUTHENTICATED')
+              : exception instanceof AppError && exception.code === 'RATE_LIMITED'
+                ? new ShareContractError('RATE_LIMITED', exception.retryAfterSeconds)
+                : exception instanceof AppError && exception.code === 'SERVICE_UNAVAILABLE'
+                  ? new ShareContractError('SERVICE_UNAVAILABLE', 1)
+                  : new ShareContractError('BOARD_NOT_FOUND');
       if (shareError.retryAfterSeconds !== null) {
         response.setHeader(
           'Retry-After',
           String(Math.max(1, Math.ceil(shareError.retryAfterSeconds))),
         );
       }
-      response.status(shareError.status).json({
-        error: {
-          code: shareError.code,
-          message: shareError.message,
-          requestId,
-        },
-      });
+      const errorBody: Record<string, unknown> = {
+        code: shareError.code,
+        message: shareError.message,
+        requestId,
+      };
+      if (shareError.reason !== null) errorBody.details = { reason: shareError.reason };
+      response.status(shareError.status).json({ error: errorBody });
       return;
     }
 

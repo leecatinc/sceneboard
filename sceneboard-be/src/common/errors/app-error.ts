@@ -83,33 +83,50 @@ export class BoardContractError extends Error {
 
 const SHARE_ERROR_STATUS: Readonly<Record<ShareErrorCodeV1, number>> = {
   INVALID_REQUEST: 400,
+  UNAUTHENTICATED: 401,
   BOARD_NOT_FOUND: 404,
   SHARE_STATE_CONFLICT: 409,
   SHARE_GENERATION_EXHAUSTED: 409,
   IDEMPOTENCY_KEY_REUSED: 409,
+  SHARE_PASSWORD_ALREADY_ENABLED: 409,
+  SHARE_PASSWORD_STATE_CONFLICT: 409,
+  SHARE_PASSWORD_LOCKED: 429,
   RATE_LIMITED: 429,
+  SERVICE_UNAVAILABLE: 503,
 };
 
 const SHARE_ERROR_MESSAGE: Readonly<Record<ShareErrorCodeV1, string>> = {
-  INVALID_REQUEST: 'Invalid share request',
-  BOARD_NOT_FOUND: 'Board was not found',
-  SHARE_STATE_CONFLICT: 'Share state does not allow this operation',
-  SHARE_GENERATION_EXHAUSTED: 'Share generation is exhausted',
-  IDEMPOTENCY_KEY_REUSED: 'Idempotency key was reused',
-  RATE_LIMITED: 'Too many requests',
+  INVALID_REQUEST: 'Invalid request.',
+  UNAUTHENTICATED: 'Authentication required.',
+  BOARD_NOT_FOUND: 'Board not found.',
+  SHARE_STATE_CONFLICT: 'Share state conflict.',
+  SHARE_GENERATION_EXHAUSTED: 'Share generation exhausted.',
+  IDEMPOTENCY_KEY_REUSED: 'Idempotency key reused.',
+  SHARE_PASSWORD_ALREADY_ENABLED: 'Share password is already enabled.',
+  SHARE_PASSWORD_STATE_CONFLICT: 'Share password state conflict.',
+  SHARE_PASSWORD_LOCKED: 'Share password is temporarily locked.',
+  RATE_LIMITED: 'Too many requests.',
+  SERVICE_UNAVAILABLE: 'Service unavailable.',
 };
 
 export class ShareContractError extends Error {
   readonly code: ShareErrorCodeV1;
   readonly status: number;
   readonly retryAfterSeconds: number | null;
+  readonly reason: 'body' | 'csrf' | null;
 
-  constructor(code: ShareErrorCodeV1, retryAfterSeconds: number | null = null) {
-    super(SHARE_ERROR_MESSAGE[code]);
+  constructor(
+    code: ShareErrorCodeV1,
+    retryAfterSeconds: number | null = null,
+    reason?: 'body' | 'csrf',
+    cause?: unknown,
+  ) {
+    super(SHARE_ERROR_MESSAGE[code], cause === undefined ? undefined : { cause });
     this.name = 'ShareContractError';
     this.code = code;
     this.status = SHARE_ERROR_STATUS[code];
     this.retryAfterSeconds = retryAfterSeconds;
+    this.reason = code === 'INVALID_REQUEST' ? (reason ?? 'body') : null;
   }
 }
 

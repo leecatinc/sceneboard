@@ -89,11 +89,11 @@ const expectedGroups = new Map([
   ['D6-INSTALLED-SKILL', 42],
   ['D7-ARTIFACT-SEAM', 7],
   ['D8-HITL-SEAM', 6],
-  ['MIGRATION-REGISTRY-ASSETS', 25],
+  ['MIGRATION-REGISTRY-ASSETS', 26],
   ['D2-MIGRATION-RUNNER', 5],
   ['RUNTIME-TOPOLOGY', 3],
   ['DEPENDENCY-EVIDENCE', 11],
-  ['SCHEMA-MODEL-EVIDENCE', 8],
+  ['SCHEMA-MODEL-EVIDENCE', 9],
 ]);
 const terminalToolNames = [
   'board_connection_status',
@@ -679,7 +679,7 @@ const observeMigrations = async (observedById) => {
   const versions = [...source.matchAll(/\bversion: '([^']+)'/gu)].map((match) => match[1]);
   const upAssets = [...source.matchAll(/\bupAsset: '([^']+)'/gu)].map((match) => match[1]);
   const downAssets = [...source.matchAll(/\bdownAsset: '([^']+)'/gu)].map((match) => match[1]);
-  if (versions.length !== 21 || upAssets.length !== 21 || downAssets.length !== 3)
+  if (versions.length !== 22 || upAssets.length !== 22 || downAssets.length !== 3)
     fail('MIGRATION_REGISTRY_DRIFT');
   const assets = [...observedById.values()].filter(({ resourceId }) =>
     resourceId.startsWith('MIGRATION-ASSET-'),

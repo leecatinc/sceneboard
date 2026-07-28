@@ -47,11 +47,13 @@ export class ShareArchiveService {
         accessGeneration,
         tokenDigest: share.tokenDigest,
         version,
+        credential: null,
       }),
       oldRevisionPk: share.pinnedRevisionPk,
       newRevisionPk: share.pinnedRevisionPk,
       leaseOwner,
       nowSql: input.nowSql,
+      credentialMarker: null,
     });
     const archived = await this.shares.archive(connection, share, input.nowSql);
     if (share.status === 'active') {

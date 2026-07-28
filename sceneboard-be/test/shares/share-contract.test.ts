@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 
-test('owns the five exact owner share management paths and success statuses', async () => {
+test('owns the eight exact owner share management paths and success statuses', async () => {
   const source = await readFile(
     new URL('../../src/shares/share.controller.ts', import.meta.url),
     'utf8',
@@ -13,12 +13,15 @@ test('owns the five exact owner share management paths and success statuses', as
     "@Patch(':boardId/shares/:shareId')",
     "@Post(':boardId/shares/:shareId/rotate-link')",
     "@Delete(':boardId/shares/:shareId')",
+    "@Post(':boardId/shares/:shareId/password')",
+    "@Post(':boardId/shares/:shareId/password/regenerate')",
+    "@Delete(':boardId/shares/:shareId/password')",
   ]) {
     assert.equal(source.includes(route), true, route);
   }
   assert.equal(source.includes('response.status(result.replayed ? 200 : 201)'), true);
   assert.equal(source.includes('@HttpCode(204)'), true);
-  assert.equal((source.match(/@RequireCsrf\('session'\)/gu) ?? []).length, 4);
+  assert.equal((source.match(/@RequireCsrf\('session'\)/gu) ?? []).length, 7);
 });
 
 test('normalizes every hidden share management failure without 403 or 410', async () => {
@@ -27,7 +30,7 @@ test('normalizes every hidden share management failure without 403 or 410', asyn
     'utf8',
   );
   const shareBranch = source.slice(
-    source.indexOf("if (isShareManagementPath(request.url ?? ''))"),
+    source.indexOf("if (isSharePath(request.url ?? ''))"),
     source.indexOf('if (exception instanceof BoardContractError)'),
   );
   assert.match(shareBranch, /new ShareContractError\('BOARD_NOT_FOUND'\)/u);

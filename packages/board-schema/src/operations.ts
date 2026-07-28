@@ -106,7 +106,9 @@ export const BOARD_OPERATION_AUTHORIZATION_MATRIX_V1 = Object.freeze([
   policy('share.update', ['browser'], ['board.share.manage'], owners, 'I-29'),
   policy('share.rotate', ['browser'], ['board.share.manage'], owners, 'I-29'),
   policy('share.revoke', ['browser'], ['board.share.manage'], owners, 'I-29'),
+  policy('share.password.enable', ['browser'], ['board.share.manage'], owners, 'I-30'),
   policy('share.password.regenerate', ['browser'], ['board.share.manage'], owners, 'I-30'),
+  policy('share.password.disable', ['browser'], ['board.share.manage'], owners, 'I-30'),
   policy('media.upload', ['browser', 'mcp'], ['board.media.write'], editors, 'I-36/I-40'),
   policy('analytics.report.get', ['browser'], ['board.analytics.read'], owners, 'I-42'),
 ] satisfies readonly BoardOperationAuthorizationPolicyV1[]);

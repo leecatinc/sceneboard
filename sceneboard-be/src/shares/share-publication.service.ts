@@ -310,11 +310,13 @@ export class SharePublicationService {
             accessGeneration,
             tokenDigest: issued.digest,
             version,
+            credential: null,
           }),
           oldRevisionPk: share?.pinnedRevisionPk ?? null,
           newRevisionPk: revision.revisionPk,
           leaseOwner,
           nowSql,
+          credentialMarker: null,
         });
         return {
           plan: {
@@ -419,11 +421,20 @@ export class SharePublicationService {
             accessGeneration,
             tokenDigest,
             version,
+            credential: operation === 'revoke' ? null : share.credential,
           }),
           oldRevisionPk: share.pinnedRevisionPk,
           newRevisionPk: revision.revisionPk,
           leaseOwner,
           nowSql,
+          credentialMarker:
+            operation === 'revoke' || share.credential === null
+              ? null
+              : {
+                  credentialVersion: share.credential.credentialVersion,
+                  passwordHashSha256: share.credential.passwordHashSha256,
+                  pepperVersion: share.credential.pepperVersion,
+                },
         });
         return {
           plan: {
@@ -523,9 +534,11 @@ export class SharePublicationService {
           }
         } else if (plan.operation === 'rotate') {
           updated = await this.shares.rotate(connection, current!, plan.tokenDigest, nowSql);
-        } else {
+        } else if (plan.operation === 'revoke') {
           updated = await this.shares.revoke(connection, current!, nowSql);
           await this.releasePublication(connection, current!, nowSql);
+        } else {
+          throw new ShareContractError('SHARE_STATE_CONFLICT');
         }
         const replay =
           plan.operation === 'update'

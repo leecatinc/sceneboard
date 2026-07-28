@@ -3,6 +3,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import {
   BoardEventEnvelopeParserV1,
   ShareManagementViewParserV1,
+  SharePasswordReplayResultParserV1,
   ShareSecretReplayResultParserV1,
   ShareUpdateSuccessParserV1,
   canonicalizeJsonV1,
@@ -10,6 +11,7 @@ import {
   type BoardEventEnvelopeV1,
   type RevisionId,
   type ShareManagementViewV1,
+  type SharePasswordReplayResultV1,
   type ShareSecretReplayResultV1,
   type ShareStatusV1,
   type ShareUpdateSuccessV1,
@@ -44,6 +46,16 @@ export type LockedShare = {
   version: number;
   createdAtSql: string;
   updatedAtSql: string;
+  credential: LockedShareCredential | null;
+};
+
+export type LockedShareCredential = {
+  credentialVersion: number;
+  passwordHash: Buffer;
+  passwordHashSha256: Buffer;
+  salt: Buffer;
+  hashVersion: 'S1';
+  pepperVersion: number;
 };
 
 export type LockedShareRevision = {
@@ -51,12 +63,24 @@ export type LockedShareRevision = {
   revisionId: RevisionId;
 };
 
-export type ShareOperation = 'create' | 'republish' | 'update' | 'rotate' | 'revoke';
+export type ShareOperation =
+  | 'create'
+  | 'republish'
+  | 'update'
+  | 'rotate'
+  | 'revoke'
+  | 'password.enable'
+  | 'password.regenerate'
+  | 'password.disable';
 
 export type StoredShareReplay =
   | { operation: 'create' | 'republish' | 'rotate'; value: ShareSecretReplayResultV1 }
   | { operation: 'update'; value: ShareUpdateSuccessV1 }
-  | { operation: 'revoke'; value: null };
+  | { operation: 'revoke' | 'password.disable'; value: null }
+  | {
+      operation: 'password.enable' | 'password.regenerate';
+      value: SharePasswordReplayResultV1;
+    };
 
 interface ShareRow extends RowDataPacket {
   sharePk: string;
@@ -72,6 +96,11 @@ interface ShareRow extends RowDataPacket {
   version: string;
   createdAt: string;
   updatedAt: string;
+  credentialVersion: string | null;
+  passwordHash: Buffer | null;
+  salt: Buffer | null;
+  hashVersion: string | null;
+  pepperVersion: number | string | null;
 }
 
 interface RevisionRow extends RowDataPacket {
@@ -119,6 +148,38 @@ const accessPolicy = (value: string): 'L' | 'P' => {
   return value;
 };
 
+const mapCredential = (row: ShareRow): LockedShareCredential | null => {
+  if (
+    row.credentialVersion === null &&
+    row.passwordHash === null &&
+    row.salt === null &&
+    row.hashVersion === null &&
+    row.pepperVersion === null
+  ) {
+    return null;
+  }
+  if (
+    row.credentialVersion === null ||
+    row.passwordHash?.byteLength !== 32 ||
+    row.salt?.byteLength !== 16 ||
+    row.hashVersion !== 'S1'
+  ) {
+    throw new ShareContractError('BOARD_NOT_FOUND');
+  }
+  const pepperVersion = Number(row.pepperVersion);
+  if (!Number.isSafeInteger(pepperVersion) || pepperVersion < 1 || pepperVersion > 65_535) {
+    throw new ShareContractError('BOARD_NOT_FOUND');
+  }
+  return {
+    credentialVersion: safePositive(row.credentialVersion),
+    passwordHash: Buffer.from(row.passwordHash),
+    passwordHashSha256: createHash('sha256').update(row.passwordHash).digest(),
+    salt: Buffer.from(row.salt),
+    hashVersion: 'S1',
+    pepperVersion,
+  };
+};
+
 const insertedPk = (result: ResultSetHeader): bigint => {
   if (result.affectedRows !== 1 || result.insertId < 1) {
     throw new ShareContractError('SHARE_STATE_CONFLICT');
@@ -143,6 +204,7 @@ const mapShare = (row: ShareRow): LockedShare => ({
   version: safePositive(row.version),
   createdAtSql: row.createdAt,
   updatedAtSql: row.updatedAt,
+  credential: mapCredential(row),
 });
 
 const shareSelect = `
@@ -153,10 +215,14 @@ const shareSelect = `
          CAST(s.publication_generation AS CHAR) AS publicationGeneration,
          CAST(s.access_generation AS CHAR) AS accessGeneration,
          s.token_digest AS tokenDigest, CAST(s.version AS CHAR) AS version,
-         s.created_at AS createdAt, s.updated_at AS updatedAt
+         s.created_at AS createdAt, s.updated_at AS updatedAt,
+         CAST(c.credential_version AS CHAR) AS credentialVersion,
+         c.password_hash AS passwordHash, c.salt,
+         c.hash_version AS hashVersion, c.pepper_version AS pepperVersion
   FROM board_shares s
   JOIN board_revisions r
     ON r.board_pk = s.board_pk AND r.revision_pk = s.pinned_revision_pk
+  LEFT JOIN share_password_credentials c ON c.share_pk = s.share_pk
 `;
 
 const canonicalBytes = (value: unknown): Buffer => {
@@ -176,6 +242,7 @@ export const shareStateDigest = (
     accessGeneration: number;
     tokenDigest: Uint8Array;
     version: number;
+    credential?: LockedShareCredential | null;
   },
 ): Buffer => {
   if (value === null) return createHash('sha256').update('absent', 'ascii').digest();
@@ -191,12 +258,20 @@ export const shareStateDigest = (
         accessGeneration: value.accessGeneration,
         tokenDigestSha256: Buffer.from(value.tokenDigest).toString('hex'),
         version: value.version,
-        credential: {
-          credentialPresent: false,
-          credentialVersion: null,
-          passwordHashSha256: null,
-          pepperVersion: null,
-        },
+        credential:
+          value.credential == null
+            ? {
+                credentialPresent: false,
+                credentialVersion: null,
+                passwordHashSha256: null,
+                pepperVersion: null,
+              }
+            : {
+                credentialPresent: true,
+                credentialVersion: value.credential.credentialVersion,
+                passwordHashSha256: value.credential.passwordHashSha256.toString('hex'),
+                pepperVersion: value.credential.pepperVersion,
+              },
       }),
     )
     .digest();
@@ -261,6 +336,28 @@ export class ShareRepository {
     const [rows] = await connection.execute<ShareRow[]>(
       `${shareSelect} WHERE s.board_pk = ? LIMIT 1`,
       [boardPk.toString()],
+    );
+    return rows.length === 1 ? mapShare(rows[0]!) : null;
+  }
+
+  async readShareByTokenDigest(
+    connection: PoolConnection,
+    tokenDigest: Buffer,
+  ): Promise<LockedShare | null> {
+    const [rows] = await connection.execute<ShareRow[]>(
+      `${shareSelect} WHERE s.token_digest = ? LIMIT 1`,
+      [tokenDigest],
+    );
+    return rows.length === 1 ? mapShare(rows[0]!) : null;
+  }
+
+  async lockShareByTokenDigest(
+    connection: PoolConnection,
+    tokenDigest: Buffer,
+  ): Promise<LockedShare | null> {
+    const [rows] = await connection.execute<ShareRow[]>(
+      `${shareSelect} WHERE s.token_digest = ? LIMIT 1 FOR UPDATE`,
+      [tokenDigest],
     );
     return rows.length === 1 ? mapShare(rows[0]!) : null;
   }
@@ -391,6 +488,7 @@ export class ShareRepository {
   ): Promise<LockedShare> {
     const accessGeneration = this.nextGeneration(share.accessGeneration);
     const version = this.nextGeneration(share.version);
+    await this.invalidatePasswordAccess(connection, share.sharePk, false);
     const [updated] = await connection.execute<ResultSetHeader>(
       `UPDATE board_shares
        SET token_digest = ?, access_generation = ?, version = ?, updated_at = ?
@@ -408,6 +506,7 @@ export class ShareRepository {
   ): Promise<LockedShare> {
     const accessGeneration = this.nextGeneration(share.accessGeneration);
     const version = this.nextGeneration(share.version);
+    await this.invalidatePasswordAccess(connection, share.sharePk, true);
     const [updated] = await connection.execute<ResultSetHeader>(
       `UPDATE board_shares
        SET status = 'revoked', access_policy = 'L', access_generation = ?,
@@ -429,6 +528,7 @@ export class ShareRepository {
         ? this.nextGeneration(share.accessGeneration)
         : share.accessGeneration;
     const version = this.nextGeneration(share.version);
+    await this.invalidatePasswordAccess(connection, share.sharePk, true);
     const [updated] = await connection.execute<ResultSetHeader>(
       `UPDATE board_shares
        SET status = 'archived', access_policy = 'L', access_generation = ?,
@@ -438,6 +538,23 @@ export class ShareRepository {
     );
     if (updated.affectedRows !== 1) throw new ShareContractError('SHARE_STATE_CONFLICT');
     return (await this.lockShare(connection, share.boardPk))!;
+  }
+
+  async invalidatePasswordAccess(
+    connection: PoolConnection,
+    sharePk: bigint,
+    deleteCredential: boolean,
+  ): Promise<void> {
+    await connection.execute<ResultSetHeader>(
+      'DELETE FROM share_password_session_grants WHERE share_pk = ?',
+      [sharePk.toString()],
+    );
+    if (deleteCredential) {
+      await connection.execute<ResultSetHeader>(
+        'DELETE FROM share_password_credentials WHERE share_pk = ?',
+        [sharePk.toString()],
+      );
+    }
   }
 
   async acquireHold(
@@ -546,7 +663,14 @@ export class ShareRepository {
       if (!parsed.ok) throw new ShareContractError('SHARE_STATE_CONFLICT');
       return { operation: row.operation, value: parsed.data.value };
     }
-    if (row.operation === 'revoke') return { operation: row.operation, value: null };
+    if (row.operation === 'revoke' || row.operation === 'password.disable') {
+      return { operation: row.operation, value: null };
+    }
+    if (row.operation === 'password.enable' || row.operation === 'password.regenerate') {
+      const parsed = SharePasswordReplayResultParserV1.parse(decoded);
+      if (!parsed.ok) throw new ShareContractError('SHARE_STATE_CONFLICT');
+      return { operation: row.operation, value: parsed.data.value };
+    }
     const parsed = ShareSecretReplayResultParserV1.parse(decoded);
     if (!parsed.ok) throw new ShareContractError('SHARE_STATE_CONFLICT');
     return { operation: row.operation, value: parsed.data.value };
@@ -560,10 +684,19 @@ export class ShareRepository {
       operation: ShareOperation;
       idempotencyKey: string;
       fingerprintSha256: Buffer;
-      resultKind: 'created' | 'republished' | 'updated' | 'unchanged' | 'rotated' | 'revoked';
+      resultKind:
+        | 'created'
+        | 'republished'
+        | 'updated'
+        | 'unchanged'
+        | 'rotated'
+        | 'revoked'
+        | 'password-enabled'
+        | 'password-regenerated'
+        | 'password-disabled';
       result: unknown;
       sharePk: bigint;
-      recoveryId: string;
+      recoveryId: string | null;
       nowSql: string;
     },
   ): Promise<void> {

@@ -24,6 +24,7 @@ const purposeKeyOwner = (purpose: SecurityPurpose): keyof SecurityKeyMaterial =>
   if (purpose.startsWith('pairing-')) return 'pairingCodePepper';
   if (purpose.startsWith('email-verification-')) return 'auditHmac';
   if (purpose === 'board-invitation-token/v1') return 'auditHmac';
+  if (purpose === 'share-password-pepper/v1') return 'pairingCodePepper';
   if (purpose.startsWith('audit-')) return 'auditHmac';
   return 'rateLimitHmac';
 };

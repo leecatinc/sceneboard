@@ -126,7 +126,9 @@ export const BOARD_AUTHORIZATION_OPERATION_TYPES_V1 = [
   'share.update',
   'share.rotate',
   'share.revoke',
+  'share.password.enable',
   'share.password.regenerate',
+  'share.password.disable',
   'media.upload',
   'analytics.report.get',
 ] as const;
@@ -145,16 +147,24 @@ export const SHARE_MANAGEMENT_OPERATION_TYPES_V1 = [
   'update',
   'rotate',
   'revoke',
+  'password.enable',
+  'password.regenerate',
+  'password.disable',
 ] as const;
 export type ShareManagementOperationTypeV1 = (typeof SHARE_MANAGEMENT_OPERATION_TYPES_V1)[number];
 
 export const SHARE_ERROR_CODES_V1 = [
   'INVALID_REQUEST',
+  'UNAUTHENTICATED',
   'BOARD_NOT_FOUND',
   'SHARE_STATE_CONFLICT',
   'SHARE_GENERATION_EXHAUSTED',
   'IDEMPOTENCY_KEY_REUSED',
+  'SHARE_PASSWORD_ALREADY_ENABLED',
+  'SHARE_PASSWORD_STATE_CONFLICT',
+  'SHARE_PASSWORD_LOCKED',
   'RATE_LIMITED',
+  'SERVICE_UNAVAILABLE',
 ] as const;
 export type ShareErrorCodeV1 = (typeof SHARE_ERROR_CODES_V1)[number];
 

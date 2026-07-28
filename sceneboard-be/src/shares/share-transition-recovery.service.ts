@@ -74,15 +74,21 @@ export class ShareTransitionRecoveryService {
       newRevisionPk: bigint | null;
       leaseOwner: string;
       nowSql: string;
+      credentialMarker?: {
+        credentialVersion: number;
+        passwordHashSha256: Buffer;
+        pepperVersion: number;
+      } | null;
     },
   ): Promise<void> {
     const [created] = await connection.execute<ResultSetHeader>(
       `INSERT INTO share_transition_recovery (
          recovery_id, share_pk, board_pk, operation, fingerprint_sha256,
          before_sha256, after_sha256, old_revision_pk, new_revision_pk,
+         credential_present, credential_version, password_hash_sha256, pepper_version,
          phase, outcome, lease_owner, lease_expires_at, attempts, last_error,
          created_at, updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'planned', NULL, ?,
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'planned', NULL, ?,
                  ? + INTERVAL 60 SECOND, 0, NULL, ?, ?)`,
       [
         input.recoveryId,
@@ -94,6 +100,10 @@ export class ShareTransitionRecoveryService {
         input.afterSha256,
         input.oldRevisionPk?.toString() ?? null,
         input.newRevisionPk?.toString() ?? null,
+        input.credentialMarker === undefined || input.credentialMarker === null ? 0 : 1,
+        input.credentialMarker?.credentialVersion ?? null,
+        input.credentialMarker?.passwordHashSha256 ?? null,
+        input.credentialMarker?.pepperVersion ?? null,
         input.leaseOwner,
         input.nowSql,
         input.nowSql,

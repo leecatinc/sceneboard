@@ -48,6 +48,9 @@ export const ShareUpdateRequestSchemaV1 = z
 export const ShareVersionRequestSchemaV1 = z
   .object({ expectedVersion: z.number().int().safe().positive() })
   .strict();
+export const SharePasswordAdmissionRequestSchemaV1 = z
+  .object({ password: z.string().min(1).max(128) })
+  .strict();
 export const ShareFingerprintInputSchemaV1 = z
   .object({
     operation: ShareManagementOperationSchemaV1,
@@ -87,13 +90,50 @@ export const ShareUpdateSuccessSchemaV1 = z
   })
   .strict();
 
-export const ShareErrorSchemaV1 = z
+export const SharePasswordSuccessSchemaV1 = z
   .object({
-    code: z.enum(SHARE_ERROR_CODES_V1),
-    message: z.string().min(1).max(256),
-    requestId: GlobalIdStringSchemaV1,
+    status: z.enum(['enabled', 'regenerated']),
+    share: ShareManagementViewSchemaV1,
+    password: z.string().regex(/^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{24}$/u),
   })
   .strict();
+export const SharePasswordReplayResultSchemaV1 = z
+  .object({
+    status: z.enum(['already-enabled', 'already-regenerated']),
+    shareId: GlobalIdStringSchemaV1,
+    copySecretAvailable: z.literal(false),
+    regenerateRequired: z.literal(true),
+  })
+  .strict();
+
+const ShareErrorBaseShapeV1 = {
+  code: z.enum(SHARE_ERROR_CODES_V1),
+  message: z.string().min(1).max(256),
+  requestId: GlobalIdStringSchemaV1,
+};
+export const ShareErrorSchemaV1 = z.union([
+  z
+    .object({
+      ...ShareErrorBaseShapeV1,
+      code: z.literal('INVALID_REQUEST'),
+      details: z.object({ reason: z.enum(['body', 'csrf']) }).strict(),
+    })
+    .strict(),
+  z
+    .object({
+      ...ShareErrorBaseShapeV1,
+      code: z.enum(
+        SHARE_ERROR_CODES_V1.filter(
+          (code): code is Exclude<(typeof SHARE_ERROR_CODES_V1)[number], 'INVALID_REQUEST'> =>
+            code !== 'INVALID_REQUEST',
+        ) as [
+          Exclude<(typeof SHARE_ERROR_CODES_V1)[number], 'INVALID_REQUEST'>,
+          ...Exclude<(typeof SHARE_ERROR_CODES_V1)[number], 'INVALID_REQUEST'>[],
+        ],
+      ),
+    })
+    .strict(),
+]);
 export const ShareErrorEnvelopeSchemaV1 = z.object({ error: ShareErrorSchemaV1 }).strict();
 
 export type ShareFingerprintInputV1 = z.infer<typeof ShareFingerprintInputSchemaV1>;
@@ -102,9 +142,12 @@ export type ShareListResultV1 = z.infer<typeof ShareListResultSchemaV1>;
 export type SharePublishRequestV1 = z.infer<typeof SharePublishRequestSchemaV1>;
 export type ShareUpdateRequestV1 = z.infer<typeof ShareUpdateRequestSchemaV1>;
 export type ShareVersionRequestV1 = z.infer<typeof ShareVersionRequestSchemaV1>;
+export type SharePasswordAdmissionRequestV1 = z.infer<typeof SharePasswordAdmissionRequestSchemaV1>;
 export type ShareSecretReplayResultV1 = z.infer<typeof ShareSecretReplayResultSchemaV1>;
 export type SharePublishSuccessV1 = z.infer<typeof SharePublishSuccessSchemaV1>;
 export type ShareRotateSuccessV1 = z.infer<typeof ShareRotateSuccessSchemaV1>;
 export type ShareUpdateSuccessV1 = z.infer<typeof ShareUpdateSuccessSchemaV1>;
+export type SharePasswordSuccessV1 = z.infer<typeof SharePasswordSuccessSchemaV1>;
+export type SharePasswordReplayResultV1 = z.infer<typeof SharePasswordReplayResultSchemaV1>;
 export type ShareErrorV1 = z.infer<typeof ShareErrorSchemaV1>;
 export type ShareErrorEnvelopeV1 = z.infer<typeof ShareErrorEnvelopeSchemaV1>;

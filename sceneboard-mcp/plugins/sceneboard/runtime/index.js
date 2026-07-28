@@ -24960,7 +24960,9 @@ var BOARD_AUTHORIZATION_OPERATION_TYPES_V1 = [
   "share.update",
   "share.rotate",
   "share.revoke",
+  "share.password.enable",
   "share.password.regenerate",
+  "share.password.disable",
   "media.upload",
   "analytics.report.get"
 ];
@@ -24971,15 +24973,23 @@ var SHARE_MANAGEMENT_OPERATION_TYPES_V1 = [
   "republish",
   "update",
   "rotate",
-  "revoke"
+  "revoke",
+  "password.enable",
+  "password.regenerate",
+  "password.disable"
 ];
 var SHARE_ERROR_CODES_V1 = [
   "INVALID_REQUEST",
+  "UNAUTHENTICATED",
   "BOARD_NOT_FOUND",
   "SHARE_STATE_CONFLICT",
   "SHARE_GENERATION_EXHAUSTED",
   "IDEMPOTENCY_KEY_REUSED",
-  "RATE_LIMITED"
+  "SHARE_PASSWORD_ALREADY_ENABLED",
+  "SHARE_PASSWORD_STATE_CONFLICT",
+  "SHARE_PASSWORD_LOCKED",
+  "RATE_LIMITED",
+  "SERVICE_UNAVAILABLE"
 ];
 var BOARD_AUTHORIZATION_SURFACES_V1 = ["browser", "mcp"];
 var BOARD_MEMBERSHIP_ROLES_V1 = ["owner", "editor", "viewer"];
@@ -25249,6 +25259,7 @@ var ShareUpdateRequestSchemaV1 = z.object({
   expectedVersion: z.number().int().safe().positive()
 }).strict();
 var ShareVersionRequestSchemaV1 = z.object({ expectedVersion: z.number().int().safe().positive() }).strict();
+var SharePasswordAdmissionRequestSchemaV1 = z.object({ password: z.string().min(1).max(128) }).strict();
 var ShareFingerprintInputSchemaV1 = z.object({
   operation: ShareManagementOperationSchemaV1,
   shareId: GlobalIdStringSchemaV1.nullable(),
@@ -25275,11 +25286,37 @@ var ShareUpdateSuccessSchemaV1 = z.object({
   status: z.enum(["updated", "unchanged"]),
   share: ShareManagementViewSchemaV1
 }).strict();
-var ShareErrorSchemaV1 = z.object({
+var SharePasswordSuccessSchemaV1 = z.object({
+  status: z.enum(["enabled", "regenerated"]),
+  share: ShareManagementViewSchemaV1,
+  password: z.string().regex(/^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{24}$/u)
+}).strict();
+var SharePasswordReplayResultSchemaV1 = z.object({
+  status: z.enum(["already-enabled", "already-regenerated"]),
+  shareId: GlobalIdStringSchemaV1,
+  copySecretAvailable: z.literal(false),
+  regenerateRequired: z.literal(true)
+}).strict();
+var ShareErrorBaseShapeV1 = {
   code: z.enum(SHARE_ERROR_CODES_V1),
   message: z.string().min(1).max(256),
   requestId: GlobalIdStringSchemaV1
-}).strict();
+};
+var ShareErrorSchemaV1 = z.union([
+  z.object({
+    ...ShareErrorBaseShapeV1,
+    code: z.literal("INVALID_REQUEST"),
+    details: z.object({ reason: z.enum(["body", "csrf"]) }).strict()
+  }).strict(),
+  z.object({
+    ...ShareErrorBaseShapeV1,
+    code: z.enum(
+      SHARE_ERROR_CODES_V1.filter(
+        (code) => code !== "INVALID_REQUEST"
+      )
+    )
+  }).strict()
+]);
 var ShareErrorEnvelopeSchemaV1 = z.object({ error: ShareErrorSchemaV1 }).strict();
 
 // packages/board-schema/src/invitations.ts
@@ -26593,7 +26630,9 @@ var BOARD_OPERATION_AUTHORIZATION_MATRIX_V1 = Object.freeze([
   policy("share.update", ["browser"], ["board.share.manage"], owners, "I-29"),
   policy("share.rotate", ["browser"], ["board.share.manage"], owners, "I-29"),
   policy("share.revoke", ["browser"], ["board.share.manage"], owners, "I-29"),
+  policy("share.password.enable", ["browser"], ["board.share.manage"], owners, "I-30"),
   policy("share.password.regenerate", ["browser"], ["board.share.manage"], owners, "I-30"),
+  policy("share.password.disable", ["browser"], ["board.share.manage"], owners, "I-30"),
   policy("media.upload", ["browser", "mcp"], ["board.media.write"], editors, "I-36/I-40"),
   policy("analytics.report.get", ["browser"], ["board.analytics.read"], owners, "I-42")
 ]);
@@ -28110,10 +28149,15 @@ var ShareListResultParserV1 = createParserV1(ShareListResultSchemaV1);
 var SharePublishRequestParserV1 = createParserV1(SharePublishRequestSchemaV1);
 var ShareUpdateRequestParserV1 = createParserV1(ShareUpdateRequestSchemaV1);
 var ShareVersionRequestParserV1 = createParserV1(ShareVersionRequestSchemaV1);
+var SharePasswordAdmissionRequestParserV1 = createParserV1(
+  SharePasswordAdmissionRequestSchemaV1
+);
 var SharePublishSuccessParserV1 = createParserV1(SharePublishSuccessSchemaV1);
 var ShareRotateSuccessParserV1 = createParserV1(ShareRotateSuccessSchemaV1);
 var ShareUpdateSuccessParserV1 = createParserV1(ShareUpdateSuccessSchemaV1);
 var ShareSecretReplayResultParserV1 = createParserV1(ShareSecretReplayResultSchemaV1);
+var SharePasswordSuccessParserV1 = createParserV1(SharePasswordSuccessSchemaV1);
+var SharePasswordReplayResultParserV1 = createParserV1(SharePasswordReplayResultSchemaV1);
 var ShareErrorParserV1 = createParserV1(ShareErrorSchemaV1);
 var ShareErrorEnvelopeParserV1 = createParserV1(ShareErrorEnvelopeSchemaV1);
 var ShareFingerprintInputParserV1 = createParserV1(ShareFingerprintInputSchemaV1);

@@ -105,6 +105,7 @@ export const resolveClientIp = (input: {
   socketAddress: string;
   xForwardedFor?: string | undefined;
   trustedProxyCidrs: readonly string[];
+  maximumForwardedEntries?: number | undefined;
 }): ResolvedClientIp => {
   const socketAddress = normalizeAddress(input.socketAddress);
   if (!socketAddress) throw new TypeError('socket address must be an IP literal');
@@ -118,7 +119,15 @@ export const resolveClientIp = (input: {
     return { address: socketAddress, forwardingState: 'direct' };
   }
   const forwarded = input.xForwardedFor.split(',').map((part) => part.trim());
-  if (forwarded.length > 8 || forwarded.some((part) => part === '')) {
+  const maximumForwardedEntries = input.maximumForwardedEntries ?? 8;
+  if (
+    !Number.isSafeInteger(maximumForwardedEntries) ||
+    maximumForwardedEntries < 1 ||
+    maximumForwardedEntries > 32
+  ) {
+    throw new TypeError('maximum forwarded entries is invalid');
+  }
+  if (forwarded.length > maximumForwardedEntries || forwarded.some((part) => part === '')) {
     return { address: socketAddress, forwardingState: 'malformed_fallback' };
   }
   const normalized = forwarded.map(normalizeAddress);

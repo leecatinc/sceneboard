@@ -154,6 +154,13 @@ export const MIGRATION_REGISTRY = [
     downAsset: null,
     postcondition: 'd9_board_shares_v1',
   },
+  {
+    version: '020_d9_share_password_auth',
+    upAsset: '020_d9_share_password_auth.up.sql',
+    reversible: false,
+    downAsset: null,
+    postcondition: 'd9_share_password_auth_v1',
+  },
 ] as const satisfies readonly MigrationRegistryEntry[];
 
 export const MIGRATION_REGISTRY_VERSION = MIGRATION_REGISTRY.at(-1)?.version ?? 'empty';

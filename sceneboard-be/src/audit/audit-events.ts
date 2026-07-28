@@ -55,6 +55,9 @@ export const AuditEventCatalog = {
   'share.link.rotated': 52,
   'share.revoked': 53,
   'share.archived': 54,
+  'share.password.enabled': 55,
+  'share.password.regenerated': 56,
+  'share.password.disabled': 57,
 } as const;
 
 export type AuditEventName = keyof typeof AuditEventCatalog;
@@ -303,6 +306,27 @@ const MetadataAllowlists: Readonly<Record<AuditEventName, ReadonlySet<string>>> 
     'sharePk',
     'publicationGeneration',
     'accessGeneration',
+    'recoveryId',
+  ]),
+  'share.password.enabled': new Set([
+    'boardPk',
+    'sharePk',
+    'accessGeneration',
+    'credentialVersion',
+    'recoveryId',
+  ]),
+  'share.password.regenerated': new Set([
+    'boardPk',
+    'sharePk',
+    'accessGeneration',
+    'credentialVersion',
+    'recoveryId',
+  ]),
+  'share.password.disabled': new Set([
+    'boardPk',
+    'sharePk',
+    'accessGeneration',
+    'credentialVersion',
     'recoveryId',
   ]),
 };

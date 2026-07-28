@@ -643,6 +643,10 @@ export class MigrationRunner {
       await this.verifyShareSchema(connection);
       return;
     }
+    if (postcondition === 'd9_share_password_auth_v1') {
+      await this.verifySharePasswordSchema(connection);
+      return;
+    }
     const postconditions: Readonly<Record<string, readonly string[]>> = {
       d2_identity_sessions_audit_v1: ['users', 'auth_sessions', 'security_audit_events'],
       d3_boards_v1: ['boards'],
@@ -683,6 +687,12 @@ export class MigrationRunner {
         'share_transition_recovery',
         'share_transition_recovery_items',
         'share_request_idempotency',
+      ],
+      d9_share_password_auth_v1: [
+        'share_password_credentials',
+        'share_password_session_families',
+        'share_password_session_grants',
+        'share_password_cleanup_leases',
       ],
     };
     const expectedTables = postconditions[postcondition] ?? null;
@@ -889,6 +899,107 @@ export class MigrationRunner {
       [...expected].some(([name, value]) => actual.get(name) !== value)
     ) {
       throw new MigrationStateError('board share index projection mismatch');
+    }
+  }
+
+  private async verifySharePasswordSchema(connection: PoolConnection): Promise<void> {
+    const expectedTables = [
+      'share_password_credentials',
+      'share_password_session_families',
+      'share_password_session_grants',
+      'share_password_cleanup_leases',
+    ] as const;
+    const [tables] = await connection.query<Array<RowDataPacket & { tableName: string }>>(
+      `SELECT table_name AS tableName
+       FROM information_schema.tables
+       WHERE table_schema = DATABASE()
+         AND table_name IN (${expectedTables.map(() => '?').join(', ')})`,
+      expectedTables,
+    );
+    if (new Set(tables.map((row) => row.tableName)).size !== expectedTables.length) {
+      throw new MigrationStateError('share password table projection mismatch');
+    }
+    const [columns] = await connection.query<
+      Array<
+        RowDataPacket & {
+          tableName: string;
+          columnName: string;
+          columnType: string;
+          isNullable: string;
+        }
+      >
+    >(
+      `SELECT table_name AS tableName, column_name AS columnName,
+              column_type AS columnType, is_nullable AS isNullable
+       FROM information_schema.columns
+       WHERE table_schema = DATABASE()
+         AND (
+           (table_name = 'share_password_credentials'
+             AND column_name IN (
+               'share_pk','password_hash','salt','hash_version','pepper_version',
+               'credential_version','created_at','updated_at'
+             ))
+           OR
+           (table_name = 'share_password_session_grants'
+             AND column_name IN (
+               'family_digest','share_pk','access_generation','credential_version',
+               'expires_at','created_at'
+             ))
+         )`,
+    );
+    const actual = new Map(
+      columns.map((column) => [
+        `${column.tableName}.${column.columnName}`,
+        `${column.columnType.toLowerCase()}:${column.isNullable}`,
+      ]),
+    );
+    const expected = new Map([
+      ['share_password_credentials.share_pk', 'bigint unsigned:NO'],
+      ['share_password_credentials.password_hash', 'binary(32):NO'],
+      ['share_password_credentials.salt', 'binary(16):NO'],
+      ['share_password_credentials.hash_version', 'char(2):NO'],
+      ['share_password_credentials.pepper_version', 'smallint unsigned:NO'],
+      ['share_password_credentials.credential_version', 'bigint unsigned:NO'],
+      ['share_password_credentials.created_at', 'datetime(6):NO'],
+      ['share_password_credentials.updated_at', 'datetime(6):NO'],
+      ['share_password_session_grants.family_digest', 'binary(32):NO'],
+      ['share_password_session_grants.share_pk', 'bigint unsigned:NO'],
+      ['share_password_session_grants.access_generation', 'bigint unsigned:NO'],
+      ['share_password_session_grants.credential_version', 'bigint unsigned:NO'],
+      ['share_password_session_grants.expires_at', 'datetime(6):NO'],
+      ['share_password_session_grants.created_at', 'datetime(6):NO'],
+    ]);
+    if (
+      actual.size !== expected.size ||
+      [...expected].some(([name, value]) => actual.get(name) !== value)
+    ) {
+      throw new MigrationStateError('share password column projection mismatch');
+    }
+    const [enums] = await connection.query<
+      Array<RowDataPacket & { tableName: string; columnName: string; columnType: string }>
+    >(
+      `SELECT table_name AS tableName, column_name AS columnName, column_type AS columnType
+       FROM information_schema.columns
+       WHERE table_schema = DATABASE()
+         AND (
+           (table_name = 'share_transition_recovery' AND column_name = 'operation')
+           OR
+           (table_name = 'share_request_idempotency'
+             AND column_name IN ('operation','result_kind'))
+         )`,
+    );
+    const enumText = enums.map((row) => `${row.tableName}.${row.columnName}:${row.columnType}`);
+    for (const required of [
+      'password.enable',
+      'password.regenerate',
+      'password.disable',
+      'password-enabled',
+      'password-regenerated',
+      'password-disabled',
+    ]) {
+      if (!enumText.some((value) => value.includes(`'${required}'`))) {
+        throw new MigrationStateError(`share password enum projection is missing ${required}`);
+      }
     }
   }
 

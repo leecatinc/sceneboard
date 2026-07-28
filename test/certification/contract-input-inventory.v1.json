@@ -3836,9 +3836,18 @@
           "exportKind": null,
           "projectionId": null,
           "selector": "whole-file"
+        },
+        {
+          "resourceId": "MIGRATION-ASSET-25",
+          "owner": "D9",
+          "path": "sceneboard-be/src/database/migrations/sql/020_d9_share_password_auth.up.sql",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
         }
       ],
-      "expectedCardinality": 25,
+      "expectedCardinality": 26,
       "canonicalization": "utf8-lf",
       "materializationPredecessor": null,
       "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
@@ -4112,6 +4121,15 @@
           "selector": "whole-file"
         },
         {
+          "resourceId": "SCHEMA-PROJECTION-08",
+          "owner": "D9",
+          "path": "sceneboard-be/test/contracts/schema-projections/d9-share-password-auth.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
           "resourceId": "SCHEMA-PROJECTION-AGGREGATE-TEST",
           "owner": "D2",
           "path": "sceneboard-be/test/contracts/schema-projections/owner-projections.contract.test.ts",
@@ -4121,7 +4139,7 @@
           "selector": "whole-file"
         }
       ],
-      "expectedCardinality": 8,
+      "expectedCardinality": 9,
       "canonicalization": "canonical-json",
       "materializationPredecessor": "MIGRATION-REGISTRY-ASSETS",
       "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"

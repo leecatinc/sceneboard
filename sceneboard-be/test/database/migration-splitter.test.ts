@@ -183,5 +183,12 @@ test('freezes the exact terminal D2/D3/D7/D8/D9 checkpoint order and reversibili
       downAsset: null,
       postcondition: 'd9_board_shares_v1',
     },
+    {
+      version: '020_d9_share_password_auth',
+      upAsset: '020_d9_share_password_auth.up.sql',
+      reversible: false,
+      downAsset: null,
+      postcondition: 'd9_share_password_auth_v1',
+    },
   ]);
 });

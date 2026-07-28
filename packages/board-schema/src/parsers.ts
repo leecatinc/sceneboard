@@ -58,6 +58,9 @@ import {
   ShareLinkTokenSchemaV1,
   ShareListResultSchemaV1,
   ShareManagementViewSchemaV1,
+  SharePasswordAdmissionRequestSchemaV1,
+  SharePasswordReplayResultSchemaV1,
+  SharePasswordSuccessSchemaV1,
   SharePublishRequestSchemaV1,
   SharePublishSuccessSchemaV1,
   ShareRotateSuccessSchemaV1,
@@ -757,10 +760,15 @@ export const ShareListResultParserV1 = createParserV1(ShareListResultSchemaV1);
 export const SharePublishRequestParserV1 = createParserV1(SharePublishRequestSchemaV1);
 export const ShareUpdateRequestParserV1 = createParserV1(ShareUpdateRequestSchemaV1);
 export const ShareVersionRequestParserV1 = createParserV1(ShareVersionRequestSchemaV1);
+export const SharePasswordAdmissionRequestParserV1 = createParserV1(
+  SharePasswordAdmissionRequestSchemaV1,
+);
 export const SharePublishSuccessParserV1 = createParserV1(SharePublishSuccessSchemaV1);
 export const ShareRotateSuccessParserV1 = createParserV1(ShareRotateSuccessSchemaV1);
 export const ShareUpdateSuccessParserV1 = createParserV1(ShareUpdateSuccessSchemaV1);
 export const ShareSecretReplayResultParserV1 = createParserV1(ShareSecretReplayResultSchemaV1);
+export const SharePasswordSuccessParserV1 = createParserV1(SharePasswordSuccessSchemaV1);
+export const SharePasswordReplayResultParserV1 = createParserV1(SharePasswordReplayResultSchemaV1);
 export const ShareErrorParserV1 = createParserV1(ShareErrorSchemaV1);
 export const ShareErrorEnvelopeParserV1 = createParserV1(ShareErrorEnvelopeSchemaV1);
 export const ShareFingerprintInputParserV1 = createParserV1(ShareFingerprintInputSchemaV1);
