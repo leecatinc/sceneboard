@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "migration": "022_d9_media_retention_recovery",
+  "reversible": false,
+  "tables": {
+    "media_cleanup_runs": {
+      "primaryKey": ["run_id"],
+      "lease": ["lease_owner", "fence", "lease_expires_at"],
+      "maximumAttempts": 10
+    },
+    "media_cleanup_items": {
+      "primaryKey": ["cleanup_id"],
+      "uniqueOwnership": ["run_id", "board_media_pk"],
+      "phases": [
+        "intent",
+        "ownership_quarantined",
+        "refs_rechecked",
+        "ownership_released",
+        "object_quarantined",
+        "object_deleted",
+        "complete",
+        "quarantined"
+      ],
+      "quarantineDays": 7
+    },
+    "media_backup_certificates": {
+      "primaryKey": ["deployment_id", "attempt_seq"],
+      "requires": ["backup_ok", "restore_ok", "integrity_ok", "signature"]
+    },
+    "media_backup_certificate_objects": {
+      "primaryKey": ["deployment_id", "attempt_seq", "media_pk"],
+      "binds": ["object_version", "sha256", "byte_length"]
+    }
+  }
+}

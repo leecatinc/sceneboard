@@ -95,6 +95,28 @@ export const mediaServiceUnavailable = (): BoardError => ({
   details: { retryAfterSeconds: 1 },
 });
 
+export const mediaRangeNotSatisfiable = (length: number): BoardError => ({
+  protocolVersion: 1,
+  type: 'board.error',
+  code: 'RANGE_NOT_SATISFIABLE',
+  message: 'Range not satisfiable',
+  category: 'validation',
+  retryable: false,
+  httpStatusHint: 416,
+  details: { length },
+});
+
+export const mediaMethodNotAllowed = (): BoardError => ({
+  protocolVersion: 1,
+  type: 'board.error',
+  code: 'METHOD_NOT_ALLOWED',
+  message: 'Method not allowed',
+  category: 'validation',
+  retryable: false,
+  httpStatusHint: 405,
+  details: { allow: 'GET' },
+});
+
 export const mediaRateLimited = (): BoardError => ({
   protocolVersion: 1,
   type: 'board.error',

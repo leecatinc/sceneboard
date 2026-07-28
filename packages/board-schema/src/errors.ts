@@ -405,6 +405,20 @@ const BoardErrorSchemaV2Only = z.discriminatedUnion('code', [
       })
       .strict(),
   ),
+  branch(
+    'RANGE_NOT_SATISFIABLE',
+    'validation',
+    false,
+    416,
+    z.object({ length: z.number().int().safe().positive() }).strict(),
+  ),
+  branch(
+    'METHOD_NOT_ALLOWED',
+    'validation',
+    false,
+    405,
+    z.object({ allow: z.literal('GET') }).strict(),
+  ),
 ]);
 
 export const BoardErrorSchema = z.union([BoardErrorSchemaV1, BoardErrorSchemaV2Only]);

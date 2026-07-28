@@ -26,6 +26,7 @@ import type {
   ResolvedBoardPrincipalV1,
 } from '../grants/board-access.policy.js';
 import { RateLimitService } from '../rate-limit/rate-limit.service.js';
+import { MediaRetentionService } from '../media/media-retention.service.js';
 import {
   shareStateDigest,
   shareView,
@@ -132,6 +133,7 @@ export class SharePublicationService {
     private readonly recovery: ShareTransitionRecoveryService,
     private readonly tokens: ShareTokenService,
     private readonly rateLimits: RateLimitService,
+    private readonly mediaRetention: MediaRetentionService,
   ) {}
 
   async list(input: OwnerContext): Promise<ShareListResultV1> {
@@ -540,6 +542,13 @@ export class SharePublicationService {
         } else {
           throw new ShareContractError('SHARE_STATE_CONFLICT');
         }
+        await this.mediaRetention.applyPublicationTransition(connection, {
+          sharePk: updated.sharePk,
+          oldRevisionPk: current?.pinnedRevisionPk ?? null,
+          newRevisionPk: updated.status === 'active' ? updated.pinnedRevisionPk : null,
+          publicationGeneration: updated.publicationGeneration,
+          recoveryId: plan.recoveryId,
+        });
         const replay =
           plan.operation === 'update'
             ? updateResult!

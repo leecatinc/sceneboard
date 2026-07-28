@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 
 import { BoardPersistenceError } from '../../common/errors/board-persistence.error.js';
+import { MediaRetentionService } from '../../media/media-retention.service.js';
 import { RetentionLockService, type RetentionLeaseV1 } from './retention-lock.service.js';
 
 export type RetentionItemPhaseV1 =
@@ -36,7 +37,10 @@ const transitions: Readonly<
 };
 
 export class RetentionRecoveryService {
-  constructor(private readonly locks = new RetentionLockService()) {}
+  constructor(
+    private readonly locks = new RetentionLockService(),
+    private readonly mediaRetention = new MediaRetentionService(),
+  ) {}
 
   async advance(
     connection: PoolConnection,
@@ -164,6 +168,12 @@ export class RetentionRecoveryService {
       [lease.boardPk, revisionPk],
     );
     if (holds.length > 0) throw new BoardPersistenceError('row_integrity');
+    await this.mediaRetention.reconcileRetentionItem(connection, {
+      boardPk: lease.boardPk,
+      revisionPk,
+      runId: lease.runId,
+      fence: BigInt(lease.fence),
+    });
     await connection.execute<ResultSetHeader>(
       'DELETE FROM board_revision_media_refs WHERE revision_pk = ?',
       [revisionPk],

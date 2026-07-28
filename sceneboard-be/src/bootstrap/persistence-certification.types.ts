@@ -3,6 +3,7 @@ import type { MigrationCertificationStateV1 } from '../database/migrations/certi
 export type MediaWriterCertificationV1 = Readonly<{
   revisionMediaRefsReady: boolean;
   mediaStoreProjectionReady: boolean;
+  mediaRetentionRecoveryReady: boolean;
   mediaNativeDecoderReady: boolean;
   artifactDigests: Readonly<{
     migration: string;

@@ -20,10 +20,12 @@ import {
 import type {
   CanonicalMediaObjectV1,
   CanonicalMediaV1,
+  ExactRevisionMediaRefV1,
   LockedBoardMediaV1,
   MediaIngestFingerprintV1,
   MediaIngestRepositoryInputV1,
   MediaIngestRepositoryResultV1,
+  StrongMediaHoldV1,
 } from './media-repository.types.js';
 
 interface QuotaRow extends RowDataPacket {
@@ -59,6 +61,18 @@ interface IdempotencyRow extends RowDataPacket {
   resultJson: string | Record<string, unknown>;
   resultSha256: Buffer;
   boardMediaPk: string | null;
+}
+
+interface MediaRefRow extends RowDataPacket {
+  boardPk: string;
+  revisionPk: string;
+  mediaId: Buffer;
+}
+
+interface StrongHoldRow extends RowDataPacket {
+  revisionPk: string;
+  kind: StrongMediaHoldV1['kind'];
+  holderId: string;
 }
 
 const parsePk = (value: string): bigint => {
@@ -227,6 +241,24 @@ export class MediaRepository {
     return rows[0] === undefined ? null : this.mapOwnership(rows[0]);
   }
 
+  async findBoardOwnership(
+    connection: PoolConnection,
+    boardPk: bigint,
+    mediaId: MediaId,
+  ): Promise<LockedBoardMediaV1 | null> {
+    const [rows] = await connection.execute<OwnershipRow[]>(
+      `
+      SELECT CAST(board_media_pk AS CHAR) AS boardMediaPk, CAST(board_pk AS CHAR) AS boardPk,
+             CAST(media_pk AS CHAR) AS mediaPk, media_id AS mediaId, status,
+             DATE_FORMAT(lease_expires_at, '%Y-%m-%d %H:%i:%s.%f') AS leaseExpiresAt,
+             CAST(version AS CHAR) AS version
+      FROM board_media WHERE board_pk = ? AND media_id = ?
+    `,
+      [boardPk.toString(), encodeMediaIdForStorage(mediaId)],
+    );
+    return rows[0] === undefined ? null : this.mapOwnership(rows[0]);
+  }
+
   async releaseExpiredOwnership(
     connection: PoolConnection,
     boardMediaPk: bigint,
@@ -235,6 +267,11 @@ export class MediaRepository {
   ): Promise<boolean> {
     const locator = await this.readOwnershipByPk(connection, boardMediaPk, false);
     if (locator === null) return false;
+    const [boards] = await connection.execute<RowDataPacket[]>(
+      'SELECT board_pk FROM boards WHERE board_pk = ? FOR UPDATE',
+      [locator.boardPk.toString()],
+    );
+    if (boards.length !== 1) throw new BoardPersistenceError('row_integrity');
     await this.lockQuota(connection, locator.boardPk);
     const object = await this.getCanonicalObject(connection, locator.mediaPk);
     if (object === null) throw new BoardPersistenceError('row_integrity');
@@ -243,7 +280,7 @@ export class MediaRepository {
       row === null ||
       row.boardPk !== locator.boardPk ||
       row.mediaPk !== locator.mediaPk ||
-      row.status !== 'active' ||
+      (row.status !== 'active' && row.status !== 'quarantined') ||
       row.version !== expectedVersion ||
       row.leaseExpiresAt > dbNow
     )
@@ -260,7 +297,8 @@ export class MediaRepository {
       `
       UPDATE board_media
       SET status = 'released', version = version + 1, updated_at = ?
-      WHERE board_media_pk = ? AND version = ? AND status = 'active' AND lease_expires_at <= ?
+      WHERE board_media_pk = ? AND version = ?
+        AND status IN ('active','quarantined') AND lease_expires_at <= ?
     `,
       [dbNow, boardMediaPk.toString(), expectedVersion.toString(), dbNow],
     );
@@ -281,6 +319,95 @@ export class MediaRepository {
     );
     if (parseUnsigned(rows[0]?.actualBytes ?? '') !== quota.usedBytes)
       throw new BoardPersistenceError('row_integrity');
+  }
+
+  async lockExactRevisionMediaRef(
+    connection: PoolConnection,
+    input: { boardPk: bigint; revisionPk: bigint; mediaId: MediaId },
+  ): Promise<ExactRevisionMediaRefV1 | null> {
+    const [rows] = await connection.execute<MediaRefRow[]>(
+      `
+      SELECT CAST(board_pk AS CHAR) AS boardPk, CAST(revision_pk AS CHAR) AS revisionPk,
+             media_id AS mediaId
+      FROM board_revision_media_refs
+      WHERE board_pk = ? AND revision_pk = ? AND media_id = ?
+      FOR UPDATE
+    `,
+      [
+        input.boardPk.toString(),
+        input.revisionPk.toString(),
+        encodeMediaIdForStorage(input.mediaId),
+      ],
+    );
+    const row = rows[0];
+    if (row === undefined) return null;
+    const mediaId = decodeMediaIdFromStorage(row.mediaId);
+    if (mediaId !== input.mediaId) throw new BoardPersistenceError('row_integrity');
+    return {
+      boardPk: parsePk(row.boardPk),
+      revisionPk: parsePk(row.revisionPk),
+      mediaId,
+    };
+  }
+
+  async lockStrongMediaHolds(
+    connection: PoolConnection,
+    input: { boardPk: bigint; mediaPk: bigint },
+  ): Promise<readonly StrongMediaHoldV1[]> {
+    const [rows] = await connection.execute<StrongHoldRow[]>(
+      `
+      SELECT CAST(h.revision_pk AS CHAR) AS revisionPk, h.kind, h.holder_id AS holderId
+      FROM board_revision_holds h
+      JOIN board_revision_media_refs ref
+        ON ref.board_pk = h.board_pk AND ref.revision_pk = h.revision_pk
+      JOIN board_media bm
+        ON bm.board_pk = ref.board_pk AND bm.media_id = ref.media_id
+      WHERE h.board_pk = ? AND bm.media_pk = ?
+        AND h.released_at IS NULL
+        AND (h.expires_at IS NULL OR h.expires_at > UTC_TIMESTAMP(3))
+      ORDER BY h.revision_pk ASC, h.kind ASC, h.holder_id ASC
+      FOR UPDATE
+    `,
+      [input.boardPk.toString(), input.mediaPk.toString()],
+    );
+    return rows.map((row) =>
+      Object.freeze({
+        revisionPk: parsePk(row.revisionPk),
+        kind: row.kind,
+        holderId: row.holderId,
+      }),
+    );
+  }
+
+  async hasAnyExactMediaRef(connection: PoolConnection, mediaPk: bigint): Promise<boolean> {
+    const [rows] = await connection.execute<RowDataPacket[]>(
+      `
+      SELECT ref.revision_pk
+      FROM board_revision_media_refs ref
+      JOIN board_media bm
+        ON bm.board_pk = ref.board_pk AND bm.media_id = ref.media_id
+      WHERE bm.media_pk = ?
+      ORDER BY ref.revision_pk ASC
+      LIMIT 1
+      FOR UPDATE
+    `,
+      [mediaPk.toString()],
+    );
+    return rows.length !== 0;
+  }
+
+  async countLiveOwnerships(connection: PoolConnection, mediaPk: bigint): Promise<number> {
+    const [rows] = await connection.execute<RowDataPacket[]>(
+      `
+      SELECT board_media_pk
+      FROM board_media
+      WHERE media_pk = ? AND status IN ('active','quarantined')
+      ORDER BY board_media_pk ASC
+      FOR UPDATE
+    `,
+      [mediaPk.toString()],
+    );
+    return rows.length;
   }
 
   private async replay(

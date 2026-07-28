@@ -204,5 +204,12 @@ test('freezes the exact terminal D2/D3/D7/D8/D9 checkpoint order and reversibili
       downAsset: null,
       postcondition: 'd9_media_store_v1',
     },
+    {
+      version: '022_d9_media_retention_recovery',
+      upAsset: '022_d9_media_retention_recovery.up.sql',
+      reversible: false,
+      downAsset: null,
+      postcondition: 'd9_media_retention_recovery_v1',
+    },
   ]);
 });

@@ -13,9 +13,11 @@ import { applyPrivateResponseHeaders } from '../http/response-headers.intercepto
 import { PublicShareHttpError } from '../../shares/public-share.error.js';
 import {
   applyPublicArtifactHeaders,
+  applyPublicMediaHeaders,
   applyPublicProjectionHeaders,
   publicFailureBody,
 } from '../../shares/share-response-policy.js';
+import { applyAccountMediaErrorHeaders } from '../../media/media-response-policy.js';
 
 interface HttpResponse {
   headersSent?: boolean;
@@ -41,6 +43,14 @@ const isPublicArtifactPath = (url: string): boolean =>
   /^\/api\/v1\/public\/shares\/[^/?]+\/revisions\/[^/?]+\/g\/[^/?]+\/[^/?]+\/artifacts\/[^/?]+\/versions\/[^/?]+\/package(?:\?|$)/u.test(
     url,
   );
+
+const isPublicMediaPath = (url: string): boolean =>
+  /^\/api\/v1\/public\/shares\/[^/?]+\/revisions\/[^/?]+\/g\/[^/?]+\/[^/?]+\/media\/[^/?]+(?:\?|$)/u.test(
+    url,
+  );
+
+const isAccountMediaPath = (url: string): boolean =>
+  /^\/api\/v1\/boards\/[^/?]+\/revisions\/[^/?]+\/media\/[^/?]+(?:\?|$)/u.test(url);
 
 const boardInternalError = (): BoardErrorV1 => ({
   protocolVersion: 1,
@@ -156,7 +166,11 @@ export class HttpErrorFilter implements ExceptionFilter {
       return;
     }
 
-    if (isPublicProjectionPath(request.url ?? '') || isPublicArtifactPath(request.url ?? '')) {
+    if (
+      isPublicProjectionPath(request.url ?? '') ||
+      isPublicArtifactPath(request.url ?? '') ||
+      isPublicMediaPath(request.url ?? '')
+    ) {
       const publicError =
         exception instanceof PublicShareHttpError
           ? exception
@@ -169,6 +183,10 @@ export class HttpErrorFilter implements ExceptionFilter {
                 : new PublicShareHttpError(503);
       if (isPublicArtifactPath(request.url ?? ''))
         applyPublicArtifactHeaders(response, publicError.status, publicError.contentRangeLength);
+      else if (isPublicMediaPath(request.url ?? ''))
+        applyPublicMediaHeaders(response, publicError.status, {
+          contentRangeLength: publicError.contentRangeLength,
+        });
       else applyPublicProjectionHeaders(response, publicError.status);
       if (publicError.retryAfterSeconds !== null)
         response.setHeader('Retry-After', String(Math.ceil(publicError.retryAfterSeconds)));
@@ -208,6 +226,8 @@ export class HttpErrorFilter implements ExceptionFilter {
     }
 
     if (exception instanceof BoardContractError) {
+      if (isAccountMediaPath(request.url ?? ''))
+        applyAccountMediaErrorHeaders(response, exception.status);
       const retryAfter = retryAfterSeconds(exception.boardError);
       if (retryAfter !== null)
         response.setHeader('Retry-After', String(Math.max(1, Math.ceil(retryAfter))));

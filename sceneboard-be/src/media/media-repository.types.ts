@@ -57,3 +57,15 @@ export type LockedBoardMediaV1 = Readonly<{
   leaseExpiresAt: string;
   version: bigint;
 }>;
+
+export type ExactRevisionMediaRefV1 = Readonly<{
+  boardPk: bigint;
+  revisionPk: bigint;
+  mediaId: MediaId;
+}>;
+
+export type StrongMediaHoldV1 = Readonly<{
+  revisionPk: bigint;
+  kind: 'published' | 'media' | 'artifact' | 'idempotency' | 'outbox' | 'recovery' | 'restore';
+  holderId: string;
+}>;

@@ -89,7 +89,7 @@ const expectedGroups = new Map([
   ['D6-INSTALLED-SKILL', 42],
   ['D7-ARTIFACT-SEAM', 7],
   ['D8-HITL-SEAM', 6],
-  ['MIGRATION-REGISTRY-ASSETS', 28],
+  ['MIGRATION-REGISTRY-ASSETS', 29],
   ['D2-MIGRATION-RUNNER', 5],
   ['RUNTIME-TOPOLOGY', 3],
   ['DEPENDENCY-EVIDENCE', 11],
@@ -680,7 +680,7 @@ const observeMigrations = async (observedById) => {
   const versions = [...source.matchAll(/\bversion: '([^']+)'/gu)].map((match) => match[1]);
   const upAssets = [...source.matchAll(/\bupAsset: '([^']+)'/gu)].map((match) => match[1]);
   const downAssets = [...source.matchAll(/\bdownAsset: '([^']+)'/gu)].map((match) => match[1]);
-  if (versions.length !== 24 || upAssets.length !== 24 || downAssets.length !== 3)
+  if (versions.length !== 25 || upAssets.length !== 25 || downAssets.length !== 3)
     fail('MIGRATION_REGISTRY_DRIFT');
   const assets = [...observedById.values()].filter(({ resourceId }) =>
     resourceId.startsWith('MIGRATION-ASSET-'),

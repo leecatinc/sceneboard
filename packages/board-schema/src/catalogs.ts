@@ -225,5 +225,7 @@ export const BOARD_ERROR_CODES_V2 = [
   'INVALID_MEDIA_UPLOAD',
   'INVALID_MEDIA_REFERENCE',
   'INVALID_REQUEST',
+  'METHOD_NOT_ALLOWED',
+  'RANGE_NOT_SATISFIABLE',
 ] as const;
 export type BoardErrorCodeV2 = (typeof BOARD_ERROR_CODES_V2)[number];

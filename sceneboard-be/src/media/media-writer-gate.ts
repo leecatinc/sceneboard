@@ -24,6 +24,7 @@ export class MediaWriterGate {
     if (
       !certificate.revisionMediaRefsReady ||
       !certificate.mediaStoreProjectionReady ||
+      !certificate.mediaRetentionRecoveryReady ||
       !certificate.mediaNativeDecoderReady ||
       !exactDigests ||
       !currentBoot
@@ -49,5 +50,9 @@ export class MediaWriterGate {
 
   assertMutationReady(): void {
     if (!this.isReady()) throw new BoardContractError(invalidMediaReference());
+  }
+
+  assertRetentionReady(): void {
+    this.assertUploadReady();
   }
 }

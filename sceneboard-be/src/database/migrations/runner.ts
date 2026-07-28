@@ -655,6 +655,10 @@ export class MigrationRunner {
       await this.verifyMediaStoreSchema(connection);
       return;
     }
+    if (postcondition === 'd9_media_retention_recovery_v1') {
+      await this.verifyMediaRetentionRecoverySchema(connection);
+      return;
+    }
     const postconditions: Readonly<Record<string, readonly string[]>> = {
       d2_identity_sessions_audit_v1: ['users', 'auth_sessions', 'security_audit_events'],
       d3_boards_v1: ['boards'],
@@ -1196,6 +1200,129 @@ export class MigrationRunner {
       checks.some(({ constraintName }) => !expectedChecks.has(constraintName))
     )
       throw new MigrationStateError('media store check projection mismatch');
+  }
+
+  private async verifyMediaRetentionRecoverySchema(connection: PoolConnection): Promise<void> {
+    const tableNames = [
+      'media_cleanup_runs',
+      'media_cleanup_items',
+      'media_backup_certificates',
+      'media_backup_certificate_objects',
+    ] as const;
+    const placeholders = tableNames.map(() => '?').join(', ');
+    const [tables] = await connection.query<Array<RowDataPacket & { tableName: string }>>(
+      `SELECT table_name AS tableName
+       FROM information_schema.tables
+       WHERE table_schema = DATABASE() AND table_name IN (${placeholders})`,
+      tableNames,
+    );
+    if (
+      tables.length !== tableNames.length ||
+      new Set(tables.map(({ tableName }) => tableName)).size !== tableNames.length
+    )
+      throw new MigrationStateError('media retention table projection mismatch');
+
+    const [columns] = await connection.query<
+      Array<RowDataPacket & { tableName: string; columnName: string }>
+    >(
+      `SELECT table_name AS tableName, column_name AS columnName
+       FROM information_schema.columns
+       WHERE table_schema = DATABASE() AND table_name IN (${placeholders})`,
+      tableNames,
+    );
+    const requiredColumns = new Set([
+      'media_cleanup_runs:run_id',
+      'media_cleanup_runs:fence',
+      'media_cleanup_runs:lease_expires_at',
+      'media_cleanup_items:phase',
+      'media_cleanup_items:delete_after',
+      'media_cleanup_items:completion_evidence_sha256',
+      'media_backup_certificates:media_manifest_sha256',
+      'media_backup_certificates:signature',
+      'media_backup_certificate_objects:object_version',
+      'media_backup_certificate_objects:sha256',
+      'media_backup_certificate_objects:byte_length',
+    ]);
+    const actualColumns = new Set(
+      columns.map(({ tableName, columnName }) => `${tableName}:${columnName}`),
+    );
+    if ([...requiredColumns].some((column) => !actualColumns.has(column)))
+      throw new MigrationStateError('media retention column projection mismatch');
+
+    const [indexes] = await connection.query<
+      Array<RowDataPacket & { tableName: string; indexName: string }>
+    >(
+      `SELECT DISTINCT table_name AS tableName, index_name AS indexName
+       FROM information_schema.statistics
+       WHERE table_schema = DATABASE() AND table_name IN (${placeholders})`,
+      tableNames,
+    );
+    const requiredIndexes = new Set([
+      'media_cleanup_runs:PRIMARY',
+      'media_cleanup_runs:ix_media_cleanup_runs_lease',
+      'media_cleanup_items:PRIMARY',
+      'media_cleanup_items:uq_media_cleanup_item_ownership',
+      'media_cleanup_items:ix_media_cleanup_items_phase',
+      'media_cleanup_items:ix_media_cleanup_items_object',
+      'media_backup_certificates:PRIMARY',
+      'media_backup_certificates:ix_media_backup_certificates_expiry',
+      'media_backup_certificate_objects:PRIMARY',
+      'media_backup_certificate_objects:ix_media_backup_certificate_objects_media',
+    ]);
+    const actualIndexes = new Set(
+      indexes.map(({ tableName, indexName }) => `${tableName}:${indexName}`),
+    );
+    if ([...requiredIndexes].some((index) => !actualIndexes.has(index)))
+      throw new MigrationStateError('media retention index projection mismatch');
+
+    const [foreignKeys] = await connection.query<
+      Array<RowDataPacket & { constraintName: string; deleteRule: string; updateRule: string }>
+    >(
+      `SELECT constraint_name AS constraintName, delete_rule AS deleteRule,
+              update_rule AS updateRule
+       FROM information_schema.referential_constraints
+       WHERE constraint_schema = DATABASE() AND table_name IN (${placeholders})`,
+      tableNames,
+    );
+    const expectedForeignKeys = new Set([
+      'fk_media_cleanup_items_run',
+      'fk_media_cleanup_items_board',
+      'fk_media_backup_certificate_objects_certificate',
+    ]);
+    if (
+      foreignKeys.length !== expectedForeignKeys.size ||
+      foreignKeys.some(
+        ({ constraintName, deleteRule, updateRule }) =>
+          !expectedForeignKeys.has(constraintName) ||
+          deleteRule !== 'RESTRICT' ||
+          updateRule !== 'RESTRICT',
+      )
+    )
+      throw new MigrationStateError('media retention foreign-key projection mismatch');
+
+    const [checks] = await connection.query<Array<RowDataPacket & { constraintName: string }>>(
+      `SELECT constraint_name AS constraintName
+       FROM information_schema.table_constraints
+       WHERE table_schema = DATABASE()
+         AND table_name IN (${placeholders})
+         AND constraint_type = 'CHECK'`,
+      tableNames,
+    );
+    const requiredChecks = new Set([
+      'chk_media_cleanup_runs_fence',
+      'chk_media_cleanup_runs_attempts',
+      'chk_media_cleanup_items_deadline',
+      'chk_media_cleanup_items_backup',
+      'chk_media_backup_certificate_outcomes',
+      'chk_media_backup_certificate_object_bytes',
+    ]);
+    if (
+      checks.length < requiredChecks.size ||
+      [...requiredChecks].some(
+        (name) => !checks.some(({ constraintName }) => constraintName === name),
+      )
+    )
+      throw new MigrationStateError('media retention check projection mismatch');
   }
 
   private async verifySharePasswordSchema(connection: PoolConnection): Promise<void> {

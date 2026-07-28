@@ -13,6 +13,11 @@ import { RateLimitService } from '../rate-limit/rate-limit.service.js';
 import { RedisService } from '../redis/redis.service.js';
 import { DocumentCheckpointCodec } from '../revisions/document-checkpoint.codec.js';
 import { RevisionMediaReferenceExtractor } from '../media/revision-media-reference.extractor.js';
+import { PublicMediaDeliveryController } from '../media/media-delivery.controller.js';
+import { PublicMediaDeliveryService } from '../media/media-delivery.service.js';
+import { MediaModule } from '../media/media.module.js';
+import { MediaRepository } from '../media/media.repository.js';
+import { MediaRetentionService } from '../media/media-retention.service.js';
 import { APP_ENVIRONMENT, type AppEnvironment } from '../config/env.schema.js';
 import { PasswordAttemptService } from './password-attempt.service.js';
 import { PasswordHashService } from './password-hash.service.js';
@@ -43,12 +48,13 @@ import { PublicShareController } from './public-share.controller.js';
 import { PublicArtifactController } from './public-artifact.controller.js';
 
 @Module({
-  imports: [DatabaseModule, GrantModule, RateLimitModule, ArtifactsModule],
+  imports: [DatabaseModule, GrantModule, RateLimitModule, ArtifactsModule, MediaModule],
   controllers: [
     ShareController,
     PasswordShareController,
     PublicShareController,
     PublicArtifactController,
+    PublicMediaDeliveryController,
   ],
   providers: [
     DocumentCheckpointCodec,
@@ -220,6 +226,12 @@ import { PublicArtifactController } from './public-artifact.controller.js';
         new PublicArtifactDeliveryService(entitlements, artifacts),
     },
     {
+      provide: PublicMediaDeliveryService,
+      inject: [PublicResourceEntitlementService, MediaRepository],
+      useFactory: (entitlements: PublicResourceEntitlementService, media: MediaRepository) =>
+        new PublicMediaDeliveryService(entitlements, media),
+    },
+    {
       provide: ShareArchiveService,
       inject: [ShareRepository, ShareTransitionRecoveryService],
       useFactory: (shares: ShareRepository, recovery: ShareTransitionRecoveryService) =>
@@ -233,6 +245,7 @@ import { PublicArtifactController } from './public-artifact.controller.js';
         ShareTransitionRecoveryService,
         ShareTokenService,
         RateLimitService,
+        MediaRetentionService,
       ],
       useFactory: (
         accessPolicy: MysqlBoardAccessPolicy,
@@ -240,7 +253,16 @@ import { PublicArtifactController } from './public-artifact.controller.js';
         recovery: ShareTransitionRecoveryService,
         tokens: ShareTokenService,
         rateLimits: RateLimitService,
-      ) => new SharePublicationService(accessPolicy, shares, recovery, tokens, rateLimits),
+        mediaRetention: MediaRetentionService,
+      ) =>
+        new SharePublicationService(
+          accessPolicy,
+          shares,
+          recovery,
+          tokens,
+          rateLimits,
+          mediaRetention,
+        ),
     },
     {
       provide: PasswordShareService,

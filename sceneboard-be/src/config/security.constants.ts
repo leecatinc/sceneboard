@@ -16,6 +16,7 @@ export const SECURITY_PURPOSES = [
   'audit-ip/v1',
   'audit-user-agent/v1',
   'audit-installation/v1',
+  'audit-media-backup-certificate/v1',
   'email-verification-code/v1',
   'email-verification-ticket/v1',
   'board-invitation-token/v1',

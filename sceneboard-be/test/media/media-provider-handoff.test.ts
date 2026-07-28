@@ -18,6 +18,7 @@ test('one exact current-boot certificate enables upload and media mutation toget
     gate.enable({
       revisionMediaRefsReady: true,
       mediaStoreProjectionReady: true,
+      mediaRetentionRecoveryReady: true,
       mediaNativeDecoderReady: true,
       artifactDigests: digests,
       checkedAt: '2026-07-28T00:00:01.000Z',
@@ -36,6 +37,7 @@ test('stale or partial evidence performs no absent-table ownership query', async
   gate.enable({
     revisionMediaRefsReady: true,
     mediaStoreProjectionReady: true,
+    mediaRetentionRecoveryReady: true,
     mediaNativeDecoderReady: false,
     artifactDigests: digests,
     checkedAt: '2026-07-28T00:00:01.000Z',

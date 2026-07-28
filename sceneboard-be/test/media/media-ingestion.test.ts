@@ -19,6 +19,7 @@ const readyGate = (): MediaWriterGate => {
   gate.enable({
     revisionMediaRefsReady: true,
     mediaStoreProjectionReady: true,
+    mediaRetentionRecoveryReady: true,
     mediaNativeDecoderReady: true,
     artifactDigests: digests,
     checkedAt: '2026-07-28T00:00:01.000Z',

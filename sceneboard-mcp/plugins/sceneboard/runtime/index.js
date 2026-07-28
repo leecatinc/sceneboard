@@ -25036,7 +25036,9 @@ var BOARD_ERROR_CODES_V2 = [
   "INVALID_DOCUMENT",
   "INVALID_MEDIA_UPLOAD",
   "INVALID_MEDIA_REFERENCE",
-  "INVALID_REQUEST"
+  "INVALID_REQUEST",
+  "METHOD_NOT_ALLOWED",
+  "RANGE_NOT_SATISFIABLE"
 ];
 
 // packages/board-schema/src/limits.ts
@@ -27510,6 +27512,20 @@ var BoardErrorSchemaV2Only = z.discriminatedUnion("code", [
         "quota"
       ])
     }).strict()
+  ),
+  branch(
+    "RANGE_NOT_SATISFIABLE",
+    "validation",
+    false,
+    416,
+    z.object({ length: z.number().int().safe().positive() }).strict()
+  ),
+  branch(
+    "METHOD_NOT_ALLOWED",
+    "validation",
+    false,
+    405,
+    z.object({ allow: z.literal("GET") }).strict()
   )
 ]);
 var BoardErrorSchema = z.union([BoardErrorSchemaV1, BoardErrorSchemaV2Only]);

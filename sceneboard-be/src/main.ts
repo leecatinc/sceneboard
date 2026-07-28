@@ -34,6 +34,7 @@ export const bootstrap = async (): Promise<void> => {
     createMediaWriterCertification({
       revisionMediaRefsReady: currentSchema,
       mediaStoreProjectionReady: currentSchema,
+      mediaRetentionRecoveryReady: currentSchema,
       mediaNativeDecoderReady: nativeEvidence?.ready === true,
       artifactDigests:
         nativeEvidence?.artifactDigests ??
