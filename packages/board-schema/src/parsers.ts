@@ -50,6 +50,22 @@ import {
   MemberCandidateListSchemaV1,
   MemberCandidateSchemaV1,
 } from './invitations.js';
+import {
+  ShareErrorEnvelopeSchemaV1,
+  ShareErrorSchemaV1,
+  ShareFingerprintInputSchemaV1,
+  ShareIdempotencyKeySchemaV1,
+  ShareLinkTokenSchemaV1,
+  ShareListResultSchemaV1,
+  ShareManagementViewSchemaV1,
+  SharePublishRequestSchemaV1,
+  SharePublishSuccessSchemaV1,
+  ShareRotateSuccessSchemaV1,
+  ShareSecretReplayResultSchemaV1,
+  ShareUpdateRequestSchemaV1,
+  ShareUpdateSuccessSchemaV1,
+  ShareVersionRequestSchemaV1,
+} from './shares.js';
 import { RetainedHistoryMetadataSchemaV1 } from './history.js';
 import { BoardAuthorizationPrincipalSchemaV1, BoardMembershipSchemaV1 } from './memberships.js';
 import type { JsonValue } from './json.js';
@@ -736,6 +752,20 @@ export const BoardInvitationParserV1 = createParserV1(BoardInvitationSchemaV1);
 export const BoardInvitationEnvelopeParserV1 = createParserV1(BoardInvitationEnvelopeSchemaV1);
 export const InvitationAcceptanceParserV1 = createParserV1(InvitationAcceptanceSchemaV1);
 export const ManagedMembershipEnvelopeParserV1 = createParserV1(ManagedMembershipEnvelopeSchemaV1);
+export const ShareManagementViewParserV1 = createParserV1(ShareManagementViewSchemaV1);
+export const ShareListResultParserV1 = createParserV1(ShareListResultSchemaV1);
+export const SharePublishRequestParserV1 = createParserV1(SharePublishRequestSchemaV1);
+export const ShareUpdateRequestParserV1 = createParserV1(ShareUpdateRequestSchemaV1);
+export const ShareVersionRequestParserV1 = createParserV1(ShareVersionRequestSchemaV1);
+export const SharePublishSuccessParserV1 = createParserV1(SharePublishSuccessSchemaV1);
+export const ShareRotateSuccessParserV1 = createParserV1(ShareRotateSuccessSchemaV1);
+export const ShareUpdateSuccessParserV1 = createParserV1(ShareUpdateSuccessSchemaV1);
+export const ShareSecretReplayResultParserV1 = createParserV1(ShareSecretReplayResultSchemaV1);
+export const ShareErrorParserV1 = createParserV1(ShareErrorSchemaV1);
+export const ShareErrorEnvelopeParserV1 = createParserV1(ShareErrorEnvelopeSchemaV1);
+export const ShareFingerprintInputParserV1 = createParserV1(ShareFingerprintInputSchemaV1);
+export const ShareIdempotencyKeyParserV1 = createParserV1(ShareIdempotencyKeySchemaV1);
+export const ShareLinkTokenParserV1 = createParserV1(ShareLinkTokenSchemaV1);
 export const BoardAuthorizationPrincipalParserV1 = createParserV1(
   BoardAuthorizationPrincipalSchemaV1,
 );

@@ -15,6 +15,8 @@ import { MembershipsModule } from '../memberships/memberships.module.js';
 import { DocumentCheckpointCodec } from '../revisions/document-checkpoint.codec.js';
 import { BoardMutationService } from '../revisions/board-mutation.service.js';
 import { SnapshotCompositionService } from '../revisions/snapshot-composition.service.js';
+import { ShareArchiveService } from '../shares/share-archive.service.js';
+import { ShareModule } from '../shares/share.module.js';
 import { CurrentArtifactRuntimeSummaryPort } from '../snapshots/ports/current-artifact-runtime-summary.port.js';
 import { CurrentHitlSummaryPort } from '../snapshots/ports/current-hitl-summary.port.js';
 import { BoardCreateService } from './board-create.service.js';
@@ -27,7 +29,7 @@ import { BoardRenameService } from './board-rename.service.js';
 import { BoardController } from './board.controller.js';
 
 @Module({
-  imports: [GrantModule, MembershipsModule, ArtifactsModule, InteractionsModule],
+  imports: [GrantModule, MembershipsModule, ArtifactsModule, InteractionsModule, ShareModule],
   controllers: [BoardController],
   providers: [
     DocumentCheckpointCodec,
@@ -73,8 +75,9 @@ import { BoardController } from './board.controller.js';
     },
     {
       provide: BoardArchiveService,
-      inject: [MysqlBoardAccessPolicy],
-      useFactory: (accessPolicy: MysqlBoardAccessPolicy) => new BoardArchiveService(accessPolicy),
+      inject: [MysqlBoardAccessPolicy, ShareArchiveService],
+      useFactory: (accessPolicy: MysqlBoardAccessPolicy, shares: ShareArchiveService) =>
+        new BoardArchiveService(accessPolicy, {}, shares),
     },
     {
       provide: BoardCapabilitiesService,

@@ -26,6 +26,7 @@ import type {
   BoardAccessPolicy,
   ResolvedBoardPrincipalV1,
 } from '../grants/board-access.policy.js';
+import type { ShareArchiveService } from '../shares/share-archive.service.js';
 
 export type BoardArchiveRequestV1 = Extract<
   BoardLifecycleIdempotencyEnvelopeV1['request'],
@@ -165,6 +166,7 @@ export class BoardArchiveService {
   constructor(
     private readonly accessPolicy: BoardAccessPolicy,
     runtime: Partial<ArchiveRuntime> = {},
+    private readonly shares: ShareArchiveService | null = null,
   ) {
     this.runtime = {
       now: runtime.now ?? (() => new Date()),
@@ -175,6 +177,10 @@ export class BoardArchiveService {
   async archive(input: {
     principal: ResolvedBoardPrincipalV1;
     request: BoardArchiveRequestV1;
+    auditIdentity?: {
+      userPublicId: string | null;
+      sessionPublicId: string | null;
+    };
   }): Promise<BoardOperationResultV1> {
     let prepared = this.prepare(input);
     for (let collisionCount = 0; collisionCount <= 3; collisionCount += 1) {
@@ -187,7 +193,13 @@ export class BoardArchiveService {
             isolation: 'READ_COMMITTED_WRITE',
           },
           async (connection, context) =>
-            this.applyNewOrReplay(connection, context, input.request, prepared),
+            this.applyNewOrReplay(
+              connection,
+              context,
+              input.request,
+              prepared,
+              input.auditIdentity ?? { userPublicId: null, sessionPublicId: null },
+            ),
         );
       } catch (error) {
         if (!(error instanceof ArchiveRecordCollisionError)) throw error;
@@ -235,6 +247,10 @@ export class BoardArchiveService {
     context: AuthorizedBoardContextV1,
     request: BoardArchiveRequestV1,
     prepared: PreparedArchiveV1,
+    auditIdentity: {
+      userPublicId: string | null;
+      sessionPublicId: string | null;
+    },
   ): Promise<BoardOperationResultV1> {
     const [pending] = await connection.execute<ResultSetHeader>(
       `
@@ -270,6 +286,14 @@ export class BoardArchiveService {
     const head = await this.lockHead(connection, request.boardId);
     if (head.archivedAt !== null)
       throw archivedFailure(request.boardId, timestamp(head.archivedAt));
+    await this.shares?.archiveWithinBoardTransaction(connection, {
+      context,
+      boardPk: BigInt(head.boardPk),
+      fingerprintSha256: prepared.fingerprintSha256,
+      nowSql: prepared.occurredAtSql,
+      userPublicId: auditIdentity.userPublicId,
+      sessionPublicId: auditIdentity.sessionPublicId,
+    });
     const [archive] = await connection.execute<ResultSetHeader>(
       `
       UPDATE boards

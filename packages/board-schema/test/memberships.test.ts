@@ -50,6 +50,20 @@ test('owner, editor, and viewer decisions are exhaustive and least-privilege', (
     editor: false,
     viewer: false,
   });
+  for (const operation of [
+    'share.list',
+    'share.publish',
+    'share.update',
+    'share.rotate',
+    'share.revoke',
+  ] as const) {
+    assert.deepEqual(byOperation.get(operation)?.roles, {
+      owner: true,
+      editor: false,
+      viewer: false,
+    });
+    assert.deepEqual(byOperation.get(operation)?.requiredCapabilities, ['board.share.manage']);
+  }
   assert.equal(byOperation.get('artifact.get')?.viewerResourceScope, 'current_head');
   assert.equal(byOperation.get('hitl.read')?.viewerResourceScope, 'current_head');
   assert.equal(byOperation.has('unknown.operation' as never), false);

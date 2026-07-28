@@ -101,6 +101,7 @@ export const BOARD_OPERATION_AUTHORIZATION_MATRIX_V1 = Object.freeze([
   policy('membership.role.update', ['browser'], ['board.members.manage'], owners, 'I-28'),
   policy('membership.remove', ['browser'], ['board.members.manage'], owners, 'I-28'),
   policy('ownership.transfer', ['browser'], ['board.members.manage'], owners, 'I-28'),
+  policy('share.list', ['browser'], ['board.share.manage'], owners, 'I-29'),
   policy('share.publish', ['browser'], ['board.share.manage'], owners, 'I-29'),
   policy('share.update', ['browser'], ['board.share.manage'], owners, 'I-29'),
   policy('share.rotate', ['browser'], ['board.share.manage'], owners, 'I-29'),

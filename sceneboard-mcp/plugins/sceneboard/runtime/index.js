@@ -24955,6 +24955,7 @@ var BOARD_AUTHORIZATION_OPERATION_TYPES_V1 = [
   "membership.role.update",
   "membership.remove",
   "ownership.transfer",
+  "share.list",
   "share.publish",
   "share.update",
   "share.rotate",
@@ -24962,6 +24963,23 @@ var BOARD_AUTHORIZATION_OPERATION_TYPES_V1 = [
   "share.password.regenerate",
   "media.upload",
   "analytics.report.get"
+];
+var SHARE_STATUSES_V1 = ["active", "revoked", "archived"];
+var SHARE_ACCESS_POLICIES_V1 = ["L", "P"];
+var SHARE_MANAGEMENT_OPERATION_TYPES_V1 = [
+  "create",
+  "republish",
+  "update",
+  "rotate",
+  "revoke"
+];
+var SHARE_ERROR_CODES_V1 = [
+  "INVALID_REQUEST",
+  "BOARD_NOT_FOUND",
+  "SHARE_STATE_CONFLICT",
+  "SHARE_GENERATION_EXHAUSTED",
+  "IDEMPOTENCY_KEY_REUSED",
+  "RATE_LIMITED"
 ];
 var BOARD_AUTHORIZATION_SURFACES_V1 = ["browser", "mcp"];
 var BOARD_MEMBERSHIP_ROLES_V1 = ["owner", "editor", "viewer"];
@@ -25206,6 +25224,63 @@ var BoardAuthorizationPrincipalSchemaV1 = z.discriminatedUnion("kind", [
     shareId: GlobalIdStringSchemaV1
   }).strict()
 ]);
+
+// packages/board-schema/src/shares.ts
+var ShareStatusSchemaV1 = z.enum(SHARE_STATUSES_V1);
+var ShareAccessPolicySchemaV1 = z.enum(SHARE_ACCESS_POLICIES_V1);
+var ShareManagementOperationSchemaV1 = z.enum(SHARE_MANAGEMENT_OPERATION_TYPES_V1);
+var ShareIdempotencyKeySchemaV1 = z.string().min(16).max(128).regex(/^[\x20-\x7e]+$/u);
+var ShareLinkTokenSchemaV1 = z.string().regex(/^[A-Za-z0-9_-]{43}$/u);
+var ShareManagementViewSchemaV1 = z.object({
+  shareId: GlobalIdStringSchemaV1,
+  status: ShareStatusSchemaV1,
+  accessPolicy: ShareAccessPolicySchemaV1,
+  pinnedRevisionId: RevisionIdSchemaV1,
+  publicationGeneration: z.number().int().safe().positive(),
+  accessGeneration: z.number().int().safe().positive(),
+  version: z.number().int().safe().positive(),
+  createdAt: TimestampSchemaV1,
+  updatedAt: TimestampSchemaV1
+}).strict();
+var ShareListResultSchemaV1 = z.object({ shares: z.array(ShareManagementViewSchemaV1).max(1) }).strict();
+var SharePublishRequestSchemaV1 = z.object({ pinnedRevisionId: RevisionIdSchemaV1 }).strict();
+var ShareUpdateRequestSchemaV1 = z.object({
+  pinnedRevisionId: RevisionIdSchemaV1,
+  expectedVersion: z.number().int().safe().positive()
+}).strict();
+var ShareVersionRequestSchemaV1 = z.object({ expectedVersion: z.number().int().safe().positive() }).strict();
+var ShareFingerprintInputSchemaV1 = z.object({
+  operation: ShareManagementOperationSchemaV1,
+  shareId: GlobalIdStringSchemaV1.nullable(),
+  expectedVersion: z.number().int().safe().positive().nullable(),
+  pinnedRevisionId: RevisionIdSchemaV1.nullable()
+}).strict();
+var ShareSecretReplayResultSchemaV1 = z.object({
+  status: z.enum(["already-created", "already-republished", "already-rotated"]),
+  shareId: GlobalIdStringSchemaV1,
+  copySecretAvailable: z.literal(false),
+  rotateRequired: z.literal(true)
+}).strict();
+var SharePublishSuccessSchemaV1 = z.object({
+  status: z.enum(["created", "republished"]),
+  share: ShareManagementViewSchemaV1,
+  linkToken: ShareLinkTokenSchemaV1
+}).strict();
+var ShareRotateSuccessSchemaV1 = z.object({
+  status: z.literal("rotated"),
+  share: ShareManagementViewSchemaV1,
+  linkToken: ShareLinkTokenSchemaV1
+}).strict();
+var ShareUpdateSuccessSchemaV1 = z.object({
+  status: z.enum(["updated", "unchanged"]),
+  share: ShareManagementViewSchemaV1
+}).strict();
+var ShareErrorSchemaV1 = z.object({
+  code: z.enum(SHARE_ERROR_CODES_V1),
+  message: z.string().min(1).max(256),
+  requestId: GlobalIdStringSchemaV1
+}).strict();
+var ShareErrorEnvelopeSchemaV1 = z.object({ error: ShareErrorSchemaV1 }).strict();
 
 // packages/board-schema/src/invitations.ts
 var InvitationRoleSchemaV1 = z.enum(["editor", "viewer"]);
@@ -26513,6 +26588,7 @@ var BOARD_OPERATION_AUTHORIZATION_MATRIX_V1 = Object.freeze([
   policy("membership.role.update", ["browser"], ["board.members.manage"], owners, "I-28"),
   policy("membership.remove", ["browser"], ["board.members.manage"], owners, "I-28"),
   policy("ownership.transfer", ["browser"], ["board.members.manage"], owners, "I-28"),
+  policy("share.list", ["browser"], ["board.share.manage"], owners, "I-29"),
   policy("share.publish", ["browser"], ["board.share.manage"], owners, "I-29"),
   policy("share.update", ["browser"], ["board.share.manage"], owners, "I-29"),
   policy("share.rotate", ["browser"], ["board.share.manage"], owners, "I-29"),
@@ -28029,6 +28105,20 @@ var BoardInvitationParserV1 = createParserV1(BoardInvitationSchemaV1);
 var BoardInvitationEnvelopeParserV1 = createParserV1(BoardInvitationEnvelopeSchemaV1);
 var InvitationAcceptanceParserV1 = createParserV1(InvitationAcceptanceSchemaV1);
 var ManagedMembershipEnvelopeParserV1 = createParserV1(ManagedMembershipEnvelopeSchemaV1);
+var ShareManagementViewParserV1 = createParserV1(ShareManagementViewSchemaV1);
+var ShareListResultParserV1 = createParserV1(ShareListResultSchemaV1);
+var SharePublishRequestParserV1 = createParserV1(SharePublishRequestSchemaV1);
+var ShareUpdateRequestParserV1 = createParserV1(ShareUpdateRequestSchemaV1);
+var ShareVersionRequestParserV1 = createParserV1(ShareVersionRequestSchemaV1);
+var SharePublishSuccessParserV1 = createParserV1(SharePublishSuccessSchemaV1);
+var ShareRotateSuccessParserV1 = createParserV1(ShareRotateSuccessSchemaV1);
+var ShareUpdateSuccessParserV1 = createParserV1(ShareUpdateSuccessSchemaV1);
+var ShareSecretReplayResultParserV1 = createParserV1(ShareSecretReplayResultSchemaV1);
+var ShareErrorParserV1 = createParserV1(ShareErrorSchemaV1);
+var ShareErrorEnvelopeParserV1 = createParserV1(ShareErrorEnvelopeSchemaV1);
+var ShareFingerprintInputParserV1 = createParserV1(ShareFingerprintInputSchemaV1);
+var ShareIdempotencyKeyParserV1 = createParserV1(ShareIdempotencyKeySchemaV1);
+var ShareLinkTokenParserV1 = createParserV1(ShareLinkTokenSchemaV1);
 var BoardAuthorizationPrincipalParserV1 = createParserV1(
   BoardAuthorizationPrincipalSchemaV1
 );

@@ -1,4 +1,5 @@
 import type { BoardError, BoardErrorV1 } from '@sceneboard/board-schema';
+import type { ShareErrorCodeV1 } from '@sceneboard/board-schema';
 
 export const D2_ERROR_CATALOG = {
   INVALID_PAYLOAD: { status: 400, message: 'Invalid payload' },
@@ -77,6 +78,38 @@ export class BoardContractError extends Error {
     this.name = 'BoardContractError';
     this.boardError = boardError;
     this.status = boardError.httpStatusHint;
+  }
+}
+
+const SHARE_ERROR_STATUS: Readonly<Record<ShareErrorCodeV1, number>> = {
+  INVALID_REQUEST: 400,
+  BOARD_NOT_FOUND: 404,
+  SHARE_STATE_CONFLICT: 409,
+  SHARE_GENERATION_EXHAUSTED: 409,
+  IDEMPOTENCY_KEY_REUSED: 409,
+  RATE_LIMITED: 429,
+};
+
+const SHARE_ERROR_MESSAGE: Readonly<Record<ShareErrorCodeV1, string>> = {
+  INVALID_REQUEST: 'Invalid share request',
+  BOARD_NOT_FOUND: 'Board was not found',
+  SHARE_STATE_CONFLICT: 'Share state does not allow this operation',
+  SHARE_GENERATION_EXHAUSTED: 'Share generation is exhausted',
+  IDEMPOTENCY_KEY_REUSED: 'Idempotency key was reused',
+  RATE_LIMITED: 'Too many requests',
+};
+
+export class ShareContractError extends Error {
+  readonly code: ShareErrorCodeV1;
+  readonly status: number;
+  readonly retryAfterSeconds: number | null;
+
+  constructor(code: ShareErrorCodeV1, retryAfterSeconds: number | null = null) {
+    super(SHARE_ERROR_MESSAGE[code]);
+    this.name = 'ShareContractError';
+    this.code = code;
+    this.status = SHARE_ERROR_STATUS[code];
+    this.retryAfterSeconds = retryAfterSeconds;
   }
 }
 

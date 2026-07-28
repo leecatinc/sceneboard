@@ -31,6 +31,7 @@ import { PresenceModule } from './presence/presence.module.js';
 import { McpModule } from './mcp/mcp.module.js';
 import { PersistenceCertificationModule } from './bootstrap/persistence-certification.module.js';
 import { InvitationModule } from './invitations/invitation.module.js';
+import { ShareModule } from './shares/share.module.js';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { InvitationModule } from './invitations/invitation.module.js';
     McpModule,
     SseModule,
     InvitationModule,
+    ShareModule,
   ],
   providers: [
     StrictJsonBodyMiddleware,

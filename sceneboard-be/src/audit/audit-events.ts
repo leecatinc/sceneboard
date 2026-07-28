@@ -48,6 +48,13 @@ export const AuditEventCatalog = {
   'invitation.accepted': 45,
   'membership.role.updated': 46,
   'membership.removed': 47,
+  'share.created': 48,
+  'share.republished': 49,
+  'share.pin.updated': 50,
+  'share.update.noop': 51,
+  'share.link.rotated': 52,
+  'share.revoked': 53,
+  'share.archived': 54,
 } as const;
 
 export type AuditEventName = keyof typeof AuditEventCatalog;
@@ -249,6 +256,55 @@ const MetadataAllowlists: Readonly<Record<AuditEventName, ReadonlySet<string>>> 
   'invitation.accepted': new Set(['boardPk', 'invitationPk', 'role', 'replayed']),
   'membership.role.updated': new Set(['boardPk', 'membershipPk', 'role', 'capabilityEpoch']),
   'membership.removed': new Set(['boardPk', 'membershipPk', 'capabilityEpoch']),
+  'share.created': new Set([
+    'boardPk',
+    'sharePk',
+    'publicationGeneration',
+    'accessGeneration',
+    'recoveryId',
+  ]),
+  'share.republished': new Set([
+    'boardPk',
+    'sharePk',
+    'publicationGeneration',
+    'accessGeneration',
+    'recoveryId',
+  ]),
+  'share.pin.updated': new Set([
+    'boardPk',
+    'sharePk',
+    'publicationGeneration',
+    'accessGeneration',
+    'recoveryId',
+  ]),
+  'share.update.noop': new Set([
+    'boardPk',
+    'sharePk',
+    'publicationGeneration',
+    'accessGeneration',
+    'recoveryId',
+  ]),
+  'share.link.rotated': new Set([
+    'boardPk',
+    'sharePk',
+    'publicationGeneration',
+    'accessGeneration',
+    'recoveryId',
+  ]),
+  'share.revoked': new Set([
+    'boardPk',
+    'sharePk',
+    'publicationGeneration',
+    'accessGeneration',
+    'recoveryId',
+  ]),
+  'share.archived': new Set([
+    'boardPk',
+    'sharePk',
+    'publicationGeneration',
+    'accessGeneration',
+    'recoveryId',
+  ]),
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

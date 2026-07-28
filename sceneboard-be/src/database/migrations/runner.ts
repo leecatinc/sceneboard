@@ -639,6 +639,10 @@ export class MigrationRunner {
       await this.verifyInvitationSchema(connection);
       return;
     }
+    if (postcondition === 'd9_board_shares_v1') {
+      await this.verifyShareSchema(connection);
+      return;
+    }
     const postconditions: Readonly<Record<string, readonly string[]>> = {
       d2_identity_sessions_audit_v1: ['users', 'auth_sessions', 'security_audit_events'],
       d3_boards_v1: ['boards'],
@@ -674,6 +678,12 @@ export class MigrationRunner {
       ],
       d9_board_memberships_v1: ['board_memberships'],
       d9_board_invitations_v1: ['board_invitations'],
+      d9_board_shares_v1: [
+        'board_shares',
+        'share_transition_recovery',
+        'share_transition_recovery_items',
+        'share_request_idempotency',
+      ],
     };
     const expectedTables = postconditions[postcondition] ?? null;
     if (expectedTables === null)
@@ -790,6 +800,95 @@ export class MigrationRunner {
       [...expected].some(([name, value]) => actual.get(name) !== value)
     ) {
       throw new MigrationStateError('board invitation index projection mismatch');
+    }
+  }
+
+  private async verifyShareSchema(connection: PoolConnection): Promise<void> {
+    const expectedTables = [
+      'board_shares',
+      'share_transition_recovery',
+      'share_transition_recovery_items',
+      'share_request_idempotency',
+    ] as const;
+    const [tables] = await connection.query<Array<RowDataPacket & { tableName: string }>>(
+      `SELECT table_name AS tableName
+       FROM information_schema.tables
+       WHERE table_schema = DATABASE()
+         AND table_name IN (${expectedTables.map(() => '?').join(', ')})`,
+      expectedTables,
+    );
+    if (new Set(tables.map((row) => row.tableName)).size !== expectedTables.length) {
+      throw new MigrationStateError('board share table projection mismatch');
+    }
+    const [recoveryColumns] = await connection.query<
+      Array<RowDataPacket & { columnName: string; columnType: string; isNullable: string }>
+    >(
+      `SELECT column_name AS columnName, column_type AS columnType,
+              is_nullable AS isNullable
+       FROM information_schema.columns
+       WHERE table_schema = DATABASE()
+         AND table_name = 'share_transition_recovery'
+         AND column_name IN (
+           'credential_present',
+           'credential_version',
+           'password_hash_sha256',
+           'pepper_version',
+           'operator_fence',
+           'operator_claimant',
+           'operator_evidence_sha256'
+         )`,
+    );
+    const recoveryProjection = new Map(
+      recoveryColumns.map((column) => [
+        column.columnName,
+        `${column.columnType.toLowerCase()}:${column.isNullable}`,
+      ]),
+    );
+    const expectedRecoveryProjection = new Map([
+      ['credential_present', 'tinyint unsigned:NO'],
+      ['credential_version', 'bigint unsigned:YES'],
+      ['password_hash_sha256', 'binary(32):YES'],
+      ['pepper_version', 'smallint unsigned:YES'],
+      ['operator_fence', 'bigint unsigned:NO'],
+      ['operator_claimant', 'varchar(191):YES'],
+      ['operator_evidence_sha256', 'binary(32):YES'],
+    ]);
+    if (
+      recoveryProjection.size !== expectedRecoveryProjection.size ||
+      [...expectedRecoveryProjection].some(
+        ([name, value]) => recoveryProjection.get(name) !== value,
+      )
+    ) {
+      throw new MigrationStateError('board share recovery projection mismatch');
+    }
+    const [indexes] = await connection.query<
+      Array<RowDataPacket & { indexName: string; nonUnique: number; columns: string }>
+    >(
+      `SELECT index_name AS indexName, non_unique AS nonUnique,
+              GROUP_CONCAT(column_name ORDER BY seq_in_index SEPARATOR ',') AS columns
+       FROM information_schema.statistics
+       WHERE table_schema = DATABASE()
+         AND table_name = 'board_shares'
+         AND index_name IN (
+           'uq_board_shares_share_id',
+           'uq_board_shares_board',
+           'uq_board_shares_token_digest'
+         )
+       GROUP BY index_name, non_unique`,
+    );
+    const actual = new Map(
+      indexes.map((index) => [index.indexName, `${index.nonUnique}:${index.columns}`]),
+    );
+    const expected = new Map([
+      ['uq_board_shares_share_id', '0:share_id'],
+      ['uq_board_shares_board', '0:board_pk'],
+      ['uq_board_shares_token_digest', '0:token_digest'],
+    ]);
+    if (
+      actual.size !== expected.size ||
+      [...expected].some(([name, value]) => actual.get(name) !== value)
+    ) {
+      throw new MigrationStateError('board share index projection mismatch');
     }
   }
 

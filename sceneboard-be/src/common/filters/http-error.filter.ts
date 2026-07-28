@@ -1,6 +1,6 @@
 import { Catch, Inject, type ArgumentsHost, type ExceptionFilter } from '@nestjs/common';
 
-import { AppError, BoardContractError } from '../errors/app-error.js';
+import { AppError, BoardContractError, ShareContractError } from '../errors/app-error.js';
 import { ArtifactBrokerError } from '../errors/artifact-broker.error.js';
 import type { BoardError, BoardErrorV1 } from '@sceneboard/board-schema';
 import { CryptoService } from '../security/crypto.service.js';
@@ -23,6 +23,9 @@ interface HttpResponse {
 interface HttpRequest extends BoardRequestCorrelationCarrier {
   url?: string | undefined;
 }
+
+const isShareManagementPath = (url: string): boolean =>
+  /^\/api\/v1\/boards\/[^/?]+\/shares(?:\/|\?|$)/u.test(url);
 
 const boardInternalError = (): BoardErrorV1 => ({
   protocolVersion: 1,
@@ -135,6 +138,35 @@ export class HttpErrorFilter implements ExceptionFilter {
     if (exception instanceof ArtifactBrokerError) {
       response.setHeader('X-Request-Id', exception.requestId);
       response.status(exception.status).json(exception.toPayload());
+      return;
+    }
+
+    if (isShareManagementPath(request.url ?? '')) {
+      if (exception instanceof AppError && exception.status === 401) {
+        response.status(exception.status).json({ error: exception.toPayload() });
+        return;
+      }
+      const shareError =
+        exception instanceof ShareContractError
+          ? exception
+          : exception instanceof AppError && exception.code === 'INVALID_PAYLOAD'
+            ? new ShareContractError('INVALID_REQUEST')
+            : exception instanceof AppError && exception.code === 'RATE_LIMITED'
+              ? new ShareContractError('RATE_LIMITED', exception.retryAfterSeconds)
+              : new ShareContractError('BOARD_NOT_FOUND');
+      if (shareError.retryAfterSeconds !== null) {
+        response.setHeader(
+          'Retry-After',
+          String(Math.max(1, Math.ceil(shareError.retryAfterSeconds))),
+        );
+      }
+      response.status(shareError.status).json({
+        error: {
+          code: shareError.code,
+          message: shareError.message,
+          requestId,
+        },
+      });
       return;
     }
 

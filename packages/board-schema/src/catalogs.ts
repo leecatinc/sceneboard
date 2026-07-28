@@ -121,6 +121,7 @@ export const BOARD_AUTHORIZATION_OPERATION_TYPES_V1 = [
   'membership.role.update',
   'membership.remove',
   'ownership.transfer',
+  'share.list',
   'share.publish',
   'share.update',
   'share.rotate',
@@ -131,6 +132,31 @@ export const BOARD_AUTHORIZATION_OPERATION_TYPES_V1 = [
 ] as const;
 export type BoardAuthorizationOperationTypeV1 =
   (typeof BOARD_AUTHORIZATION_OPERATION_TYPES_V1)[number];
+
+export const SHARE_STATUSES_V1 = ['active', 'revoked', 'archived'] as const;
+export type ShareStatusV1 = (typeof SHARE_STATUSES_V1)[number];
+
+export const SHARE_ACCESS_POLICIES_V1 = ['L', 'P'] as const;
+export type ShareAccessPolicyV1 = (typeof SHARE_ACCESS_POLICIES_V1)[number];
+
+export const SHARE_MANAGEMENT_OPERATION_TYPES_V1 = [
+  'create',
+  'republish',
+  'update',
+  'rotate',
+  'revoke',
+] as const;
+export type ShareManagementOperationTypeV1 = (typeof SHARE_MANAGEMENT_OPERATION_TYPES_V1)[number];
+
+export const SHARE_ERROR_CODES_V1 = [
+  'INVALID_REQUEST',
+  'BOARD_NOT_FOUND',
+  'SHARE_STATE_CONFLICT',
+  'SHARE_GENERATION_EXHAUSTED',
+  'IDEMPOTENCY_KEY_REUSED',
+  'RATE_LIMITED',
+] as const;
+export type ShareErrorCodeV1 = (typeof SHARE_ERROR_CODES_V1)[number];
 
 export const BOARD_AUTHORIZATION_SURFACES_V1 = ['browser', 'mcp'] as const;
 export type BoardAuthorizationSurfaceV1 = (typeof BOARD_AUTHORIZATION_SURFACES_V1)[number];

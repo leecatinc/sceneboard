@@ -386,6 +386,10 @@ export class BoardController {
     const result = await this.archives.archive({
       principal: principal(request, this.actors),
       request: readArchiveRequest(request, pathBoardId),
+      auditIdentity: {
+        userPublicId: request.authSession?.user.publicId ?? null,
+        sessionPublicId: request.authSession?.publicId ?? null,
+      },
     });
     return boardHttpSuccess(result);
   }

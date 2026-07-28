@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "migration": "019_d9_board_shares",
+  "tables": [
+    "board_shares",
+    "share_request_idempotency",
+    "share_transition_recovery",
+    "share_transition_recovery_items"
+  ],
+  "cardinality": {
+    "sharePerBoard": 1,
+    "activeRecoveryPerBoard": 1
+  },
+  "secretPersistence": {
+    "linkToken": "never",
+    "tokenDigest": "sha256-ascii-binary32"
+  },
+  "generations": ["publication_generation", "access_generation"],
+  "credentialHandoff": [
+    "credential_present",
+    "credential_version",
+    "password_hash_sha256",
+    "pepper_version"
+  ],
+  "holds": ["published", "recovery"],
+  "operatorRecovery": ["operator_fence", "operator_claimant", "operator_evidence_sha256"],
+  "recoveryPhases": ["planned", "core_applied", "complete", "quarantined"]
+}

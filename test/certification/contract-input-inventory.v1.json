@@ -247,9 +247,18 @@
           "exportKind": null,
           "projectionId": null,
           "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-SCHEMA-28",
+          "owner": "D1",
+          "path": "packages/board-schema/src/shares.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
         }
       ],
-      "expectedCardinality": 27,
+      "expectedCardinality": 28,
       "canonicalization": "utf8-lf",
       "materializationPredecessor": null,
       "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
@@ -3818,9 +3827,18 @@
           "exportKind": null,
           "projectionId": null,
           "selector": "whole-file"
+        },
+        {
+          "resourceId": "MIGRATION-ASSET-24",
+          "owner": "D9",
+          "path": "sceneboard-be/src/database/migrations/sql/019_d9_board_shares.up.sql",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
         }
       ],
-      "expectedCardinality": 24,
+      "expectedCardinality": 25,
       "canonicalization": "utf8-lf",
       "materializationPredecessor": null,
       "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
@@ -4085,6 +4103,15 @@
           "selector": "whole-file"
         },
         {
+          "resourceId": "SCHEMA-PROJECTION-07",
+          "owner": "D9",
+          "path": "sceneboard-be/test/contracts/schema-projections/d9-board-shares.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
           "resourceId": "SCHEMA-PROJECTION-AGGREGATE-TEST",
           "owner": "D2",
           "path": "sceneboard-be/test/contracts/schema-projections/owner-projections.contract.test.ts",
@@ -4094,7 +4121,7 @@
           "selector": "whole-file"
         }
       ],
-      "expectedCardinality": 7,
+      "expectedCardinality": 8,
       "canonicalization": "canonical-json",
       "materializationPredecessor": "MIGRATION-REGISTRY-ASSETS",
       "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"

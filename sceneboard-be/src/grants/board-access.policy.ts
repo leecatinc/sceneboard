@@ -34,7 +34,12 @@ export type BrowserBoardOperationV1 =
   | 'membership.list'
   | 'membership.invite'
   | 'membership.role.update'
-  | 'membership.remove';
+  | 'membership.remove'
+  | 'share.list'
+  | 'share.publish'
+  | 'share.update'
+  | 'share.rotate'
+  | 'share.revoke';
 export type BoardAccessOperationV1 = AuthorizedBoardOperationV1 | BrowserBoardOperationV1;
 
 const BOARD_ACCESS_OPERATIONS_V1: readonly BoardAccessOperationV1[] = [
@@ -44,6 +49,11 @@ const BOARD_ACCESS_OPERATIONS_V1: readonly BoardAccessOperationV1[] = [
   'membership.invite',
   'membership.role.update',
   'membership.remove',
+  'share.list',
+  'share.publish',
+  'share.update',
+  'share.rotate',
+  'share.revoke',
 ];
 
 export type D3BoardOperationV1 = Extract<
@@ -178,6 +188,11 @@ const AUTHORIZATION_RULES: Readonly<Record<BoardAccessOperationV1, Authorization
   'membership.invite': write([], 'D3'),
   'membership.role.update': write([], 'D3'),
   'membership.remove': write([], 'D3'),
+  'share.list': read([], 'D3'),
+  'share.publish': { ...write([], 'D3'), activeBoardRequired: false },
+  'share.update': { ...write([], 'D3'), activeBoardRequired: false },
+  'share.rotate': { ...write([], 'D3'), activeBoardRequired: false },
+  'share.revoke': { ...write([], 'D3'), activeBoardRequired: false },
   'capabilities.get': read(['board.read'], 'D6'),
   'board.create': {
     ...write(['board.write'], 'D3'),
