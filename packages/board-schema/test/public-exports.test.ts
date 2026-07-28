@@ -223,6 +223,12 @@ test('exports the guarded scalar parser values required by application adapters'
   assert.equal(typeof schema.PageIdParserV1.parse, 'function');
   assert.equal(typeof schema.MediaIdParserV1.parse, 'function');
   assert.equal(typeof schema.MediaSourceSchemaV1.parse, 'function');
+  assert.equal(typeof schema.PublicShareTokenParserV1.parse, 'function');
+  assert.equal(typeof schema.PublicContextIdParserV1.parse, 'function');
+  assert.equal(typeof schema.PublicBoardProjectionParserV1.parse, 'function');
+  assert.equal(typeof schema.PublicShareStateParserV1.parse, 'function');
+  assert.equal(typeof schema.PublicRelativeUrlSchemaV1.parse, 'function');
+  assert.equal(typeof schema.QuotedSha256EtagSchemaV1.parse, 'function');
   assert.equal(typeof schema.ImageNodeSchemaV1.parse, 'function');
   assert.equal(typeof schema.MediaAltSchemaV1.parse, 'function');
   assert.equal(typeof schema.MediaCaptionSchemaV1.parse, 'function');

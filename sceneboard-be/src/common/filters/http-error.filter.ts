@@ -10,6 +10,12 @@ import {
   type BoardRequestCorrelationCarrier,
 } from '../http/board-request-correlation.js';
 import { applyPrivateResponseHeaders } from '../http/response-headers.interceptor.js';
+import { PublicShareHttpError } from '../../shares/public-share.error.js';
+import {
+  applyPublicArtifactHeaders,
+  applyPublicProjectionHeaders,
+  publicFailureBody,
+} from '../../shares/share-response-policy.js';
 
 interface HttpResponse {
   headersSent?: boolean;
@@ -27,6 +33,14 @@ interface HttpRequest extends BoardRequestCorrelationCarrier {
 const isSharePath = (url: string): boolean =>
   /^\/api\/v1\/boards\/[^/?]+\/shares(?:\/|\?|$)/u.test(url) ||
   /^\/api\/v1\/public\/shares\/[^/?]+\/password-sessions(?:\?|$)/u.test(url);
+
+const isPublicProjectionPath = (url: string): boolean =>
+  /^\/api\/v1\/public\/(?:shares\/[^/?]+|share-contexts\/[^/?]+)(?:\?|$)/u.test(url);
+
+const isPublicArtifactPath = (url: string): boolean =>
+  /^\/api\/v1\/public\/shares\/[^/?]+\/revisions\/[^/?]+\/g\/[^/?]+\/[^/?]+\/artifacts\/[^/?]+\/versions\/[^/?]+\/package(?:\?|$)/u.test(
+    url,
+  );
 
 const boardInternalError = (): BoardErrorV1 => ({
   protocolVersion: 1,
@@ -139,6 +153,28 @@ export class HttpErrorFilter implements ExceptionFilter {
     if (exception instanceof ArtifactBrokerError) {
       response.setHeader('X-Request-Id', exception.requestId);
       response.status(exception.status).json(exception.toPayload());
+      return;
+    }
+
+    if (isPublicProjectionPath(request.url ?? '') || isPublicArtifactPath(request.url ?? '')) {
+      const publicError =
+        exception instanceof PublicShareHttpError
+          ? exception
+          : exception instanceof AppError && exception.code === 'INVALID_PAYLOAD'
+            ? new PublicShareHttpError(400, null)
+            : exception instanceof AppError && exception.code === 'RATE_LIMITED'
+              ? new PublicShareHttpError(429, exception.retryAfterSeconds)
+              : exception instanceof AppError && exception.code === 'SERVICE_UNAVAILABLE'
+                ? new PublicShareHttpError(503)
+                : new PublicShareHttpError(503);
+      if (isPublicArtifactPath(request.url ?? ''))
+        applyPublicArtifactHeaders(response, publicError.status, publicError.contentRangeLength);
+      else applyPublicProjectionHeaders(response, publicError.status);
+      if (publicError.retryAfterSeconds !== null)
+        response.setHeader('Retry-After', String(Math.ceil(publicError.retryAfterSeconds)));
+      response
+        .status(publicError.status)
+        .json(publicFailureBody(publicError.status, publicError.retryAfterSeconds));
       return;
     }
 

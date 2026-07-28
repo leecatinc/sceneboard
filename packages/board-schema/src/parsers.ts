@@ -70,6 +70,17 @@ import {
   ShareUpdateSuccessSchemaV1,
   ShareVersionRequestSchemaV1,
 } from './shares.js';
+import {
+  PublicArtifactSummarySchemaV1,
+  PublicBoardProjectionSchemaV1,
+  PublicContextIdSchemaV1,
+  PublicMediaResourceSchemaV1,
+  PublicRelativeUrlSchemaV1,
+  PublicShareContextSchemaV1,
+  PublicShareStateSchemaV1,
+  PublicShareTokenSchemaV1,
+  QuotedSha256EtagSchemaV1,
+} from './public-shares.js';
 import { RetainedHistoryMetadataSchemaV1 } from './history.js';
 import { BoardAuthorizationPrincipalSchemaV1, BoardMembershipSchemaV1 } from './memberships.js';
 import type { JsonValue } from './json.js';
@@ -776,6 +787,15 @@ export const ShareErrorEnvelopeParserV1 = createParserV1(ShareErrorEnvelopeSchem
 export const ShareFingerprintInputParserV1 = createParserV1(ShareFingerprintInputSchemaV1);
 export const ShareIdempotencyKeyParserV1 = createParserV1(ShareIdempotencyKeySchemaV1);
 export const ShareLinkTokenParserV1 = createParserV1(ShareLinkTokenSchemaV1);
+export const PublicShareTokenParserV1 = createParserV1(PublicShareTokenSchemaV1);
+export const PublicContextIdParserV1 = createParserV1(PublicContextIdSchemaV1);
+export const PublicRelativeUrlParserV1 = createParserV1(PublicRelativeUrlSchemaV1);
+export const QuotedSha256EtagParserV1 = createParserV1(QuotedSha256EtagSchemaV1);
+export const PublicShareContextParserV1 = createParserV1(PublicShareContextSchemaV1);
+export const PublicArtifactSummaryParserV1 = createParserV1(PublicArtifactSummarySchemaV1);
+export const PublicMediaResourceParserV1 = createParserV1(PublicMediaResourceSchemaV1);
+export const PublicBoardProjectionParserV1 = createParserV1(PublicBoardProjectionSchemaV1);
+export const PublicShareStateParserV1 = createParserV1(PublicShareStateSchemaV1);
 export const BoardAuthorizationPrincipalParserV1 = createParserV1(
   BoardAuthorizationPrincipalSchemaV1,
 );

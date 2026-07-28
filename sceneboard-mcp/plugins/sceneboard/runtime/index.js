@@ -25329,58 +25329,6 @@ var ShareErrorSchemaV1 = z.union([
 ]);
 var ShareErrorEnvelopeSchemaV1 = z.object({ error: ShareErrorSchemaV1 }).strict();
 
-// packages/board-schema/src/invitations.ts
-var InvitationRoleSchemaV1 = z.enum(["editor", "viewer"]);
-var InvitationStateSchemaV1 = z.enum([
-  "pending",
-  "accepted",
-  "revoked",
-  "expired",
-  "superseded"
-]);
-var MemberCandidateSchemaV1 = z.discriminatedUnion("kind", [
-  z.object({
-    kind: z.literal("account"),
-    accountId: PrincipalIdSchemaV1,
-    displayName: z.string().min(1).max(100)
-  }).strict(),
-  z.object({
-    kind: z.literal("email"),
-    email: z.string().email().max(254)
-  }).strict()
-]);
-var MemberCandidateListSchemaV1 = z.object({
-  candidates: z.array(MemberCandidateSchemaV1).max(20)
-}).strict();
-var BoardInvitationSchemaV1 = z.object({
-  inviteId: GlobalIdStringSchemaV1,
-  role: InvitationRoleSchemaV1,
-  expiresAt: TimestampSchemaV1,
-  state: InvitationStateSchemaV1
-}).strict();
-var BoardInvitationEnvelopeSchemaV1 = z.object({
-  invitation: BoardInvitationSchemaV1
-}).strict();
-var InvitationMembershipSchemaV1 = z.object({
-  boardId: BoardIdSchemaV1,
-  accountId: PrincipalIdSchemaV1,
-  role: InvitationRoleSchemaV1,
-  version: z.number().int().safe().positive()
-}).strict();
-var InvitationAcceptanceSchemaV1 = z.object({
-  membership: InvitationMembershipSchemaV1,
-  replayed: z.boolean()
-}).strict();
-var ManagedMembershipSchemaV1 = z.object({
-  accountId: PrincipalIdSchemaV1,
-  role: InvitationRoleSchemaV1,
-  version: z.number().int().safe().positive()
-}).strict();
-var ManagedMembershipEnvelopeSchemaV1 = z.object({
-  membership: ManagedMembershipSchemaV1,
-  capabilityEpoch: z.number().int().safe().min(0)
-}).strict();
-
 // packages/board-schema/src/media.ts
 var MAX_MEDIA_ALT_CHARS = 500;
 var MAX_MEDIA_CAPTION_CHARS = 500;
@@ -25389,6 +25337,80 @@ var MediaCaptionSchemaV1 = createScalarTextSchemaV1(1, MAX_MEDIA_CAPTION_CHARS);
 var MediaSourceSchemaV1 = z.object({
   type: z.literal("media"),
   mediaId: MediaIdSchemaV1
+}).strict();
+
+// packages/board-schema/src/nodes/base.ts
+var NodeBaseShapeV1 = {
+  id: NodeIdSchemaV1,
+  title: ShortTextSchemaV1.optional()
+};
+var PointSchemaV1 = z.object({ x: z.number().finite(), y: z.number().finite() }).strict();
+
+// packages/board-schema/src/nodes/drawing.ts
+var color = z.string().regex(/^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$/);
+var DrawingStyleSchemaV1 = z.object({
+  stroke: color.optional(),
+  fill: color.optional(),
+  strokeWidth: z.number().finite().positive().optional(),
+  opacity: z.number().finite().min(0).max(1).optional()
+}).strict();
+var PathSchemaV1 = z.object({
+  id: LocalFieldIdSchemaV1,
+  type: z.literal("path"),
+  points: z.array(PointSchemaV1).min(2),
+  closed: z.boolean(),
+  style: DrawingStyleSchemaV1
+}).strict();
+var RectSchemaV1 = z.object({
+  id: LocalFieldIdSchemaV1,
+  type: z.literal("rect"),
+  x: z.number().finite(),
+  y: z.number().finite(),
+  width: z.number().finite().positive(),
+  height: z.number().finite().positive(),
+  style: DrawingStyleSchemaV1
+}).strict();
+var EllipseSchemaV1 = z.object({
+  id: LocalFieldIdSchemaV1,
+  type: z.literal("ellipse"),
+  cx: z.number().finite(),
+  cy: z.number().finite(),
+  rx: z.number().finite().positive(),
+  ry: z.number().finite().positive(),
+  style: DrawingStyleSchemaV1
+}).strict();
+var LineSchemaV1 = z.object({
+  id: LocalFieldIdSchemaV1,
+  type: z.literal("line"),
+  from: PointSchemaV1,
+  to: PointSchemaV1,
+  style: DrawingStyleSchemaV1
+}).strict();
+var TextSchemaV1 = z.object({
+  id: LocalFieldIdSchemaV1,
+  type: z.literal("text"),
+  x: z.number().finite(),
+  y: z.number().finite(),
+  text: ShortTextSchemaV1,
+  style: DrawingStyleSchemaV1
+}).strict();
+var DrawingElementSchemaV1 = z.discriminatedUnion("type", [
+  PathSchemaV1,
+  RectSchemaV1,
+  EllipseSchemaV1,
+  LineSchemaV1,
+  TextSchemaV1
+]);
+var DrawingNodeSchemaV1 = z.object({
+  ...NodeBaseShapeV1,
+  type: z.literal("content.drawing"),
+  viewBox: z.object({
+    x: z.number().finite(),
+    y: z.number().finite(),
+    width: z.number().finite().positive(),
+    height: z.number().finite().positive()
+  }).strict(),
+  elements: z.array(DrawingElementSchemaV1).max(MAX_DRAWING_ELEMENTS)
 }).strict();
 
 // packages/board-schema/src/artifacts.ts
@@ -25466,13 +25488,6 @@ var ArtifactRuntimeSummarySchemaV1 = z.object({
       message: "failure must match artifact status"
     });
 });
-
-// packages/board-schema/src/nodes/base.ts
-var NodeBaseShapeV1 = {
-  id: NodeIdSchemaV1,
-  title: ShortTextSchemaV1.optional()
-};
-var PointSchemaV1 = z.object({ x: z.number().finite(), y: z.number().finite() }).strict();
 
 // packages/board-schema/src/nodes/geojson.ts
 var PositionSchemaV1 = z.tuple([
@@ -25614,73 +25629,6 @@ var ArtifactNodeSchemaV1 = z.object({
   fallbackText: ShortTextSchemaV1
 }).strict();
 var isTimestampCellV1 = (value) => TimestampSchemaV1.safeParse(value).success;
-
-// packages/board-schema/src/nodes/drawing.ts
-var color = z.string().regex(/^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$/);
-var DrawingStyleSchemaV1 = z.object({
-  stroke: color.optional(),
-  fill: color.optional(),
-  strokeWidth: z.number().finite().positive().optional(),
-  opacity: z.number().finite().min(0).max(1).optional()
-}).strict();
-var PathSchemaV1 = z.object({
-  id: LocalFieldIdSchemaV1,
-  type: z.literal("path"),
-  points: z.array(PointSchemaV1).min(2),
-  closed: z.boolean(),
-  style: DrawingStyleSchemaV1
-}).strict();
-var RectSchemaV1 = z.object({
-  id: LocalFieldIdSchemaV1,
-  type: z.literal("rect"),
-  x: z.number().finite(),
-  y: z.number().finite(),
-  width: z.number().finite().positive(),
-  height: z.number().finite().positive(),
-  style: DrawingStyleSchemaV1
-}).strict();
-var EllipseSchemaV1 = z.object({
-  id: LocalFieldIdSchemaV1,
-  type: z.literal("ellipse"),
-  cx: z.number().finite(),
-  cy: z.number().finite(),
-  rx: z.number().finite().positive(),
-  ry: z.number().finite().positive(),
-  style: DrawingStyleSchemaV1
-}).strict();
-var LineSchemaV1 = z.object({
-  id: LocalFieldIdSchemaV1,
-  type: z.literal("line"),
-  from: PointSchemaV1,
-  to: PointSchemaV1,
-  style: DrawingStyleSchemaV1
-}).strict();
-var TextSchemaV1 = z.object({
-  id: LocalFieldIdSchemaV1,
-  type: z.literal("text"),
-  x: z.number().finite(),
-  y: z.number().finite(),
-  text: ShortTextSchemaV1,
-  style: DrawingStyleSchemaV1
-}).strict();
-var DrawingElementSchemaV1 = z.discriminatedUnion("type", [
-  PathSchemaV1,
-  RectSchemaV1,
-  EllipseSchemaV1,
-  LineSchemaV1,
-  TextSchemaV1
-]);
-var DrawingNodeSchemaV1 = z.object({
-  ...NodeBaseShapeV1,
-  type: z.literal("content.drawing"),
-  viewBox: z.object({
-    x: z.number().finite(),
-    y: z.number().finite(),
-    width: z.number().finite().positive(),
-    height: z.number().finite().positive()
-  }).strict(),
-  elements: z.array(DrawingElementSchemaV1).max(MAX_DRAWING_ELEMENTS)
-}).strict();
 
 // packages/board-schema/src/nodes/layout.ts
 var createLayoutSchemasV1 = (node) => {
@@ -26027,6 +25975,184 @@ var collectDocumentNodesV2 = (document) => {
   });
   return output;
 };
+
+// packages/board-schema/src/public-shares.ts
+var canonicalBase64Url32 = (value) => {
+  if (!/^[A-Za-z0-9_-]{43}$/u.test(value)) return false;
+  try {
+    const decoded = atob(`${value.replaceAll("-", "+").replaceAll("_", "/")}=`);
+    if (decoded.length !== 32) return false;
+    return btoa(decoded).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/u, "") === value;
+  } catch {
+    return false;
+  }
+};
+var PublicShareTokenSchemaV1 = z.string().refine(canonicalBase64Url32, "share token must be canonical unpadded base64url");
+var PublicContextIdSchemaV1 = z.string().refine(canonicalBase64Url32, "context ID must be canonical unpadded base64url");
+var ShareCsrfTokenSchemaV1 = z.string().min(1).max(512).regex(/^[\x21-\x7e]+$/u);
+var PUBLIC_ARTIFACT_PATH = /^\/api\/v1\/public\/shares\/[A-Za-z0-9_-]{1,128}\/revisions\/[A-Za-z0-9_-]{1,128}\/g\/[1-9][0-9]{0,15}\/[1-9][0-9]{0,15}\/artifacts\/[A-Za-z0-9_-]{1,128}\/versions\/[A-Za-z0-9_-]{1,128}\/package\?contextId=[A-Za-z0-9_-]{43}$/u;
+var PUBLIC_MEDIA_PATH = /^\/api\/v1\/public\/shares\/[A-Za-z0-9_-]{1,128}\/revisions\/[A-Za-z0-9_-]{1,128}\/g\/[1-9][0-9]{0,15}\/[1-9][0-9]{0,15}\/media\/[A-Za-z0-9_-]{1,128}\?contextId=[A-Za-z0-9_-]{43}$/u;
+var PublicRelativeUrlSchemaV1 = z.string().max(2048).refine(
+  (value) => /^[\x21-\x7e]+$/u.test(value) && !value.includes("%") && (PUBLIC_ARTIFACT_PATH.test(value) || PUBLIC_MEDIA_PATH.test(value)),
+  "public resource URL must use an exact relative route"
+);
+var QuotedSha256EtagSchemaV1 = z.string().regex(/^"sha256-[0-9a-f]{64}"$/u);
+var PublicShareContextSchemaV1 = z.object({
+  contextId: PublicContextIdSchemaV1,
+  validUntil: TimestampSchemaV1
+}).strict();
+var PublicArtifactIdentityShapeV1 = {
+  artifactId: ArtifactIdSchemaV1,
+  versionId: ArtifactVersionIdSchemaV1
+};
+var PublicArtifactSummarySchemaV1 = z.union([
+  z.object({
+    ...PublicArtifactIdentityShapeV1,
+    status: z.literal("ready"),
+    packageUrl: PublicRelativeUrlSchemaV1
+  }).strict(),
+  z.object({
+    ...PublicArtifactIdentityShapeV1,
+    status: z.enum(["running", "stopped", "failed", "blocked"]),
+    packageUrl: z.null()
+  }).strict()
+]);
+var PublicMediaResourceSchemaV1 = z.object({
+  mediaId: MediaIdSchemaV1,
+  url: PublicRelativeUrlSchemaV1,
+  mime: z.enum(["image/png", "image/jpeg", "image/webp"]),
+  width: z.number().int().safe().positive(),
+  height: z.number().int().safe().positive(),
+  etag: QuotedSha256EtagSchemaV1
+}).strict().superRefine((value, context) => {
+  if (value.width * value.height > MAX_MEDIA_PIXELS)
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["width"],
+      message: "media pixel limit exceeded"
+    });
+});
+var PublicBoardProjectionSchemaV1 = z.object({
+  shareId: GlobalIdStringSchemaV1,
+  boardId: BoardIdSchemaV1,
+  revisionId: RevisionIdSchemaV1,
+  publicationGeneration: z.number().int().safe().positive(),
+  accessGeneration: z.number().int().safe().positive(),
+  title: ShortTextSchemaV1,
+  document: BoardDocumentSchemaV2,
+  artifacts: z.array(PublicArtifactSummarySchemaV1).max(MAX_MEDIA_REFERENCES),
+  media: z.array(PublicMediaResourceSchemaV1).max(MAX_MEDIA_REFERENCES)
+}).strict().superRefine((projection, context) => {
+  const artifactIds = /* @__PURE__ */ new Set();
+  projection.artifacts.forEach((artifact, index) => {
+    const key = `${artifact.artifactId}\0${artifact.versionId}`;
+    if (artifactIds.has(key))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["artifacts", index],
+        message: "duplicate public artifact"
+      });
+    artifactIds.add(key);
+  });
+  const mediaIds = /* @__PURE__ */ new Set();
+  projection.media.forEach((media, index) => {
+    if (mediaIds.has(media.mediaId))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["media", index],
+        message: "duplicate public media"
+      });
+    mediaIds.add(media.mediaId);
+  });
+});
+var expectedArtifactUrl = (projection, contextId, artifact) => `/api/v1/public/shares/${projection.shareId}/revisions/${projection.revisionId}/g/${projection.publicationGeneration}/${projection.accessGeneration}/artifacts/${artifact.artifactId}/versions/${artifact.versionId}/package?contextId=${contextId}`;
+var expectedMediaUrl = (projection, contextId, mediaId) => `/api/v1/public/shares/${projection.shareId}/revisions/${projection.revisionId}/g/${projection.publicationGeneration}/${projection.accessGeneration}/media/${mediaId}?contextId=${contextId}`;
+var PublicShareStateSchemaV1 = z.union([
+  z.object({
+    state: z.literal("ready"),
+    projection: PublicBoardProjectionSchemaV1,
+    context: PublicShareContextSchemaV1
+  }).strict(),
+  z.object({
+    state: z.literal("password-required"),
+    csrfToken: ShareCsrfTokenSchemaV1
+  }).strict(),
+  z.object({ state: z.literal("unavailable") }).strict(),
+  z.object({
+    state: z.literal("rate-limited"),
+    retryAfterSeconds: z.number().int().min(1).max(900)
+  }).strict()
+]).superRefine((state, context) => {
+  if (state.state !== "ready") return;
+  state.projection.artifacts.forEach((artifact, index) => {
+    if (artifact.status === "ready" && artifact.packageUrl !== expectedArtifactUrl(state.projection, state.context.contextId, artifact))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["projection", "artifacts", index, "packageUrl"],
+        message: "artifact URL does not match the projection context"
+      });
+  });
+  state.projection.media.forEach((media, index) => {
+    if (media.url !== expectedMediaUrl(state.projection, state.context.contextId, media.mediaId))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["projection", "media", index, "url"],
+        message: "media URL does not match the projection context"
+      });
+  });
+});
+
+// packages/board-schema/src/invitations.ts
+var InvitationRoleSchemaV1 = z.enum(["editor", "viewer"]);
+var InvitationStateSchemaV1 = z.enum([
+  "pending",
+  "accepted",
+  "revoked",
+  "expired",
+  "superseded"
+]);
+var MemberCandidateSchemaV1 = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("account"),
+    accountId: PrincipalIdSchemaV1,
+    displayName: z.string().min(1).max(100)
+  }).strict(),
+  z.object({
+    kind: z.literal("email"),
+    email: z.string().email().max(254)
+  }).strict()
+]);
+var MemberCandidateListSchemaV1 = z.object({
+  candidates: z.array(MemberCandidateSchemaV1).max(20)
+}).strict();
+var BoardInvitationSchemaV1 = z.object({
+  inviteId: GlobalIdStringSchemaV1,
+  role: InvitationRoleSchemaV1,
+  expiresAt: TimestampSchemaV1,
+  state: InvitationStateSchemaV1
+}).strict();
+var BoardInvitationEnvelopeSchemaV1 = z.object({
+  invitation: BoardInvitationSchemaV1
+}).strict();
+var InvitationMembershipSchemaV1 = z.object({
+  boardId: BoardIdSchemaV1,
+  accountId: PrincipalIdSchemaV1,
+  role: InvitationRoleSchemaV1,
+  version: z.number().int().safe().positive()
+}).strict();
+var InvitationAcceptanceSchemaV1 = z.object({
+  membership: InvitationMembershipSchemaV1,
+  replayed: z.boolean()
+}).strict();
+var ManagedMembershipSchemaV1 = z.object({
+  accountId: PrincipalIdSchemaV1,
+  role: InvitationRoleSchemaV1,
+  version: z.number().int().safe().positive()
+}).strict();
+var ManagedMembershipEnvelopeSchemaV1 = z.object({
+  membership: ManagedMembershipSchemaV1,
+  capabilityEpoch: z.number().int().safe().min(0)
+}).strict();
 
 // packages/board-schema/src/capabilities.ts
 var exactCatalog = (catalog) => z.array(z.enum(catalog)).length(catalog.length).superRefine((values, context) => {
@@ -28208,6 +28334,15 @@ var ShareErrorEnvelopeParserV1 = createParserV1(ShareErrorEnvelopeSchemaV1);
 var ShareFingerprintInputParserV1 = createParserV1(ShareFingerprintInputSchemaV1);
 var ShareIdempotencyKeyParserV1 = createParserV1(ShareIdempotencyKeySchemaV1);
 var ShareLinkTokenParserV1 = createParserV1(ShareLinkTokenSchemaV1);
+var PublicShareTokenParserV1 = createParserV1(PublicShareTokenSchemaV1);
+var PublicContextIdParserV1 = createParserV1(PublicContextIdSchemaV1);
+var PublicRelativeUrlParserV1 = createParserV1(PublicRelativeUrlSchemaV1);
+var QuotedSha256EtagParserV1 = createParserV1(QuotedSha256EtagSchemaV1);
+var PublicShareContextParserV1 = createParserV1(PublicShareContextSchemaV1);
+var PublicArtifactSummaryParserV1 = createParserV1(PublicArtifactSummarySchemaV1);
+var PublicMediaResourceParserV1 = createParserV1(PublicMediaResourceSchemaV1);
+var PublicBoardProjectionParserV1 = createParserV1(PublicBoardProjectionSchemaV1);
+var PublicShareStateParserV1 = createParserV1(PublicShareStateSchemaV1);
 var BoardAuthorizationPrincipalParserV1 = createParserV1(
   BoardAuthorizationPrincipalSchemaV1
 );

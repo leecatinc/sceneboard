@@ -60,6 +60,12 @@ const d2NoBodyRoutes: ReadonlyArray<readonly [HttpMethod, string]> = [
   ['GET', '/api/v1/pairings/:pairingId/client-status'],
   ['GET', '/api/v1/grants'],
   ['DELETE', '/api/v1/grants/:grantId'],
+  ['GET', '/api/v1/public/shares/:shareToken'],
+  ['GET', '/api/v1/public/share-contexts/:contextId'],
+  [
+    'GET',
+    '/api/v1/public/shares/:shareId/revisions/:revisionId/g/:publicationGeneration/:accessGeneration/artifacts/:artifactId/versions/:versionId/package',
+  ],
 ];
 
 const d1Routes: ReadonlyArray<readonly [HttpMethod, string, BoardContractParserV1<unknown>]> = [

@@ -77,6 +77,7 @@ import { CurrentArtifactRuntimeSummaryProvider } from './current-artifact-runtim
   exports: [
     ArtifactApplicationPortV1,
     ArtifactApplicationService,
+    ArtifactRepository,
     CurrentArtifactRuntimeSummaryPort,
     CurrentArtifactRuntimeSummaryProvider,
   ],

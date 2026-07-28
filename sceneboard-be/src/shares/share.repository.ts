@@ -362,6 +362,14 @@ export class ShareRepository {
     return rows.length === 1 ? mapShare(rows[0]!) : null;
   }
 
+  async lockShareByPk(connection: PoolConnection, sharePk: bigint): Promise<LockedShare | null> {
+    const [rows] = await connection.execute<ShareRow[]>(
+      `${shareSelect} WHERE s.share_pk = ? LIMIT 1 FOR UPDATE`,
+      [sharePk.toString()],
+    );
+    return rows.length === 1 ? mapShare(rows[0]!) : null;
+  }
+
   async lockRevision(
     connection: PoolConnection,
     boardPk: bigint,

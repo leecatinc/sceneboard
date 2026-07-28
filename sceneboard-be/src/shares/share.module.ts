@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 
 import { AuditRepository } from '../audit/audit.repository.js';
+import { ArtifactsModule } from '../artifacts/artifacts.module.js';
+import { ArtifactRepository } from '../artifacts/artifact.repository.js';
 import { CryptoService } from '../common/security/crypto.service.js';
 import { DatabaseModule } from '../database/database.module.js';
 import { MysqlService } from '../database/mysql.service.js';
@@ -9,6 +11,8 @@ import { MysqlBoardAccessPolicy } from '../grants/board-access-policy.service.js
 import { RateLimitModule } from '../rate-limit/rate-limit.module.js';
 import { RateLimitService } from '../rate-limit/rate-limit.service.js';
 import { RedisService } from '../redis/redis.service.js';
+import { DocumentCheckpointCodec } from '../revisions/document-checkpoint.codec.js';
+import { RevisionMediaReferenceExtractor } from '../media/revision-media-reference.extractor.js';
 import { APP_ENVIRONMENT, type AppEnvironment } from '../config/env.schema.js';
 import { PasswordAttemptService } from './password-attempt.service.js';
 import { PasswordHashService } from './password-hash.service.js';
@@ -24,11 +28,31 @@ import { SharePublicationService } from './share-publication.service.js';
 import { ShareRepository } from './share.repository.js';
 import { ShareTokenService } from './share-token.service.js';
 import { ShareTransitionRecoveryService } from './share-transition-recovery.service.js';
+import { PublicContextCookieService } from './public-context-cookie.service.js';
+import { PublicContextStore } from './public-context.store.js';
+import { PublicShareResolver } from './public-share.resolver.js';
+import {
+  DenyAllPublicMediaProjection,
+  PublicMediaProjectionPort,
+} from './public-media-projection.port.js';
+import { PublicShareProjectionRepository } from './public-share-projection.repository.js';
+import { PublicShareProjectionService } from './public-share-projection.service.js';
+import { PublicResourceEntitlementService } from './public-resource-entitlement.js';
+import { PublicArtifactDeliveryService } from './public-artifact-delivery.service.js';
+import { PublicShareController } from './public-share.controller.js';
+import { PublicArtifactController } from './public-artifact.controller.js';
 
 @Module({
-  imports: [DatabaseModule, GrantModule, RateLimitModule],
-  controllers: [ShareController, PasswordShareController],
+  imports: [DatabaseModule, GrantModule, RateLimitModule, ArtifactsModule],
+  controllers: [
+    ShareController,
+    PasswordShareController,
+    PublicShareController,
+    PublicArtifactController,
+  ],
   providers: [
+    DocumentCheckpointCodec,
+    RevisionMediaReferenceExtractor,
     {
       provide: ShareTokenService,
       inject: [CryptoService],
@@ -83,6 +107,117 @@ import { ShareTransitionRecoveryService } from './share-transition-recovery.serv
         tokens: ShareTokenService,
         cookies: ShareCookieService,
       ) => new PasswordShareGuard(mysql, shares, passwords, tokens, cookies),
+    },
+    {
+      provide: PublicContextCookieService,
+      inject: [APP_ENVIRONMENT, CryptoService],
+      useFactory: (environment: AppEnvironment, crypto: CryptoService) =>
+        new PublicContextCookieService(environment, crypto),
+    },
+    {
+      provide: PublicContextStore,
+      inject: [RedisService, PublicContextCookieService, APP_ENVIRONMENT],
+      useFactory: (
+        redis: RedisService,
+        cookies: PublicContextCookieService,
+        environment: AppEnvironment,
+      ) => new PublicContextStore(redis, cookies, environment),
+    },
+    {
+      provide: PublicShareResolver,
+      inject: [
+        MysqlService,
+        ShareRepository,
+        PasswordShareRepository,
+        ShareTokenService,
+        ShareCookieService,
+      ],
+      useFactory: (
+        mysql: MysqlService,
+        shares: ShareRepository,
+        passwords: PasswordShareRepository,
+        tokens: ShareTokenService,
+        cookies: ShareCookieService,
+      ) => new PublicShareResolver(mysql, shares, passwords, tokens, cookies),
+    },
+    {
+      provide: PublicMediaProjectionPort,
+      useClass: DenyAllPublicMediaProjection,
+    },
+    {
+      provide: PublicShareProjectionRepository,
+      inject: [
+        DocumentCheckpointCodec,
+        ArtifactRepository,
+        RevisionMediaReferenceExtractor,
+        PublicMediaProjectionPort,
+      ],
+      useFactory: (
+        checkpoints: DocumentCheckpointCodec,
+        artifacts: ArtifactRepository,
+        mediaReferences: RevisionMediaReferenceExtractor,
+        media: PublicMediaProjectionPort,
+      ) => new PublicShareProjectionRepository(checkpoints, artifacts, mediaReferences, media),
+    },
+    {
+      provide: PublicShareProjectionService,
+      inject: [
+        PublicShareResolver,
+        PublicShareProjectionRepository,
+        PublicContextStore,
+        PublicContextCookieService,
+        ShareCookieService,
+        APP_ENVIRONMENT,
+      ],
+      useFactory: (
+        resolver: PublicShareResolver,
+        projections: PublicShareProjectionRepository,
+        contexts: PublicContextStore,
+        contextCookies: PublicContextCookieService,
+        shareCookies: ShareCookieService,
+        environment: AppEnvironment,
+      ) =>
+        new PublicShareProjectionService(
+          resolver,
+          projections,
+          contexts,
+          contextCookies,
+          shareCookies,
+          environment,
+        ),
+    },
+    {
+      provide: PublicResourceEntitlementService,
+      inject: [
+        PublicContextStore,
+        PublicContextCookieService,
+        ShareCookieService,
+        PublicShareResolver,
+        PublicShareProjectionRepository,
+        APP_ENVIRONMENT,
+      ],
+      useFactory: (
+        contexts: PublicContextStore,
+        contextCookies: PublicContextCookieService,
+        shareCookies: ShareCookieService,
+        resolver: PublicShareResolver,
+        projections: PublicShareProjectionRepository,
+        environment: AppEnvironment,
+      ) =>
+        new PublicResourceEntitlementService(
+          contexts,
+          contextCookies,
+          shareCookies,
+          resolver,
+          projections,
+          environment.browserOrigin,
+        ),
+    },
+    {
+      provide: PublicArtifactDeliveryService,
+      inject: [PublicResourceEntitlementService, ArtifactRepository],
+      useFactory: (entitlements: PublicResourceEntitlementService, artifacts: ArtifactRepository) =>
+        new PublicArtifactDeliveryService(entitlements, artifacts),
     },
     {
       provide: ShareArchiveService,

@@ -34,6 +34,11 @@ const safeCookieValue = (value: string): void => {
   }
 };
 
+export type ShareFamilyCookieInspection =
+  | { kind: 'absent' }
+  | { kind: 'invalid' }
+  | { kind: 'valid'; token: string; digest: Buffer };
+
 export class ShareCookieService {
   constructor(
     private readonly environment: AppEnvironment,
@@ -68,6 +73,29 @@ export class ShareCookieService {
       return value;
     } catch {
       return undefined;
+    }
+  }
+
+  inspectFamilyHeader(
+    cookieHeader: string | undefined,
+    hostname: string,
+  ): ShareFamilyCookieInspection {
+    const profile = this.profile(hostname);
+    if (cookieHeader === undefined || cookieHeader === '') return { kind: 'absent' };
+    const values: string[] = [];
+    for (const entry of cookieHeader.split(';')) {
+      const separator = entry.indexOf('=');
+      if (separator < 1) continue;
+      if (entry.slice(0, separator).trim() === profile.familyName)
+        values.push(entry.slice(separator + 1).trim());
+    }
+    if (values.length === 0) return { kind: 'absent' };
+    if (values.length !== 1) return { kind: 'invalid' };
+    const token = values[0]!;
+    try {
+      return { kind: 'valid', token, digest: this.familyDigest(token) };
+    } catch {
+      return { kind: 'invalid' };
     }
   }
 

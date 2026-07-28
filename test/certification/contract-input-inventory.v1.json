@@ -265,9 +265,18 @@
           "exportKind": null,
           "projectionId": null,
           "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-SCHEMA-30",
+          "owner": "D1",
+          "path": "packages/board-schema/src/public-shares.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
         }
       ],
-      "expectedCardinality": 29,
+      "expectedCardinality": 30,
       "canonicalization": "utf8-lf",
       "materializationPredecessor": null,
       "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
@@ -1968,9 +1977,27 @@
           "exportKind": null,
           "projectionId": null,
           "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-185",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/invalid/public-share-secret-field.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-CORPUS-186",
+          "owner": "D1",
+          "path": "packages/board-schema/test/fixtures/valid/public-share-ready.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
         }
       ],
-      "expectedCardinality": 184,
+      "expectedCardinality": 186,
       "canonicalization": "canonical-json",
       "materializationPredecessor": null,
       "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
@@ -2105,9 +2132,54 @@
           "exportKind": null,
           "projectionId": null,
           "selector": "whole-file"
+        },
+        {
+          "resourceId": "D2-HTTP-PUBLIC-SHARE-POLICY",
+          "owner": "D2",
+          "path": "sceneboard-be/src/shares/share-response-policy.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D2-HTTP-PUBLIC-SHARE-CONTROLLER",
+          "owner": "D2",
+          "path": "sceneboard-be/src/shares/public-share.controller.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D2-HTTP-PUBLIC-ARTIFACT-CONTROLLER",
+          "owner": "D2",
+          "path": "sceneboard-be/src/shares/public-artifact.controller.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D2-HTTP-PUBLIC-PROJECTION",
+          "owner": "D2",
+          "path": "sceneboard-be/src/shares/public-share-projection.service.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D2-HTTP-PUBLIC-ENTITLEMENT",
+          "owner": "D2",
+          "path": "sceneboard-be/src/shares/public-resource-entitlement.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
         }
       ],
-      "expectedCardinality": 4,
+      "expectedCardinality": 9,
       "canonicalization": "utf8-lf",
       "materializationPredecessor": "D2-AUTHZ",
       "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
@@ -2876,9 +2948,27 @@
           "exportKind": "class",
           "projectionId": "D8-HITL-LIFECYCLE-SUPERSEDE-SELECTOR",
           "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=supersedeInteraction]"
+        },
+        {
+          "resourceId": "D5-PUBLIC-SHARE-CONTRACT",
+          "owner": "D5",
+          "path": "sceneboard-fe/lib/api/public-share-contract.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D5-PUBLIC-SHARE-SERVER",
+          "owner": "D5",
+          "path": "sceneboard-fe/lib/api/public-share-server.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
         }
       ],
-      "expectedCardinality": 24,
+      "expectedCardinality": 26,
       "canonicalization": "typescript-ast",
       "materializationPredecessor": "D2-D5-D7-D8-BROWSER-PUBLISHERS",
       "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"

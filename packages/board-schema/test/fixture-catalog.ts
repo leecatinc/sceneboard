@@ -21,6 +21,7 @@ export type FixtureParserName =
   | 'MutationEnvelopeParserV1'
   | 'MutationRequestParserV1'
   | 'MutationResultParserV1'
+  | 'PublicShareStateParserV1'
   | 'RetainedHistoryMetadataParserV1'
   | 'SceneParserV1';
 
@@ -37,6 +38,11 @@ export type FixtureCatalogEntry =
     };
 
 export const FIXTURE_CATALOG = [
+  {
+    kind: 'valid',
+    path: 'valid/public-share-ready.v1.json',
+    schema: 'PublicShareStateParserV1',
+  },
   {
     kind: 'valid',
     path: 'valid/history-retained-metadata.v1.json',
@@ -1207,5 +1213,13 @@ export const FIXTURE_CATALOG = [
     expectedErrorCode: 'INVALID_LAYOUT',
     expectedPath: ['scene', 'root', 'source', 'artifact'],
     expectedDetails: { path: ['scene', 'root', 'source', 'artifact'], reason: 'reference' },
+  },
+  {
+    kind: 'invalid',
+    path: 'invalid/public-share-secret-field.v1.json',
+    schema: 'PublicShareStateParserV1',
+    expectedErrorCode: 'INVALID_DOCUMENT',
+    expectedPath: ['projection'],
+    expectedDetails: { path: ['projection'], reason: 'limit' },
   },
 ] as const satisfies readonly FixtureCatalogEntry[];

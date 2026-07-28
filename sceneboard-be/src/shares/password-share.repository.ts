@@ -19,6 +19,12 @@ interface GrantRow extends RowDataPacket {
   expiresAt: string;
 }
 
+export type PasswordGrantState = {
+  accessGeneration: number;
+  credentialVersion: number;
+  expiresAtSql: string;
+};
+
 const affectedOne = (result: ResultSetHeader): void => {
   if (result.affectedRows !== 1) throw new ShareContractError('SHARE_PASSWORD_STATE_CONFLICT');
 };
@@ -203,11 +209,7 @@ export class PasswordShareRepository {
       sharePk: bigint;
       nowSql: string;
     },
-  ): Promise<{
-    accessGeneration: number;
-    credentialVersion: number;
-    expiresAtSql: string;
-  } | null> {
+  ): Promise<PasswordGrantState | null> {
     const [rows] = await connection.execute<GrantRow[]>(
       `SELECT CAST(g.access_generation AS CHAR) AS accessGeneration,
               CAST(g.credential_version AS CHAR) AS credentialVersion,
@@ -232,6 +234,35 @@ export class PasswordShareRepository {
     ) {
       throw new ShareContractError('BOARD_NOT_FOUND');
     }
+    parseMysqlTimestampUtc(row.expiresAt);
+    return { accessGeneration, credentialVersion, expiresAtSql: row.expiresAt };
+  }
+
+  async lockGrantState(
+    connection: PoolConnection,
+    input: { familyDigest: Buffer; sharePk: bigint },
+  ): Promise<PasswordGrantState | null> {
+    const [rows] = await connection.execute<GrantRow[]>(
+      `SELECT CAST(access_generation AS CHAR) AS accessGeneration,
+              CAST(credential_version AS CHAR) AS credentialVersion,
+              expires_at AS expiresAt
+       FROM share_password_session_grants
+       WHERE family_digest = ? AND share_pk = ?
+       LIMIT 1 FOR UPDATE`,
+      [input.familyDigest, input.sharePk.toString()],
+    );
+    const row = rows[0];
+    if (rows.length === 0 || row === undefined) return null;
+    if (rows.length !== 1) throw new ShareContractError('SERVICE_UNAVAILABLE', 1);
+    const accessGeneration = Number(row.accessGeneration);
+    const credentialVersion = Number(row.credentialVersion);
+    if (
+      !Number.isSafeInteger(accessGeneration) ||
+      accessGeneration < 1 ||
+      !Number.isSafeInteger(credentialVersion) ||
+      credentialVersion < 1
+    )
+      throw new ShareContractError('SERVICE_UNAVAILABLE', 1);
     parseMysqlTimestampUtc(row.expiresAt);
     return { accessGeneration, credentialVersion, expiresAtSql: row.expiresAt };
   }
