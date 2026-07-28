@@ -827,6 +827,87 @@ button:disabled {
   border-color: var(--primary);
   color: var(--primary-active);
 }
+.history-combobox {
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
+}
+.history-controls .history-trigger {
+  display: flex;
+  width: min(280px, calc(100vw - 32px));
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-color: var(--primary);
+  color: var(--primary-active);
+  text-align: left;
+}
+.history-trigger > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.history-popup {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  right: 0;
+  width: min(360px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 16px 40px rgba(17, 36, 33, 0.18);
+}
+.history-popup [role='listbox'] {
+  max-height: min(360px, 55vh);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.history-popup [role='option'] {
+  display: grid;
+  width: 100%;
+  min-height: 48px;
+  justify-items: start;
+  gap: 2px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  padding: 9px 12px;
+  text-align: left;
+  touch-action: manipulation;
+}
+.history-popup [role='option'] > span {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.history-popup [role='option'].is-active,
+.history-popup [role='option'][aria-selected='true'] {
+  background: var(--primary-wash);
+}
+.history-popup-state {
+  margin: 0;
+  padding: 10px 12px;
+  color: var(--muted);
+}
+.history-popup-state p {
+  margin: 0 0 8px;
+}
+.history-popup-state button,
+.history-controls .history-load-more {
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  text-align: center;
+}
+.history-live-region:empty {
+  display: none;
+}
 .history-controls span {
   font-size: 12px;
 }
@@ -1739,6 +1820,15 @@ button:disabled {
   }
   .history-controls {
     grid-column: auto;
+    width: 100%;
+  }
+  .history-combobox,
+  .history-controls .history-trigger {
+    width: 100%;
+  }
+  .history-popup {
+    right: auto;
+    left: 0;
   }
   .status-rail dl {
     grid-template-columns: 1fr 1fr;

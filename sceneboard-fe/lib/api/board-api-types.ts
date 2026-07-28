@@ -17,6 +17,10 @@ import type {
   TimestampV1,
 } from '@sceneboard/board-schema';
 import type { HistoryHttpMetadataV1 } from '@sceneboard/board-sdk/http';
+export type {
+  NormalizedRetainedHistoryResultV1,
+  NormalizedRetainedHistoryRowV1,
+} from '@sceneboard/board-sdk/client';
 
 import type { CoordinatorResult } from '../auth/renewal-singleflight';
 

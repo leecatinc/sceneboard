@@ -1,9 +1,11 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import type { RevisionId } from '@sceneboard/board-schema';
 import type { LiveBoardStateV1 } from '@sceneboard/board-sdk/state';
 import type { ArtifactViewModeV1 } from '@sceneboard/board-ui/artifact';
 
+import type { RetainedHistoryDropdownV1 } from '../../lib/board/use-board-session';
 import { useI18n } from '../i18n/I18nProvider';
 import { BoardTitleEditor } from './BoardTitleEditor';
 import { BoardViewModeControls } from './BoardViewModeControls';
@@ -55,9 +57,13 @@ export function BoardHistorySlot({
   canResetArtifactView,
   onViewModeChange,
   onResetArtifactView,
-  onPrevious,
-  onNext,
-  onLatest,
+  history,
+  onOpenHistory,
+  onCloseHistory,
+  onLoadMoreHistory,
+  onRetryHistory,
+  onSelectHistoryRevision,
+  onSelectLatestHistory,
 }: {
   state: LiveBoardStateV1;
   liveUpdated: boolean;
@@ -66,9 +72,13 @@ export function BoardHistorySlot({
   canResetArtifactView: boolean;
   onViewModeChange: (mode: ArtifactViewModeV1) => void;
   onResetArtifactView: () => void;
-  onPrevious: () => void;
-  onNext: () => void;
-  onLatest: () => void;
+  history: RetainedHistoryDropdownV1;
+  onOpenHistory: () => void;
+  onCloseHistory: () => void;
+  onLoadMoreHistory: () => void;
+  onRetryHistory: () => void;
+  onSelectHistoryRevision: (revisionId: RevisionId) => void;
+  onSelectLatestHistory: () => void;
 }) {
   return (
     <div className="board-navigation-actions">
@@ -82,9 +92,13 @@ export function BoardHistorySlot({
       <HistoryControls
         state={state}
         liveUpdated={liveUpdated}
-        onPrevious={onPrevious}
-        onNext={onNext}
-        onLatest={onLatest}
+        history={history}
+        onOpen={onOpenHistory}
+        onClose={onCloseHistory}
+        onLoadMore={onLoadMoreHistory}
+        onRetry={onRetryHistory}
+        onSelectRevision={onSelectHistoryRevision}
+        onSelectLatest={onSelectLatestHistory}
       />
     </div>
   );

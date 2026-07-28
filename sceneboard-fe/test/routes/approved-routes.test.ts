@@ -195,9 +195,10 @@ test('board top bar preserves live connection and history controls before pairin
   );
   assert.match(chromeSlots, /<ConnectionBanner connection=\{state\.connection\} \/>/);
   assert.match(chromeSlots, /<HistoryControls/);
-  assert.match(chromeSlots, /onPrevious=\{onPrevious\}/);
-  assert.match(chromeSlots, /onNext=\{onNext\}/);
-  assert.match(chromeSlots, /onLatest=\{onLatest\}/);
+  assert.match(chromeSlots, /history=\{history\}/);
+  assert.match(chromeSlots, /onOpen=\{onOpenHistory\}/);
+  assert.match(chromeSlots, /onSelectRevision=\{onSelectHistoryRevision\}/);
+  assert.match(chromeSlots, /onSelectLatest=\{onSelectLatestHistory\}/);
   assert.match(
     chromeSlots,
     /<BoardViewModeControls\s+value=\{viewMode\}\s+zoom=\{artifactZoom\}\s+canReset=\{canResetArtifactView\}/,

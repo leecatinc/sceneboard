@@ -687,9 +687,13 @@ export function BoardClient({ boardId }: { boardId: string }) {
         artifactZoom={selectedZoom}
         canResetArtifactView={canResetView}
         onResetArtifactView={resetView}
-        onPrevious={session.previous}
-        onNext={session.next}
-        onLatest={() => void session.latest()}
+        history={session.historyDropdown}
+        onOpenHistory={session.openHistory}
+        onCloseHistory={session.closeHistory}
+        onLoadMoreHistory={session.loadMoreHistory}
+        onRetryHistory={session.retryHistory}
+        onSelectHistoryRevision={(revisionId) => void session.selectHistoryRevision(revisionId)}
+        onSelectLatestHistory={() => void session.selectLatestHistory()}
       />
     ),
     status: (

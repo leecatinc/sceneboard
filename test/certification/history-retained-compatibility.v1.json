@@ -7,8 +7,8 @@
     "packages/board-schema/test/fixtures/valid/history-retained-metadata.v1.json": "24b3403be06d4c5c2e28fae815e3e9e868d924f1f8d5abd8a698c946ecf7362d",
     "packages/board-schema/test/fixtures/invalid/history-retained-metadata.v1.json": "e519f0074dfeabc34bdd04b8bd9c27ce306cf370d17a0807baf28aa8c023fa15",
     "packages/board-sdk/src/http/http-result.parser.ts": "6dfdb0741ae09211bc1b5cc66bceb9e00c51687d93d405423cb4f0c3bcdf3871",
-    "packages/board-sdk/src/client/history-metadata.ts": "435d3b9c062131f0e3f785f50a554128f8a393ff916d120fe06b2135502e333c",
-    "sceneboard-fe/lib/api/board-api-types.ts": "21522a7339e92d2298b7a78fa070f01f7509e1e175726063122c11d488c7c2b6",
+    "packages/board-sdk/src/client/history-metadata.ts": "15459dc331a30318adbd4ec209cf73dfec73249904de7fd7d23082471b6604f2",
+    "sceneboard-fe/lib/api/board-api-types.ts": "69c8c1e1dcc01020dde22ffbb85544d909e750884d2c58d6c4c1c8f2a0aa6ec5",
     "sceneboard-mcp/src/tools/history.tools.ts": "9c407e50698f00a48f8675d6aaef683d50bbb4170b06433e560d888d2a212250"
   },
   "compatibility": {
@@ -25,7 +25,7 @@
   ],
   "minimumDeployedParserDigests": {
     "sdk": "6dfdb0741ae09211bc1b5cc66bceb9e00c51687d93d405423cb4f0c3bcdf3871",
-    "frontend": "21522a7339e92d2298b7a78fa070f01f7509e1e175726063122c11d488c7c2b6",
+    "frontend": "69c8c1e1dcc01020dde22ffbb85544d909e750884d2c58d6c4c1c8f2a0aa6ec5",
     "mcp": "9c407e50698f00a48f8675d6aaef683d50bbb4170b06433e560d888d2a212250"
   }
 }
