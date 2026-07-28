@@ -6,6 +6,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 
 import { ArtifactHost, type ArtifactLoadPortV1 } from '../../src/artifact/index.js';
 import { BoardRenderer } from '../../src/renderer/index.js';
+import { rendererTestInputV2 } from '../renderer-test-input.js';
 
 const fixture = (name: string): unknown =>
   JSON.parse(
@@ -30,7 +31,7 @@ const snapshot = (): BoardSnapshotV1 => {
 test('D5 placeholder delegates only the exact content.artifact node to D7 host ownership', () => {
   const html = renderToStaticMarkup(
     <BoardRenderer
-      snapshot={snapshot()}
+      {...rendererTestInputV2(snapshot())}
       renderArtifact={({ node }) => (
         <div data-artifact-host={`${node.artifact.artifactId}:${node.artifact.versionId}`}>
           D7 host

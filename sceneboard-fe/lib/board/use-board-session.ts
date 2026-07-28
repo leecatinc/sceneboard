@@ -1,13 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  BoardIdParserV1,
-  DEFAULT_BOARD_CAPABILITIES_V1,
-  type BoardSnapshot,
-  type BoardSnapshotV1,
-  type RevisionId,
-} from '@sceneboard/board-schema';
+import { BoardIdParserV1, type BoardSnapshot, type RevisionId } from '@sceneboard/board-schema';
 import {
   correlateHistoryNavigationV1,
   RequestEpochV1,
@@ -62,42 +56,6 @@ const localError = (result: Exclude<ApiResult<unknown>, { kind: 'ok' }>): SafeBo
     kind: 'offline',
     message: 'The latest board view could not be reached.',
     retryable: true,
-  };
-};
-
-const renderableSnapshot = (snapshot: BoardSnapshot): BoardSnapshotV1 => {
-  if ('scene' in snapshot) return snapshot;
-  const page = snapshot.document.pages.find(
-    (candidate) => candidate.pageId === snapshot.document.defaultPageId,
-  );
-  if (page === undefined) throw new TypeError('document default page is unavailable');
-  return {
-    protocolVersion: 1,
-    type: 'board.snapshot',
-    boardId: snapshot.boardId,
-    revision: snapshot.revision,
-    scene: page.scene,
-    hitl: snapshot.hitl,
-    artifacts: snapshot.artifacts,
-    capabilities: {
-      ...DEFAULT_BOARD_CAPABILITIES_V1,
-      supported: {
-        nodeTypes: [...DEFAULT_BOARD_CAPABILITIES_V1.supported.nodeTypes],
-        commandTypes: [...DEFAULT_BOARD_CAPABILITIES_V1.supported.commandTypes],
-        operationTypes: [...DEFAULT_BOARD_CAPABILITIES_V1.supported.operationTypes],
-        eventTypes: [...DEFAULT_BOARD_CAPABILITIES_V1.supported.eventTypes],
-        hitlKinds: [...DEFAULT_BOARD_CAPABILITIES_V1.supported.hitlKinds],
-        artifactRequestCapabilities: [
-          ...DEFAULT_BOARD_CAPABILITIES_V1.supported.artifactRequestCapabilities,
-        ],
-      },
-      limits: { ...DEFAULT_BOARD_CAPABILITIES_V1.limits },
-      grantedCapabilities: [...snapshot.capabilities.grantedCapabilities],
-      allowedArtifactRequestCapabilities: [
-        ...snapshot.capabilities.allowedArtifactRequestCapabilities,
-      ],
-    },
-    lastEventSequence: snapshot.lastEventSequence,
   };
 };
 
@@ -306,7 +264,7 @@ export function useBoardSession(boardIdValue: string) {
     title,
     state,
     error,
-    visibleSnapshot: state === null ? null : renderableSnapshot(visibleBoardSnapshotV1(state)),
+    visibleSnapshot: state === null ? null : visibleBoardSnapshotV1(state),
     liveUpdated: state === null ? false : hasLiveUpdateV1(state),
     retry: load,
     previous,

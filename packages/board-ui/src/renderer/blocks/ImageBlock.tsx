@@ -1,7 +1,7 @@
 import type { RendererComponentV1 } from '../renderer-types.js';
 
 export const ImageBlock: RendererComponentV1<'content.image'> = ({ node, context }) => {
-  const runtime = context.snapshot.artifacts.find(
+  const runtime = context.artifacts.find(
     (item) =>
       item.artifact.artifactId === node.source.artifact.artifactId &&
       item.artifact.versionId === node.source.artifact.versionId,

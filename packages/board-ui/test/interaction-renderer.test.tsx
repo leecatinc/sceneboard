@@ -16,6 +16,7 @@ import {
   type HitlInteractionControllerV1,
 } from '../src/interaction/index.js';
 import { BoardRenderer } from '../src/renderer/index.js';
+import { rendererTestInputV2 } from './renderer-test-input.js';
 
 const fixture = (name: string): unknown =>
   JSON.parse(
@@ -73,17 +74,15 @@ test('D8 active seam replaces only the certified HITL placeholder', () => {
   const current = snapshot();
   const html = renderToStaticMarkup(
     <BoardRenderer
-      snapshot={current}
+      {...rendererTestInputV2(current)}
       renderHitl={({ node, context }) => {
-        const hitl = context.snapshot.hitl.find(
-          (item) => item.hitlRequestId === node.hitlRequestId,
-        );
+        const hitl = context.hitl.find((item) => item.hitlRequestId === node.hitlRequestId);
         assert.ok(hitl);
         return (
           <HitlBlock
             nodeId={node.id}
-            boardId={context.snapshot.boardId}
-            expectedRevisionId={context.snapshot.revision.revisionId}
+            boardId={context.boardId}
+            expectedRevisionId={context.revision.revisionId}
             interaction={hitl}
             controller={controller()}
           />

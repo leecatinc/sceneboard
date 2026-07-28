@@ -841,6 +841,42 @@ button:disabled {
   overflow: auto;
   background: var(--background);
 }
+.page-navigation {
+  position: sticky;
+  z-index: 3;
+  top: 0;
+  width: max-content;
+  margin: 0 auto 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  padding: 4px 7px;
+  box-shadow: 0 4px 16px rgba(17, 36, 33, 0.08);
+}
+.page-navigation-button {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--primary-wash);
+  color: var(--primary-active);
+  font-size: 20px;
+  line-height: 1;
+}
+.page-navigation-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.page-navigation-status {
+  min-width: 52px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 750;
+  text-align: center;
+}
 .board-hitl-overlay {
   position: absolute;
   z-index: 4;

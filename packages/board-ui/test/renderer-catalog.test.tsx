@@ -15,6 +15,7 @@ import {
   buildChartGeometryV1,
   tokenizeSafeMarkdownV1,
 } from '../src/renderer/index.js';
+import { rendererTestInputV2 } from './renderer-test-input.js';
 
 const fixture = (name: string): unknown =>
   JSON.parse(
@@ -41,7 +42,9 @@ test('all-family scene renders through code-owned elements with inactive D7 and 
   assert.equal(parsed.ok, true);
   const html = renderToStaticMarkup(
     <BoardRenderer
-      snapshot={(parsed as { ok: true; data: { value: BoardSnapshotV1 } }).data.value}
+      {...rendererTestInputV2(
+        (parsed as { ok: true; data: { value: BoardSnapshotV1 } }).data.value,
+      )}
     />,
   );
   assert.match(html, /Readable canvas contents/);
@@ -103,7 +106,7 @@ test('root drawing accepts a bounded board view controller while nested drawings
   assert.equal(snapshot.scene.root?.type, 'content.drawing');
   const html = renderToStaticMarkup(
     <BoardRenderer
-      snapshot={snapshot}
+      {...rendererTestInputV2(snapshot)}
       drawingView={{ mode: 'actual', resetSignal: 0, onStateChange: () => undefined }}
     />,
   );
@@ -122,7 +125,9 @@ test('root drawing accepts a bounded board view controller while nested drawings
   assert.equal(nestedParsed.ok, true);
   const nestedHtml = renderToStaticMarkup(
     <BoardRenderer
-      snapshot={(nestedParsed as { ok: true; data: { value: BoardSnapshotV1 } }).data.value}
+      {...rendererTestInputV2(
+        (nestedParsed as { ok: true; data: { value: BoardSnapshotV1 } }).data.value,
+      )}
       drawingView={{ mode: 'actual', resetSignal: 0, onStateChange: () => undefined }}
     />,
   );

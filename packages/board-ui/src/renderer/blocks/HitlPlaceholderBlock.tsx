@@ -1,9 +1,7 @@
 import type { RendererComponentV1 } from '../renderer-types.js';
 
 export const HitlPlaceholderBlock: RendererComponentV1<'content.hitl'> = ({ node, context }) => {
-  const interaction = context.snapshot.hitl.find(
-    (item) => item.hitlRequestId === node.hitlRequestId,
-  );
+  const interaction = context.hitl.find((item) => item.hitlRequestId === node.hitlRequestId);
   if (interaction !== undefined && context.renderHitl !== undefined) {
     return context.renderHitl({ node, context, renderNode: () => null });
   }

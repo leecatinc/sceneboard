@@ -1,6 +1,6 @@
 'use client';
 
-import type { BoardSnapshotV1, PresenceSummaryV1 } from '@sceneboard/board-schema';
+import type { BoardSnapshot, PresenceSummaryV1 } from '@sceneboard/board-schema';
 import { useI18n } from '../i18n/I18nProvider';
 
 export function StatusRail({
@@ -8,7 +8,7 @@ export function StatusRail({
   presence,
   onStopRendering,
 }: {
-  snapshot: BoardSnapshotV1;
+  snapshot: BoardSnapshot;
   presence: readonly PresenceSummaryV1[];
   onStopRendering: () => void;
 }) {

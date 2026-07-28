@@ -244,6 +244,7 @@ function InteractiveDrawingBlock({
   }, [applyLayout, controller.mode, controller.resetSignal]);
 
   useEffect(() => () => emitState(null, false), [emitState]);
+  useEffect(() => () => latestControllerRef.current.onCaptureActiveChange?.(false), []);
 
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (controller.mode !== 'actual' || event.button !== 1) return;
@@ -252,6 +253,7 @@ function InteractiveDrawingBlock({
     panPointRef.current = { x: event.clientX, y: event.clientY };
     event.currentTarget.setPointerCapture(event.pointerId);
     event.currentTarget.dataset.panning = 'true';
+    controller.onCaptureActiveChange?.(true);
   };
 
   const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -259,6 +261,7 @@ function InteractiveDrawingBlock({
     if ((event.buttons & 4) === 0) {
       isPanningRef.current = false;
       delete event.currentTarget.dataset.panning;
+      controller.onCaptureActiveChange?.(false);
       return;
     }
     const next = panArtifactViewV1(
@@ -275,6 +278,7 @@ function InteractiveDrawingBlock({
     if (!isPanningRef.current) return;
     isPanningRef.current = false;
     delete event.currentTarget.dataset.panning;
+    controller.onCaptureActiveChange?.(false);
     if (event.currentTarget.hasPointerCapture(event.pointerId))
       event.currentTarget.releasePointerCapture(event.pointerId);
   };
@@ -305,7 +309,7 @@ function InteractiveDrawingBlock({
 }
 
 export const DrawingBlock: RendererComponentV1<'content.drawing'> = ({ node, context }) => {
-  const controller = context.snapshot.scene.root?.id === node.id ? context.drawingView : undefined;
+  const controller = context.drawingView;
   return controller === undefined ? (
     <StaticDrawingBlock node={node} />
   ) : (

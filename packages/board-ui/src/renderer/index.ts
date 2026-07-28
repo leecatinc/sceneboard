@@ -5,8 +5,10 @@ export { tokenizeSafeMarkdownV1 } from './blocks/safe-markdown.js';
 export { buildChartGeometryV1 } from './blocks/chart-geometry.js';
 export { projectMapPositionV1 } from './blocks/map-projection.js';
 export type {
-  BoardRendererPropsV1,
+  BoardRendererPropsV2,
   DrawingViewControllerV1,
   DrawingViewStateV1,
+  PageRendererContextV2,
   RendererComponentV1,
+  RendererContextV2,
 } from './renderer-types.js';

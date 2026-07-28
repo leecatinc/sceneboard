@@ -57,5 +57,6 @@ export type ArtifactHostInputV1 = {
   onNavigationIntent?(intent: ArtifactNavigationIntentV1): void;
   onResizeRequest?(request: ArtifactResizeRequestV1): void;
   onViewStateChange?(event: ArtifactViewStateEventV1): void;
+  onCaptureActiveChange?(active: boolean): void;
   resetCommand?: ArtifactResetCommandV1 | null;
 };

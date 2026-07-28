@@ -38,6 +38,7 @@ function AdmittedArtifactHost(input: ArtifactHostInputV1) {
   const hasInteractedRef = useRef(false);
   const isRegisteredRef = useRef(false);
   const isPanningRef = useRef(false);
+  const captureSourcesRef = useRef(new Set<string>());
   const resizeQueueRef = useRef(createArtifactResizeQueueV1());
   const sizeFrameRef = useRef<number | null>(null);
   const generationRef = useRef(0);
@@ -45,6 +46,20 @@ function AdmittedArtifactHost(input: ArtifactHostInputV1) {
   const priorModeRef = useRef(input.viewMode ?? 'fit-height');
   const latestInputRef = useRef(input);
   latestInputRef.current = input;
+
+  const setCaptureSource = useCallback((source: string, active: boolean) => {
+    const sources = captureSourcesRef.current;
+    const wasActive = sources.size > 0;
+    if (active) sources.add(source);
+    else sources.delete(source);
+    const isActive = sources.size > 0;
+    if (wasActive === isActive) return;
+    try {
+      latestInputRef.current.onCaptureActiveChange?.(isActive);
+    } catch {
+      return;
+    }
+  }, []);
 
   const emitViewState = useCallback(
     (phase: 'register' | 'interaction' | 'unregister', scale: number) => {
@@ -216,6 +231,7 @@ function AdmittedArtifactHost(input: ArtifactHostInputV1) {
       const pan = applyArtifactPanIntentV1(isPanningRef.current, intent);
       if (intent.type === 'artifact.navigation.pan.start') {
         isPanningRef.current = pan.panning;
+        setCaptureSource('bridge-pan', true);
         hasInteractedRef.current = true;
         container.dataset.panning = 'true';
         emitViewState('interaction', transformRef.current.scale);
@@ -234,16 +250,18 @@ function AdmittedArtifactHost(input: ArtifactHostInputV1) {
         writeTransform(next);
         if (intent.type === 'artifact.navigation.pan.end') {
           isPanningRef.current = pan.panning;
+          setCaptureSource('bridge-pan', false);
           delete container.dataset.panning;
         }
         return;
       }
       if (intent.type === 'artifact.navigation.pan.cancel') {
         isPanningRef.current = pan.panning;
+        setCaptureSource('bridge-pan', false);
         delete container.dataset.panning;
       }
     },
-    [emitViewState, writeTransform],
+    [emitViewState, setCaptureSource, writeTransform],
   );
 
   const onNavigationIntent = useCallback(
@@ -267,6 +285,7 @@ function AdmittedArtifactHost(input: ArtifactHostInputV1) {
     transformRef.current = { scale: 1, x: 0, y: 0 };
     hasInteractedRef.current = false;
     isPanningRef.current = false;
+    captureSourcesRef.current.clear();
     const reset = advanceArtifactResetEpochV1(appliedResetEpochRef.current, latestInputRef.current);
     appliedResetEpochRef.current = reset.epoch;
     const container = containerElementRef.current;
@@ -277,6 +296,11 @@ function AdmittedArtifactHost(input: ArtifactHostInputV1) {
       container.scrollLeft = 0;
       container.scrollTop = 0;
       container.replaceChildren();
+    }
+    try {
+      latestInputRef.current.onCaptureActiveChange?.(false);
+    } catch {
+      return;
     }
   }, []);
 
@@ -375,6 +399,17 @@ function AdmittedArtifactHost(input: ArtifactHostInputV1) {
         ref={bridge.containerRef}
         className="artifact-frame-container"
         aria-hidden={bridge.phase !== 'active'}
+        onPointerDown={(event) => {
+          event.currentTarget.setPointerCapture(event.pointerId);
+          setCaptureSource(`pointer:${event.pointerId}`, true);
+        }}
+        onPointerUp={(event) => {
+          setCaptureSource(`pointer:${event.pointerId}`, false);
+          if (event.currentTarget.hasPointerCapture(event.pointerId))
+            event.currentTarget.releasePointerCapture(event.pointerId);
+        }}
+        onPointerCancel={(event) => setCaptureSource(`pointer:${event.pointerId}`, false)}
+        onLostPointerCapture={(event) => setCaptureSource(`pointer:${event.pointerId}`, false)}
       />
       {bridge.phase === 'active' ? null : (
         <ArtifactFallback phase={bridge.phase} correlationId={bridge.correlationId} />

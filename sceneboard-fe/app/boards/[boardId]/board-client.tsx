@@ -2,7 +2,8 @@
 
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import { memo, useEffect, useReducer, useState } from 'react';
+import { memo, useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import type { PageId } from '@sceneboard/board-schema';
 import {
   BoardRenderer,
   type DrawingViewStateV1,
@@ -16,6 +17,7 @@ import { BoardStatePanel } from '../../../components/board/BoardStatePanel';
 import { BoardPairingControl } from '../../../components/board/BoardPairingControl';
 import { BoardTopBar } from '../../../components/board/BoardTopBar';
 import { BoardArchiveControl } from '../../../components/board/BoardArchiveControl';
+import { PageNavigationControls } from '../../../components/board/PageNavigationControls';
 import { HitlDecisionWorkspace } from '../../../components/board/HitlDecisionWorkspace';
 import { StatusRail } from '../../../components/board/StatusRail';
 import { useBoardSession } from '../../../lib/board/use-board-session';
@@ -31,22 +33,15 @@ import {
   reduceArtifactViewRegistryV1,
   selectedArtifactZoomV1,
 } from '../../../lib/board/artifact-view-registry';
-
-const PAGE_NAVIGATION_TARGETS = [
-  'input',
-  'textarea',
-  'select',
-  '[contenteditable="true"]',
-  '[role="textbox"]',
-  '[role="combobox"]',
-  '[role="listbox"]',
-  '[role="slider"]',
-  '[role="spinbutton"]',
-].join(',');
-
-function isEditingTarget(target: EventTarget | null) {
-  return target instanceof Element && target.closest(PAGE_NAVIGATION_TARGETS) !== null;
-}
+import {
+  admitPageNavigationKeyV1,
+  documentForPageNavigationV1,
+  navigatePageIdV1,
+  pageNavigationElementFactsV1,
+  resolveSelectedPageIdV1,
+  type PageNavigationCommandV1,
+} from '../../../lib/board/page-navigation';
+import { adaptSnapshotToPageRenderV2 } from '../../../lib/board/page-render-adapter';
 
 function ArtifactLoading() {
   const { t } = useI18n();
@@ -69,15 +64,17 @@ function ActiveHitlBlock({
   renderer,
   mode,
   routeEpoch,
+  onActiveChange,
 }: {
   api: BoardApiClient;
   renderer: HitlRendererInput;
   mode: HitlInteractionControllerV1['mode'];
   routeEpoch: string;
+  onActiveChange: (source: string, active: boolean) => void;
 }) {
   const { t } = useI18n();
   const { node, context } = renderer;
-  const current = context.snapshot.hitl.find((item) => item.hitlRequestId === node.hitlRequestId);
+  const current = context.hitl.find((item) => item.hitlRequestId === node.hitlRequestId);
   if (current === undefined)
     return (
       <div className="scene-fallback" role="alert">
@@ -88,11 +85,13 @@ function ActiveHitlBlock({
     <BoundHitlBlock
       api={api}
       nodeId={node.id}
-      boardId={context.snapshot.boardId}
-      expectedRevisionId={context.snapshot.revision.revisionId}
+      boardId={context.boardId}
+      expectedRevisionId={context.revision.revisionId}
       interaction={current}
       mode={mode}
       routeEpoch={routeEpoch}
+      activityKey={`${routeEpoch}:${current.hitlRequestId}`}
+      onActiveChange={onActiveChange}
     />
   );
 }
@@ -106,14 +105,18 @@ const BoundHitlBlock = memo(
     interaction,
     mode,
     routeEpoch,
+    activityKey,
+    onActiveChange,
   }: {
     api: BoardApiClient;
     nodeId: string;
-    boardId: HitlRendererInput['context']['snapshot']['boardId'];
-    expectedRevisionId: HitlRendererInput['context']['snapshot']['revision']['revisionId'];
-    interaction: HitlRendererInput['context']['snapshot']['hitl'][number];
+    boardId: HitlRendererInput['context']['boardId'];
+    expectedRevisionId: HitlRendererInput['context']['revision']['revisionId'];
+    interaction: HitlRendererInput['context']['hitl'][number];
     mode: HitlInteractionControllerV1['mode'];
     routeEpoch: string;
+    activityKey: string;
+    onActiveChange: (source: string, active: boolean) => void;
   }) {
     const bound = useHitlInteractionController({
       api,
@@ -123,6 +126,13 @@ const BoundHitlBlock = memo(
       mode,
       routeEpoch,
     });
+    useEffect(() => {
+      const active = interaction.state === 'open';
+      onActiveChange(activityKey, active);
+      return () => {
+        if (active) onActiveChange(activityKey, false);
+      };
+    }, [activityKey, interaction.state, onActiveChange]);
     return (
       <HitlBlock
         key={`${routeEpoch}:${mode}:${interaction.hitlRequestId}`}
@@ -141,6 +151,8 @@ const BoundHitlBlock = memo(
     previous.expectedRevisionId === next.expectedRevisionId &&
     previous.mode === next.mode &&
     previous.routeEpoch === next.routeEpoch &&
+    previous.activityKey === next.activityKey &&
+    previous.onActiveChange === next.onActiveChange &&
     previous.interaction.hitlRequestId === next.interaction.hitlRequestId &&
     previous.interaction.stateUpdatedAt === next.interaction.stateUpdatedAt,
 );
@@ -178,50 +190,116 @@ export function BoardClient({ boardId }: { boardId: string }) {
       },
     };
   });
+  const [selectedPageId, setSelectedPageId] = useState<PageId | null>(null);
+  const [pageAnnouncement, setPageAnnouncement] = useState('');
+  const [artifactCaptureActive, setArtifactCaptureActive] = useState(false);
+  const [hitlInteractionActive, setHitlInteractionActive] = useState(false);
+  const pageScrollRef = useRef<HTMLDivElement | null>(null);
+  const pageIdentityRef = useRef<string | null>(null);
+  const captureSourcesRef = useRef(new Set<string>());
+  const hitlSourcesRef = useRef(new Set<string>());
   const revisionId = session.visibleSnapshot?.revision.revisionId ?? null;
-  const pageTabs =
-    session.visibleSnapshot?.scene.root?.type === 'layout.tabs'
-      ? session.visibleSnapshot.scene.root
-      : null;
+  const navigationDocument =
+    session.visibleSnapshot === null ? null : documentForPageNavigationV1(session.visibleSnapshot);
+  const resolvedPageId =
+    navigationDocument === null
+      ? null
+      : resolveSelectedPageIdV1(navigationDocument, selectedPageId);
+  const resolvedPageIndex =
+    navigationDocument === null || resolvedPageId === null
+      ? -1
+      : navigationDocument.pages.findIndex((page) => page.pageId === resolvedPageId);
+  const moveCaptureActive = false;
+
+  const setCaptureActive = useCallback((source: string, active: boolean) => {
+    if (active) captureSourcesRef.current.add(source);
+    else captureSourcesRef.current.delete(source);
+    setArtifactCaptureActive(captureSourcesRef.current.size > 0);
+  }, []);
+  const setHitlActive = useCallback((source: string, active: boolean) => {
+    if (active) hitlSourcesRef.current.add(source);
+    else hitlSourcesRef.current.delete(source);
+    setHitlInteractionActive(hitlSourcesRef.current.size > 0);
+  }, []);
+
+  const announceAndResetPage = useCallback(
+    (pageId: PageId) => {
+      if (navigationDocument === null) return;
+      const index = navigationDocument.pages.findIndex((page) => page.pageId === pageId);
+      if (index < 0) return;
+      pageScrollRef.current?.scrollTo({
+        top: 0,
+        behavior: 'instant' as ScrollBehavior,
+      });
+      setPageAnnouncement(
+        t('presentation.pageAnnouncement', {
+          current: index + 1,
+          total: navigationDocument.pages.length,
+        }),
+      );
+    },
+    [navigationDocument, t],
+  );
+
+  const selectPage = useCallback(
+    (command: PageNavigationCommandV1): boolean => {
+      if (
+        navigationDocument === null ||
+        resolvedPageId === null ||
+        session.visibleSnapshot === null
+      )
+        return false;
+      const nextPageId = navigatePageIdV1(navigationDocument, resolvedPageId, command);
+      if (nextPageId === resolvedPageId) return false;
+      pageIdentityRef.current = `${boardId}:${session.visibleSnapshot.revision.revisionId}:${nextPageId}`;
+      setSelectedPageId(nextPageId);
+      announceAndResetPage(nextPageId);
+      return true;
+    },
+    [announceAndResetPage, boardId, navigationDocument, resolvedPageId, session.visibleSnapshot],
+  );
 
   useEffect(() => setSelectedTabs({}), [boardId, revisionId]);
-  useEffect(() => dispatchArtifactView({ type: 'clear' }), [boardId]);
-  useEffect(() => setDrawingView({ nodeId: '', scale: null, canReset: false }), [boardId]);
   useEffect(() => {
-    if (pageTabs === null) return undefined;
+    dispatchArtifactView({ type: 'clear' });
+    setDrawingView({ nodeId: '', scale: null, canReset: false });
+    captureSourcesRef.current.clear();
+    hitlSourcesRef.current.clear();
+    setArtifactCaptureActive(false);
+    setHitlInteractionActive(false);
+  }, [boardId]);
+  useEffect(() => {
+    if (resolvedPageId === null || session.visibleSnapshot === null) return;
+    setSelectedPageId((current) => (current === resolvedPageId ? current : resolvedPageId));
+    const identity = `${boardId}:${session.visibleSnapshot.revision.revisionId}:${resolvedPageId}`;
+    if (pageIdentityRef.current === identity) return;
+    pageIdentityRef.current = identity;
+    announceAndResetPage(resolvedPageId);
+  }, [announceAndResetPage, boardId, resolvedPageId, session.visibleSnapshot]);
+  useEffect(() => {
     const navigatePage = (event: KeyboardEvent) => {
-      const direction =
-        event.key === 'ArrowRight' || event.key === 'PageDown'
-          ? 1
-          : event.key === 'ArrowLeft' || event.key === 'PageUp'
-            ? -1
-            : 0;
-      if (
-        direction === 0 ||
-        event.defaultPrevented ||
-        event.altKey ||
-        event.ctrlKey ||
-        event.metaKey ||
-        event.shiftKey ||
-        isEditingTarget(event.target) ||
-        document.querySelector('[role="dialog"][aria-modal="true"], dialog[open]') !== null
-      )
-        return;
-
-      event.preventDefault();
-      setSelectedTabs((current) => {
-        const selectedTabId = current[pageTabs.id] ?? pageTabs.activeTabId;
-        const selectedIndex = pageTabs.tabs.findIndex((tab) => tab.tabId === selectedTabId);
-        const nextIndex = Math.max(0, selectedIndex) + direction;
-        const nextTab = pageTabs.tabs[nextIndex];
-        if (nextTab === undefined) return current;
-        return { ...current, [pageTabs.id]: nextTab.tabId };
+      const command = admitPageNavigationKeyV1({
+        key: event.key,
+        defaultPrevented: event.defaultPrevented,
+        isComposing: event.isComposing,
+        altKey: event.altKey,
+        ctrlKey: event.ctrlKey,
+        metaKey: event.metaKey,
+        target: pageNavigationElementFactsV1(event.target),
+        composedPath: event
+          .composedPath()
+          .map(pageNavigationElementFactsV1)
+          .filter((fact) => fact !== null),
+        hitlInteractionActive,
+        artifactCaptureActive,
+        moveCaptureActive,
       });
+      if (command !== null && selectPage(command)) event.preventDefault();
     };
 
     window.addEventListener('keydown', navigatePage);
     return () => window.removeEventListener('keydown', navigatePage);
-  }, [pageTabs]);
+  }, [artifactCaptureActive, hitlInteractionActive, moveCaptureActive, selectPage]);
 
   if (session.phase === 'loading' || (session.state === null && session.error === null)) {
     return (
@@ -246,6 +324,33 @@ export function BoardClient({ boardId }: { boardId: string }) {
     );
   }
   const { state, visibleSnapshot } = session;
+  if (resolvedPageId === null || navigationDocument === null || resolvedPageIndex < 0) {
+    return (
+      <BoardStatePanel
+        error={{
+          kind: 'corrupt',
+          message: t('board.sceneUnavailable'),
+          retryable: false,
+        }}
+        onRetry={() => void session.retry()}
+      />
+    );
+  }
+  let pageRender;
+  try {
+    pageRender = adaptSnapshotToPageRenderV2(visibleSnapshot, resolvedPageId);
+  } catch {
+    return (
+      <BoardStatePanel
+        error={{
+          kind: 'corrupt',
+          message: t('board.sceneUnavailable'),
+          retryable: false,
+        }}
+        onRetry={() => void session.retry()}
+      />
+    );
+  }
   const runtimeOrigin = process.env.NEXT_PUBLIC_ARTIFACT_RUNTIME_ORIGIN ?? '';
   const routeEpoch = `${boardId}:${visibleSnapshot.revision.revisionId}`;
   const artifactRouteEpoch = boardId;
@@ -254,7 +359,7 @@ export function BoardClient({ boardId }: { boardId: string }) {
   const unplacedOpenHitl =
     state.mode.kind === 'live' ? selectUnplacedOpenHitlV1(visibleSnapshot) : [];
   const renderArtifact: RendererComponentV1<'content.artifact'> = ({ node, context }) => {
-    const runtime = context.snapshot.artifacts.find(
+    const runtime = context.artifacts.find(
       (item) =>
         item.artifact.artifactId === node.artifact.artifactId &&
         item.artifact.versionId === node.artifact.versionId,
@@ -269,25 +374,32 @@ export function BoardClient({ boardId }: { boardId: string }) {
     return (
       <IsolatedArtifactHost
         key={incarnationKey}
-        boardId={context.snapshot.boardId}
+        boardId={context.boardId}
         artifact={node.artifact}
         runtime={runtime}
         runtimeOrigin={runtimeOrigin}
         routeEpoch={artifactRouteEpoch}
         hostInstanceId={node.id}
         incarnationKey={incarnationKey}
-        snapshotWatermark={context.snapshot.lastEventSequence}
+        snapshotWatermark={context.lastEventSequence}
         load={artifactLoad}
         viewMode={artifactViewMode}
         showStopControl={false}
         stopSignal={artifactStopSignal}
         onViewStateChange={(event) => dispatchArtifactView({ type: 'event', event })}
+        onCaptureActiveChange={(active) => setCaptureActive(incarnationKey, active)}
         resetCommand={artifactViews.resetCommand}
       />
     );
   };
   const renderHitl: RendererComponentV1<'content.hitl'> = (renderer) => (
-    <ActiveHitlBlock api={api} renderer={renderer} mode={hitlMode} routeEpoch={routeEpoch} />
+    <ActiveHitlBlock
+      api={api}
+      renderer={renderer}
+      mode={hitlMode}
+      routeEpoch={routeEpoch}
+      onActiveChange={setHitlActive}
+    />
   );
   const onDrawingViewStateChange = (next: DrawingViewStateV1) => {
     setDrawingView((current) =>
@@ -298,7 +410,7 @@ export function BoardClient({ boardId }: { boardId: string }) {
         : next,
     );
   };
-  const rootIsDrawing = visibleSnapshot.scene.root?.type === 'content.drawing';
+  const rootIsDrawing = pageRender.page.scene.root?.type === 'content.drawing';
   const selectedZoom = rootIsDrawing ? drawingView.scale : selectedArtifactZoomV1(artifactViews);
   const canResetView = rootIsDrawing ? drawingView.canReset : canResetArtifactViewV1(artifactViews);
   const resetView = () => {
@@ -338,9 +450,23 @@ export function BoardClient({ boardId }: { boardId: string }) {
         </div>
       )}
       <div className="board-surface">
-        <div className="scene-surface" aria-label={t('board.sceneCanvas')}>
+        <div ref={pageScrollRef} className="scene-surface" aria-label={t('board.sceneCanvas')}>
+          <PageNavigationControls
+            current={resolvedPageIndex + 1}
+            total={navigationDocument.pages.length}
+            previousLabel={t('presentation.previousPage')}
+            nextLabel={t('presentation.nextPage')}
+            statusLabel={t('presentation.pageNavigation')}
+            onPrevious={() => selectPage('previous')}
+            onNext={() => selectPage('next')}
+          />
+          <span className="visually-hidden" aria-live="polite" aria-atomic="true">
+            {pageAnnouncement}
+          </span>
           <BoardRenderer
-            snapshot={visibleSnapshot}
+            key={`${boardId}:${visibleSnapshot.revision.revisionId}:${resolvedPageId}`}
+            page={pageRender.page}
+            context={pageRender.context}
             emptyLabel=""
             selectedTabs={selectedTabs}
             onSelectTab={(nodeId, tabId) =>
@@ -352,6 +478,8 @@ export function BoardClient({ boardId }: { boardId: string }) {
               mode: artifactViewMode,
               resetSignal: drawingResetSignal,
               onStateChange: onDrawingViewStateChange,
+              onCaptureActiveChange: (active) =>
+                setCaptureActive(`drawing:${resolvedPageId}`, active),
             }}
           />
           {unplacedOpenHitl.length > 0 && (
@@ -369,6 +497,8 @@ export function BoardClient({ boardId }: { boardId: string }) {
                   interaction={interaction}
                   mode={hitlMode}
                   routeEpoch={routeEpoch}
+                  activityKey={`${routeEpoch}:automatic:${interaction.hitlRequestId}`}
+                  onActiveChange={setHitlActive}
                 />
               ))}
             </HitlDecisionWorkspace>

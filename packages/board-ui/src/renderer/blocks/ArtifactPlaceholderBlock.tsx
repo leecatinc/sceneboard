@@ -4,7 +4,7 @@ export const ArtifactPlaceholderBlock: RendererComponentV1<'content.artifact'> =
   node,
   context,
 }) => {
-  const runtime = context.snapshot.artifacts.find(
+  const runtime = context.artifacts.find(
     (item) =>
       item.artifact.artifactId === node.artifact.artifactId &&
       item.artifact.versionId === node.artifact.versionId,

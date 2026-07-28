@@ -218,7 +218,7 @@ test('board top bar preserves live connection and history controls before pairin
   assert.match(boardClient, /dispatchArtifactView\(\{ type: 'clear' \}\)/);
   assert.match(
     boardClient,
-    /drawingView=\{\{\s*mode:\s*artifactViewMode,\s*resetSignal:\s*drawingResetSignal,\s*onStateChange:\s*onDrawingViewStateChange,?\s*\}\}/,
+    /drawingView=\{\{[\s\S]*?mode:\s*artifactViewMode,[\s\S]*?resetSignal:\s*drawingResetSignal,[\s\S]*?onStateChange:\s*onDrawingViewStateChange,[\s\S]*?onCaptureActiveChange:/,
   );
   assert.match(
     boardClient,
