@@ -18,6 +18,8 @@ import { BoardPairingControl } from '../../../components/board/BoardPairingContr
 import { BoardTopBar } from '../../../components/board/BoardTopBar';
 import { BoardArchiveControl } from '../../../components/board/BoardArchiveControl';
 import { PageNavigationControls } from '../../../components/board/PageNavigationControls';
+import { PageDisplayModeControls } from '../../../components/board/PageDisplayModeControls';
+import { PresentationStage } from '../../../components/board/PresentationStage';
 import { HitlDecisionWorkspace } from '../../../components/board/HitlDecisionWorkspace';
 import { StatusRail } from '../../../components/board/StatusRail';
 import { useBoardSession } from '../../../lib/board/use-board-session';
@@ -42,6 +44,12 @@ import {
   type PageNavigationCommandV1,
 } from '../../../lib/board/page-navigation';
 import { adaptSnapshotToPageRenderV2 } from '../../../lib/board/page-render-adapter';
+import {
+  resolvePageDisplayModeV1,
+  type PageViewportClassV1,
+} from '../../../lib/board/page-display-mode.controller';
+import type { PageDisplayModeV1 } from '../../../lib/board/page-display-mode.types';
+import styles from './board.module.css';
 
 function ArtifactLoading() {
   const { t } = useI18n();
@@ -191,6 +199,11 @@ export function BoardClient({ boardId }: { boardId: string }) {
     };
   });
   const [selectedPageId, setSelectedPageId] = useState<PageId | null>(null);
+  const [viewportClass, setViewportClass] = useState<PageViewportClassV1>('desktop');
+  const [pageDisplaySelection, setPageDisplaySelection] = useState<{
+    routeBoardId: string;
+    mode: PageDisplayModeV1;
+  } | null>(null);
   const [pageAnnouncement, setPageAnnouncement] = useState('');
   const [artifactCaptureActive, setArtifactCaptureActive] = useState(false);
   const [hitlInteractionActive, setHitlInteractionActive] = useState(false);
@@ -210,6 +223,12 @@ export function BoardClient({ boardId }: { boardId: string }) {
       ? -1
       : navigationDocument.pages.findIndex((page) => page.pageId === resolvedPageId);
   const moveCaptureActive = false;
+  const pageDisplayMode = resolvePageDisplayModeV1({
+    routeBoardId: boardId,
+    viewportClass,
+    userSelection:
+      pageDisplaySelection?.routeBoardId === boardId ? pageDisplaySelection.mode : null,
+  });
 
   const setCaptureActive = useCallback((source: string, active: boolean) => {
     if (active) captureSourcesRef.current.add(source);
@@ -260,6 +279,13 @@ export function BoardClient({ boardId }: { boardId: string }) {
   );
 
   useEffect(() => setSelectedTabs({}), [boardId, revisionId]);
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 760px)');
+    const updateViewportClass = () => setViewportClass(media.matches ? 'mobile' : 'desktop');
+    updateViewportClass();
+    media.addEventListener('change', updateViewportClass);
+    return () => media.removeEventListener('change', updateViewportClass);
+  }, []);
   useEffect(() => {
     dispatchArtifactView({ type: 'clear' });
     setDrawingView({ nodeId: '', scale: null, canReset: false });
@@ -411,6 +437,13 @@ export function BoardClient({ boardId }: { boardId: string }) {
     );
   };
   const rootIsDrawing = pageRender.page.scene.root?.type === 'content.drawing';
+  const rootCanvas =
+    pageRender.page.scene.root?.type === 'layout.canvas'
+      ? {
+          width: pageRender.page.scene.root.width,
+          height: pageRender.page.scene.root.height,
+        }
+      : null;
   const selectedZoom = rootIsDrawing ? drawingView.scale : selectedArtifactZoomV1(artifactViews);
   const canResetView = rootIsDrawing ? drawingView.canReset : canResetArtifactViewV1(artifactViews);
   const resetView = () => {
@@ -418,7 +451,9 @@ export function BoardClient({ boardId }: { boardId: string }) {
     setDrawingResetSignal((value) => value + 1);
   };
   return (
-    <section className={`board-workspace ${state.mode.kind === 'history' ? 'is-history' : ''}`}>
+    <section
+      className={`board-workspace ${styles.workspace} ${state.mode.kind === 'history' ? 'is-history' : ''}`}
+    >
       <BoardTopBar
         title={session.title}
         state={state}
@@ -449,17 +484,30 @@ export function BoardClient({ boardId }: { boardId: string }) {
           {state.navigationError.message}
         </div>
       )}
-      <div className="board-surface">
-        <div ref={pageScrollRef} className="scene-surface" aria-label={t('board.sceneCanvas')}>
-          <PageNavigationControls
-            current={resolvedPageIndex + 1}
-            total={navigationDocument.pages.length}
-            previousLabel={t('presentation.previousPage')}
-            nextLabel={t('presentation.nextPage')}
-            statusLabel={t('presentation.pageNavigation')}
-            onPrevious={() => selectPage('previous')}
-            onNext={() => selectPage('next')}
-          />
+      <div className={`board-surface ${styles.surface}`}>
+        <PresentationStage
+          stageRef={pageScrollRef}
+          mode={pageDisplayMode}
+          canvasSize={rootCanvas}
+          label={t('board.sceneCanvas')}
+          toolbar={
+            <>
+              <PageNavigationControls
+                current={resolvedPageIndex + 1}
+                total={navigationDocument.pages.length}
+                previousLabel={t('presentation.previousPage')}
+                nextLabel={t('presentation.nextPage')}
+                statusLabel={t('presentation.pageNavigation')}
+                onPrevious={() => selectPage('previous')}
+                onNext={() => selectPage('next')}
+              />
+              <PageDisplayModeControls
+                value={pageDisplayMode}
+                onChange={(mode) => setPageDisplaySelection({ routeBoardId: boardId, mode })}
+              />
+            </>
+          }
+        >
           <span className="visually-hidden" aria-live="polite" aria-atomic="true">
             {pageAnnouncement}
           </span>
@@ -503,7 +551,7 @@ export function BoardClient({ boardId }: { boardId: string }) {
               ))}
             </HitlDecisionWorkspace>
           )}
-        </div>
+        </PresentationStage>
         <StatusRail
           snapshot={visibleSnapshot}
           presence={state.presence}

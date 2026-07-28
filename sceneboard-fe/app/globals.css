@@ -31,7 +31,6 @@
 .artifact-host {
   position: relative;
   min-height: 18rem;
-  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
@@ -45,7 +44,6 @@
 }
 .artifact-frame-container {
   position: relative;
-  overflow: auto;
 }
 .artifact-frame-container[data-view-mode='actual'] {
   overflow: hidden;
@@ -76,13 +74,6 @@
   display: block;
   height: clamp(18rem, 55vh, 52rem);
   background: #ffffff;
-}
-
-.scene-root > .artifact-host,
-.scene-root > .artifact-host > .artifact-frame-container,
-.scene-root > .artifact-host .artifact-runtime-frame {
-  height: 100%;
-  min-height: 0;
 }
 
 .artifact-fallback {
@@ -618,17 +609,6 @@ button:disabled {
   margin: 20px auto 0;
 }
 
-.board-workspace {
-  height: 100%;
-  min-height: 0;
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
-  overflow: hidden;
-  background: var(--surface-muted);
-}
-.board-workspace.is-history {
-  box-shadow: inset 0 3px 0 var(--secondary);
-}
 .board-topbar {
   display: grid;
   grid-template-columns: minmax(180px, 1fr) auto auto;
@@ -801,7 +781,6 @@ button:disabled {
   font-variant-numeric: tabular-nums;
 }
 .history-controls button,
-.scene-canvas-controls button,
 .scene-tab {
   min-height: 34px;
   border: 1px solid var(--border-strong);
@@ -823,23 +802,6 @@ button:disabled {
   color: var(--primary-active);
   padding: 5px 8px;
   font-weight: 750;
-}
-.board-surface {
-  min-height: 0;
-  grid-row: 3;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 228px;
-  overflow: hidden;
-  gap: 1px;
-  background: var(--border);
-}
-.scene-surface {
-  position: relative;
-  min-width: 0;
-  min-height: 0;
-  padding: 18px;
-  overflow: auto;
-  background: var(--background);
 }
 .page-navigation {
   position: sticky;
@@ -1001,7 +963,6 @@ button:disabled {
 }
 
 .scene-root {
-  height: 100%;
   min-height: 0;
   color: var(--text);
   container-type: inline-size;
@@ -1021,9 +982,7 @@ button:disabled {
   text-align: center;
 }
 .scene-root > .scene-empty,
-.scene-root > .scene-fallback,
-.scene-surface > .scene-empty,
-.scene-surface > .scene-fallback {
+.scene-root > .scene-fallback {
   height: 100%;
   min-height: 0;
 }
@@ -1048,10 +1007,8 @@ button:disabled {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
-  overflow: hidden;
 }
 .scene-root > .scene-tabs {
-  height: 100%;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
 }
@@ -1071,32 +1028,10 @@ button:disabled {
   min-height: 0;
   padding: 12px;
 }
-.scene-root > .scene-tabs > .scene-tab-panel {
-  overflow: auto;
-}
 .scene-canvas {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
-  overflow: hidden;
-}
-.scene-canvas-controls {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px;
-  border-bottom: 1px solid var(--border);
-}
-.scene-canvas-controls output {
-  min-width: 46px;
-  text-align: center;
-  font-size: 12px;
-}
-.scene-canvas-viewport {
-  max-height: 620px;
-  overflow: auto;
-  padding: 12px;
-  background: var(--surface-muted);
 }
 .scene-canvas-plane {
   position: relative;
@@ -1107,7 +1042,6 @@ button:disabled {
 }
 .scene-canvas-child {
   position: absolute;
-  overflow: auto;
 }
 .scene-canvas-list {
   padding: 10px 12px;
@@ -1131,7 +1065,6 @@ button:disabled {
 }
 .scene-markdown pre,
 .scene-code pre {
-  overflow: auto;
   border-radius: 6px;
   background: #18231f;
   color: #f1f8f5;
@@ -1167,24 +1100,11 @@ button:disabled {
   color: var(--text-strong);
   font-weight: 750;
 }
-.scene-root > .scene-drawing-block {
-  height: 100%;
-  min-height: 0;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-}
-.scene-root > .scene-drawing-block > .scene-drawing {
-  height: 100%;
-  min-height: 0;
-  max-height: none;
-  display: block;
-}
 .scene-drawing-viewport {
   position: relative;
   min-width: 0;
   min-height: 0;
   height: 100%;
-  overflow: auto;
   border-radius: 6px;
 }
 .scene-drawing-viewport[data-view-mode='actual'] {
@@ -1219,7 +1139,6 @@ button:disabled {
 }
 .scene-table-scroll {
   max-width: 100%;
-  overflow-x: auto;
 }
 .scene-table-scroll table {
   width: 100%;
@@ -1419,7 +1338,6 @@ button:disabled {
 }
 .hitl-rich-text pre {
   max-width: 100%;
-  overflow: auto;
   border-radius: 6px;
   background: #18231f;
   color: #f1f8f5;
@@ -1573,7 +1491,6 @@ button:disabled {
 .hitl-response {
   max-width: 100%;
   margin: 0;
-  overflow: auto;
   border-radius: 5px;
   background: #18231f;
   color: #f1f8f5;
@@ -1742,10 +1659,6 @@ button:disabled {
   .history-controls {
     grid-column: 1 / -1;
     justify-content: flex-start;
-  }
-  .board-surface {
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(0, 1fr) auto;
   }
   .status-rail {
     border-top: 1px solid var(--border);

@@ -1,0 +1,23 @@
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+}
+
+.controls button {
+  min-height: 30px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.controls button[aria-pressed='true'] {
+  border-color: var(--primary);
+  background: var(--primary-wash);
+  color: var(--primary-active);
+  font-weight: 750;
+}

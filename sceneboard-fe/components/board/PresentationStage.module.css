@@ -1,0 +1,150 @@
+.root {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: clip;
+  background: var(--background);
+}
+
+.stage {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
+
+.toolbar {
+  z-index: 3;
+  width: max-content;
+  max-width: 100%;
+  margin: 8px auto;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+}
+
+.content {
+  min-width: 0;
+}
+
+.content :global(.scene-root),
+.content :global(.scene-layout),
+.content :global(.scene-tab-panel),
+.content :global(.scene-canvas),
+.content :global(.scene-canvas-stage),
+.content :global(.scene-canvas-child),
+.content :global(.scene-canvas-list),
+.content :global(.scene-drawing-viewport),
+.content :global(.scene-table-scroll),
+.content :global(.artifact-frame-container) {
+  min-height: 0;
+  overflow: visible;
+}
+
+.content :global(.scene-root) {
+  height: auto;
+  container-type: inline-size;
+}
+
+.content :global(.scene-root > .scene-tabs) {
+  height: auto;
+  display: block;
+}
+
+.content :global(.scene-canvas) {
+  overflow: clip;
+}
+
+.content :global(.scene-canvas-stage) {
+  width: 100%;
+  min-height: 0;
+  overflow: clip;
+  padding-left: var(--page-canvas-origin-x, 0);
+  background: var(--surface-muted);
+}
+
+.content :global(.scene-canvas-reserved) {
+  position: relative;
+  width: var(--page-canvas-reserved-width, var(--scene-canvas-width));
+  height: var(--page-canvas-reserved-height, var(--scene-canvas-height));
+}
+
+.content :global(.scene-canvas-plane) {
+  position: relative;
+  width: var(--scene-canvas-width);
+  height: var(--scene-canvas-height);
+  max-width: none;
+  transform: translateX(var(--page-canvas-move-x, 0)) scale(var(--page-canvas-scale, 1));
+  transform-origin: 0 0;
+}
+
+.content :global(.scene-canvas-child) {
+  position: absolute;
+  overflow: visible;
+}
+
+.content :global(.scene-canvas-child .scene-canvas-stage) {
+  --page-canvas-scale: 1;
+  --page-canvas-origin-x: 0px;
+  --page-canvas-move-x: 0px;
+  --page-canvas-reserved-width: var(--scene-canvas-width);
+  --page-canvas-reserved-height: var(--scene-canvas-height);
+}
+
+.content :global(.scene-canvas-list) {
+  border-top: 1px solid var(--border);
+  padding: 10px 12px;
+}
+
+.content :global(.scene-markdown pre),
+.content :global(.scene-code pre) {
+  max-width: 100%;
+  overflow: visible;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.content :global(.scene-table-scroll) {
+  max-width: 100%;
+}
+
+.content :global(.scene-table-scroll table) {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.content :global(.scene-table-scroll th),
+.content :global(.scene-table-scroll td) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.content :global(.scene-drawing-viewport),
+.content :global(.artifact-frame-container) {
+  max-width: 100%;
+  overflow: clip;
+}
+
+@media (max-width: 760px) {
+  .content :global(.scene-table-scroll table),
+  .content :global(.scene-table-scroll tbody),
+  .content :global(.scene-table-scroll tr),
+  .content :global(.scene-table-scroll th),
+  .content :global(.scene-table-scroll td) {
+    display: block;
+    width: 100%;
+  }
+
+  .content :global(.scene-table-scroll thead) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: clip;
+    clip-path: inset(50%);
+  }
+}

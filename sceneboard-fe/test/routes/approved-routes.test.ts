@@ -124,22 +124,10 @@ test('application header exposes one-shot code creation and keeps page scrolling
     styles,
     /\.app-shell-viewport-locked \.app-main \{[^}]+display: grid;[^}]+grid-template-rows: minmax\(0, 1fr\);[^}]+overflow: hidden;/,
   );
-  assert.match(
-    styles,
-    /\.board-surface \{[^}]+grid-row: 3;[^}]+grid-template-columns: minmax\(0, 1fr\) 228px;/,
-  );
-  assert.match(
-    styles,
-    /\.scene-surface > \.scene-empty,\s*\.scene-surface > \.scene-fallback\s*\{\s*height:\s*100%;\s*min-height:\s*0;\s*\}/,
-  );
-  assert.match(
-    styles,
-    /\.scene-root > \.artifact-host,[^}]+\.artifact-runtime-frame \{[^}]+height: 100%;[^}]+min-height: 0;/,
-  );
-  assert.match(
-    styles,
-    /\.scene-root > \.scene-drawing-block \{[^}]+height: 100%;[^}]+grid-template-rows: auto minmax\(0, 1fr\);/,
-  );
+  assert.doesNotMatch(styles, /\.board-surface\s*\{/);
+  assert.doesNotMatch(styles, /\.scene-surface\s*\{/);
+  assert.doesNotMatch(styles, /\.scene-root > \.artifact-host,/);
+  assert.doesNotMatch(styles, /\.scene-root > \.scene-drawing-block\s*\{/);
   assert.match(
     styles,
     /\.scene-drawing-viewport\[data-view-mode=['"]actual['"]\]\s*\{[^}]+overflow:\s*hidden;[^}]+cursor:\s*grab;/,
