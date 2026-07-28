@@ -48,6 +48,8 @@ export type CanonicalMediaObjectV1 = Readonly<{
   version: bigint;
 }>;
 
+export type CanonicalMediaObjectMetadataV1 = Omit<CanonicalMediaObjectV1, 'bytes'>;
+
 export type LockedBoardMediaV1 = Readonly<{
   boardMediaPk: bigint;
   boardPk: bigint;

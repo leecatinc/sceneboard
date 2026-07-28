@@ -19,6 +19,7 @@ import {
 } from './media-errors.js';
 import type {
   CanonicalMediaObjectV1,
+  CanonicalMediaObjectMetadataV1,
   CanonicalMediaV1,
   ExactRevisionMediaRefV1,
   LockedBoardMediaV1,
@@ -37,6 +38,17 @@ interface ObjectRow extends RowDataPacket {
   mediaPk: string;
   sha256: Buffer;
   bytes: Buffer;
+  mime: MediaMimeV1;
+  width: number;
+  height: number;
+  byteLength: number;
+  state: 'active' | 'quarantined';
+  version: string;
+}
+
+interface ObjectMetadataRow extends RowDataPacket {
+  mediaPk: string;
+  sha256: Buffer;
   mime: MediaMimeV1;
   width: number;
   height: number;
@@ -221,6 +233,43 @@ export class MediaRepository {
       [mediaPk.toString()],
     );
     return rows[0] === undefined ? null : this.mapObject(rows[0]);
+  }
+
+  async lockCanonicalObjectMetadata(
+    connection: PoolConnection,
+    mediaPk: bigint,
+  ): Promise<CanonicalMediaObjectMetadataV1 | null> {
+    const [rows] = await connection.execute<ObjectMetadataRow[]>(
+      `
+      SELECT CAST(media_pk AS CHAR) AS mediaPk, sha256, mime, width, height,
+             byte_length AS byteLength, state, CAST(version AS CHAR) AS version
+      FROM media_objects WHERE media_pk = ? FOR UPDATE
+    `,
+      [mediaPk.toString()],
+    );
+    const row = rows[0];
+    if (row === undefined) return null;
+    if (
+      !Buffer.isBuffer(row.sha256) ||
+      row.sha256.byteLength !== 32 ||
+      !Number.isInteger(row.width) ||
+      row.width < 1 ||
+      !Number.isInteger(row.height) ||
+      row.height < 1 ||
+      !Number.isInteger(row.byteLength) ||
+      row.byteLength < 1
+    )
+      throw new BoardPersistenceError('row_integrity');
+    return {
+      mediaPk: parsePk(row.mediaPk),
+      sha256: row.sha256,
+      mime: row.mime,
+      width: row.width,
+      height: row.height,
+      byteLength: row.byteLength,
+      state: row.state,
+      version: parsePk(row.version),
+    };
   }
 
   async lockBoardOwnership(

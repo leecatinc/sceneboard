@@ -29,14 +29,14 @@ test('account media policy closes the exact 200, 304, 416, 405, and 503 header s
   applyAccountMediaHeaders(success.response, 200, media);
   assert.equal(success.values.get('Content-Type'), 'image/jpeg');
   assert.equal(success.values.get('Content-Disposition'), 'inline; filename="media.jpg"');
-  assert.equal(success.values.get('ETag'), `"${media.sha256Hex}"`);
+  assert.equal(success.values.get('ETag'), `"sha256-${media.sha256Hex}"`);
   assert.equal(success.values.get('Cache-Control'), 'private,max-age=0,must-revalidate');
   assert.equal(success.values.get('Vary'), 'Cookie');
   assert.equal(success.values.has('Content-Range'), false);
 
   const notModified = headers();
   applyAccountMediaHeaders(notModified.response, 304, media);
-  assert.equal(notModified.values.get('ETag'), `"${media.sha256Hex}"`);
+  assert.equal(notModified.values.get('ETag'), `"sha256-${media.sha256Hex}"`);
   assert.equal(notModified.values.has('Content-Type'), false);
   assert.equal(notModified.values.has('Content-Disposition'), false);
 
@@ -62,7 +62,7 @@ test('public media policy is private no-store and exposes no conditional 304 bra
     sha256Hex: 'b'.repeat(64),
   });
   assert.equal(success.values.get('Content-Type'), 'image/webp');
-  assert.equal(success.values.get('ETag'), `"${'b'.repeat(64)}"`);
+  assert.equal(success.values.get('ETag'), `"sha256-${'b'.repeat(64)}"`);
   assert.equal(success.values.get('Cache-Control'), 'private,no-store');
   assert.equal(success.values.get('Vary'), 'Cookie');
   const range = headers();

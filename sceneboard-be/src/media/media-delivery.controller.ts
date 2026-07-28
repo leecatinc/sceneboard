@@ -63,7 +63,7 @@ const assertNoAccountQuery = (request: MediaGetRequest): void => {
 
 const accountConditional = (request: MediaGetRequest): string | undefined => {
   const value = oneHeader(request, 'if-none-match');
-  if (value !== undefined && !/^"[0-9a-f]{64}"$/u.test(value))
+  if (value !== undefined && !/^"sha256-[0-9a-f]{64}"$/u.test(value))
     throw new BoardContractError(invalidMediaRequest('framing'));
   return value;
 };

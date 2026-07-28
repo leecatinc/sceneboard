@@ -64,7 +64,7 @@ export const applyPublicMediaHeaders = (
     const suffix =
       input.mime === 'image/png' ? 'png' : input.mime === 'image/jpeg' ? 'jpg' : 'webp';
     response.setHeader('Content-Type', input.mime);
-    response.setHeader('ETag', `"${input.sha256Hex}"`);
+    response.setHeader('ETag', `"sha256-${input.sha256Hex}"`);
     response.setHeader('Content-Disposition', `inline; filename="media.${suffix}"`);
     return;
   }

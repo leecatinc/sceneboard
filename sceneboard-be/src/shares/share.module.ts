@@ -37,7 +37,7 @@ import { PublicContextCookieService } from './public-context-cookie.service.js';
 import { PublicContextStore } from './public-context.store.js';
 import { PublicShareResolver } from './public-share.resolver.js';
 import {
-  DenyAllPublicMediaProjection,
+  MysqlPublicMediaProjection,
   PublicMediaProjectionPort,
 } from './public-media-projection.port.js';
 import { PublicShareProjectionRepository } from './public-share-projection.repository.js';
@@ -148,7 +148,8 @@ import { PublicArtifactController } from './public-artifact.controller.js';
     },
     {
       provide: PublicMediaProjectionPort,
-      useClass: DenyAllPublicMediaProjection,
+      inject: [MediaRepository],
+      useFactory: (media: MediaRepository) => new MysqlPublicMediaProjection(media),
     },
     {
       provide: PublicShareProjectionRepository,

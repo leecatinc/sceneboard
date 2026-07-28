@@ -261,7 +261,7 @@ test('account controller reauthorizes before exact 304 and authenticated 416 res
   const conditional = responseHarness();
   await controller.get(
     {
-      headers: { 'if-none-match': `"${sha256.toString('hex')}"` },
+      headers: { 'if-none-match': `"sha256-${sha256.toString('hex')}"` },
       originalUrl: `/api/v1/boards/${BOARD_ID}/revisions/${REVISION_ID}/media/${MEDIA_ID}`,
       boardPrincipal: principal,
     },
@@ -272,7 +272,7 @@ test('account controller reauthorizes before exact 304 and authenticated 416 res
   );
   assert.equal(conditional.status, 304);
   assert.equal(conditional.body, undefined);
-  assert.equal(conditional.headers.get('ETag'), `"${sha256.toString('hex')}"`);
+  assert.equal(conditional.headers.get('ETag'), `"sha256-${sha256.toString('hex')}"`);
   const range = responseHarness();
   await controller.get(
     {

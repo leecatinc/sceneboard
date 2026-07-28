@@ -22,10 +22,10 @@ const common = (response: MediaHeaderResponse): void => {
 const extension = (mime: MediaMimeV1): 'png' | 'jpg' | 'webp' =>
   mime === 'image/png' ? 'png' : mime === 'image/jpeg' ? 'jpg' : 'webp';
 
-export const quotedMediaEtag = (sha256Hex: string): string => `"${sha256Hex}"`;
+export const quotedMediaEtag = (sha256Hex: string): string => `"sha256-${sha256Hex}"`;
 
 export const isExactStrongMediaEtag = (value: string | undefined, expected: string): boolean =>
-  value === undefined || (/^"[0-9a-f]{64}"$/u.test(value) && value === expected);
+  value === undefined || (/^"sha256-[0-9a-f]{64}"$/u.test(value) && value === expected);
 
 export const applyAccountMediaHeaders = (
   response: MediaHeaderResponse,
