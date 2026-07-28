@@ -1,8 +1,12 @@
 import {
+  MediaIdParserV1,
+  PageIdParserV1,
   PublicContextIdParserV1,
   PublicShareStateParserV1,
+  type BoardNodeV1,
   type PublicShareStateV1,
 } from '@sceneboard/board-schema';
+import type { MediaResolverV1 } from '@sceneboard/board-ui/renderer';
 
 export type PublicShareClientState = PublicShareStateV1;
 
@@ -27,6 +31,58 @@ export const decodePublicShareRevalidationResponse = (
 };
 
 export const decodePublicShareClientState = decodePublicShareBootstrapResponse;
+
+const UNAVAILABLE_MEDIA = Object.freeze({ error: 'unavailable' as const });
+
+const nodeContainsMediaV1 = (node: BoardNodeV1 | null, mediaId: string): boolean => {
+  if (node === null) return false;
+  if (node.type === 'content.image')
+    return node.source.type === 'media' && node.source.mediaId === mediaId;
+  if (node.type === 'layout.tabs')
+    return node.tabs.some((item) => nodeContainsMediaV1(item.node, mediaId));
+  if (node.type === 'layout.split' || node.type === 'layout.grid' || node.type === 'layout.canvas')
+    return node.children.some((item) => nodeContainsMediaV1(item.node, mediaId));
+  return false;
+};
+
+export const createPublicShareMediaResolverV1 = (
+  accepted: Extract<PublicShareClientState, { state: 'ready' }>,
+): MediaResolverV1 => {
+  const parsed = PublicShareStateParserV1.parse(accepted);
+  if (!parsed.ok || parsed.data.value.state !== 'ready') return () => UNAVAILABLE_MEDIA;
+  const ready = parsed.data.value;
+
+  return (input) => {
+    const mediaId = MediaIdParserV1.parse(input.mediaId);
+    const pageId = PageIdParserV1.parse(input.pageId);
+    if (
+      !mediaId.ok ||
+      !pageId.ok ||
+      input.boardId !== ready.projection.boardId ||
+      input.revisionId !== ready.projection.revisionId
+    )
+      return UNAVAILABLE_MEDIA;
+    const page = ready.projection.document.pages.find(
+      (candidate) => candidate.pageId === pageId.data.value,
+    );
+    if (page === undefined || !nodeContainsMediaV1(page.scene.root, mediaId.data.value))
+      return UNAVAILABLE_MEDIA;
+    const matches = ready.projection.media.filter(
+      (resource) => resource.mediaId === mediaId.data.value,
+    );
+    const resource = matches[0];
+    if (matches.length !== 1 || resource === undefined) return UNAVAILABLE_MEDIA;
+    return Object.freeze({
+      url: resource.url,
+      metadata: Object.freeze({
+        mime: resource.mime,
+        width: resource.width,
+        height: resource.height,
+        etag: resource.etag,
+      }),
+    });
+  };
+};
 
 const canonicalOrigin = (value: string): string => {
   const parsed = new URL(value);

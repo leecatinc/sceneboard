@@ -16,30 +16,38 @@ export function RenderSceneTree({
   context,
   rootContext,
   drawingView,
+  mediaResolver,
   emptyLabel,
 }: {
   page: BoardPageV2;
   context: SceneRendererContextV1;
   rootContext: SceneRendererContextV1;
   drawingView?: DrawingViewControllerV1;
+  mediaResolver?: SceneRendererContextV1['mediaResolver'];
   emptyLabel: string;
 }) {
+  const sceneContext =
+    mediaResolver === undefined ? context : Object.freeze({ ...context, mediaResolver });
+  const sceneRootContext =
+    mediaResolver === undefined ? rootContext : Object.freeze({ ...rootContext, mediaResolver });
   const budget = inspectRenderBudgetV1(page.scene.root);
   if (!budget.ok)
     return (
       <section className="scene-fallback" role="alert">
-        {context.selectedPageId}: The scene exceeds the safe render budget.
+        {sceneContext.selectedPageId}: The scene exceeds the safe render budget.
       </section>
     );
   if (page.scene.root === null) return <section className="scene-empty">{emptyLabel}</section>;
   const renderNode = (node: BoardNodeV1) => {
     const Renderer = RENDERER_REGISTRY_V1[node.type];
     const nodeContext =
-      node.id === page.scene.root?.id || drawingView === undefined ? rootContext : context;
+      node.id === page.scene.root?.id || drawingView === undefined
+        ? sceneRootContext
+        : sceneContext;
     return (
       <RendererErrorBoundary
         key={node.id}
-        nodeId={`${context.selectedPageId}:${node.id}`}
+        nodeId={`${sceneContext.selectedPageId}:${node.id}`}
         nodeType={node.type}
       >
         <Renderer

@@ -9,6 +9,8 @@ export type {
   BoardRendererPropsV2,
   DrawingViewControllerV1,
   DrawingViewStateV1,
+  MediaResolverMetadataV1,
+  MediaResolverV1,
   PageRendererContextV2,
   PublicBoardRendererPropsV1,
   PublicPageRendererContextV1,

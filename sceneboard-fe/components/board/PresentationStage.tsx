@@ -147,7 +147,7 @@ export function PresentationStage({
       const canvasPlane = content.querySelector<HTMLElement>('.scene-canvas-plane');
       const nextContentWidth = Math.max(
         0,
-        canvasSize?.width ?? canvasPlane?.scrollWidth ?? content.clientWidth,
+        canvasSize?.width ?? canvasPlane?.scrollWidth ?? content.scrollWidth,
       );
       geometryRef.current = {
         viewportWidth: nextViewport.width,
@@ -170,7 +170,11 @@ export function PresentationStage({
     const observer = new ResizeObserver(measure);
     observer.observe(stage);
     observer.observe(content);
-    return () => observer.disconnect();
+    content.addEventListener('load', measure, true);
+    return () => {
+      observer.disconnect();
+      content.removeEventListener('load', measure, true);
+    };
   }, [canvasSize?.width, commitMoveX, finishGesture, onMoveAvailabilityChange]);
   useLayoutEffect(() => {
     const toolbar = toolbarRef.current;

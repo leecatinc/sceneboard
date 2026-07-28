@@ -10,10 +10,12 @@ export function PublicBoardRenderer({
   onSelectTab,
   renderArtifact,
   drawingView,
+  mediaResolver,
   emptyLabel = 'This scene is empty.',
 }: PublicBoardRendererPropsV1) {
   const sharedContext: SceneRendererContextV1 = {
     boardId: inputContext.boardId,
+    revisionId: inputContext.revisionId,
     selectedPageId: inputContext.selectedPageId,
     artifacts: inputContext.artifacts.map((artifact) => ({
       artifact: {
@@ -35,6 +37,7 @@ export function PublicBoardRenderer({
       context={sharedContext}
       rootContext={rootContext}
       {...(drawingView === undefined ? {} : { drawingView })}
+      {...(mediaResolver === undefined ? {} : { mediaResolver })}
       emptyLabel={emptyLabel}
     />
   );

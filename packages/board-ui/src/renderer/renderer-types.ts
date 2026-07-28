@@ -4,10 +4,12 @@ import type {
   BoardNodeV1,
   BoardPageV2,
   BoardSnapshot,
+  MediaId,
   NodeTypeV1,
   PageId,
   PublicArtifactSummaryV1,
   PublicMediaResourceV1,
+  RevisionId,
 } from '@sceneboard/board-schema';
 import type { ArtifactViewModeV1 } from '../artifact/ports.js';
 
@@ -24,6 +26,24 @@ export type DrawingViewControllerV1 = Readonly<{
   onCaptureActiveChange?: (active: boolean) => void;
 }>;
 
+export type MediaResolverMetadataV1 = Readonly<{
+  mime: 'image/png' | 'image/jpeg' | 'image/webp';
+  width: number;
+  height: number;
+  etag: string;
+}>;
+
+export type MediaResolverV1 = (
+  input: Readonly<{
+    mediaId: MediaId;
+    boardId: BoardSnapshot['boardId'];
+    revisionId: RevisionId;
+    pageId: PageId;
+  }>,
+) =>
+  | Readonly<{ url: string; metadata?: MediaResolverMetadataV1 }>
+  | Readonly<{ error: 'unavailable' }>;
+
 export type PageRendererContextV2 = Readonly<{
   protocolVersion: 1;
   boardId: BoardSnapshot['boardId'];
@@ -38,6 +58,7 @@ export type PageRendererContextV2 = Readonly<{
 
 export type SceneRendererContextV1 = Readonly<{
   boardId: BoardSnapshot['boardId'];
+  revisionId: RevisionId;
   selectedPageId: PageId;
   artifacts: ReadonlyArray<{
     artifact: ArtifactReferenceV1;
@@ -49,10 +70,16 @@ export type SceneRendererContextV1 = Readonly<{
   renderArtifact?: RendererComponentV1<'content.artifact'>;
   renderHitl?: RendererComponentV1<'content.hitl'>;
   drawingView?: DrawingViewControllerV1;
+  mediaResolver?: MediaResolverV1;
 }>;
 
 export type RendererContextV2 = PageRendererContextV2 &
-  Omit<SceneRendererContextV1, 'boardId' | 'selectedPageId' | 'artifacts' | 'hitl'>;
+  Omit<
+    SceneRendererContextV1,
+    'boardId' | 'selectedPageId' | 'artifacts' | 'hitl' | 'revisionId'
+  > & {
+    revisionId: RevisionId;
+  };
 
 export type PublicPageRendererContextV1 = Readonly<{
   surface: 'public-share';
@@ -81,6 +108,7 @@ export type BoardRendererPropsV2 = {
   renderArtifact?: RendererComponentV1<'content.artifact'>;
   renderHitl?: RendererComponentV1<'content.hitl'>;
   drawingView?: DrawingViewControllerV1;
+  mediaResolver?: MediaResolverV1;
   emptyLabel?: string;
 };
 
@@ -91,5 +119,6 @@ export type PublicBoardRendererPropsV1 = {
   onSelectTab?: (nodeId: string, tabId: string) => void;
   renderArtifact?: RendererComponentV1<'content.artifact'>;
   drawingView?: DrawingViewControllerV1;
+  mediaResolver?: MediaResolverV1;
   emptyLabel?: string;
 };

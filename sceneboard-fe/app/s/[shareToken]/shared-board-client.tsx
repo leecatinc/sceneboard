@@ -8,7 +8,10 @@ import { PageNavigationControls } from '../../../components/board/PageNavigation
 import { PresentationModeControls } from '../../../components/board/PresentationModeControls';
 import { PresentationStage } from '../../../components/board/PresentationStage';
 import { useI18n } from '../../../components/i18n/I18nProvider';
-import { fetchPublicShareRevalidation } from '../../../lib/api/public-share-contract';
+import {
+  createPublicShareMediaResolverV1,
+  fetchPublicShareRevalidation,
+} from '../../../lib/api/public-share-contract';
 import { navigatePageIdV1 } from '../../../lib/board/page-navigation';
 import { resolvePublicSharePageV1 } from '../../../lib/board/public-page-render-adapter';
 import {
@@ -192,6 +195,10 @@ export function SharedBoardClient({
     () => (ready === null ? null : resolvePublicSharePageV1(ready.projection, selectedPageId)),
     [ready, selectedPageId],
   );
+  const mediaResolver = useMemo(
+    () => (ready === null ? undefined : createPublicShareMediaResolverV1(ready)),
+    [ready],
+  );
 
   if (accepted.state.state === 'password-required' || accepted.state.state === 'password-invalid') {
     const csrfToken = accepted.state.csrfToken;
@@ -322,6 +329,7 @@ export function SharedBoardClient({
             <h1 className={styles.heading}>{resolved.page.title}</h1>
             <PublicBoardRenderer
               page={resolved.page}
+              {...(mediaResolver === undefined ? {} : { mediaResolver })}
               context={{
                 surface: 'public-share',
                 boardId: ready.projection.boardId,

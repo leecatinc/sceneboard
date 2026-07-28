@@ -38,6 +38,7 @@ import { useBoardSession } from '../../../lib/board/use-board-session';
 import { BoardApiClient } from '../../../lib/api/board-api';
 import { InvitationApi } from '../../../lib/api/invitation-api';
 import { ShareApi } from '../../../lib/api/share-api';
+import { createAccountMediaResolverV1 } from '../../../lib/api/board-media-api';
 import { authSessionClient } from '../../../lib/auth/session-client';
 import { useHitlInteractionController } from '../../../lib/board/use-hitl-interaction-controller';
 import { selectUnplacedOpenHitlV1 } from '../../../lib/board/unplaced-hitl';
@@ -601,6 +602,15 @@ export function BoardClient({ boardId }: { boardId: string }) {
     selectPage,
   ]);
 
+  const mediaResolver = useMemo(() => {
+    const snapshot = session.visibleSnapshot;
+    if (snapshot === null) return undefined;
+    return createAccountMediaResolverV1({
+      boardId: snapshot.boardId,
+      revisionId: snapshot.revision.revisionId,
+    });
+  }, [session.visibleSnapshot]);
+
   if (session.phase === 'loading' || (session.state === null && session.error === null)) {
     return (
       <section className="route-state" role="status">
@@ -908,6 +918,7 @@ export function BoardClient({ boardId }: { boardId: string }) {
             }
             renderArtifact={renderArtifact}
             renderHitl={renderHitl}
+            {...(mediaResolver === undefined ? {} : { mediaResolver })}
             drawingView={{
               mode: artifactViewMode,
               resetSignal: drawingResetSignal,
