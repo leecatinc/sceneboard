@@ -73,14 +73,14 @@ const resultKeys = [
   'fingerprintSha256',
 ];
 const expectedGroups = new Map([
-  ['D1-SCHEMA-ROOT', 25],
+  ['D1-SCHEMA-ROOT', 26],
   ['D1-FACADES', 3],
   ['D1-CORPUS', 184],
-  ['D2-AUTHZ', 8],
+  ['D2-AUTHZ', 9],
   ['D2-HTTP-CONFIG', 4],
   ['D3-PUBLISHER', 2],
   ['D3-PERSISTENCE', 10],
-  ['D3-BOARD-SEAMS', 20],
+  ['D3-BOARD-SEAMS', 24],
   ['D4-SEAMS', 10],
   ['D2-D5-D7-D8-BROWSER-PUBLISHERS', 9],
   ['D5-BROWSER-API-SEAMS', 24],
@@ -89,7 +89,7 @@ const expectedGroups = new Map([
   ['D6-INSTALLED-SKILL', 42],
   ['D7-ARTIFACT-SEAM', 7],
   ['D8-HITL-SEAM', 6],
-  ['MIGRATION-REGISTRY-ASSETS', 22],
+  ['MIGRATION-REGISTRY-ASSETS', 23],
   ['D2-MIGRATION-RUNNER', 5],
   ['RUNTIME-TOPOLOGY', 3],
   ['DEPENDENCY-EVIDENCE', 11],
@@ -679,7 +679,7 @@ const observeMigrations = async (observedById) => {
   const versions = [...source.matchAll(/\bversion: '([^']+)'/gu)].map((match) => match[1]);
   const upAssets = [...source.matchAll(/\bupAsset: '([^']+)'/gu)].map((match) => match[1]);
   const downAssets = [...source.matchAll(/\bdownAsset: '([^']+)'/gu)].map((match) => match[1]);
-  if (versions.length !== 18 || upAssets.length !== 18 || downAssets.length !== 3)
+  if (versions.length !== 19 || upAssets.length !== 19 || downAssets.length !== 3)
     fail('MIGRATION_REGISTRY_DRIFT');
   const assets = [...observedById.values()].filter(({ resourceId }) =>
     resourceId.startsWith('MIGRATION-ASSET-'),

@@ -70,6 +70,77 @@ export const CLIENT_GRANT_CAPABILITIES_V1 = [
 ] as const;
 export type ClientGrantCapabilityV1 = (typeof CLIENT_GRANT_CAPABILITIES_V1)[number];
 
+export const BOARD_AUTHORIZATION_CAPABILITIES_V1 = [
+  'account.board.create',
+  'artifact.control',
+  'artifact.publish',
+  'board.admin',
+  'board.analytics.read',
+  'board.history.read',
+  'board.hitl.request',
+  'board.hitl.respond',
+  'board.media.write',
+  'board.members.manage',
+  'board.read',
+  'board.share.manage',
+  'board.write',
+  'connection.manage.own',
+] as const;
+export type BoardAuthorizationCapabilityV1 = (typeof BOARD_AUTHORIZATION_CAPABILITIES_V1)[number];
+
+export const BOARD_AUTHORIZATION_OPERATION_TYPES_V1 = [
+  'board.list',
+  'board.get',
+  'capabilities.get',
+  'artifact.get',
+  'hitl.read',
+  'history.list',
+  'history.get',
+  'board.create',
+  'board.rename',
+  'document.replace',
+  'page.add',
+  'page.update',
+  'page.remove',
+  'page.reorder',
+  'page.default.set',
+  'scene.replace',
+  'scene.clear',
+  'scene.restore',
+  'hitl.request',
+  'hitl.respond',
+  'artifact.publish',
+  'artifact.stop',
+  'connection.create',
+  'connection.update',
+  'connection.revoke',
+  'board.archive',
+  'board.delete',
+  'membership.list',
+  'membership.invite',
+  'membership.role.update',
+  'membership.remove',
+  'ownership.transfer',
+  'share.publish',
+  'share.update',
+  'share.rotate',
+  'share.revoke',
+  'share.password.regenerate',
+  'media.upload',
+  'analytics.report.get',
+] as const;
+export type BoardAuthorizationOperationTypeV1 =
+  (typeof BOARD_AUTHORIZATION_OPERATION_TYPES_V1)[number];
+
+export const BOARD_AUTHORIZATION_SURFACES_V1 = ['browser', 'mcp'] as const;
+export type BoardAuthorizationSurfaceV1 = (typeof BOARD_AUTHORIZATION_SURFACES_V1)[number];
+
+export const BOARD_MEMBERSHIP_ROLES_V1 = ['owner', 'editor', 'viewer'] as const;
+export type BoardMembershipRoleV1 = (typeof BOARD_MEMBERSHIP_ROLES_V1)[number];
+
+export const BOARD_MEMBERSHIP_STATES_V1 = ['active', 'inactive'] as const;
+export type BoardMembershipStateV1 = (typeof BOARD_MEMBERSHIP_STATES_V1)[number];
+
 export const ARTIFACT_REQUEST_CAPABILITIES_V1 = [
   'clipboard.write',
   'download',

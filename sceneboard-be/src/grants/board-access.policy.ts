@@ -6,6 +6,7 @@ import type {
   GrantId,
 } from '@sceneboard/board-schema';
 import type { PoolConnection } from 'mysql2/promise';
+import type { MembershipAuthorizationContextV1 } from '../memberships/membership-authorization.context.js';
 
 export const AUTHORIZED_BOARD_OPERATIONS_V1 = [
   'board.list',
@@ -91,13 +92,20 @@ export type CreateBoardBindingCapabilityV1 = {
   bindCreatedBoard(boardId: BoardId): Promise<void>;
 };
 
+export type CreateOwnerMembershipCapabilityV1 = {
+  create(boardPk: bigint, createdAtSql: string): Promise<void>;
+};
+
 export type AuthorizedBoardContextV1 = {
   actor: ActorContextV1;
   ownerUserPk: bigint;
+  accountUserPk?: bigint;
   access:
     | { kind: 'owner'; ownerUserPk: bigint }
     | { kind: 'grant'; grantPk: bigint; grantId: GrantId };
   createBinding: CreateBoardBindingCapabilityV1 | null;
+  createOwnerMembership?: CreateOwnerMembershipCapabilityV1 | null;
+  membership?: MembershipAuthorizationContextV1 | null;
   artifactCapabilityPolicy: CurrentArtifactCapabilityPolicyV1;
 };
 

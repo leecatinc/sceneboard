@@ -6,6 +6,8 @@ import { AuthModule } from '../auth/auth.module.js';
 import { CryptoService } from '../common/security/crypto.service.js';
 import { DatabaseModule } from '../database/database.module.js';
 import { MysqlService } from '../database/mysql.service.js';
+import { BoardMembershipAuthorizationService } from '../memberships/membership.service.js';
+import { MembershipsModule } from '../memberships/memberships.module.js';
 import { GrantController } from './grant.controller.js';
 import { GrantCursorService } from './grant-cursor.service.js';
 import { GrantRepository } from './grant.repository.js';
@@ -16,7 +18,7 @@ import { MysqlBoardAccessPolicy } from './board-access-policy.service.js';
 import { GrantPrincipalRepository } from './grant-principal.repository.js';
 
 @Module({
-  imports: [AuthModule, DatabaseModule, AuditModule],
+  imports: [AuthModule, DatabaseModule, AuditModule, MembershipsModule],
   controllers: [GrantController],
   providers: [
     {
@@ -49,9 +51,12 @@ import { GrantPrincipalRepository } from './grant-principal.repository.js';
     },
     {
       provide: MysqlBoardAccessPolicy,
-      inject: [MysqlService, CryptoService],
-      useFactory: (mysql: MysqlService, crypto: CryptoService) =>
-        new MysqlBoardAccessPolicy(mysql, crypto),
+      inject: [MysqlService, CryptoService, BoardMembershipAuthorizationService],
+      useFactory: (
+        mysql: MysqlService,
+        crypto: CryptoService,
+        memberships: BoardMembershipAuthorizationService,
+      ) => new MysqlBoardAccessPolicy(mysql, crypto, {}, memberships),
     },
     {
       provide: GrantService,

@@ -668,6 +668,7 @@ export class MigrationRunner {
         'board_retention_audit',
         'retention_restore_drill_attempts',
       ],
+      d9_board_memberships_v1: ['board_memberships'],
     };
     const expectedTables = postconditions[postcondition] ?? null;
     if (expectedTables === null)

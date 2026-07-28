@@ -24906,6 +24906,66 @@ var CLIENT_GRANT_CAPABILITIES_V1 = [
   "board.read",
   "board.write"
 ];
+var BOARD_AUTHORIZATION_CAPABILITIES_V1 = [
+  "account.board.create",
+  "artifact.control",
+  "artifact.publish",
+  "board.admin",
+  "board.analytics.read",
+  "board.history.read",
+  "board.hitl.request",
+  "board.hitl.respond",
+  "board.media.write",
+  "board.members.manage",
+  "board.read",
+  "board.share.manage",
+  "board.write",
+  "connection.manage.own"
+];
+var BOARD_AUTHORIZATION_OPERATION_TYPES_V1 = [
+  "board.list",
+  "board.get",
+  "capabilities.get",
+  "artifact.get",
+  "hitl.read",
+  "history.list",
+  "history.get",
+  "board.create",
+  "board.rename",
+  "document.replace",
+  "page.add",
+  "page.update",
+  "page.remove",
+  "page.reorder",
+  "page.default.set",
+  "scene.replace",
+  "scene.clear",
+  "scene.restore",
+  "hitl.request",
+  "hitl.respond",
+  "artifact.publish",
+  "artifact.stop",
+  "connection.create",
+  "connection.update",
+  "connection.revoke",
+  "board.archive",
+  "board.delete",
+  "membership.list",
+  "membership.invite",
+  "membership.role.update",
+  "membership.remove",
+  "ownership.transfer",
+  "share.publish",
+  "share.update",
+  "share.rotate",
+  "share.revoke",
+  "share.password.regenerate",
+  "media.upload",
+  "analytics.report.get"
+];
+var BOARD_AUTHORIZATION_SURFACES_V1 = ["browser", "mcp"];
+var BOARD_MEMBERSHIP_ROLES_V1 = ["owner", "editor", "viewer"];
+var BOARD_MEMBERSHIP_STATES_V1 = ["active", "inactive"];
 var ARTIFACT_REQUEST_CAPABILITIES_V1 = [
   "clipboard.write",
   "download",
@@ -25115,6 +25175,37 @@ var RevisionSummarySchemaV1 = z.object({
   revisionNumber: z.number().int().safe().positive(),
   createdAt: TimestampSchemaV1
 }).strict();
+
+// packages/board-schema/src/memberships.ts
+var BoardMembershipSchemaV1 = z.object({
+  protocolVersion: z.literal(1),
+  type: z.literal("board.membership"),
+  membershipId: GlobalIdStringSchemaV1,
+  boardId: BoardIdSchemaV1,
+  accountId: PrincipalIdSchemaV1,
+  role: z.enum(BOARD_MEMBERSHIP_ROLES_V1),
+  state: z.enum(BOARD_MEMBERSHIP_STATES_V1),
+  version: z.number().int().safe().positive(),
+  createdAt: TimestampSchemaV1,
+  updatedAt: TimestampSchemaV1
+}).strict().superRefine((membership, context) => {
+  if (membership.updatedAt < membership.createdAt)
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["updatedAt"],
+      message: "membership update must not predate creation"
+    });
+});
+var BoardAuthorizationPrincipalSchemaV1 = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("account"),
+    accountId: PrincipalIdSchemaV1
+  }).strict(),
+  z.object({
+    kind: z.literal("share_viewer"),
+    shareId: GlobalIdStringSchemaV1
+  }).strict()
+]);
 
 // packages/board-schema/src/nodes/base.ts
 var NodeBaseShapeV1 = {
@@ -25754,6 +25845,7 @@ var sortedSubset = (catalog) => z.array(z.enum(catalog)).superRefine((values, co
       break;
     }
 });
+var BoardAuthorizationCapabilitySchemaV1 = z.enum(BOARD_AUTHORIZATION_CAPABILITIES_V1);
 var BoardLimitsSchemaV1 = z.object(
   Object.fromEntries(
     Object.entries(BOARD_LIMITS_V1).map(([key, value]) => [key, z.literal(value)])
@@ -26160,6 +26252,441 @@ var HitlRespondSuccessSchemaV1 = HitlInteractionSchemaV1.refine(
   { path: ["state"], message: "respond success must be answered" }
 );
 
+// packages/board-schema/src/snapshots.ts
+var SnapshotRevisionSchemaV1 = RevisionSummarySchemaV1.extend({
+  previousRevisionId: RevisionIdSchemaV1.nullable(),
+  originType: RevisionOriginTypeSchemaV1,
+  sourceRevisionId: RevisionIdSchemaV1.nullable(),
+  actor: ActorReferenceSchemaV1
+}).strict();
+var artifactKey = (artifact) => `${artifact.artifactId}\0${artifact.versionId}`;
+var BoardSnapshotSchemaV1 = z.object({
+  protocolVersion: z.literal(1),
+  type: z.literal("board.snapshot"),
+  boardId: BoardIdSchemaV1,
+  revision: SnapshotRevisionSchemaV1,
+  scene: SceneSchemaV1,
+  hitl: z.array(HitlInteractionSchemaV1),
+  artifacts: z.array(ArtifactRuntimeSummarySchemaV1),
+  capabilities: BoardCapabilitiesSchemaV1,
+  lastEventSequence: z.number().int().safe().min(0)
+}).strict().superRefine((snapshot, context) => {
+  if (snapshot.revision.revisionNumber === 1) {
+    if (snapshot.revision.previousRevisionId !== null || snapshot.revision.originType !== "board.create" || snapshot.revision.sourceRevisionId !== null)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["revision"],
+        message: "[INVALID_LAYOUT] initial revision metadata is invalid"
+      });
+  } else if (snapshot.revision.previousRevisionId === null || snapshot.revision.originType === "board.create" || snapshot.revision.originType === "scene.restore" !== (snapshot.revision.sourceRevisionId !== null))
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["revision"],
+      message: "[INVALID_LAYOUT] revision lineage is invalid"
+    });
+  const hitlIds = /* @__PURE__ */ new Set();
+  snapshot.hitl.forEach((interaction, index) => {
+    if (hitlIds.has(interaction.hitlRequestId))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["hitl", index, "hitlRequestId"],
+        message: "[INVALID_LAYOUT] duplicate HITL interaction"
+      });
+    hitlIds.add(interaction.hitlRequestId);
+  });
+  const artifactKeys = /* @__PURE__ */ new Set();
+  snapshot.artifacts.forEach((runtime2, index) => {
+    const key = artifactKey(runtime2.artifact);
+    if (artifactKeys.has(key))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["artifacts", index, "artifact"],
+        message: "[INVALID_LAYOUT] duplicate artifact runtime summary"
+      });
+    artifactKeys.add(key);
+  });
+  for (const item of collectSceneNodesV1(snapshot.scene.root)) {
+    if (item.node.type === "content.hitl" && !hitlIds.has(item.node.hitlRequestId))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["scene", ...item.path, "hitlRequestId"],
+        message: "[INVALID_LAYOUT] unresolved HITL reference"
+      });
+    const reference = item.node.type === "content.artifact" ? item.node.artifact : item.node.type === "content.image" ? item.node.source.artifact : null;
+    if (reference && !artifactKeys.has(artifactKey(reference)))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [
+          "scene",
+          ...item.path,
+          ...item.node.type === "content.image" ? ["source", "artifact"] : ["artifact"]
+        ],
+        message: "[INVALID_LAYOUT] unresolved artifact reference"
+      });
+  }
+});
+var BoardSnapshotSchemaV2 = z.object({
+  protocolVersion: z.literal(1),
+  type: z.literal("board.snapshot"),
+  boardId: BoardIdSchemaV1,
+  revision: SnapshotRevisionSchemaV1,
+  document: BoardDocumentSchemaV2,
+  hitl: z.array(HitlInteractionSchemaV1),
+  artifacts: z.array(ArtifactRuntimeSummarySchemaV1),
+  capabilities: BoardCapabilitiesSchemaV2,
+  lastEventSequence: z.number().int().safe().min(0)
+}).strict().superRefine((snapshot, context) => {
+  if (snapshot.revision.revisionNumber === 1) {
+    if (snapshot.revision.previousRevisionId !== null || snapshot.revision.originType !== "board.create" || snapshot.revision.sourceRevisionId !== null)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["revision"],
+        message: "[INVALID_LAYOUT] initial revision metadata is invalid"
+      });
+  } else if (snapshot.revision.previousRevisionId === null || snapshot.revision.originType === "board.create" || snapshot.revision.originType === "scene.restore" !== (snapshot.revision.sourceRevisionId !== null))
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["revision"],
+      message: "[INVALID_LAYOUT] revision lineage is invalid"
+    });
+  const hitlIds = /* @__PURE__ */ new Set();
+  snapshot.hitl.forEach((interaction, index) => {
+    if (hitlIds.has(interaction.hitlRequestId))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["hitl", index, "hitlRequestId"],
+        message: "[INVALID_LAYOUT] duplicate HITL interaction"
+      });
+    hitlIds.add(interaction.hitlRequestId);
+  });
+  const artifactKeys = /* @__PURE__ */ new Set();
+  snapshot.artifacts.forEach((runtime2, index) => {
+    const key = artifactKey(runtime2.artifact);
+    if (artifactKeys.has(key))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["artifacts", index, "artifact"],
+        message: "[INVALID_LAYOUT] duplicate artifact runtime summary"
+      });
+    artifactKeys.add(key);
+  });
+  for (const item of collectDocumentNodesV2(snapshot.document)) {
+    if (item.node.type === "content.hitl" && !hitlIds.has(item.node.hitlRequestId))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [...item.path, "hitlRequestId"],
+        message: "[INVALID_DOCUMENT:unresolved_reference] unresolved HITL reference"
+      });
+    const reference = item.node.type === "content.artifact" ? item.node.artifact : item.node.type === "content.image" ? item.node.source.artifact : null;
+    if (reference && !artifactKeys.has(artifactKey(reference)))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [
+          ...item.path,
+          ...item.node.type === "content.image" ? ["source", "artifact"] : ["artifact"]
+        ],
+        message: "[INVALID_DOCUMENT:unresolved_reference] unresolved artifact reference"
+      });
+  }
+});
+var BoardSnapshotSchema = z.any().transform((value, context) => {
+  const record2 = value !== null && typeof value === "object" && !Array.isArray(value) ? value : null;
+  const hasScene = record2 ? Object.hasOwn(record2, "scene") : false;
+  const hasDocument = record2 ? Object.hasOwn(record2, "document") : false;
+  if (hasScene && hasDocument) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: [],
+      message: "snapshot must contain exactly one of scene or document"
+    });
+    return z.NEVER;
+  }
+  const parsed = (hasDocument ? BoardSnapshotSchemaV2 : BoardSnapshotSchemaV1).safeParse(value);
+  if (!parsed.success) {
+    parsed.error.issues.forEach((issue2) => context.addIssue(issue2));
+    return z.NEVER;
+  }
+  return parsed.data;
+});
+
+// packages/board-schema/src/operations.ts
+var policy = (operation, surfaces, requiredCapabilities, roles, runtimeOwner, viewerResourceScope = "none") => Object.freeze({
+  operation,
+  surfaces: Object.freeze([...surfaces]),
+  requiredCapabilities: Object.freeze([...requiredCapabilities]),
+  roles: Object.freeze({ ...roles }),
+  viewerResourceScope,
+  runtimeOwner
+});
+var allRoles = Object.freeze({ owner: true, editor: true, viewer: true });
+var editors = Object.freeze({ owner: true, editor: true, viewer: false });
+var owners = Object.freeze({ owner: true, editor: false, viewer: false });
+var account = Object.freeze({ owner: false, editor: false, viewer: false });
+var BOARD_OPERATION_AUTHORIZATION_MATRIX_V1 = Object.freeze([
+  policy("board.list", ["browser", "mcp"], ["board.read"], allRoles, "I-27"),
+  policy("board.get", ["browser", "mcp"], ["board.read"], allRoles, "I-27", "all"),
+  policy("capabilities.get", ["browser", "mcp"], ["board.read"], allRoles, "I-27", "all"),
+  policy("artifact.get", ["browser", "mcp"], ["board.read"], allRoles, "I-27", "current_head"),
+  policy("hitl.read", ["browser", "mcp"], ["board.read"], allRoles, "I-27", "current_head"),
+  policy("history.list", ["browser", "mcp"], ["board.history.read"], editors, "I-27"),
+  policy("history.get", ["browser", "mcp"], ["board.history.read"], editors, "I-27"),
+  policy("board.create", ["browser", "mcp"], ["account.board.create"], account, "I-27"),
+  policy("board.rename", ["browser"], ["board.write"], editors, "I-27"),
+  policy("document.replace", ["browser", "mcp"], ["board.write"], editors, "I-19"),
+  policy("page.add", ["browser", "mcp"], ["board.write"], editors, "I-19"),
+  policy("page.update", ["browser", "mcp"], ["board.write"], editors, "I-19"),
+  policy("page.remove", ["browser", "mcp"], ["board.write"], editors, "I-19"),
+  policy("page.reorder", ["browser", "mcp"], ["board.write"], editors, "I-19"),
+  policy("page.default.set", ["browser", "mcp"], ["board.write"], editors, "I-19"),
+  policy("scene.replace", ["browser", "mcp"], ["board.write"], editors, "I-27"),
+  policy("scene.clear", ["browser", "mcp"], ["board.write"], editors, "I-27"),
+  policy(
+    "scene.restore",
+    ["browser", "mcp"],
+    ["board.history.read", "board.write"],
+    editors,
+    "I-27"
+  ),
+  policy("hitl.request", ["browser", "mcp"], ["board.hitl.request"], editors, "I-27"),
+  policy("hitl.respond", ["browser", "mcp"], ["board.hitl.respond"], editors, "I-27"),
+  policy("artifact.publish", ["browser", "mcp"], ["artifact.publish"], editors, "I-27"),
+  policy("artifact.stop", ["browser", "mcp"], ["artifact.control"], editors, "I-27"),
+  policy("connection.create", ["browser"], ["connection.manage.own"], editors, "existing"),
+  policy("connection.update", ["browser"], ["connection.manage.own"], editors, "existing"),
+  policy("connection.revoke", ["browser"], ["connection.manage.own"], editors, "existing"),
+  policy("board.archive", ["browser", "mcp"], ["board.admin"], owners, "I-27"),
+  policy("board.delete", ["browser"], ["board.admin"], owners, "I-27"),
+  policy("membership.list", ["browser"], ["board.members.manage"], owners, "I-28"),
+  policy("membership.invite", ["browser"], ["board.members.manage"], owners, "I-28"),
+  policy("membership.role.update", ["browser"], ["board.members.manage"], owners, "I-28"),
+  policy("membership.remove", ["browser"], ["board.members.manage"], owners, "I-28"),
+  policy("ownership.transfer", ["browser"], ["board.members.manage"], owners, "I-28"),
+  policy("share.publish", ["browser"], ["board.share.manage"], owners, "I-29"),
+  policy("share.update", ["browser"], ["board.share.manage"], owners, "I-29"),
+  policy("share.rotate", ["browser"], ["board.share.manage"], owners, "I-29"),
+  policy("share.revoke", ["browser"], ["board.share.manage"], owners, "I-29"),
+  policy("share.password.regenerate", ["browser"], ["board.share.manage"], owners, "I-30"),
+  policy("media.upload", ["browser", "mcp"], ["board.media.write"], editors, "I-36/I-40"),
+  policy("analytics.report.get", ["browser"], ["board.analytics.read"], owners, "I-42")
+]);
+var BoardOperationAuthorizationPolicySchemaV1 = z.object({
+  operation: z.enum(BOARD_AUTHORIZATION_OPERATION_TYPES_V1),
+  surfaces: z.array(z.enum(BOARD_AUTHORIZATION_SURFACES_V1)).min(1).superRefine((values, context) => {
+    if (new Set(values).size !== values.length)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "authorization surfaces must be unique"
+      });
+  }),
+  requiredCapabilities: z.array(z.enum(BOARD_AUTHORIZATION_CAPABILITIES_V1)).min(1).superRefine((values, context) => {
+    if (new Set(values).size !== values.length)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "authorization capabilities must be unique"
+      });
+  }),
+  roles: z.object({
+    owner: z.boolean(),
+    editor: z.boolean(),
+    viewer: z.boolean()
+  }).strict(),
+  viewerResourceScope: z.enum(["none", "current_head", "all"]),
+  runtimeOwner: z.string().min(1).max(64)
+}).strict();
+var BoardOperationAuthorizationMatrixSchemaV1 = z.array(BoardOperationAuthorizationPolicySchemaV1).length(BOARD_AUTHORIZATION_OPERATION_TYPES_V1.length).superRefine((rows, context) => {
+  for (const [index, operation] of BOARD_AUTHORIZATION_OPERATION_TYPES_V1.entries()) {
+    const row = rows[index];
+    const expected = BOARD_OPERATION_AUTHORIZATION_MATRIX_V1[index];
+    if (row?.operation !== operation)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [index, "operation"],
+        message: "authorization matrix must exactly match operation catalog order"
+      });
+    if (row !== void 0 && expected !== void 0 && JSON.stringify(row) !== JSON.stringify(expected))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [index],
+        message: "authorization matrix row must exactly match the shared policy"
+      });
+  }
+});
+var PageCursorSchemaV1 = z.string().min(1).max(MAX_PAGE_CURSOR_CHARS).regex(/^[A-Za-z0-9_-]+$/).brand();
+var BoardSummarySchemaV1 = z.object({
+  boardId: BoardIdSchemaV1,
+  title: ShortTextSchemaV1,
+  createdAt: TimestampSchemaV1,
+  updatedAt: TimestampSchemaV1,
+  archivedAt: TimestampSchemaV1.nullable(),
+  headRevision: RevisionSummarySchemaV1
+}).strict();
+var HistoryEntrySchemaV1 = z.object({
+  revision: RevisionSummarySchemaV1,
+  previousRevisionId: RevisionIdSchemaV1.nullable(),
+  originType: RevisionOriginTypeSchemaV1,
+  sourceRevisionId: RevisionIdSchemaV1.nullable(),
+  actor: ActorReferenceSchemaV1
+}).strict();
+var requests = [
+  z.object({
+    protocolVersion: z.literal(1),
+    requestId: RequestIdSchemaV1,
+    type: z.literal("board.list"),
+    cursor: PageCursorSchemaV1.nullable(),
+    limit: z.number().int().min(1).max(MAX_PAGE_SIZE),
+    includeArchived: z.boolean()
+  }).strict(),
+  z.object({
+    protocolVersion: z.literal(1),
+    requestId: RequestIdSchemaV1,
+    type: z.literal("board.get"),
+    boardId: BoardIdSchemaV1
+  }).strict(),
+  z.object({
+    protocolVersion: z.literal(1),
+    requestId: RequestIdSchemaV1,
+    type: z.literal("board.create"),
+    idempotencyKey: IdempotencyKeySchemaV1,
+    title: ShortTextSchemaV1
+  }).strict(),
+  z.object({
+    protocolVersion: z.literal(1),
+    requestId: RequestIdSchemaV1,
+    type: z.literal("board.archive"),
+    idempotencyKey: IdempotencyKeySchemaV1,
+    boardId: BoardIdSchemaV1,
+    confirm: z.literal(true)
+  }).strict(),
+  z.object({
+    protocolVersion: z.literal(1),
+    requestId: RequestIdSchemaV1,
+    type: z.literal("capabilities.get"),
+    boardId: BoardIdSchemaV1
+  }).strict(),
+  z.object({
+    protocolVersion: z.literal(1),
+    requestId: RequestIdSchemaV1,
+    type: z.literal("history.list"),
+    boardId: BoardIdSchemaV1,
+    cursor: PageCursorSchemaV1.nullable(),
+    limit: z.number().int().min(1).max(MAX_PAGE_SIZE)
+  }).strict(),
+  z.object({
+    protocolVersion: z.literal(1),
+    requestId: RequestIdSchemaV1,
+    type: z.literal("history.get"),
+    boardId: BoardIdSchemaV1,
+    revisionId: RevisionIdSchemaV1
+  }).strict(),
+  z.object({
+    protocolVersion: z.literal(1),
+    requestId: RequestIdSchemaV1,
+    type: z.literal("artifact.get"),
+    boardId: BoardIdSchemaV1,
+    artifact: ArtifactReferenceSchemaV1
+  }).strict(),
+  z.object({
+    protocolVersion: z.literal(1),
+    requestId: RequestIdSchemaV1,
+    type: z.literal("hitl.read"),
+    boardId: BoardIdSchemaV1,
+    hitlRequestId: HitlRequestIdSchemaV1,
+    wait: z.object({
+      afterStateUpdatedAt: TimestampSchemaV1,
+      timeoutMs: z.number().int().min(0).max(MAX_HITL_WAIT_MS)
+    }).strict().nullable()
+  }).strict()
+];
+var BoardOperationRequestSchemaV1 = z.discriminatedUnion("type", [...requests]);
+var BoardOperationEnvelopeSchemaV1 = z.object({
+  protocolVersion: z.literal(1),
+  type: z.literal("board.operation.envelope"),
+  request: BoardOperationRequestSchemaV1,
+  actor: ActorContextSchemaV1
+}).strict();
+var results = [
+  z.object({
+    type: z.literal("board.list"),
+    boards: z.array(BoardSummarySchemaV1).max(MAX_PAGE_SIZE),
+    nextCursor: PageCursorSchemaV1.nullable()
+  }).strict(),
+  z.object({
+    type: z.literal("board.get"),
+    board: BoardSummarySchemaV1,
+    snapshot: BoardSnapshotSchema
+  }).strict(),
+  z.object({
+    type: z.literal("board.create"),
+    board: BoardSummarySchemaV1,
+    snapshot: BoardSnapshotSchema
+  }).strict(),
+  z.object({ type: z.literal("board.archive"), board: BoardSummarySchemaV1 }).strict(),
+  z.object({ type: z.literal("capabilities.get"), capabilities: BoardCapabilitiesSchema }).strict(),
+  z.object({
+    type: z.literal("history.list"),
+    entries: z.array(HistoryEntrySchemaV1).max(MAX_PAGE_SIZE),
+    nextCursor: PageCursorSchemaV1.nullable()
+  }).strict(),
+  z.object({
+    type: z.literal("history.get"),
+    entry: HistoryEntrySchemaV1,
+    snapshot: BoardSnapshotSchema
+  }).strict(),
+  z.object({
+    type: z.literal("artifact.get"),
+    manifest: ArtifactManifestSchemaV1,
+    runtime: ArtifactRuntimeSummarySchemaV1
+  }).strict(),
+  z.object({ type: z.literal("hitl.read"), changed: z.boolean(), hitl: HitlInteractionSchemaV1 }).strict()
+];
+var BoardOperationResultDataSchemaV1 = z.discriminatedUnion("type", [...results]);
+var BoardOperationResultSchemaV1 = z.object({
+  protocolVersion: z.literal(1),
+  type: z.literal("board.operation.result"),
+  requestId: RequestIdSchemaV1,
+  replayed: z.boolean(),
+  result: BoardOperationResultDataSchemaV1
+}).strict().superRefine((envelope, context) => {
+  const result = envelope.result;
+  if (result.type !== "board.create" && result.type !== "board.archive" && envelope.replayed)
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["replayed"],
+      message: "read operation results cannot be replayed"
+    });
+  if (result.type === "board.get" || result.type === "board.create") {
+    if (result.board.boardId !== result.snapshot.boardId || result.board.headRevision.revisionId !== result.snapshot.revision.revisionId)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["result", "snapshot"],
+        message: "[INVALID_LAYOUT] board and snapshot do not correlate"
+      });
+    if (result.type === "board.create" && (result.snapshot.revision.revisionNumber !== 1 || ("scene" in result.snapshot ? result.snapshot.scene.root !== null : result.snapshot.document.pages.some(
+      (page) => page.scene.root !== null
+    ))))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["result", "snapshot"],
+        message: "[INVALID_LAYOUT] create snapshot must be initial empty head"
+      });
+  } else if (result.type === "history.get" && result.entry.revision.revisionId !== result.snapshot.revision.revisionId)
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["result", "snapshot", "revision", "revisionId"],
+      message: "[INVALID_LAYOUT] history revision does not correlate"
+    });
+  else if (result.type === "artifact.get") {
+    const expected = `${result.manifest.artifact.artifactId}\0${result.manifest.artifact.versionId}`;
+    const actual = `${result.runtime.artifact.artifactId}\0${result.runtime.artifact.versionId}`;
+    if (expected !== actual)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["result", "runtime", "artifact"],
+        message: "[INVALID_LAYOUT] artifact result does not correlate"
+      });
+  }
+});
+
 // packages/board-schema/src/commands.ts
 var SceneReplaceCommandSchemaV1 = z.object({ type: z.literal("scene.replace"), scene: SceneSchemaV1 }).strict();
 var SceneClearCommandSchemaV1 = z.object({ type: z.literal("scene.clear") }).strict();
@@ -26538,163 +27065,6 @@ var BoardErrorSchemaV2Only = z.discriminatedUnion("code", [
 ]);
 var BoardErrorSchema = z.union([BoardErrorSchemaV1, BoardErrorSchemaV2Only]);
 
-// packages/board-schema/src/snapshots.ts
-var SnapshotRevisionSchemaV1 = RevisionSummarySchemaV1.extend({
-  previousRevisionId: RevisionIdSchemaV1.nullable(),
-  originType: RevisionOriginTypeSchemaV1,
-  sourceRevisionId: RevisionIdSchemaV1.nullable(),
-  actor: ActorReferenceSchemaV1
-}).strict();
-var artifactKey = (artifact) => `${artifact.artifactId}\0${artifact.versionId}`;
-var BoardSnapshotSchemaV1 = z.object({
-  protocolVersion: z.literal(1),
-  type: z.literal("board.snapshot"),
-  boardId: BoardIdSchemaV1,
-  revision: SnapshotRevisionSchemaV1,
-  scene: SceneSchemaV1,
-  hitl: z.array(HitlInteractionSchemaV1),
-  artifacts: z.array(ArtifactRuntimeSummarySchemaV1),
-  capabilities: BoardCapabilitiesSchemaV1,
-  lastEventSequence: z.number().int().safe().min(0)
-}).strict().superRefine((snapshot, context) => {
-  if (snapshot.revision.revisionNumber === 1) {
-    if (snapshot.revision.previousRevisionId !== null || snapshot.revision.originType !== "board.create" || snapshot.revision.sourceRevisionId !== null)
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["revision"],
-        message: "[INVALID_LAYOUT] initial revision metadata is invalid"
-      });
-  } else if (snapshot.revision.previousRevisionId === null || snapshot.revision.originType === "board.create" || snapshot.revision.originType === "scene.restore" !== (snapshot.revision.sourceRevisionId !== null))
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["revision"],
-      message: "[INVALID_LAYOUT] revision lineage is invalid"
-    });
-  const hitlIds = /* @__PURE__ */ new Set();
-  snapshot.hitl.forEach((interaction, index) => {
-    if (hitlIds.has(interaction.hitlRequestId))
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["hitl", index, "hitlRequestId"],
-        message: "[INVALID_LAYOUT] duplicate HITL interaction"
-      });
-    hitlIds.add(interaction.hitlRequestId);
-  });
-  const artifactKeys = /* @__PURE__ */ new Set();
-  snapshot.artifacts.forEach((runtime2, index) => {
-    const key = artifactKey(runtime2.artifact);
-    if (artifactKeys.has(key))
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["artifacts", index, "artifact"],
-        message: "[INVALID_LAYOUT] duplicate artifact runtime summary"
-      });
-    artifactKeys.add(key);
-  });
-  for (const item of collectSceneNodesV1(snapshot.scene.root)) {
-    if (item.node.type === "content.hitl" && !hitlIds.has(item.node.hitlRequestId))
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["scene", ...item.path, "hitlRequestId"],
-        message: "[INVALID_LAYOUT] unresolved HITL reference"
-      });
-    const reference = item.node.type === "content.artifact" ? item.node.artifact : item.node.type === "content.image" ? item.node.source.artifact : null;
-    if (reference && !artifactKeys.has(artifactKey(reference)))
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: [
-          "scene",
-          ...item.path,
-          ...item.node.type === "content.image" ? ["source", "artifact"] : ["artifact"]
-        ],
-        message: "[INVALID_LAYOUT] unresolved artifact reference"
-      });
-  }
-});
-var BoardSnapshotSchemaV2 = z.object({
-  protocolVersion: z.literal(1),
-  type: z.literal("board.snapshot"),
-  boardId: BoardIdSchemaV1,
-  revision: SnapshotRevisionSchemaV1,
-  document: BoardDocumentSchemaV2,
-  hitl: z.array(HitlInteractionSchemaV1),
-  artifacts: z.array(ArtifactRuntimeSummarySchemaV1),
-  capabilities: BoardCapabilitiesSchemaV2,
-  lastEventSequence: z.number().int().safe().min(0)
-}).strict().superRefine((snapshot, context) => {
-  if (snapshot.revision.revisionNumber === 1) {
-    if (snapshot.revision.previousRevisionId !== null || snapshot.revision.originType !== "board.create" || snapshot.revision.sourceRevisionId !== null)
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["revision"],
-        message: "[INVALID_LAYOUT] initial revision metadata is invalid"
-      });
-  } else if (snapshot.revision.previousRevisionId === null || snapshot.revision.originType === "board.create" || snapshot.revision.originType === "scene.restore" !== (snapshot.revision.sourceRevisionId !== null))
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["revision"],
-      message: "[INVALID_LAYOUT] revision lineage is invalid"
-    });
-  const hitlIds = /* @__PURE__ */ new Set();
-  snapshot.hitl.forEach((interaction, index) => {
-    if (hitlIds.has(interaction.hitlRequestId))
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["hitl", index, "hitlRequestId"],
-        message: "[INVALID_LAYOUT] duplicate HITL interaction"
-      });
-    hitlIds.add(interaction.hitlRequestId);
-  });
-  const artifactKeys = /* @__PURE__ */ new Set();
-  snapshot.artifacts.forEach((runtime2, index) => {
-    const key = artifactKey(runtime2.artifact);
-    if (artifactKeys.has(key))
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["artifacts", index, "artifact"],
-        message: "[INVALID_LAYOUT] duplicate artifact runtime summary"
-      });
-    artifactKeys.add(key);
-  });
-  for (const item of collectDocumentNodesV2(snapshot.document)) {
-    if (item.node.type === "content.hitl" && !hitlIds.has(item.node.hitlRequestId))
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: [...item.path, "hitlRequestId"],
-        message: "[INVALID_DOCUMENT:unresolved_reference] unresolved HITL reference"
-      });
-    const reference = item.node.type === "content.artifact" ? item.node.artifact : item.node.type === "content.image" ? item.node.source.artifact : null;
-    if (reference && !artifactKeys.has(artifactKey(reference)))
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: [
-          ...item.path,
-          ...item.node.type === "content.image" ? ["source", "artifact"] : ["artifact"]
-        ],
-        message: "[INVALID_DOCUMENT:unresolved_reference] unresolved artifact reference"
-      });
-  }
-});
-var BoardSnapshotSchema = z.any().transform((value, context) => {
-  const record2 = value !== null && typeof value === "object" && !Array.isArray(value) ? value : null;
-  const hasScene = record2 ? Object.hasOwn(record2, "scene") : false;
-  const hasDocument = record2 ? Object.hasOwn(record2, "document") : false;
-  if (hasScene && hasDocument) {
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: [],
-      message: "snapshot must contain exactly one of scene or document"
-    });
-    return z.NEVER;
-  }
-  const parsed = (hasDocument ? BoardSnapshotSchemaV2 : BoardSnapshotSchemaV1).safeParse(value);
-  if (!parsed.success) {
-    parsed.error.issues.forEach((issue2) => context.addIssue(issue2));
-    return z.NEVER;
-  }
-  return parsed.data;
-});
-
 // packages/board-schema/src/events.ts
 var PresenceSummarySchemaV1 = z.object({
   principal: ActorReferenceSchemaV1,
@@ -26860,183 +27230,6 @@ var RetainedHistoryMetadataSchemaV1 = z.object({
     latestRevisionId: RevisionIdSchemaV1
   }).strict().nullable()
 }).strict();
-
-// packages/board-schema/src/operations.ts
-var PageCursorSchemaV1 = z.string().min(1).max(MAX_PAGE_CURSOR_CHARS).regex(/^[A-Za-z0-9_-]+$/).brand();
-var BoardSummarySchemaV1 = z.object({
-  boardId: BoardIdSchemaV1,
-  title: ShortTextSchemaV1,
-  createdAt: TimestampSchemaV1,
-  updatedAt: TimestampSchemaV1,
-  archivedAt: TimestampSchemaV1.nullable(),
-  headRevision: RevisionSummarySchemaV1
-}).strict();
-var HistoryEntrySchemaV1 = z.object({
-  revision: RevisionSummarySchemaV1,
-  previousRevisionId: RevisionIdSchemaV1.nullable(),
-  originType: RevisionOriginTypeSchemaV1,
-  sourceRevisionId: RevisionIdSchemaV1.nullable(),
-  actor: ActorReferenceSchemaV1
-}).strict();
-var requests = [
-  z.object({
-    protocolVersion: z.literal(1),
-    requestId: RequestIdSchemaV1,
-    type: z.literal("board.list"),
-    cursor: PageCursorSchemaV1.nullable(),
-    limit: z.number().int().min(1).max(MAX_PAGE_SIZE),
-    includeArchived: z.boolean()
-  }).strict(),
-  z.object({
-    protocolVersion: z.literal(1),
-    requestId: RequestIdSchemaV1,
-    type: z.literal("board.get"),
-    boardId: BoardIdSchemaV1
-  }).strict(),
-  z.object({
-    protocolVersion: z.literal(1),
-    requestId: RequestIdSchemaV1,
-    type: z.literal("board.create"),
-    idempotencyKey: IdempotencyKeySchemaV1,
-    title: ShortTextSchemaV1
-  }).strict(),
-  z.object({
-    protocolVersion: z.literal(1),
-    requestId: RequestIdSchemaV1,
-    type: z.literal("board.archive"),
-    idempotencyKey: IdempotencyKeySchemaV1,
-    boardId: BoardIdSchemaV1,
-    confirm: z.literal(true)
-  }).strict(),
-  z.object({
-    protocolVersion: z.literal(1),
-    requestId: RequestIdSchemaV1,
-    type: z.literal("capabilities.get"),
-    boardId: BoardIdSchemaV1
-  }).strict(),
-  z.object({
-    protocolVersion: z.literal(1),
-    requestId: RequestIdSchemaV1,
-    type: z.literal("history.list"),
-    boardId: BoardIdSchemaV1,
-    cursor: PageCursorSchemaV1.nullable(),
-    limit: z.number().int().min(1).max(MAX_PAGE_SIZE)
-  }).strict(),
-  z.object({
-    protocolVersion: z.literal(1),
-    requestId: RequestIdSchemaV1,
-    type: z.literal("history.get"),
-    boardId: BoardIdSchemaV1,
-    revisionId: RevisionIdSchemaV1
-  }).strict(),
-  z.object({
-    protocolVersion: z.literal(1),
-    requestId: RequestIdSchemaV1,
-    type: z.literal("artifact.get"),
-    boardId: BoardIdSchemaV1,
-    artifact: ArtifactReferenceSchemaV1
-  }).strict(),
-  z.object({
-    protocolVersion: z.literal(1),
-    requestId: RequestIdSchemaV1,
-    type: z.literal("hitl.read"),
-    boardId: BoardIdSchemaV1,
-    hitlRequestId: HitlRequestIdSchemaV1,
-    wait: z.object({
-      afterStateUpdatedAt: TimestampSchemaV1,
-      timeoutMs: z.number().int().min(0).max(MAX_HITL_WAIT_MS)
-    }).strict().nullable()
-  }).strict()
-];
-var BoardOperationRequestSchemaV1 = z.discriminatedUnion("type", [...requests]);
-var BoardOperationEnvelopeSchemaV1 = z.object({
-  protocolVersion: z.literal(1),
-  type: z.literal("board.operation.envelope"),
-  request: BoardOperationRequestSchemaV1,
-  actor: ActorContextSchemaV1
-}).strict();
-var results = [
-  z.object({
-    type: z.literal("board.list"),
-    boards: z.array(BoardSummarySchemaV1).max(MAX_PAGE_SIZE),
-    nextCursor: PageCursorSchemaV1.nullable()
-  }).strict(),
-  z.object({
-    type: z.literal("board.get"),
-    board: BoardSummarySchemaV1,
-    snapshot: BoardSnapshotSchema
-  }).strict(),
-  z.object({
-    type: z.literal("board.create"),
-    board: BoardSummarySchemaV1,
-    snapshot: BoardSnapshotSchema
-  }).strict(),
-  z.object({ type: z.literal("board.archive"), board: BoardSummarySchemaV1 }).strict(),
-  z.object({ type: z.literal("capabilities.get"), capabilities: BoardCapabilitiesSchema }).strict(),
-  z.object({
-    type: z.literal("history.list"),
-    entries: z.array(HistoryEntrySchemaV1).max(MAX_PAGE_SIZE),
-    nextCursor: PageCursorSchemaV1.nullable()
-  }).strict(),
-  z.object({
-    type: z.literal("history.get"),
-    entry: HistoryEntrySchemaV1,
-    snapshot: BoardSnapshotSchema
-  }).strict(),
-  z.object({
-    type: z.literal("artifact.get"),
-    manifest: ArtifactManifestSchemaV1,
-    runtime: ArtifactRuntimeSummarySchemaV1
-  }).strict(),
-  z.object({ type: z.literal("hitl.read"), changed: z.boolean(), hitl: HitlInteractionSchemaV1 }).strict()
-];
-var BoardOperationResultDataSchemaV1 = z.discriminatedUnion("type", [...results]);
-var BoardOperationResultSchemaV1 = z.object({
-  protocolVersion: z.literal(1),
-  type: z.literal("board.operation.result"),
-  requestId: RequestIdSchemaV1,
-  replayed: z.boolean(),
-  result: BoardOperationResultDataSchemaV1
-}).strict().superRefine((envelope, context) => {
-  const result = envelope.result;
-  if (result.type !== "board.create" && result.type !== "board.archive" && envelope.replayed)
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["replayed"],
-      message: "read operation results cannot be replayed"
-    });
-  if (result.type === "board.get" || result.type === "board.create") {
-    if (result.board.boardId !== result.snapshot.boardId || result.board.headRevision.revisionId !== result.snapshot.revision.revisionId)
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["result", "snapshot"],
-        message: "[INVALID_LAYOUT] board and snapshot do not correlate"
-      });
-    if (result.type === "board.create" && (result.snapshot.revision.revisionNumber !== 1 || ("scene" in result.snapshot ? result.snapshot.scene.root !== null : result.snapshot.document.pages.some(
-      (page) => page.scene.root !== null
-    ))))
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["result", "snapshot"],
-        message: "[INVALID_LAYOUT] create snapshot must be initial empty head"
-      });
-  } else if (result.type === "history.get" && result.entry.revision.revisionId !== result.snapshot.revision.revisionId)
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["result", "snapshot", "revision", "revisionId"],
-      message: "[INVALID_LAYOUT] history revision does not correlate"
-    });
-  else if (result.type === "artifact.get") {
-    const expected = `${result.manifest.artifact.artifactId}\0${result.manifest.artifact.versionId}`;
-    const actual = `${result.runtime.artifact.artifactId}\0${result.runtime.artifact.versionId}`;
-    if (expected !== actual)
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["result", "runtime", "artifact"],
-        message: "[INVALID_LAYOUT] artifact result does not correlate"
-      });
-  }
-});
 
 // packages/board-schema/src/parser-kernel.ts
 var isPlainObject3 = (value) => {
@@ -27777,6 +27970,19 @@ var HitlRequestDefinitionParserV1 = createParserV1(HitlRequestDefinitionSchemaV1
 var HitlResponseParserV1 = createParserV1(HitlResponseSchemaV1, "hitl-response");
 var HitlInteractionParserV1 = createParserV1(HitlInteractionSchemaV1);
 var RetainedHistoryMetadataParserV1 = createParserV1(RetainedHistoryMetadataSchemaV1);
+var BoardMembershipParserV1 = createParserV1(BoardMembershipSchemaV1);
+var BoardAuthorizationPrincipalParserV1 = createParserV1(
+  BoardAuthorizationPrincipalSchemaV1
+);
+var BoardAuthorizationCapabilityParserV1 = createParserV1(
+  BoardAuthorizationCapabilitySchemaV1
+);
+var BoardOperationAuthorizationPolicyParserV1 = createParserV1(
+  BoardOperationAuthorizationPolicySchemaV1
+);
+var BoardOperationAuthorizationMatrixParserV1 = createParserV1(
+  BoardOperationAuthorizationMatrixSchemaV1
+);
 var BoardErrorParserV1 = createParserV1(BoardErrorSchemaV1);
 var BoardDocumentParserV2 = createParser(BoardDocumentSchemaV2, "document", true);
 var MutationRequestParserV2 = createParser(MutationRequestSchemaV2, "mutation", true);

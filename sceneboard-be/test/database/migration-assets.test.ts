@@ -12,7 +12,7 @@ test('binds every staged registry asset to non-empty deterministic SQL', async (
     assets.add(entry.upAsset);
     if (entry.downAsset !== null) assets.add(entry.downAsset);
   }
-  assert.equal(assets.size, 21);
+  assert.equal(assets.size, 22);
   for (const asset of assets) {
     const bytes = await readFile(new URL(asset, directory));
     const source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
@@ -48,8 +48,8 @@ test('interleaves the irreversible D3 board owner before D2 grant bindings', asy
   assert.doesNotMatch(source, /REGEXP_LIKE\s*\(\s*public_id/);
 });
 
-test('materializes the exact terminal eighteen-entry and twenty-one-asset checkpoint', async () => {
-  assert.equal(MIGRATION_REGISTRY.length, 18);
+test('materializes the exact terminal nineteen-entry and twenty-two-asset checkpoint', async () => {
+  assert.equal(MIGRATION_REGISTRY.length, 19);
   assert.equal(MIGRATION_REGISTRY.filter((entry) => entry.reversible).length, 3);
   const directory = new URL('../../src/database/migrations/sql/', import.meta.url);
   const expectedTables = new Map([
@@ -127,6 +127,10 @@ test('materializes the exact terminal eighteen-entry and twenty-one-asset checkp
     /MODIFY COLUMN actor_class ENUM\('owner','editor','system'\) NOT NULL/u,
   );
   assert.match(retentionRuntime, /CONSTRAINT chk_revisions_retained_checkpoint/u);
+  const memberships = await readFile(new URL('016_d9_board_memberships.up.sql', directory), 'utf8');
+  assert.equal(splitSqlStatements(memberships).length, 2);
+  assert.match(memberships, /UNIQUE KEY uq_board_memberships_account \(board_pk, account_pk\)/u);
+  assert.match(memberships, /CONSTRAINT chk_board_memberships_owner_projection/u);
 });
 
 test('the live runner verifies every terminal D7, D8, and D9 migration postcondition', async () => {
@@ -146,6 +150,7 @@ test('the live runner verifies every terminal D7, D8, and D9 migration postcondi
   assert.match(source, /postcondition === 'd9_v2_checkpoint_capacity_v1'/u);
   assert.match(source, /postcondition === 'd9_revision_retention_expand_v1'/u);
   assert.match(source, /d9_revision_retention_runtime_v1:/u);
+  assert.match(source, /d9_board_memberships_v1:/u);
 });
 
 test('binds D2 pairing and grant tables to the exact D3 public board key', async () => {

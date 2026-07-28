@@ -5,6 +5,7 @@ import {
   BOARD_LIMITS_V1,
   BOARD_MUTATION_COMMAND_TYPES_V1,
   BOARD_MUTATION_COMMAND_TYPES_V2,
+  BOARD_OPERATION_AUTHORIZATION_MATRIX_V1,
   BOARD_OPERATION_TYPES_V1,
   BoardCapabilitiesParserV1,
   BoardCapabilitiesParserV2,
@@ -19,19 +20,32 @@ import {
 import { BoardPersistenceError } from '../common/errors/board-persistence.error.js';
 import type { AuthorizedBoardContextV1 } from './board-access.policy.js';
 
+const effectiveGrantCapabilities = (
+  context: Pick<AuthorizedBoardContextV1, 'actor' | 'membership'>,
+) => {
+  const role = context.membership?.membershipRole;
+  if (role === undefined) return [...context.actor.scopes];
+  const allowed = new Set(
+    BOARD_OPERATION_AUTHORIZATION_MATRIX_V1.filter((row) => row.roles[role]).flatMap(
+      (row) => row.requiredCapabilities,
+    ),
+  );
+  return context.actor.scopes.filter((capability) => allowed.has(capability));
+};
+
 export function currentBoardCapabilitiesFromContext(
-  context: Pick<AuthorizedBoardContextV1, 'actor' | 'artifactCapabilityPolicy'>,
+  context: Pick<AuthorizedBoardContextV1, 'actor' | 'artifactCapabilityPolicy' | 'membership'>,
 ): BoardCapabilitiesV1;
 export function currentBoardCapabilitiesFromContext(
-  context: Pick<AuthorizedBoardContextV1, 'actor' | 'artifactCapabilityPolicy'>,
+  context: Pick<AuthorizedBoardContextV1, 'actor' | 'artifactCapabilityPolicy' | 'membership'>,
   schemaVersion: 1,
 ): BoardCapabilitiesV1;
 export function currentBoardCapabilitiesFromContext(
-  context: Pick<AuthorizedBoardContextV1, 'actor' | 'artifactCapabilityPolicy'>,
+  context: Pick<AuthorizedBoardContextV1, 'actor' | 'artifactCapabilityPolicy' | 'membership'>,
   schemaVersion: 2,
 ): BoardCapabilitiesV2;
 export function currentBoardCapabilitiesFromContext(
-  context: Pick<AuthorizedBoardContextV1, 'actor' | 'artifactCapabilityPolicy'>,
+  context: Pick<AuthorizedBoardContextV1, 'actor' | 'artifactCapabilityPolicy' | 'membership'>,
   schemaVersion: 1 | 2 = 1,
 ): BoardCapabilities {
   const common = {
@@ -45,7 +59,7 @@ export function currentBoardCapabilitiesFromContext(
       hitlKinds: [...HITL_KINDS_V1],
       artifactRequestCapabilities: [...ARTIFACT_REQUEST_CAPABILITIES_V1],
     },
-    grantedCapabilities: [...context.actor.scopes],
+    grantedCapabilities: effectiveGrantCapabilities(context),
     allowedArtifactRequestCapabilities: [
       ...context.artifactCapabilityPolicy.allowedArtifactRequestCapabilities,
     ],

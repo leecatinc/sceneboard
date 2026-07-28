@@ -10,6 +10,8 @@ import { HistoryCursorCodec } from '../history/history-cursor.codec.js';
 import { HistoryGetService } from '../history/history-get.service.js';
 import { HistoryListService } from '../history/history-list.service.js';
 import { InteractionsModule } from '../interactions/interactions.module.js';
+import { BoardMembershipAuthorizationService } from '../memberships/membership.service.js';
+import { MembershipsModule } from '../memberships/memberships.module.js';
 import { DocumentCheckpointCodec } from '../revisions/document-checkpoint.codec.js';
 import { BoardMutationService } from '../revisions/board-mutation.service.js';
 import { SnapshotCompositionService } from '../revisions/snapshot-composition.service.js';
@@ -25,7 +27,7 @@ import { BoardRenameService } from './board-rename.service.js';
 import { BoardController } from './board.controller.js';
 
 @Module({
-  imports: [GrantModule, ArtifactsModule, InteractionsModule],
+  imports: [GrantModule, MembershipsModule, ArtifactsModule, InteractionsModule],
   controllers: [BoardController],
   providers: [
     DocumentCheckpointCodec,
@@ -56,12 +58,18 @@ import { BoardController } from './board.controller.js';
     },
     {
       provide: BoardCreateService,
-      inject: [MysqlBoardAccessPolicy, CryptoService, DocumentCheckpointCodec],
+      inject: [
+        MysqlBoardAccessPolicy,
+        CryptoService,
+        DocumentCheckpointCodec,
+        BoardMembershipAuthorizationService,
+      ],
       useFactory: (
         accessPolicy: MysqlBoardAccessPolicy,
         crypto: CryptoService,
         checkpointCodec: DocumentCheckpointCodec,
-      ) => new BoardCreateService(accessPolicy, crypto, checkpointCodec),
+        memberships: BoardMembershipAuthorizationService,
+      ) => new BoardCreateService(accessPolicy, crypto, checkpointCodec, {}, memberships),
     },
     {
       provide: BoardArchiveService,

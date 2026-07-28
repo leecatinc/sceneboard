@@ -31,6 +31,7 @@ import type {
 import { DocumentCheckpointCodec } from '../revisions/document-checkpoint.codec.js';
 import { RevisionPayloadCatalogRepository } from '../revisions/revision-payload-catalog.repository.js';
 import { currentBoardCapabilitiesFromContext } from '../grants/current-board-capabilities.js';
+import { BoardMembershipAuthorizationService } from '../memberships/membership.service.js';
 
 export type BoardCreateRequestV1 = Extract<
   BoardLifecycleIdempotencyEnvelopeV1['request'],
@@ -183,6 +184,7 @@ export class BoardCreateService {
     private readonly crypto: CryptoService,
     private readonly checkpointCodec: DocumentCheckpointCodec,
     runtime: Partial<BoardCreateRuntime> = {},
+    private readonly memberships: BoardMembershipAuthorizationService | null = null,
   ) {
     this.runtime = {
       now: runtime.now ?? (() => new Date()),
@@ -356,6 +358,15 @@ export class BoardCreateService {
       throw error;
     }
     const boardPk = insertedPk(boardInsert);
+    if (context.createOwnerMembership !== undefined && context.createOwnerMembership !== null) {
+      await context.createOwnerMembership.create(boardPk, prepared.occurredAtSql);
+    } else if (this.memberships !== null) {
+      await this.memberships.createOwnerMembership(connection, {
+        boardPk,
+        ownerAccountPk: context.ownerUserPk,
+        createdAtSql: prepared.occurredAtSql,
+      });
+    }
     if (context.createBinding !== null) {
       await context.createBinding.bindCreatedBoard(prepared.boardId);
     }

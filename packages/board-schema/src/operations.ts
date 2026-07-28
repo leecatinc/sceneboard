@@ -8,6 +8,15 @@ import {
 } from './artifacts.js';
 import { BoardCapabilitiesSchema } from './capabilities.js';
 import {
+  BOARD_AUTHORIZATION_CAPABILITIES_V1,
+  BOARD_AUTHORIZATION_OPERATION_TYPES_V1,
+  BOARD_AUTHORIZATION_SURFACES_V1,
+  type BoardAuthorizationCapabilityV1,
+  type BoardAuthorizationOperationTypeV1,
+  type BoardAuthorizationSurfaceV1,
+  type BoardMembershipRoleV1,
+} from './catalogs.js';
+import {
   BoardIdSchemaV1,
   HitlRequestIdSchemaV1,
   IdempotencyKeySchemaV1,
@@ -21,6 +30,146 @@ import {
 import { HitlInteractionSchemaV1 } from './hitl.js';
 import { MAX_HITL_WAIT_MS, MAX_PAGE_CURSOR_CHARS, MAX_PAGE_SIZE } from './limits.js';
 import { BoardSnapshotSchema } from './snapshots.js';
+
+export type BoardOperationAuthorizationPolicyV1 = {
+  operation: BoardAuthorizationOperationTypeV1;
+  surfaces: readonly BoardAuthorizationSurfaceV1[];
+  requiredCapabilities: readonly BoardAuthorizationCapabilityV1[];
+  roles: Readonly<Record<BoardMembershipRoleV1, boolean>>;
+  viewerResourceScope: 'none' | 'current_head' | 'all';
+  runtimeOwner: string;
+};
+
+const policy = (
+  operation: BoardAuthorizationOperationTypeV1,
+  surfaces: readonly BoardAuthorizationSurfaceV1[],
+  requiredCapabilities: readonly BoardAuthorizationCapabilityV1[],
+  roles: Readonly<Record<BoardMembershipRoleV1, boolean>>,
+  runtimeOwner: string,
+  viewerResourceScope: BoardOperationAuthorizationPolicyV1['viewerResourceScope'] = 'none',
+): BoardOperationAuthorizationPolicyV1 =>
+  Object.freeze({
+    operation,
+    surfaces: Object.freeze([...surfaces]),
+    requiredCapabilities: Object.freeze([...requiredCapabilities]),
+    roles: Object.freeze({ ...roles }),
+    viewerResourceScope,
+    runtimeOwner,
+  });
+
+const allRoles = Object.freeze({ owner: true, editor: true, viewer: true });
+const editors = Object.freeze({ owner: true, editor: true, viewer: false });
+const owners = Object.freeze({ owner: true, editor: false, viewer: false });
+const account = Object.freeze({ owner: false, editor: false, viewer: false });
+
+export const BOARD_OPERATION_AUTHORIZATION_MATRIX_V1 = Object.freeze([
+  policy('board.list', ['browser', 'mcp'], ['board.read'], allRoles, 'I-27'),
+  policy('board.get', ['browser', 'mcp'], ['board.read'], allRoles, 'I-27', 'all'),
+  policy('capabilities.get', ['browser', 'mcp'], ['board.read'], allRoles, 'I-27', 'all'),
+  policy('artifact.get', ['browser', 'mcp'], ['board.read'], allRoles, 'I-27', 'current_head'),
+  policy('hitl.read', ['browser', 'mcp'], ['board.read'], allRoles, 'I-27', 'current_head'),
+  policy('history.list', ['browser', 'mcp'], ['board.history.read'], editors, 'I-27'),
+  policy('history.get', ['browser', 'mcp'], ['board.history.read'], editors, 'I-27'),
+  policy('board.create', ['browser', 'mcp'], ['account.board.create'], account, 'I-27'),
+  policy('board.rename', ['browser'], ['board.write'], editors, 'I-27'),
+  policy('document.replace', ['browser', 'mcp'], ['board.write'], editors, 'I-19'),
+  policy('page.add', ['browser', 'mcp'], ['board.write'], editors, 'I-19'),
+  policy('page.update', ['browser', 'mcp'], ['board.write'], editors, 'I-19'),
+  policy('page.remove', ['browser', 'mcp'], ['board.write'], editors, 'I-19'),
+  policy('page.reorder', ['browser', 'mcp'], ['board.write'], editors, 'I-19'),
+  policy('page.default.set', ['browser', 'mcp'], ['board.write'], editors, 'I-19'),
+  policy('scene.replace', ['browser', 'mcp'], ['board.write'], editors, 'I-27'),
+  policy('scene.clear', ['browser', 'mcp'], ['board.write'], editors, 'I-27'),
+  policy(
+    'scene.restore',
+    ['browser', 'mcp'],
+    ['board.history.read', 'board.write'],
+    editors,
+    'I-27',
+  ),
+  policy('hitl.request', ['browser', 'mcp'], ['board.hitl.request'], editors, 'I-27'),
+  policy('hitl.respond', ['browser', 'mcp'], ['board.hitl.respond'], editors, 'I-27'),
+  policy('artifact.publish', ['browser', 'mcp'], ['artifact.publish'], editors, 'I-27'),
+  policy('artifact.stop', ['browser', 'mcp'], ['artifact.control'], editors, 'I-27'),
+  policy('connection.create', ['browser'], ['connection.manage.own'], editors, 'existing'),
+  policy('connection.update', ['browser'], ['connection.manage.own'], editors, 'existing'),
+  policy('connection.revoke', ['browser'], ['connection.manage.own'], editors, 'existing'),
+  policy('board.archive', ['browser', 'mcp'], ['board.admin'], owners, 'I-27'),
+  policy('board.delete', ['browser'], ['board.admin'], owners, 'I-27'),
+  policy('membership.list', ['browser'], ['board.members.manage'], owners, 'I-28'),
+  policy('membership.invite', ['browser'], ['board.members.manage'], owners, 'I-28'),
+  policy('membership.role.update', ['browser'], ['board.members.manage'], owners, 'I-28'),
+  policy('membership.remove', ['browser'], ['board.members.manage'], owners, 'I-28'),
+  policy('ownership.transfer', ['browser'], ['board.members.manage'], owners, 'I-28'),
+  policy('share.publish', ['browser'], ['board.share.manage'], owners, 'I-29'),
+  policy('share.update', ['browser'], ['board.share.manage'], owners, 'I-29'),
+  policy('share.rotate', ['browser'], ['board.share.manage'], owners, 'I-29'),
+  policy('share.revoke', ['browser'], ['board.share.manage'], owners, 'I-29'),
+  policy('share.password.regenerate', ['browser'], ['board.share.manage'], owners, 'I-30'),
+  policy('media.upload', ['browser', 'mcp'], ['board.media.write'], editors, 'I-36/I-40'),
+  policy('analytics.report.get', ['browser'], ['board.analytics.read'], owners, 'I-42'),
+] satisfies readonly BoardOperationAuthorizationPolicyV1[]);
+
+export const BoardOperationAuthorizationPolicySchemaV1 = z
+  .object({
+    operation: z.enum(BOARD_AUTHORIZATION_OPERATION_TYPES_V1),
+    surfaces: z
+      .array(z.enum(BOARD_AUTHORIZATION_SURFACES_V1))
+      .min(1)
+      .superRefine((values, context) => {
+        if (new Set(values).size !== values.length)
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'authorization surfaces must be unique',
+          });
+      }),
+    requiredCapabilities: z
+      .array(z.enum(BOARD_AUTHORIZATION_CAPABILITIES_V1))
+      .min(1)
+      .superRefine((values, context) => {
+        if (new Set(values).size !== values.length)
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'authorization capabilities must be unique',
+          });
+      }),
+    roles: z
+      .object({
+        owner: z.boolean(),
+        editor: z.boolean(),
+        viewer: z.boolean(),
+      })
+      .strict(),
+    viewerResourceScope: z.enum(['none', 'current_head', 'all']),
+    runtimeOwner: z.string().min(1).max(64),
+  })
+  .strict();
+
+export const BoardOperationAuthorizationMatrixSchemaV1 = z
+  .array(BoardOperationAuthorizationPolicySchemaV1)
+  .length(BOARD_AUTHORIZATION_OPERATION_TYPES_V1.length)
+  .superRefine((rows, context) => {
+    for (const [index, operation] of BOARD_AUTHORIZATION_OPERATION_TYPES_V1.entries()) {
+      const row = rows[index];
+      const expected = BOARD_OPERATION_AUTHORIZATION_MATRIX_V1[index];
+      if (row?.operation !== operation)
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [index, 'operation'],
+          message: 'authorization matrix must exactly match operation catalog order',
+        });
+      if (
+        row !== undefined &&
+        expected !== undefined &&
+        JSON.stringify(row) !== JSON.stringify(expected)
+      )
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [index],
+          message: 'authorization matrix row must exactly match the shared policy',
+        });
+    }
+  });
 
 export const PageCursorSchemaV1 = z
   .string()

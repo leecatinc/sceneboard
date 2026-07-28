@@ -162,5 +162,12 @@ test('freezes the exact terminal D2/D3/D7/D8/D9 checkpoint order and reversibili
       downAsset: null,
       postcondition: 'd9_revision_retention_runtime_v1',
     },
+    {
+      version: '016_d9_board_memberships',
+      upAsset: '016_d9_board_memberships.up.sql',
+      reversible: false,
+      downAsset: null,
+      postcondition: 'd9_board_memberships_v1',
+    },
   ]);
 });

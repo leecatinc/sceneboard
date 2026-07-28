@@ -32,6 +32,16 @@
       "downSha256": null,
       "reversible": false,
       "predecessorIds": ["014_d9_revision_retention_expand"]
+    },
+    {
+      "order": 19,
+      "version": "016_d9_board_memberships",
+      "upAsset": "016_d9_board_memberships.up.sql",
+      "upSha256": "345aeb4eb37b8eb5aca95f7d38fe3f41941e3b1faf186cf3e10b9f69093476be",
+      "downAsset": null,
+      "downSha256": null,
+      "reversible": false,
+      "predecessorIds": ["015_d9_revision_retention_runtime"]
     }
   ],
   "tables": [
@@ -79,6 +89,11 @@
       "name": "retention_restore_drill_attempts",
       "sourceAsset": "015_d9_revision_retention_runtime.up.sql",
       "sourceSha256": "1dfcdce8bbbfefcdca98eb28493cebb236718836fe8bb5a9caa2b218bf27ef62"
+    },
+    {
+      "name": "board_memberships",
+      "sourceAsset": "016_d9_board_memberships.up.sql",
+      "sourceSha256": "345aeb4eb37b8eb5aca95f7d38fe3f41941e3b1faf186cf3e10b9f69093476be"
     }
   ]
 }

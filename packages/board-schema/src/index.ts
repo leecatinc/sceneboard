@@ -1,30 +1,42 @@
 export { PROTOCOL_SEMVER, PROTOCOL_VERSION } from './protocol-version.js';
 export {
   ARTIFACT_REQUEST_CAPABILITIES_V1,
+  BOARD_AUTHORIZATION_CAPABILITIES_V1,
+  BOARD_AUTHORIZATION_OPERATION_TYPES_V1,
+  BOARD_AUTHORIZATION_SURFACES_V1,
   BOARD_ERROR_CODES_V1,
   BOARD_ERROR_CODES_V2,
   BOARD_EVENT_TYPES_V1,
   BOARD_MUTATION_COMMAND_TYPES_V1,
   BOARD_MUTATION_COMMAND_TYPES_V2,
   BOARD_OPERATION_TYPES_V1,
+  BOARD_MEMBERSHIP_ROLES_V1,
+  BOARD_MEMBERSHIP_STATES_V1,
   CLIENT_GRANT_CAPABILITIES_V1,
   HITL_KINDS_V1,
   NODE_TYPES_V1,
 } from './catalogs.js';
 export type {
   ArtifactRequestCapabilityV1,
+  BoardAuthorizationCapabilityV1,
+  BoardAuthorizationOperationTypeV1,
+  BoardAuthorizationSurfaceV1,
   BoardErrorCodeV1,
   BoardErrorCodeV2,
   BoardEventTypeV1,
   BoardMutationCommandTypeV1,
   BoardMutationCommandTypeV2,
   BoardOperationTypeV1,
+  BoardMembershipRoleV1,
+  BoardMembershipStateV1,
   ClientGrantCapabilityV1,
   NodeTypeV1,
 } from './catalogs.js';
 export { BOARD_DOCUMENT_LIMITS_V2, BOARD_LIMITS_V1 } from './limits.js';
 export type { BoardLimitKeyV1, BoardLimitKeyV2 } from './limits.js';
 export type { JsonValue } from './json.js';
+export type { BoardAuthorizationPrincipalV1, BoardMembershipV1 } from './memberships.js';
+export { BoardAuthorizationPrincipalSchemaV1, BoardMembershipSchemaV1 } from './memberships.js';
 export type {
   ArtifactId,
   ArtifactVersionId,
@@ -105,6 +117,7 @@ export type {
   BoardCapabilitiesV2,
 } from './capabilities.js';
 export { DEFAULT_BOARD_CAPABILITIES_V1, DEFAULT_BOARD_CAPABILITIES_V2 } from './capabilities.js';
+export { BoardAuthorizationCapabilitySchemaV1 } from './capabilities.js';
 export type {
   BoardMutationCommandV1,
   BoardMutationCommandV2,
@@ -122,6 +135,7 @@ export type {
 export type {
   BoardLifecycleIdempotencyEnvelopeV1,
   BoardOperationEnvelopeV1,
+  BoardOperationAuthorizationPolicyV1,
   BoardOperationFingerprintInputV1,
   BoardOperationRequestV1,
   BoardOperationResultDataV1,
@@ -129,6 +143,11 @@ export type {
   BoardSummaryV1,
   HistoryEntryV1,
   PageCursorV1,
+} from './operations.js';
+export {
+  BOARD_OPERATION_AUTHORIZATION_MATRIX_V1,
+  BoardOperationAuthorizationMatrixSchemaV1,
+  BoardOperationAuthorizationPolicySchemaV1,
 } from './operations.js';
 export type { BoardSnapshot, BoardSnapshotV1, BoardSnapshotV2 } from './snapshots.js';
 export type {
@@ -152,6 +171,11 @@ export {
   BoardCapabilitiesParserV1,
   BoardCapabilitiesParserV2,
   BoardCapabilitiesParser,
+  BoardAuthorizationCapabilityParserV1,
+  BoardAuthorizationPrincipalParserV1,
+  BoardMembershipParserV1,
+  BoardOperationAuthorizationMatrixParserV1,
+  BoardOperationAuthorizationPolicyParserV1,
   BoardDocumentParserV2,
   BoardIdParserV1,
   BoardErrorParserV1,

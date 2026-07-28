@@ -304,15 +304,21 @@ export class BoardMutationService {
       retainedOrder: revisionNumber,
       createdAtSql: prepared.occurredAtSql,
       actorAccountPk:
-        context.access.kind === 'owner' && context.actor.principalKind === 'user'
-          ? context.ownerUserPk.toString()
-          : null,
+        context.membership !== undefined
+          ? (context.accountUserPk ?? context.ownerUserPk).toString()
+          : context.access.kind === 'owner' && context.actor.principalKind === 'user'
+            ? context.ownerUserPk.toString()
+            : null,
       actorClass:
         context.actor.principalKind === 'service'
           ? 'system'
-          : context.access.kind === 'owner'
-            ? 'owner'
-            : 'editor',
+          : context.membership !== undefined
+            ? context.membership?.membershipRole === 'owner'
+              ? 'owner'
+              : 'editor'
+            : context.access.kind === 'owner'
+              ? 'owner'
+              : 'editor',
       checkpoint: selected.checkpoint,
     });
     await this.restoreRepository.insertReferences(connection, revisionPk, selected.references);

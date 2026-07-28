@@ -41,7 +41,12 @@ export class AuthorizedBrowserPresenceService implements AuthorizedBrowserPresen
     if (
       !parsed.ok ||
       context.ownerUserPk < 1n ||
-      (context.access.kind === 'owner' && context.access.ownerUserPk !== context.ownerUserPk)
+      (context.membership === undefined &&
+        context.access.kind === 'owner' &&
+        context.access.ownerUserPk !== context.ownerUserPk) ||
+      (context.membership !== undefined &&
+        context.membership !== null &&
+        context.membership.accountPk !== (context.accountUserPk ?? context.ownerUserPk))
     )
       return null;
     if (this.#generation >= Number.MAX_SAFE_INTEGER) return null;

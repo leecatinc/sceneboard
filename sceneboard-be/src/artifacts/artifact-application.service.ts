@@ -8,9 +8,10 @@ import {
   type ArtifactRuntimeSummaryV1,
   type BoardEventEnvelopeV1,
 } from '@sceneboard/board-schema';
+import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 
 import { BoardContractError } from '../common/errors/app-error.js';
-import type { BoardAccessPolicy } from '../grants/board-access.policy.js';
+import type { AuthorizedBoardContextV1, BoardAccessPolicy } from '../grants/board-access.policy.js';
 import {
   ControlMutationRepository,
   prepareControlMutationV1,
@@ -44,6 +45,22 @@ const artifactNotFound = (artifact: ArtifactReferenceV1): BoardContractError =>
     httpStatusHint: 404,
     details: { artifact },
   });
+
+const boardNotFound = (): BoardContractError =>
+  new BoardContractError({
+    protocolVersion: 1,
+    type: 'board.error',
+    code: 'BOARD_NOT_FOUND',
+    message: 'Board not found',
+    category: 'not_found',
+    retryable: false,
+    httpStatusHint: 404,
+    details: null,
+  });
+
+interface CurrentHeadReferenceRow extends RowDataPacket {
+  admitted: number;
+}
 
 const event = (input: {
   boardId: string;
@@ -217,6 +234,7 @@ export class ArtifactApplicationService extends ArtifactApplicationPortV1 {
         isolation: 'REPEATABLE_READ_CUT',
       },
       async (connection, context) => {
+        await this.assertViewerCurrentHeadReference(connection, context, input.request.artifact);
         const stored = await this.artifacts.readVersion(
           connection,
           input.request.boardId,
@@ -255,6 +273,7 @@ export class ArtifactApplicationService extends ArtifactApplicationPortV1 {
         isolation: 'REPEATABLE_READ_CUT',
       },
       async (connection, context) => {
+        await this.assertViewerCurrentHeadReference(connection, context, input.request.artifact);
         const stored = await this.artifacts.readVersion(
           connection,
           input.request.boardId,
@@ -360,5 +379,27 @@ export class ArtifactApplicationService extends ArtifactApplicationPortV1 {
         return completed;
       },
     );
+  }
+
+  private async assertViewerCurrentHeadReference(
+    connection: PoolConnection,
+    context: AuthorizedBoardContextV1,
+    artifact: ArtifactReferenceV1,
+  ): Promise<void> {
+    if (context.membership?.membershipRole !== 'viewer') return;
+    const [rows] = await connection.execute<CurrentHeadReferenceRow[]>(
+      `
+      SELECT 1 AS admitted
+      FROM board_heads h
+      JOIN board_revision_artifact_refs r
+        ON r.revision_pk = h.head_revision_pk
+      WHERE h.board_pk = ?
+        AND r.artifact_id = ?
+        AND r.artifact_version_id = ?
+      LIMIT 1
+    `,
+      [context.membership.boardPk.toString(), artifact.artifactId, artifact.versionId],
+    );
+    if (rows.length !== 1 || rows[0]?.admitted !== 1) throw boardNotFound();
   }
 }

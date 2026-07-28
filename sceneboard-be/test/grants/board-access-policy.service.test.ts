@@ -16,6 +16,8 @@ import type { CryptoService } from '../../src/common/security/crypto.service.js'
 import type { MysqlService } from '../../src/database/mysql.service.js';
 import type { ResolvedBoardPrincipalV1 } from '../../src/grants/board-access.policy.js';
 import { MysqlBoardAccessPolicy } from '../../src/grants/board-access-policy.service.js';
+import { MembershipRepository } from '../../src/memberships/membership.repository.js';
+import { BoardMembershipAuthorizationService } from '../../src/memberships/membership.service.js';
 
 type QueryResult = readonly [unknown, unknown];
 
@@ -82,6 +84,8 @@ interface SetupOptions {
   grantScopeMask?: number;
   grantLifecycleMask?: number;
   archivedAt?: string | null;
+  boardOwnerPk?: bigint;
+  membershipRoles?: Array<'owner' | 'editor' | 'viewer' | null>;
 }
 
 const setup = (options: SetupOptions = {}) => {
@@ -152,7 +156,7 @@ const setup = (options: SetupOptions = {}) => {
           [
             {
               boardPk: '50',
-              ownerUserPk: '20',
+              ownerUserPk: (options.boardOwnerPk ?? 20n).toString(),
               archivedAt: options.archivedAt ?? null,
             },
           ],
@@ -160,7 +164,10 @@ const setup = (options: SetupOptions = {}) => {
         ] as QueryResult;
       }
       if (normalized.includes('FROM board_artifact_capability_policy_epochs')) {
-        return [[{ ownerUserPk: '20', policyEpoch: epoch }], []] as QueryResult;
+        return [
+          [{ ownerUserPk: (options.boardOwnerPk ?? 20n).toString(), policyEpoch: epoch }],
+          [],
+        ] as QueryResult;
       }
       if (normalized.includes('FROM board_artifact_capability_policies')) {
         return [[{ capability: 'download' }, { capability: 'network.fetch' }], []] as QueryResult;
@@ -182,11 +189,36 @@ const setup = (options: SetupOptions = {}) => {
     },
   } as MysqlService;
   const crypto = { random: (length: number) => Buffer.alloc(length, 9) } as CryptoService;
+  const membershipRoles = [...(options.membershipRoles ?? [])];
+  const memberships =
+    options.membershipRoles === undefined
+      ? null
+      : new BoardMembershipAuthorizationService({
+          findActive: async () => {
+            const role = membershipRoles.shift() ?? null;
+            return role === null
+              ? null
+              : {
+                  membershipPk: 60n,
+                  boardPk: 50n,
+                  accountPk: 20n,
+                  role,
+                  version: role === 'viewer' ? 2 : 1,
+                };
+          },
+          adoptCanonicalOwner: async () => undefined,
+          createOwner: async () => undefined,
+        } as unknown as MembershipRepository);
   return {
-    policy: new MysqlBoardAccessPolicy(mysql, crypto, {
-      retryJitter: () => 0,
-      sleep: async () => undefined,
-    }),
+    policy: new MysqlBoardAccessPolicy(
+      mysql,
+      crypto,
+      {
+        retryJitter: () => 0,
+        sleep: async () => undefined,
+      },
+      memberships,
+    ),
     calls,
     connectionCount: () => connectionCount,
   };
@@ -318,6 +350,61 @@ test('returns the archived conflict only after current owner authorization', asy
     value.calls.some((call) => call.includes('FROM boards b')),
     true,
   );
+});
+
+test('normalizes unrelated and role-forbidden authenticated board access to one 404 body', async () => {
+  const attempts = [
+    setup({ boardOwnerPk: 99n, membershipRoles: [null] }),
+    setup({ boardOwnerPk: 99n, membershipRoles: ['viewer'] }),
+  ];
+  const errors: unknown[] = [];
+  for (const value of attempts) {
+    try {
+      await value.policy.withAuthorizedBoardTransaction(
+        {
+          principal: userPrincipal(),
+          operation: 'history.get',
+          boardId: boardId('board_1'),
+          isolation: 'REPEATABLE_READ_CUT',
+        },
+        async () => 'unreachable',
+      );
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  assert.equal(errors.length, 2);
+  assert.ok(errors.every(isBoardError('BOARD_NOT_FOUND')));
+  assert.deepEqual(
+    errors.map((error) => (error as BoardContractError).boardError),
+    [errors[0], errors[0]].map((error) => (error as BoardContractError).boardError),
+  );
+});
+
+test('rolls back a write when the locked membership version or role changes before commit', async () => {
+  const value = setup({
+    boardOwnerPk: 99n,
+    membershipRoles: ['editor', 'viewer'],
+  });
+  let applied = false;
+  await assert.rejects(
+    value.policy.withAuthorizedBoardTransaction(
+      {
+        principal: userPrincipal(),
+        operation: 'scene.clear',
+        boardId: boardId('board_1'),
+        isolation: 'READ_COMMITTED_WRITE',
+      },
+      async () => {
+        applied = true;
+        return 'rolled-back';
+      },
+    ),
+    isBoardError('BOARD_NOT_FOUND'),
+  );
+  assert.equal(applied, true);
+  assert.equal(value.calls.includes('ROLLBACK'), true);
+  assert.equal(value.calls.includes('COMMIT'), false);
 });
 
 const epochBase64Url = (byte: number): string => Buffer.alloc(16, byte).toString('base64url');

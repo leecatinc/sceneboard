@@ -8,6 +8,7 @@ import {
   ArtifactRuntimeSummarySchemaV1,
 } from './artifacts.js';
 import {
+  BoardAuthorizationCapabilitySchemaV1,
   BoardCapabilitiesSchema,
   BoardCapabilitiesSchemaV1,
   BoardCapabilitiesSchemaV2,
@@ -42,6 +43,7 @@ import {
   HitlResponseSchemaV1,
 } from './hitl.js';
 import { RetainedHistoryMetadataSchemaV1 } from './history.js';
+import { BoardAuthorizationPrincipalSchemaV1, BoardMembershipSchemaV1 } from './memberships.js';
 import type { JsonValue } from './json.js';
 import { scalarLengthV1 } from './json.js';
 import {
@@ -56,6 +58,8 @@ import {
 } from './limits.js';
 import {
   BoardOperationEnvelopeSchemaV1,
+  BoardOperationAuthorizationMatrixSchemaV1,
+  BoardOperationAuthorizationPolicySchemaV1,
   BoardOperationRequestSchemaV1,
   BoardOperationResultSchemaV1,
   type BoardLifecycleIdempotencyEnvelopeV1,
@@ -717,6 +721,19 @@ export const HitlRequestDefinitionParserV1 = createParserV1(HitlRequestDefinitio
 export const HitlResponseParserV1 = createParserV1(HitlResponseSchemaV1, 'hitl-response');
 export const HitlInteractionParserV1 = createParserV1(HitlInteractionSchemaV1);
 export const RetainedHistoryMetadataParserV1 = createParserV1(RetainedHistoryMetadataSchemaV1);
+export const BoardMembershipParserV1 = createParserV1(BoardMembershipSchemaV1);
+export const BoardAuthorizationPrincipalParserV1 = createParserV1(
+  BoardAuthorizationPrincipalSchemaV1,
+);
+export const BoardAuthorizationCapabilityParserV1 = createParserV1(
+  BoardAuthorizationCapabilitySchemaV1,
+);
+export const BoardOperationAuthorizationPolicyParserV1 = createParserV1(
+  BoardOperationAuthorizationPolicySchemaV1,
+);
+export const BoardOperationAuthorizationMatrixParserV1 = createParserV1(
+  BoardOperationAuthorizationMatrixSchemaV1,
+);
 export const BoardErrorParserV1 = createParserV1(BoardErrorSchemaV1);
 
 export const BoardDocumentParserV2 = createParser(BoardDocumentSchemaV2, 'document', true);

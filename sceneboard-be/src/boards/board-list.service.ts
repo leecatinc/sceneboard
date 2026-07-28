@@ -165,16 +165,34 @@ export class BoardListService {
             formatMysqlTimestampUtc(new Date(cursor.createdAt)),
             cursor.boardPk,
           ];
-    const from =
-      context.access.kind === 'owner'
+    const membershipPolicyEnabled = context.membership !== undefined;
+    const from = membershipPolicyEnabled
+      ? context.access.kind === 'owner'
+        ? `FROM board_memberships bm
+           JOIN boards b ON b.board_pk = bm.board_pk`
+        : `FROM mcp_grant_boards gb
+           JOIN boards b ON b.public_id = gb.board_public_id
+           JOIN board_memberships bm ON bm.board_pk = b.board_pk`
+      : context.access.kind === 'owner'
         ? 'FROM boards b'
         : 'FROM mcp_grant_boards gb JOIN boards b ON b.public_id = gb.board_public_id';
-    const accessPredicate =
-      context.access.kind === 'owner' ? 'b.owner_user_id = ?' : 'gb.grant_id = ?';
-    const accessBind =
-      context.access.kind === 'owner'
-        ? context.access.ownerUserPk.toString()
-        : context.access.grantPk.toString();
+    const accessPredicate = membershipPolicyEnabled
+      ? context.access.kind === 'owner'
+        ? "bm.account_pk = ? AND bm.state = 'active'"
+        : "gb.grant_id = ? AND bm.account_pk = ? AND bm.state = 'active'"
+      : context.access.kind === 'owner'
+        ? 'b.owner_user_id = ?'
+        : 'gb.grant_id = ?';
+    const accessBinds = membershipPolicyEnabled
+      ? context.access.kind === 'owner'
+        ? [(context.accountUserPk ?? context.access.ownerUserPk).toString()]
+        : [
+            context.access.grantPk.toString(),
+            (context.accountUserPk ?? context.ownerUserPk).toString(),
+          ]
+      : context.access.kind === 'owner'
+        ? [context.access.ownerUserPk.toString()]
+        : [context.access.grantPk.toString()];
     const [rows] = await connection.execute<BoardListRow[]>(
       `
       SELECT
@@ -199,7 +217,7 @@ export class BoardListService {
       ORDER BY b.created_at DESC, b.board_pk DESC
       LIMIT ${limit}
     `,
-      [accessBind, ...cursorBinds],
+      [...accessBinds, ...cursorBinds],
     );
     return rows;
   }

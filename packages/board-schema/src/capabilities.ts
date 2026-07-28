@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import {
   ARTIFACT_REQUEST_CAPABILITIES_V1,
+  BOARD_AUTHORIZATION_CAPABILITIES_V1,
   BOARD_EVENT_TYPES_V1,
   BOARD_MUTATION_COMMAND_TYPES_V1,
   BOARD_MUTATION_COMMAND_TYPES_V2,
@@ -35,6 +36,8 @@ const sortedSubset = <T extends readonly [string, ...string[]]>(catalog: T) =>
         break;
       }
   });
+
+export const BoardAuthorizationCapabilitySchemaV1 = z.enum(BOARD_AUTHORIZATION_CAPABILITIES_V1);
 
 const BoardLimitsSchemaV1 = z
   .object(

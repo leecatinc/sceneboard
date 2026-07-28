@@ -6,6 +6,7 @@ import { MysqlService } from '../database/mysql.service.js';
 import { GrantModule } from '../grants/grant.module.js';
 import { MysqlBoardAccessPolicy } from '../grants/board-access-policy.service.js';
 import { ControlMutationRepository } from '../revisions/control-mutation.repository.js';
+import { DocumentCheckpointCodec } from '../revisions/document-checkpoint.codec.js';
 import { CurrentHitlSummaryPort } from '../snapshots/ports/current-hitl-summary.port.js';
 import { HitlExpiryService } from './application/hitl-expiry.service.js';
 import { HitlExpirySweepService } from './application/hitl-expiry-sweep.service.js';
@@ -30,6 +31,7 @@ import { HitlAuditPolicy } from './hitl-audit.policy.js';
     InteractionRepository,
     InteractionIntegrityProbe,
     ControlMutationRepository,
+    DocumentCheckpointCodec,
     HitlWaitCoordinator,
     {
       provide: HitlAuditPolicy,
@@ -100,13 +102,23 @@ import { HitlAuditPolicy } from './hitl-audit.policy.js';
         InteractionRepository,
         HitlExpiryService,
         HitlWaitCoordinator,
+        DocumentCheckpointCodec,
       ],
       useFactory: (
         accessPolicy: MysqlBoardAccessPolicy,
         interactions: InteractionRepository,
         expiry: HitlExpiryService,
         waits: HitlWaitCoordinator,
-      ) => new InteractionQueryService(accessPolicy, interactions, expiry, waits),
+        checkpoints: DocumentCheckpointCodec,
+      ) =>
+        new InteractionQueryService(
+          accessPolicy,
+          interactions,
+          expiry,
+          waits,
+          undefined,
+          checkpoints,
+        ),
     },
     { provide: HitlQueryApplicationPortV1, useExisting: InteractionQueryService },
     {

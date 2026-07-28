@@ -5,12 +5,19 @@ import {
   type HitlInteractionV1,
   type TimestampV1,
 } from '@sceneboard/board-schema';
+import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 
 import { BoardContractError } from '../../common/errors/app-error.js';
 import type {
+  AuthorizedBoardContextV1,
   BoardAccessPolicy,
   ResolvedBoardPrincipalV1,
 } from '../../grants/board-access.policy.js';
+import { DocumentCheckpointCodec } from '../../revisions/document-checkpoint.codec.js';
+import {
+  extractUniqueDocumentHitlRequestIds,
+  extractUniqueSceneHitlRequestIds,
+} from '../../revisions/scene-hitl-reference.extractor.js';
 import { InteractionRepository } from '../persistence/interaction.repository.js';
 import type { StoredInteractionV1 } from '../persistence/interaction-row.mapper.js';
 import {
@@ -20,6 +27,27 @@ import {
 import { HitlExpiryService } from './hitl-expiry.service.js';
 import { hitlNotFound, internalHitlFailure } from './hitl-errors.js';
 import { HitlWaitCoordinator } from './hitl-wait-coordinator.js';
+
+interface CurrentHeadCheckpointRow extends RowDataPacket {
+  schemaVersion: string;
+  codec: string;
+  payload: Buffer;
+  canonicalBytes: number;
+  storedBytes: number;
+  sha256: Buffer;
+}
+
+const boardNotFound = (): BoardContractError =>
+  new BoardContractError({
+    protocolVersion: 1,
+    type: 'board.error',
+    code: 'BOARD_NOT_FOUND',
+    message: 'Board not found',
+    category: 'not_found',
+    retryable: false,
+    httpStatusHint: 404,
+    details: null,
+  });
 
 const result = (
   request: HitlReadOperationRequestV1,
@@ -44,6 +72,7 @@ export class InteractionQueryService extends HitlQueryApplicationPortV1 {
     private readonly expiry: HitlExpiryService,
     private readonly waits: HitlWaitCoordinator,
     private readonly clock: () => number = () => Date.now(),
+    private readonly checkpoints: DocumentCheckpointCodec | null = null,
   ) {
     super();
   }
@@ -99,7 +128,8 @@ export class InteractionQueryService extends HitlQueryApplicationPortV1 {
         boardId: request.boardId,
         isolation: 'REPEATABLE_READ_CUT',
       },
-      async (connection) => {
+      async (connection, context) => {
+        await this.assertViewerCurrentHeadReference(connection, context, request.hitlRequestId);
         const stored = await this.interactions.readByPublicId(
           connection,
           request.boardId,
@@ -109,6 +139,47 @@ export class InteractionQueryService extends HitlQueryApplicationPortV1 {
         return stored;
       },
     );
+  }
+
+  private async assertViewerCurrentHeadReference(
+    connection: PoolConnection,
+    context: AuthorizedBoardContextV1,
+    hitlRequestId: string,
+  ): Promise<void> {
+    if (context?.membership?.membershipRole !== 'viewer') return;
+    if (this.checkpoints === null) throw boardNotFound();
+    const [rows] = await connection.execute<CurrentHeadCheckpointRow[]>(
+      `
+      SELECT
+        r.scene_schema_version AS schemaVersion,
+        r.scene_codec AS codec,
+        r.scene_payload AS payload,
+        r.scene_canonical_bytes AS canonicalBytes,
+        r.scene_stored_bytes AS storedBytes,
+        r.scene_sha256 AS sha256
+      FROM board_heads h
+      JOIN board_revisions r
+        ON r.board_pk = h.board_pk AND r.revision_pk = h.head_revision_pk
+      WHERE h.board_pk = ?
+      LIMIT 1
+    `,
+      [context.membership.boardPk.toString()],
+    );
+    const row = rows[0];
+    if (
+      rows.length !== 1 ||
+      row === undefined ||
+      !Buffer.isBuffer(row.payload) ||
+      !Buffer.isBuffer(row.sha256)
+    ) {
+      throw boardNotFound();
+    }
+    const checkpoint = await this.checkpoints.decode(row);
+    const ids =
+      checkpoint.kind === 'scene'
+        ? extractUniqueSceneHitlRequestIds(checkpoint.scene)
+        : extractUniqueDocumentHitlRequestIds(checkpoint.document);
+    if (!ids.includes(hitlRequestId as (typeof ids)[number])) throw boardNotFound();
   }
 
   private async expireIfDue(

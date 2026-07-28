@@ -13,6 +13,13 @@ import { CryptoService } from '../common/security/crypto.service.js';
 import { parseMysqlTimestampUtc } from '../common/time/mysql-timestamp.js';
 import { MysqlService } from '../database/mysql.service.js';
 import { withTransaction } from '../database/transaction.js';
+import type { MembershipAuthorizationContextV1 } from '../memberships/membership-authorization.context.js';
+import { MembershipRowIntegrityError } from '../memberships/membership.repository.js';
+import {
+  BoardMembershipAuthorizationService,
+  MembershipAuthorizationDeniedError,
+  MembershipAuthorizationInvariantError,
+} from '../memberships/membership.service.js';
 import {
   authorizationRuleFor,
   isBoardAccessOperation,
@@ -220,6 +227,7 @@ export class MysqlBoardAccessPolicy implements BoardAccessPolicy {
     private readonly mysql: MysqlService,
     private readonly crypto: CryptoService,
     runtime: Partial<BoardAccessPolicyRuntime> = {},
+    private readonly membershipAuthorization: BoardMembershipAuthorizationService | null = null,
   ) {
     this.runtime = {
       retryJitter: runtime.retryJitter ?? (() => Math.floor(Math.random() * 26)),
@@ -298,21 +306,43 @@ export class MysqlBoardAccessPolicy implements BoardAccessPolicy {
       );
     }
     let callbackActive = true;
-    const guardedContext =
-      context.createBinding === null
-        ? context
-        : {
-            ...context,
-            createBinding: {
+    const guardedContext: AuthorizedBoardContextV1 = {
+      ...context,
+      createBinding:
+        context.createBinding === null
+          ? null
+          : {
               ...context.createBinding,
               bindCreatedBoard: async (createdBoardId: BoardId) => {
                 if (!callbackActive) throw boardFailure('INTERNAL_ERROR');
-                return context.createBinding?.bindCreatedBoard(createdBoardId);
+                return context.createBinding!.bindCreatedBoard(createdBoardId);
               },
             },
-          };
+      createOwnerMembership:
+        context.createOwnerMembership == null
+          ? null
+          : {
+              create: async (boardPk, createdAtSql) => {
+                if (!callbackActive) throw boardFailure('INTERNAL_ERROR');
+                return context.createOwnerMembership!.create(boardPk, createdAtSql);
+              },
+            },
+    };
     try {
-      return await apply(connection, guardedContext);
+      const result = await apply(connection, guardedContext);
+      if (guardedContext.membership != null) {
+        try {
+          await this.membershipAuthorization?.recheck(connection, guardedContext.membership);
+        } catch (error) {
+          if (error instanceof MembershipAuthorizationDeniedError)
+            throw boardFailure('BOARD_NOT_FOUND');
+          if (error instanceof MembershipAuthorizationInvariantError)
+            throw boardFailure('INTERNAL_ERROR');
+          if (error instanceof MembershipRowIntegrityError) throw boardFailure('INTERNAL_ERROR');
+          throw error;
+        }
+      }
+      return result;
     } finally {
       callbackActive = false;
     }
@@ -403,12 +433,25 @@ export class MysqlBoardAccessPolicy implements BoardAccessPolicy {
     const policy =
       board === null
         ? DEFAULT_DENY_UNTARGETED_POLICY
-        : await this.readArtifactPolicy(connection, board, principal.userPk, transactionNowSql);
+        : await this.readArtifactPolicy(connection, board, board.ownerUserPk, transactionNowSql);
     return {
       actor: principal.actor,
-      ownerUserPk: principal.userPk,
+      ownerUserPk: board?.ownerUserPk ?? principal.userPk,
+      accountUserPk: principal.userPk,
       access: { kind: 'owner', ownerUserPk: principal.userPk },
       createBinding: null,
+      createOwnerMembership:
+        input.operation === 'board.create' && this.membershipAuthorization !== null
+          ? {
+              create: (boardPk, createdAtSql) =>
+                this.membershipAuthorization!.createOwnerMembership(connection, {
+                  boardPk,
+                  ownerAccountPk: principal.userPk,
+                  createdAtSql,
+                }),
+            }
+          : null,
+      membership: board?.membership ?? null,
       artifactCapabilityPolicy: policy,
     };
   }
@@ -460,13 +503,13 @@ export class MysqlBoardAccessPolicy implements BoardAccessPolicy {
     if (!sameStringSet(scopes, principal.actor.scopes)) throw boardFailure('UNAUTHENTICATED');
     const rule = authorizationRuleFor(input.operation);
     if (!rule.requiredCapabilities.every((capability) => scopes.includes(capability)))
-      throw boardFailure('FORBIDDEN');
+      throw this.authorizationDenied(boardId);
     const lifecycle = lifecycleValuesFromMask(grant.lifecycleMask);
     if (
       rule.requiredLifecyclePermission !== null &&
       !lifecycle.includes(rule.requiredLifecyclePermission)
     ) {
-      throw boardFailure('FORBIDDEN');
+      throw this.authorizationDenied(boardId);
     }
     if (grant.lifetime === 1) {
       if (principal.sourceFamilyPublicId === null || grant.sourceSessionPk === null) {
@@ -522,7 +565,7 @@ export class MysqlBoardAccessPolicy implements BoardAccessPolicy {
         bindings.length !== 1 ||
         parseDatabasePk(bindings[0]?.grantPk ?? '') !== principal.grantPk
       ) {
-        throw boardFailure('FORBIDDEN');
+        throw this.authorizationDenied(boardId);
       }
     }
     const board = await this.authorizeBoardTarget(
@@ -535,21 +578,29 @@ export class MysqlBoardAccessPolicy implements BoardAccessPolicy {
     const policy =
       board === null
         ? DEFAULT_DENY_UNTARGETED_POLICY
-        : await this.readArtifactPolicy(
-            connection,
-            board,
-            principal.ownerUserPk,
-            transactionNowSql,
-          );
+        : await this.readArtifactPolicy(connection, board, board.ownerUserPk, transactionNowSql);
     const createBinding =
       input.operation === 'board.create'
         ? this.createBindingCapability(connection, principal, transactionNowSql)
         : null;
     return {
       actor: principal.actor,
-      ownerUserPk: principal.ownerUserPk,
+      ownerUserPk: board?.ownerUserPk ?? principal.ownerUserPk,
+      accountUserPk: principal.ownerUserPk,
       access: { kind: 'grant', grantPk: principal.grantPk, grantId: principal.grantId },
       createBinding,
+      createOwnerMembership:
+        input.operation === 'board.create' && this.membershipAuthorization !== null
+          ? {
+              create: (boardPk, createdAtSql) =>
+                this.membershipAuthorization!.createOwnerMembership(connection, {
+                  boardPk,
+                  ownerAccountPk: principal.ownerUserPk,
+                  createdAtSql,
+                }),
+            }
+          : null,
+      membership: board?.membership ?? null,
       artifactCapabilityPolicy: policy,
     };
   }
@@ -560,8 +611,14 @@ export class MysqlBoardAccessPolicy implements BoardAccessPolicy {
     boardId: BoardId | null,
     ownerUserPk: bigint,
     grantPk: bigint | null,
-  ): Promise<{ boardPk: bigint; archivedAt: string | null } | null> {
+  ): Promise<{
+    boardPk: bigint;
+    ownerUserPk: bigint;
+    archivedAt: string | null;
+    membership: MembershipAuthorizationContextV1 | null;
+  } | null> {
     if (boardId === null) return null;
+    const write = input.isolation === 'READ_COMMITTED_WRITE';
     const [rows] = await connection.execute<BoardAuthorizationRow[]>(
       `
       SELECT
@@ -571,19 +628,55 @@ export class MysqlBoardAccessPolicy implements BoardAccessPolicy {
       FROM boards b
       WHERE b.public_id = ?
       LIMIT 1
+      ${write ? 'FOR UPDATE' : ''}
     `,
       [boardId],
     );
     const board = rows[0];
     if (board === undefined) {
-      if (grantPk !== null) throw boardFailure('FORBIDDEN');
+      if (grantPk !== null && this.membershipAuthorization === null)
+        throw boardFailure('FORBIDDEN');
       throw boardFailure('BOARD_NOT_FOUND');
     }
-    if (parseDatabasePk(board.ownerUserPk) !== ownerUserPk) throw boardFailure('FORBIDDEN');
+    const boardPk = parseDatabasePk(board.boardPk);
+    const canonicalOwnerUserPk = parseDatabasePk(board.ownerUserPk);
+    let membership: MembershipAuthorizationContextV1 | null = null;
+    if (this.membershipAuthorization === null) {
+      if (canonicalOwnerUserPk !== ownerUserPk) throw boardFailure('FORBIDDEN');
+    } else {
+      try {
+        membership = await this.membershipAuthorization.authorize(connection, {
+          boardPk,
+          canonicalOwnerAccountPk: canonicalOwnerUserPk,
+          accountPk: ownerUserPk,
+          operation: input.operation,
+          surface: input.principal.kind === 'mcp' ? 'mcp' : 'browser',
+          write,
+        });
+      } catch (error) {
+        if (error instanceof MembershipAuthorizationDeniedError)
+          throw boardFailure('BOARD_NOT_FOUND');
+        if (error instanceof MembershipAuthorizationInvariantError)
+          throw boardFailure('INTERNAL_ERROR');
+        if (error instanceof MembershipRowIntegrityError) throw boardFailure('INTERNAL_ERROR');
+        throw error;
+      }
+    }
     if (authorizationRuleFor(input.operation).activeBoardRequired && board.archivedAt !== null) {
       throw archivedBoardFailure(boardId, board.archivedAt);
     }
-    return { boardPk: parseDatabasePk(board.boardPk), archivedAt: board.archivedAt };
+    return {
+      boardPk,
+      ownerUserPk: canonicalOwnerUserPk,
+      archivedAt: board.archivedAt,
+      membership,
+    };
+  }
+
+  private authorizationDenied(boardId: BoardId | null): BoardContractError {
+    return boardId !== null && this.membershipAuthorization !== null
+      ? boardFailure('BOARD_NOT_FOUND')
+      : boardFailure('FORBIDDEN');
   }
 
   private async readArtifactPolicy(

@@ -229,9 +229,18 @@
           "exportKind": null,
           "projectionId": null,
           "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-SCHEMA-26",
+          "owner": "D1",
+          "path": "packages/board-schema/src/memberships.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
         }
       ],
-      "expectedCardinality": 25,
+      "expectedCardinality": 26,
       "canonicalization": "utf8-lf",
       "materializationPredecessor": null,
       "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
@@ -1980,6 +1989,15 @@
           "selector": "type CreateBoardBindingCapabilityV1"
         },
         {
+          "resourceId": "D2-AUTHZ-CreateOwnerMembershipCapabilityV1",
+          "owner": "D2",
+          "path": "sceneboard-be/src/grants/board-access.policy.ts",
+          "exportName": "CreateOwnerMembershipCapabilityV1",
+          "exportKind": "type",
+          "projectionId": null,
+          "selector": "type CreateOwnerMembershipCapabilityV1"
+        },
+        {
           "resourceId": "D2-AUTHZ-AuthorizedBoardContextV1",
           "owner": "D2",
           "path": "sceneboard-be/src/grants/board-access.policy.ts",
@@ -2016,7 +2034,7 @@
           "selector": "interface BoardAccessPolicy"
         }
       ],
-      "expectedCardinality": 8,
+      "expectedCardinality": 9,
       "canonicalization": "utf8-lf",
       "materializationPredecessor": null,
       "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
@@ -2378,9 +2396,45 @@
           "exportKind": "class",
           "projectionId": "D3-OUTBOX-HEALTH",
           "selector": "ClassDeclaration[name=BoardEventOutboxRepository]/MethodDeclaration[name=getHealth]"
+        },
+        {
+          "resourceId": "D3-MEMBERSHIP-AUTHORIZE",
+          "owner": "D3",
+          "path": "sceneboard-be/src/memberships/membership.service.ts",
+          "exportName": "BoardMembershipAuthorizationService",
+          "exportKind": "class",
+          "projectionId": "D3-MEMBERSHIP-AUTHORIZE",
+          "selector": "ClassDeclaration[name=BoardMembershipAuthorizationService]/MethodDeclaration[name=authorize]"
+        },
+        {
+          "resourceId": "D3-MEMBERSHIP-RECHECK",
+          "owner": "D3",
+          "path": "sceneboard-be/src/memberships/membership.service.ts",
+          "exportName": "BoardMembershipAuthorizationService",
+          "exportKind": "class",
+          "projectionId": "D3-MEMBERSHIP-RECHECK",
+          "selector": "ClassDeclaration[name=BoardMembershipAuthorizationService]/MethodDeclaration[name=recheck]"
+        },
+        {
+          "resourceId": "D3-MEMBERSHIP-FIND-ACTIVE",
+          "owner": "D3",
+          "path": "sceneboard-be/src/memberships/membership.repository.ts",
+          "exportName": "MembershipRepository",
+          "exportKind": "class",
+          "projectionId": "D3-MEMBERSHIP-FIND-ACTIVE",
+          "selector": "ClassDeclaration[name=MembershipRepository]/MethodDeclaration[name=findActive]"
+        },
+        {
+          "resourceId": "D3-MEMBERSHIP-CREATE-OWNER",
+          "owner": "D3",
+          "path": "sceneboard-be/src/memberships/membership.repository.ts",
+          "exportName": "MembershipRepository",
+          "exportKind": "class",
+          "projectionId": "D3-MEMBERSHIP-CREATE-OWNER",
+          "selector": "ClassDeclaration[name=MembershipRepository]/MethodDeclaration[name=createOwner]"
         }
       ],
-      "expectedCardinality": 20,
+      "expectedCardinality": 24,
       "canonicalization": "typescript-ast",
       "materializationPredecessor": "D3-PUBLISHER",
       "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
@@ -3737,9 +3791,18 @@
           "exportKind": null,
           "projectionId": null,
           "selector": "whole-file"
+        },
+        {
+          "resourceId": "MIGRATION-ASSET-22",
+          "owner": "D9",
+          "path": "sceneboard-be/src/database/migrations/sql/016_d9_board_memberships.up.sql",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
         }
       ],
-      "expectedCardinality": 22,
+      "expectedCardinality": 23,
       "canonicalization": "utf8-lf",
       "materializationPredecessor": null,
       "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"

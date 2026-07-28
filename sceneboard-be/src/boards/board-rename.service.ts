@@ -42,24 +42,43 @@ export class BoardRenameService {
         isolation: 'READ_COMMITTED_WRITE',
       },
       async (connection, context) => {
-        if (context.access.kind !== 'owner') throw new BoardPersistenceError('row_integrity');
+        const membershipPolicyEnabled = context.membership !== undefined;
+        if (!membershipPolicyEnabled && context.access.kind !== 'owner')
+          throw new BoardPersistenceError('row_integrity');
         const [update] = await connection.execute<ResultSetHeader>(
-          `
+          membershipPolicyEnabled
+            ? `
+        UPDATE boards
+        SET title = ?, updated_at = UTC_TIMESTAMP(3)
+        WHERE public_id = ? AND archived_at IS NULL
+      `
+            : `
         UPDATE boards
         SET title = ?, updated_at = UTC_TIMESTAMP(3)
         WHERE public_id = ? AND owner_user_id = ? AND archived_at IS NULL
       `,
-          [input.request.title, input.request.boardId, context.ownerUserPk.toString()],
+          membershipPolicyEnabled
+            ? [input.request.title, input.request.boardId]
+            : [input.request.title, input.request.boardId, context.ownerUserPk.toString()],
         );
         if (update.affectedRows !== 1) throw new BoardPersistenceError('row_integrity');
         const [rows] = await connection.execute<RenamedBoardRow[]>(
-          `
+          membershipPolicyEnabled
+            ? `
+        SELECT public_id AS boardId, title, updated_at AS updatedAt
+        FROM boards
+        WHERE public_id = ? AND archived_at IS NULL
+        LIMIT 1
+      `
+            : `
         SELECT public_id AS boardId, title, updated_at AS updatedAt
         FROM boards
         WHERE public_id = ? AND owner_user_id = ? AND archived_at IS NULL
         LIMIT 1
       `,
-          [input.request.boardId, context.ownerUserPk.toString()],
+          membershipPolicyEnabled
+            ? [input.request.boardId]
+            : [input.request.boardId, context.ownerUserPk.toString()],
         );
         const row = rows[0];
         const boardId = BoardIdParserV1.parse(row?.boardId);
