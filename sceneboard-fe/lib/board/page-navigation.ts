@@ -47,6 +47,18 @@ const isEditingFact = (fact: PageNavigationElementFactsV1): boolean =>
 const isExcludedContainer = (fact: PageNavigationElementFactsV1): boolean =>
   fact.role !== null && EXCLUDED_ROLES.has(fact.role);
 
+export const pageNavigationContextIsExcludedV1 = (input: PageNavigationAdmissionV1): boolean =>
+  input.defaultPrevented ||
+  input.isComposing ||
+  input.altKey ||
+  input.ctrlKey ||
+  input.metaKey ||
+  input.hitlInteractionActive ||
+  input.artifactCaptureActive ||
+  input.moveCaptureActive ||
+  (input.target !== null && isEditingFact(input.target)) ||
+  input.composedPath.some((fact) => isEditingFact(fact) || isExcludedContainer(fact));
+
 export const pageNavigationElementFactsV1 = (
   target: EventTarget | null,
 ): PageNavigationElementFactsV1 | null => {
@@ -62,22 +74,12 @@ export const admitPageNavigationKeyV1 = (
   input: PageNavigationAdmissionV1,
 ): PageNavigationCommandV1 | null => {
   const command = COMMAND_BY_KEY[input.key] ?? null;
-  if (
-    command === null ||
-    input.defaultPrevented ||
-    input.isComposing ||
-    input.altKey ||
-    input.ctrlKey ||
-    input.metaKey ||
-    input.hitlInteractionActive ||
-    input.artifactCaptureActive ||
-    input.moveCaptureActive ||
-    (input.target !== null && isEditingFact(input.target)) ||
-    input.composedPath.some((fact) => isEditingFact(fact) || isExcludedContainer(fact))
-  )
-    return null;
+  if (command === null || pageNavigationContextIsExcludedV1(input)) return null;
   return command;
 };
+
+export const admitPresentationEscapeKeyV1 = (input: PageNavigationAdmissionV1): boolean =>
+  input.key === 'Escape' && !pageNavigationContextIsExcludedV1(input);
 
 export const documentForPageNavigationV1 = (snapshot: BoardSnapshot): BoardDocumentV2 =>
   'document' in snapshot

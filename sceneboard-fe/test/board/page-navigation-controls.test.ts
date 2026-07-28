@@ -45,7 +45,7 @@ test('production board route binds stable page identity, scroll owner, and captu
   );
   assert.match(source, /page=\{pageRender\.page\}/u);
   assert.match(source, /context=\{pageRender\.context\}/u);
-  assert.match(source, /<PresentationStage[\s\S]*?stageRef=\{pageScrollRef\}/u);
+  assert.match(source, /<PresentationStage[\s\S]*?stageRef=\{bindPageStage\}/u);
   assert.match(source, /behavior: 'instant' as ScrollBehavior/u);
   assert.match(source, /hitlInteractionActive,\s*artifactCaptureActive,\s*moveCaptureActive/su);
 });

@@ -1,0 +1,10 @@
+.controls button {
+  min-height: 30px;
+  border: 1px solid var(--primary);
+  border-radius: 999px;
+  background: var(--primary);
+  color: white;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 750;
+}

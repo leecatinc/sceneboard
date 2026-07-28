@@ -16,7 +16,7 @@ test('PAGE is the sole normal-mode board vertical scroll owner', () => {
   assert.match(stageStyles, /\.stage\s*\{[^}]*overflow-x:\s*hidden;[^}]*overflow-y:\s*auto;/su);
   assert.match(boardStyles, /\.workspace\s*\{[^}]*overflow:\s*clip;/su);
   assert.match(boardStyles, /\.surface\s*\{[^}]*overflow:\s*clip;/su);
-  assert.match(route, /<PresentationStage[\s\S]*?stageRef=\{pageScrollRef\}/u);
+  assert.match(route, /<PresentationStage[\s\S]*?stageRef=\{bindPageStage\}/u);
 });
 
 test('board selectors are extracted without adding another global PAGE owner', () => {

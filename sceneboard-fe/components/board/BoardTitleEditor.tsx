@@ -48,7 +48,7 @@ export function BoardTitleEditor({
   if (!editing) {
     return (
       <div className="board-title-row">
-        <h2>{title}</h2>
+        <h2 tabIndex={-1}>{title}</h2>
         <button
           type="button"
           className="board-title-edit"

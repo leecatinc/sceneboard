@@ -1,7 +1,7 @@
 'use client';
 
-import type { CSSProperties, ReactNode, RefObject } from 'react';
-import { useLayoutEffect, useState } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 
 import {
   createPageCanvasTransformV1,
@@ -18,20 +18,32 @@ export function PresentationStage({
   mode,
   canvasSize,
   toolbar,
+  overlay,
+  presentationActive,
   children,
   label,
 }: {
-  stageRef: RefObject<HTMLDivElement | null>;
+  stageRef: (element: HTMLDivElement | null) => void;
   mode: PageDisplayModeV1;
   canvasSize: CanvasSizeV1;
   toolbar: ReactNode;
+  overlay: ReactNode;
+  presentationActive: boolean;
   children: ReactNode;
   label: string;
 }) {
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
+  const localStageRef = useRef<HTMLDivElement | null>(null);
+  const bindStage = useCallback(
+    (element: HTMLDivElement | null) => {
+      localStageRef.current = element;
+      stageRef(element);
+    },
+    [stageRef],
+  );
 
   useLayoutEffect(() => {
-    const stage = stageRef.current;
+    const stage = localStageRef.current;
     if (stage === null) return;
     const measure = () => {
       setViewport({
@@ -43,7 +55,7 @@ export function PresentationStage({
     const observer = new ResizeObserver(measure);
     observer.observe(stage);
     return () => observer.disconnect();
-  }, [stageRef]);
+  }, []);
 
   const transform =
     canvasSize === null
@@ -67,10 +79,10 @@ export function PresentationStage({
         };
 
   return (
-    <div className={styles.root}>
+    <div className={styles.root} data-presentation-active={presentationActive}>
       <div className={styles.toolbar}>{toolbar}</div>
       <div
-        ref={stageRef}
+        ref={bindStage}
         className={styles.stage}
         style={stageProperties}
         data-page-scroll-owner="PAGE"
@@ -78,6 +90,7 @@ export function PresentationStage({
         tabIndex={0}
         aria-label={label}
       >
+        {overlay}
         <div className={styles.content}>{children}</div>
       </div>
     </div>

@@ -20,6 +20,8 @@ import { BoardArchiveControl } from '../../../components/board/BoardArchiveContr
 import { PageNavigationControls } from '../../../components/board/PageNavigationControls';
 import { PageDisplayModeControls } from '../../../components/board/PageDisplayModeControls';
 import { PresentationStage } from '../../../components/board/PresentationStage';
+import { PresentationModeControls } from '../../../components/board/PresentationModeControls';
+import { PresentationControlOverlay } from '../../../components/board/PresentationControlOverlay';
 import { HitlDecisionWorkspace } from '../../../components/board/HitlDecisionWorkspace';
 import { StatusRail } from '../../../components/board/StatusRail';
 import { useBoardSession } from '../../../lib/board/use-board-session';
@@ -37,6 +39,7 @@ import {
 } from '../../../lib/board/artifact-view-registry';
 import {
   admitPageNavigationKeyV1,
+  admitPresentationEscapeKeyV1,
   documentForPageNavigationV1,
   navigatePageIdV1,
   pageNavigationElementFactsV1,
@@ -49,6 +52,13 @@ import {
   type PageViewportClassV1,
 } from '../../../lib/board/page-display-mode.controller';
 import type { PageDisplayModeV1 } from '../../../lib/board/page-display-mode.types';
+import {
+  createPresentationLifecycleStateV1,
+  presentationSettlementIsCurrentV1,
+  reducePresentationLifecycleV1,
+  type PresentationLifecycleEventV1,
+  type PresentationLifecycleIdentityV1,
+} from '../../../lib/board/presentation-mode.controller';
 import styles from './board.module.css';
 
 function ArtifactLoading() {
@@ -205,9 +215,18 @@ export function BoardClient({ boardId }: { boardId: string }) {
     mode: PageDisplayModeV1;
   } | null>(null);
   const [pageAnnouncement, setPageAnnouncement] = useState('');
+  const [presentationState, setPresentationState] = useState(createPresentationLifecycleStateV1);
+  const [presentationActivitySignal, setPresentationActivitySignal] = useState(0);
   const [artifactCaptureActive, setArtifactCaptureActive] = useState(false);
   const [hitlInteractionActive, setHitlInteractionActive] = useState(false);
   const pageScrollRef = useRef<HTMLDivElement | null>(null);
+  const pageElementEpochRef = useRef(0);
+  const presentationRequestEpochRef = useRef(0);
+  const presentationStateRef = useRef(presentationState);
+  const presentationPageRef = useRef<HTMLDivElement | null>(null);
+  const presentationInvokerRef = useRef<HTMLButtonElement | null>(null);
+  const presentationButtonRef = useRef<HTMLButtonElement | null>(null);
+  const lifecycleRouteRef = useRef<string | null>(null);
   const pageIdentityRef = useRef<string | null>(null);
   const captureSourcesRef = useRef(new Set<string>());
   const hitlSourcesRef = useRef(new Set<string>());
@@ -229,6 +248,99 @@ export function BoardClient({ boardId }: { boardId: string }) {
     userSelection:
       pageDisplaySelection?.routeBoardId === boardId ? pageDisplaySelection.mode : null,
   });
+  const presentationActive =
+    presentationState.mode !== 'inactive' &&
+    presentationState.identity?.boardId === boardId &&
+    presentationState.identity.revisionId === revisionId;
+
+  const transitionPresentation = useCallback((event: PresentationLifecycleEventV1) => {
+    const next = reducePresentationLifecycleV1(presentationStateRef.current, event);
+    presentationStateRef.current = next;
+    setPresentationState(next);
+  }, []);
+  const bindPageStage = useCallback((element: HTMLDivElement | null) => {
+    if (pageScrollRef.current !== element) pageElementEpochRef.current += 1;
+    pageScrollRef.current = element;
+  }, []);
+  const restorePresentationFocus = useCallback(() => {
+    const invoker = presentationInvokerRef.current;
+    if (invoker?.isConnected) {
+      invoker.focus();
+      return;
+    }
+    const page = pageScrollRef.current;
+    if (page?.isConnected) {
+      page.focus();
+      return;
+    }
+    document.querySelector<HTMLElement>('.board-topbar h2')?.focus();
+  }, []);
+  const exitPresentation = useCallback(
+    (restoreFocus = true) => {
+      presentationRequestEpochRef.current += 1;
+      const ownedPage = presentationPageRef.current;
+      presentationPageRef.current = null;
+      transitionPresentation({ type: 'invalidate' });
+      if (ownedPage !== null && document.fullscreenElement === ownedPage) {
+        void document.exitFullscreen().catch(() => undefined);
+      }
+      if (restoreFocus) requestAnimationFrame(restorePresentationFocus);
+    },
+    [restorePresentationFocus, transitionPresentation],
+  );
+  const enterPresentation = useCallback(() => {
+    const page = pageScrollRef.current;
+    if (page === null || revisionId === null) return;
+    const identity: PresentationLifecycleIdentityV1 = {
+      boardId,
+      revisionId,
+      routeEpoch: `${boardId}:${revisionId}`,
+      pageElementEpoch: pageElementEpochRef.current,
+      requestEpoch: presentationRequestEpochRef.current + 1,
+    };
+    presentationRequestEpochRef.current = identity.requestEpoch;
+    presentationPageRef.current = page;
+    presentationInvokerRef.current = presentationButtonRef.current;
+    transitionPresentation({ type: 'enter', identity });
+    const current = () =>
+      presentationSettlementIsCurrentV1({
+        expected: identity,
+        current: presentationStateRef.current.identity,
+        capturedPage: page,
+        currentPage: pageScrollRef.current,
+      });
+    const fallback = () => {
+      if (current()) transitionPresentation({ type: 'fallback-focus', identity });
+    };
+    if (document.fullscreenElement !== null && document.fullscreenElement !== page) {
+      fallback();
+      return;
+    }
+    if (typeof page.requestFullscreen !== 'function') {
+      fallback();
+      return;
+    }
+    let request: Promise<void>;
+    try {
+      request = page.requestFullscreen();
+    } catch {
+      fallback();
+      return;
+    }
+    void request.then(() => {
+      if (!current()) {
+        if (
+          document.fullscreenElement === page &&
+          presentationStateRef.current.mode !== 'fullscreen'
+        )
+          void document.exitFullscreen().catch(() => undefined);
+        return;
+      }
+      if (document.fullscreenElement === page)
+        transitionPresentation({ type: 'fullscreen-entered', identity });
+      else fallback();
+    }, fallback);
+  }, [boardId, revisionId, transitionPresentation]);
 
   const setCaptureActive = useCallback((source: string, active: boolean) => {
     if (active) captureSourcesRef.current.add(source);
@@ -303,8 +415,66 @@ export function BoardClient({ boardId }: { boardId: string }) {
     announceAndResetPage(resolvedPageId);
   }, [announceAndResetPage, boardId, resolvedPageId, session.visibleSnapshot]);
   useEffect(() => {
+    const routeIdentity = `${boardId}:${revisionId ?? 'pending'}`;
+    if (
+      lifecycleRouteRef.current !== null &&
+      lifecycleRouteRef.current !== routeIdentity &&
+      presentationStateRef.current.mode !== 'inactive'
+    )
+      exitPresentation(false);
+    lifecycleRouteRef.current = routeIdentity;
+  }, [boardId, exitPresentation, revisionId]);
+  useEffect(() => {
+    const synchronizeFullscreen = () => {
+      const current = presentationStateRef.current;
+      const identity = current.identity;
+      const page = presentationPageRef.current;
+      if (
+        identity === null ||
+        page === null ||
+        !presentationSettlementIsCurrentV1({
+          expected: identity,
+          current: identity,
+          capturedPage: page,
+          currentPage: pageScrollRef.current,
+        })
+      )
+        return;
+      if (document.fullscreenElement === page) {
+        return;
+      }
+      if (current.mode === 'fullscreen') {
+        presentationRequestEpochRef.current += 1;
+        presentationPageRef.current = null;
+        transitionPresentation({ type: 'matching-exit', identity });
+        requestAnimationFrame(restorePresentationFocus);
+      }
+    };
+    const exitFocusOnVisibilityLoss = () => {
+      if (document.visibilityState === 'hidden' && presentationStateRef.current.mode === 'focus')
+        exitPresentation(false);
+    };
+    document.addEventListener('fullscreenchange', synchronizeFullscreen);
+    document.addEventListener('visibilitychange', exitFocusOnVisibilityLoss);
+    return () => {
+      document.removeEventListener('fullscreenchange', synchronizeFullscreen);
+      document.removeEventListener('visibilitychange', exitFocusOnVisibilityLoss);
+    };
+  }, [exitPresentation, restorePresentationFocus, transitionPresentation]);
+  useEffect(
+    () => () => {
+      presentationRequestEpochRef.current += 1;
+      const ownedPage = presentationPageRef.current;
+      presentationPageRef.current = null;
+      presentationStateRef.current = createPresentationLifecycleStateV1();
+      if (ownedPage !== null && document.fullscreenElement === ownedPage)
+        void document.exitFullscreen().catch(() => undefined);
+    },
+    [],
+  );
+  useEffect(() => {
     const navigatePage = (event: KeyboardEvent) => {
-      const command = admitPageNavigationKeyV1({
+      const admission = {
         key: event.key,
         defaultPrevented: event.defaultPrevented,
         isComposing: event.isComposing,
@@ -319,13 +489,31 @@ export function BoardClient({ boardId }: { boardId: string }) {
         hitlInteractionActive,
         artifactCaptureActive,
         moveCaptureActive,
-      });
-      if (command !== null && selectPage(command)) event.preventDefault();
+      };
+      if (
+        presentationStateRef.current.mode === 'focus' &&
+        admitPresentationEscapeKeyV1(admission)
+      ) {
+        event.preventDefault();
+        exitPresentation();
+        return;
+      }
+      const command = admitPageNavigationKeyV1(admission);
+      if (command !== null && selectPage(command)) {
+        event.preventDefault();
+        setPresentationActivitySignal((value) => value + 1);
+      }
     };
 
     window.addEventListener('keydown', navigatePage);
     return () => window.removeEventListener('keydown', navigatePage);
-  }, [artifactCaptureActive, hitlInteractionActive, moveCaptureActive, selectPage]);
+  }, [
+    artifactCaptureActive,
+    exitPresentation,
+    hitlInteractionActive,
+    moveCaptureActive,
+    selectPage,
+  ]);
 
   if (session.phase === 'loading' || (session.state === null && session.error === null)) {
     return (
@@ -452,7 +640,7 @@ export function BoardClient({ boardId }: { boardId: string }) {
   };
   return (
     <section
-      className={`board-workspace ${styles.workspace} ${state.mode.kind === 'history' ? 'is-history' : ''}`}
+      className={`board-workspace ${styles.workspace} ${presentationActive ? styles.presenting : ''} ${state.mode.kind === 'history' ? 'is-history' : ''}`}
     >
       <BoardTopBar
         title={session.title}
@@ -486,9 +674,10 @@ export function BoardClient({ boardId }: { boardId: string }) {
       )}
       <div className={`board-surface ${styles.surface}`}>
         <PresentationStage
-          stageRef={pageScrollRef}
+          stageRef={bindPageStage}
           mode={pageDisplayMode}
           canvasSize={rootCanvas}
+          presentationActive={presentationActive}
           label={t('board.sceneCanvas')}
           toolbar={
             <>
@@ -505,7 +694,39 @@ export function BoardClient({ boardId }: { boardId: string }) {
                 value={pageDisplayMode}
                 onChange={(mode) => setPageDisplaySelection({ routeBoardId: boardId, mode })}
               />
+              <PresentationModeControls
+                active={presentationActive}
+                disabled={presentationState.mode === 'requesting'}
+                buttonRef={presentationButtonRef}
+                onEnter={enterPresentation}
+                onExit={exitPresentation}
+              />
             </>
+          }
+          overlay={
+            <PresentationControlOverlay
+              active={presentationActive}
+              activitySignal={presentationActivitySignal}
+              current={resolvedPageIndex + 1}
+              total={navigationDocument.pages.length}
+              dialogOrMenuOpen={false}
+              hitlInteractionActive={hitlInteractionActive}
+              artifactCaptureActive={artifactCaptureActive}
+              moveCaptureActive={moveCaptureActive}
+              additionalControls={
+                <PageDisplayModeControls
+                  value={pageDisplayMode}
+                  onChange={(mode) => setPageDisplaySelection({ routeBoardId: boardId, mode })}
+                />
+              }
+              onPrevious={() => {
+                if (selectPage('previous')) setPresentationActivitySignal((value) => value + 1);
+              }}
+              onNext={() => {
+                if (selectPage('next')) setPresentationActivitySignal((value) => value + 1);
+              }}
+              onExit={exitPresentation}
+            />
           }
         >
           <span className="visually-hidden" aria-live="polite" aria-atomic="true">

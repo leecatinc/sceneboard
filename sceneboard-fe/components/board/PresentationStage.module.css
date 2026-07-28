@@ -15,6 +15,13 @@
   overflow-y: auto;
   scrollbar-gutter: stable;
   overscroll-behavior: contain;
+  background: var(--background);
+}
+
+.stage:fullscreen {
+  width: 100%;
+  height: 100%;
+  background: var(--background);
 }
 
 .toolbar {
@@ -25,6 +32,10 @@
   display: grid;
   justify-items: center;
   gap: 6px;
+}
+
+.root[data-presentation-active='true'] .toolbar {
+  display: none;
 }
 
 .content {
