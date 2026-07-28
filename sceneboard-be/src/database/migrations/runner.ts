@@ -78,6 +78,355 @@ export interface V2CheckpointConstraintProjection {
   checkClause: string;
 }
 
+export interface RevisionRetentionColumnProjection {
+  tableName: string;
+  columnName: string;
+  ordinalPosition: number;
+  columnType: string;
+  characterSetName: string | null;
+  collationName: string | null;
+  isNullable: string;
+  columnDefault: string | null;
+  extra: string;
+}
+
+export interface RevisionRetentionIndexProjection {
+  tableName: string;
+  indexName: string;
+  nonUnique: number;
+  sequence: number;
+  columnName: string;
+}
+
+export interface RevisionRetentionForeignKeyProjection {
+  tableName: string;
+  constraintName: string;
+  columnName: string;
+  referencedTableName: string;
+  referencedColumnName: string;
+  deleteRule: string;
+  sequence: number;
+}
+
+export interface RevisionRetentionCheckProjection {
+  tableName: string;
+  constraintName: string;
+  checkClause: string;
+}
+
+export interface RevisionRetentionTableProjection {
+  tableName: string;
+  tableType: string;
+  engine: string | null;
+  tableCollation: string | null;
+}
+
+const RETENTION_TABLES = [
+  'board_revision_payloads',
+  'board_revision_catalog',
+  'board_revision_holds',
+  'board_revision_recovery',
+] as const;
+
+const expectedRetentionColumns = [
+  ['board_revision_payloads', 'revision_pk', 1, 'bigint unsigned', null, null, 'NO'],
+  ['board_revision_payloads', 'schema_version', 2, 'char(5)', 'ascii', 'ascii_bin', 'NO'],
+  ['board_revision_payloads', 'codec', 3, 'char(1)', 'ascii', 'ascii_bin', 'NO'],
+  ['board_revision_payloads', 'canonical_bytes', 4, 'int unsigned', null, null, 'NO'],
+  ['board_revision_payloads', 'stored_bytes', 5, 'int unsigned', null, null, 'NO'],
+  ['board_revision_payloads', 'payload_sha256', 6, 'binary(32)', null, null, 'NO'],
+  ['board_revision_payloads', 'payload', 7, 'longblob', null, null, 'NO'],
+  [
+    'board_revision_payloads',
+    'state',
+    8,
+    "enum('available','reclaiming')",
+    'utf8mb4',
+    'utf8mb4_0900_ai_ci',
+    'NO',
+  ],
+  ['board_revision_catalog', 'board_pk', 1, 'bigint unsigned', null, null, 'NO'],
+  ['board_revision_catalog', 'revision_pk', 2, 'bigint unsigned', null, null, 'NO'],
+  ['board_revision_catalog', 'retained_order', 3, 'bigint unsigned', null, null, 'NO'],
+  ['board_revision_catalog', 'is_head', 4, 'tinyint unsigned', null, null, 'NO'],
+  ['board_revision_catalog', 'truncated_before', 5, 'tinyint unsigned', null, null, 'NO'],
+  ['board_revision_catalog', 'created_at', 6, 'datetime(3)', null, null, 'NO'],
+  ['board_revision_holds', 'board_pk', 1, 'bigint unsigned', null, null, 'NO'],
+  ['board_revision_holds', 'revision_pk', 2, 'bigint unsigned', null, null, 'NO'],
+  [
+    'board_revision_holds',
+    'kind',
+    3,
+    "enum('published','media','artifact','idempotency','outbox','recovery','restore')",
+    'utf8mb4',
+    'utf8mb4_0900_ai_ci',
+    'NO',
+  ],
+  ['board_revision_holds', 'holder_id', 4, 'varchar(191)', 'ascii', 'ascii_bin', 'NO'],
+  ['board_revision_holds', 'expires_at', 5, 'datetime(3)', null, null, 'YES'],
+  ['board_revision_holds', 'released_at', 6, 'datetime(3)', null, null, 'YES'],
+  ['board_revision_recovery', 'recovery_id', 1, 'varchar(191)', 'ascii', 'ascii_bin', 'NO'],
+  ['board_revision_recovery', 'board_pk', 2, 'bigint unsigned', null, null, 'NO'],
+  ['board_revision_recovery', 'revision_pk', 3, 'bigint unsigned', null, null, 'NO'],
+  [
+    'board_revision_recovery',
+    'phase',
+    4,
+    "enum('planned','core_applied','refs_detached','payload_cleared','catalog_removed','complete','quarantined')",
+    'utf8mb4',
+    'utf8mb4_0900_ai_ci',
+    'NO',
+  ],
+  ['board_revision_recovery', 'lease_owner', 5, 'varchar(191)', 'ascii', 'ascii_bin', 'YES'],
+  ['board_revision_recovery', 'lease_expires_at', 6, 'datetime(3)', null, null, 'YES'],
+  ['board_revision_recovery', 'attempts', 7, 'smallint unsigned', null, null, 'NO'],
+  [
+    'board_revision_recovery',
+    'last_error',
+    8,
+    'varchar(1024)',
+    'utf8mb4',
+    'utf8mb4_0900_ai_ci',
+    'YES',
+  ],
+  ['board_revision_recovery', 'updated_at', 9, 'datetime(3)', null, null, 'NO'],
+] as const;
+
+const expectedRetentionIndexes = [
+  ['board_revision_payloads', 'PRIMARY', 0, 1, 'revision_pk'],
+  ['board_revision_payloads', 'ix_revision_payloads_state', 1, 1, 'state'],
+  ['board_revision_payloads', 'ix_revision_payloads_state', 1, 2, 'revision_pk'],
+  ['board_revision_catalog', 'PRIMARY', 0, 1, 'board_pk'],
+  ['board_revision_catalog', 'PRIMARY', 0, 2, 'revision_pk'],
+  ['board_revision_catalog', 'uq_revision_catalog_order', 0, 1, 'board_pk'],
+  ['board_revision_catalog', 'uq_revision_catalog_order', 0, 2, 'retained_order'],
+  ['board_revision_catalog', 'ix_revision_catalog_head', 1, 1, 'board_pk'],
+  ['board_revision_catalog', 'ix_revision_catalog_head', 1, 2, 'is_head'],
+  ['board_revision_catalog', 'ix_revision_catalog_head', 1, 3, 'retained_order'],
+  ['board_revision_holds', 'PRIMARY', 0, 1, 'board_pk'],
+  ['board_revision_holds', 'PRIMARY', 0, 2, 'revision_pk'],
+  ['board_revision_holds', 'PRIMARY', 0, 3, 'kind'],
+  ['board_revision_holds', 'PRIMARY', 0, 4, 'holder_id'],
+  ['board_revision_holds', 'ix_revision_holds_active', 1, 1, 'board_pk'],
+  ['board_revision_holds', 'ix_revision_holds_active', 1, 2, 'released_at'],
+  ['board_revision_holds', 'ix_revision_holds_active', 1, 3, 'expires_at'],
+  ['board_revision_holds', 'ix_revision_holds_active', 1, 4, 'revision_pk'],
+  ['board_revision_recovery', 'PRIMARY', 0, 1, 'recovery_id'],
+  ['board_revision_recovery', 'ix_revision_recovery_discovery', 1, 1, 'phase'],
+  ['board_revision_recovery', 'ix_revision_recovery_discovery', 1, 2, 'lease_expires_at'],
+  ['board_revision_recovery', 'ix_revision_recovery_discovery', 1, 3, 'recovery_id'],
+  ['board_revision_recovery', 'ix_revision_recovery_revision', 1, 1, 'board_pk'],
+  ['board_revision_recovery', 'ix_revision_recovery_revision', 1, 2, 'revision_pk'],
+  ['board_revision_recovery', 'ix_revision_recovery_revision', 1, 3, 'phase'],
+] as const;
+
+const expectedRetentionForeignKeys = [
+  [
+    'board_revision_payloads',
+    'fk_revision_payloads_revision',
+    'revision_pk',
+    'board_revisions',
+    'revision_pk',
+    'RESTRICT',
+    1,
+  ],
+  [
+    'board_revision_catalog',
+    'fk_revision_catalog_revision',
+    'board_pk',
+    'board_revisions',
+    'board_pk',
+    'RESTRICT',
+    1,
+  ],
+  [
+    'board_revision_catalog',
+    'fk_revision_catalog_revision',
+    'revision_pk',
+    'board_revisions',
+    'revision_pk',
+    'RESTRICT',
+    2,
+  ],
+  [
+    'board_revision_holds',
+    'fk_revision_holds_revision',
+    'board_pk',
+    'board_revisions',
+    'board_pk',
+    'RESTRICT',
+    1,
+  ],
+  [
+    'board_revision_holds',
+    'fk_revision_holds_revision',
+    'revision_pk',
+    'board_revisions',
+    'revision_pk',
+    'RESTRICT',
+    2,
+  ],
+  [
+    'board_revision_recovery',
+    'fk_revision_recovery_revision',
+    'board_pk',
+    'board_revisions',
+    'board_pk',
+    'RESTRICT',
+    1,
+  ],
+  [
+    'board_revision_recovery',
+    'fk_revision_recovery_revision',
+    'revision_pk',
+    'board_revisions',
+    'revision_pk',
+    'RESTRICT',
+    2,
+  ],
+] as const;
+
+const expectedRetentionChecks: Readonly<Record<string, readonly string[]>> = {
+  'board_revision_payloads.chk_revision_payloads_checkpoint': [
+    "codec='b'",
+    'stored_bytes=octet_length(payload)',
+    "schema_version='1.0.0'",
+    'canonical_bytesbetween1and786432',
+    'stored_bytesbetween1and800000',
+    "schema_version='2.0.0'",
+    'canonical_bytesbetween1and20971520',
+    'stored_bytesbetween1and33554432',
+  ],
+  'board_revision_payloads.chk_revision_payloads_state': ["statein('available','reclaiming')"],
+  'board_revision_catalog.chk_revision_catalog_order': [
+    'retained_orderbetween1and9007199254740991',
+  ],
+  'board_revision_catalog.chk_revision_catalog_flags': [
+    'is_headin(0,1)',
+    'truncated_beforein(0,1)',
+  ],
+  'board_revision_holds.chk_revision_holds_kind': [
+    "kindin('published','media','artifact','idempotency','outbox','recovery','restore')",
+  ],
+  'board_revision_holds.chk_revision_holds_holder': ['char_length(holder_id)between1and191'],
+  'board_revision_recovery.chk_revision_recovery_phase': [
+    "phasein('planned','core_applied','refs_detached','payload_cleared','catalog_removed','complete','quarantined')",
+  ],
+  'board_revision_recovery.chk_revision_recovery_lease': [
+    'lease_ownerisnull',
+    'lease_expires_atisnull',
+    'lease_ownerisnotnull',
+    'lease_expires_atisnotnull',
+  ],
+  'board_revision_recovery.chk_revision_recovery_complete': [
+    "phase<>'complete'",
+    'lease_ownerisnull',
+    'lease_expires_atisnull',
+  ],
+  'board_revision_recovery.chk_revision_recovery_attempts': ['attempts<=65535'],
+  'board_revision_recovery.chk_revision_recovery_id': ['char_length(recovery_id)between1and191'],
+};
+
+const projectionKey = (values: readonly unknown[]): string => JSON.stringify(values);
+
+const assertExactProjection = (
+  label: string,
+  expected: readonly (readonly unknown[])[],
+  actual: readonly (readonly unknown[])[],
+): void => {
+  const expectedKeys = expected.map(projectionKey).sort();
+  const actualKeys = actual.map(projectionKey).sort();
+  if (
+    expectedKeys.length !== actualKeys.length ||
+    expectedKeys.some((entry, index) => entry !== actualKeys[index])
+  ) {
+    throw new MigrationStateError(`${label} projection drift`);
+  }
+};
+
+const normalizeCheckClause = (clause: string): string =>
+  clause
+    .toLowerCase()
+    .replaceAll('`', '')
+    .replaceAll(/_(?:utf8mb4|ascii)(?=')/gu, '')
+    .replaceAll(/\s+/gu, '');
+
+export const assessRevisionRetentionExpand = (
+  columnRows: readonly RevisionRetentionColumnProjection[],
+  indexRows: readonly RevisionRetentionIndexProjection[],
+  foreignKeyRows: readonly RevisionRetentionForeignKeyProjection[],
+  checkRows: readonly RevisionRetentionCheckProjection[],
+  tableRows: readonly RevisionRetentionTableProjection[],
+): void => {
+  assertExactProjection(
+    'revision retention table',
+    RETENTION_TABLES.map((tableName) => [tableName, 'BASE TABLE', 'InnoDB', 'utf8mb4_0900_ai_ci']),
+    tableRows.map((row) => [row.tableName, row.tableType, row.engine, row.tableCollation]),
+  );
+  assertExactProjection(
+    'revision retention column',
+    expectedRetentionColumns,
+    columnRows.map((row) => [
+      row.tableName,
+      row.columnName,
+      Number(row.ordinalPosition),
+      row.columnType.toLowerCase(),
+      row.characterSetName,
+      row.collationName,
+      row.isNullable,
+    ]),
+  );
+  if (columnRows.some((row) => row.columnDefault !== null || row.extra !== '')) {
+    throw new MigrationStateError('revision retention column default or extra drift');
+  }
+  assertExactProjection(
+    'revision retention index',
+    expectedRetentionIndexes,
+    indexRows.map((row) => [
+      row.tableName,
+      row.indexName,
+      Number(row.nonUnique),
+      Number(row.sequence),
+      row.columnName,
+    ]),
+  );
+  assertExactProjection(
+    'revision retention foreign key',
+    expectedRetentionForeignKeys,
+    foreignKeyRows.map((row) => [
+      row.tableName,
+      row.constraintName,
+      row.columnName,
+      row.referencedTableName,
+      row.referencedColumnName,
+      row.deleteRule,
+      Number(row.sequence),
+    ]),
+  );
+
+  const checks = new Map(
+    checkRows.map((row) => [
+      `${row.tableName}.${row.constraintName}`,
+      normalizeCheckClause(row.checkClause),
+    ]),
+  );
+  const expectedNames = Object.keys(expectedRetentionChecks).sort();
+  if (
+    checks.size !== expectedNames.length ||
+    [...checks.keys()].sort().some((name, index) => name !== expectedNames[index])
+  ) {
+    throw new MigrationStateError('revision retention CHECK name drift');
+  }
+  for (const [name, fragments] of Object.entries(expectedRetentionChecks)) {
+    const clause = checks.get(name) ?? '';
+    for (const fragment of fragments) {
+      if (!clause.includes(fragment)) {
+        throw new MigrationStateError(`revision retention CHECK drift: ${name}`);
+      }
+    }
+  }
+};
+
 export const assessV2CheckpointCapacity = (
   columnRows: readonly V2CheckpointColumnProjection[],
   constraintRows: readonly V2CheckpointConstraintProjection[],
@@ -282,6 +631,10 @@ export class MigrationRunner {
       await this.verifyV2CheckpointCapacity(connection);
       return;
     }
+    if (postcondition === 'd9_revision_retention_expand_v1') {
+      await this.verifyRevisionRetentionExpand(connection);
+      return;
+    }
     const postconditions: Readonly<Record<string, readonly string[]>> = {
       d2_identity_sessions_audit_v1: ['users', 'auth_sessions', 'security_audit_events'],
       d3_boards_v1: ['boards'],
@@ -367,6 +720,92 @@ export class MigrationRunner {
          )`,
     );
     assessV2CheckpointCapacity(columnRows, constraintRows);
+  }
+
+  private async verifyRevisionRetentionExpand(connection: PoolConnection): Promise<void> {
+    const placeholders = RETENTION_TABLES.map(() => '?').join(', ');
+    const [tableRows] = await connection.query<
+      Array<RowDataPacket & RevisionRetentionTableProjection>
+    >(
+      `SELECT
+         table_name AS tableName,
+         table_type AS tableType,
+         engine,
+         table_collation AS tableCollation
+       FROM information_schema.tables
+       WHERE table_schema = DATABASE()
+         AND table_name IN (${placeholders})`,
+      RETENTION_TABLES,
+    );
+    const [columnRows] = await connection.query<
+      Array<RowDataPacket & RevisionRetentionColumnProjection>
+    >(
+      `SELECT
+         table_name AS tableName,
+         column_name AS columnName,
+         ordinal_position AS ordinalPosition,
+         column_type AS columnType,
+         character_set_name AS characterSetName,
+         collation_name AS collationName,
+         is_nullable AS isNullable,
+         column_default AS columnDefault,
+         extra
+       FROM information_schema.columns
+       WHERE table_schema = DATABASE()
+         AND table_name IN (${placeholders})`,
+      RETENTION_TABLES,
+    );
+    const [indexRows] = await connection.query<
+      Array<RowDataPacket & RevisionRetentionIndexProjection>
+    >(
+      `SELECT
+         table_name AS tableName,
+         index_name AS indexName,
+         non_unique AS nonUnique,
+         seq_in_index AS sequence,
+         column_name AS columnName
+       FROM information_schema.statistics
+       WHERE table_schema = DATABASE()
+         AND table_name IN (${placeholders})`,
+      RETENTION_TABLES,
+    );
+    const [foreignKeyRows] = await connection.query<
+      Array<RowDataPacket & RevisionRetentionForeignKeyProjection>
+    >(
+      `SELECT
+         kcu.table_name AS tableName,
+         kcu.constraint_name AS constraintName,
+         kcu.column_name AS columnName,
+         kcu.referenced_table_name AS referencedTableName,
+         kcu.referenced_column_name AS referencedColumnName,
+         rc.delete_rule AS deleteRule,
+         kcu.ordinal_position AS sequence
+       FROM information_schema.key_column_usage kcu
+       JOIN information_schema.referential_constraints rc
+         ON rc.constraint_schema = kcu.constraint_schema
+           AND rc.constraint_name = kcu.constraint_name
+       WHERE kcu.table_schema = DATABASE()
+         AND kcu.table_name IN (${placeholders})
+         AND kcu.referenced_table_name IS NOT NULL`,
+      RETENTION_TABLES,
+    );
+    const [checkRows] = await connection.query<
+      Array<RowDataPacket & RevisionRetentionCheckProjection>
+    >(
+      `SELECT
+         tc.table_name AS tableName,
+         tc.constraint_name AS constraintName,
+         cc.check_clause AS checkClause
+       FROM information_schema.table_constraints tc
+       JOIN information_schema.check_constraints cc
+         ON cc.constraint_schema = tc.constraint_schema
+           AND cc.constraint_name = tc.constraint_name
+       WHERE tc.table_schema = DATABASE()
+         AND tc.table_name IN (${placeholders})
+         AND tc.constraint_type = 'CHECK'`,
+      RETENTION_TABLES,
+    );
+    assessRevisionRetentionExpand(columnRows, indexRows, foreignKeyRows, checkRows, tableRows);
   }
 
   private async withMigrationLock<Value>(

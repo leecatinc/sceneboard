@@ -119,6 +119,13 @@ export const MIGRATION_REGISTRY = [
     downAsset: null,
     postcondition: 'd9_v2_checkpoint_capacity_v1',
   },
+  {
+    version: '014_d9_revision_retention_expand',
+    upAsset: '014_d9_revision_retention_expand.up.sql',
+    reversible: false,
+    downAsset: null,
+    postcondition: 'd9_revision_retention_expand_v1',
+  },
 ] as const satisfies readonly MigrationRegistryEntry[];
 
 export const MIGRATION_REGISTRY_VERSION = MIGRATION_REGISTRY.at(-1)?.version ?? 'empty';

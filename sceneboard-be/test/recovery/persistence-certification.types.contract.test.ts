@@ -16,7 +16,7 @@ const profile = {
 
 const fresh = {
   mode: 'fresh',
-  registryVersion: '013_d9_v2_checkpoint_capacity',
+  registryVersion: '014_d9_revision_retention_expand',
   connectionProfile: profile,
 } satisfies MigrationCertificationStateV1;
 const adopt = { ...fresh, mode: 'adopt' } satisfies MigrationCertificationStateV1;

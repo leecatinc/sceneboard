@@ -94,13 +94,16 @@ const accepted = (input: {
       input.storedBytes <= 33_554_432));
 
 test('registers one forward-only D9 ALTER with the exact discriminator-aware capacity predicate', async () => {
-  assert.deepEqual(MIGRATION_REGISTRY.at(-1), {
-    version: '013_d9_v2_checkpoint_capacity',
-    upAsset: '013_d9_v2_checkpoint_capacity.up.sql',
-    reversible: false,
-    downAsset: null,
-    postcondition: 'd9_v2_checkpoint_capacity_v1',
-  });
+  assert.deepEqual(
+    MIGRATION_REGISTRY.find((entry) => entry.version === '013_d9_v2_checkpoint_capacity'),
+    {
+      version: '013_d9_v2_checkpoint_capacity',
+      upAsset: '013_d9_v2_checkpoint_capacity.up.sql',
+      reversible: false,
+      downAsset: null,
+      postcondition: 'd9_v2_checkpoint_capacity_v1',
+    },
+  );
   const source = await readFile(
     new URL(
       '../../src/database/migrations/sql/013_d9_v2_checkpoint_capacity.up.sql',

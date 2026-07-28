@@ -1,6 +1,11 @@
 import { isIP } from 'node:net';
 
 import { createCursorMacKeyV1, type CursorMacKeyV1 } from '../common/security/cursor-mac-key.js';
+import {
+  REVISION_RETENTION_DEFAULT,
+  REVISION_RETENTION_MAXIMUM,
+  REVISION_RETENTION_MINIMUM,
+} from '../revisions/retention/retention.types.js';
 import { decodeBase64UrlStrict } from './security.constants.js';
 
 export type AppEnvironmentName = 'development' | 'test' | 'staging' | 'production';
@@ -47,6 +52,7 @@ export interface AppEnvironment {
   browserOrigin: string;
   publicApiOrigin: string;
   trustedProxyCidrs: string[];
+  revisionRetentionCount: number;
 }
 
 export type PersistenceEnvironment = Pick<AppEnvironment, 'mysql' | 'redis'>;
@@ -111,6 +117,15 @@ const parseInteger = (
   }
   return parsed;
 };
+
+const parseOptionalInteger = (
+  input: EnvironmentInput,
+  key: string,
+  fallback: number,
+  minimum: number,
+  maximum: number,
+): number =>
+  parseInteger({ ...input, [key]: input[key] ?? String(fallback) }, key, minimum, maximum);
 
 const parseBoundedText = (
   input: EnvironmentInput,
@@ -331,5 +346,12 @@ export const parseEnvironment = (input: EnvironmentInput): AppEnvironment => {
     browserOrigin: browser.value,
     publicApiOrigin: api.value,
     trustedProxyCidrs: parseTrustedProxyCidrs(input),
+    revisionRetentionCount: parseOptionalInteger(
+      input,
+      'REVISION_RETENTION_COUNT',
+      REVISION_RETENTION_DEFAULT,
+      REVISION_RETENTION_MINIMUM,
+      REVISION_RETENTION_MAXIMUM,
+    ),
   };
 };

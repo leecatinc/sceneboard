@@ -12,7 +12,7 @@ test('binds every staged registry asset to non-empty deterministic SQL', async (
     assets.add(entry.upAsset);
     if (entry.downAsset !== null) assets.add(entry.downAsset);
   }
-  assert.equal(assets.size, 19);
+  assert.equal(assets.size, 20);
   for (const asset of assets) {
     const bytes = await readFile(new URL(asset, directory));
     const source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
@@ -48,8 +48,8 @@ test('interleaves the irreversible D3 board owner before D2 grant bindings', asy
   assert.doesNotMatch(source, /REGEXP_LIKE\s*\(\s*public_id/);
 });
 
-test('materializes the exact terminal sixteen-entry and nineteen-asset checkpoint', async () => {
-  assert.equal(MIGRATION_REGISTRY.length, 16);
+test('materializes the exact terminal seventeen-entry and twenty-asset checkpoint', async () => {
+  assert.equal(MIGRATION_REGISTRY.length, 17);
   assert.equal(MIGRATION_REGISTRY.filter((entry) => entry.reversible).length, 3);
   const directory = new URL('../../src/database/migrations/sql/', import.meta.url);
   const expectedTables = new Map([
@@ -72,11 +72,21 @@ test('materializes the exact terminal sixteen-entry and nineteen-asset checkpoin
     ['010_d7_artifact_runtime_states.up.sql', ['artifact_runtime_states']],
     ['011_d7_artifact_board_usage.up.sql', ['artifact_board_usage']],
     ['012_d8_board_hitl_interactions.up.sql', ['board_hitl_interactions']],
+    [
+      '014_d9_revision_retention_expand.up.sql',
+      [
+        'board_revision_payloads',
+        'board_revision_catalog',
+        'board_revision_holds',
+        'board_revision_recovery',
+      ],
+    ],
   ]);
   for (const [asset, tables] of expectedTables) {
     const source = await readFile(new URL(asset, directory), 'utf8');
     assert.equal(splitSqlStatements(source).length, tables.length, asset);
-    for (const table of tables) assert.match(source, new RegExp(`CREATE TABLE ${table} \\(`));
+    for (const table of tables)
+      assert.match(source, new RegExp(`CREATE TABLE(?: IF NOT EXISTS)? ${table} \\(`));
   }
   const revisions = await readFile(new URL('002_d3_board_revisions.up.sql', directory), 'utf8');
   assert.match(revisions, /UNIQUE KEY uq_revisions_board_pk \(board_pk, revision_pk\)/);
@@ -114,6 +124,7 @@ test('the live runner verifies every terminal D7, D8, and D9 migration postcondi
   ])
     assert.match(source, new RegExp(`${postcondition}:`));
   assert.match(source, /postcondition === 'd9_v2_checkpoint_capacity_v1'/u);
+  assert.match(source, /postcondition === 'd9_revision_retention_expand_v1'/u);
 });
 
 test('binds D2 pairing and grant tables to the exact D3 public board key', async () => {

@@ -30,7 +30,7 @@ const progress: PersistenceCertificationProgressV1 = {
   formatVersion: 1,
   mode: 'RESUMABLE_AUDIT',
   caller: 'db:persistence:scan',
-  registryVersion: '013_d9_v2_checkpoint_capacity',
+  registryVersion: '014_d9_revision_retention_expand',
   schemaFingerprintSha256: 'a'.repeat(64),
   databaseIdentitySha256: 'b'.repeat(64),
   capturedHighWaterMarks: highWater,

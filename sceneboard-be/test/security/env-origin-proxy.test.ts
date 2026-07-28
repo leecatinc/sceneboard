@@ -53,6 +53,27 @@ test('parses the exact development environment and canonical same-host origins',
   assert.equal(environment.publicApiOrigin, 'http://127.0.0.1:3411');
   assert.equal(environment.keys.sessionToken.byteLength, 32);
   assert.equal(environment.streamKeyMaterial.byteLength, 32);
+  assert.equal(environment.revisionRetentionCount, 32);
+});
+
+test('accepts only canonical retention counts from 1 through 256', () => {
+  for (const [source, expected] of [
+    ['1', 1],
+    ['32', 32],
+    ['256', 256],
+  ] as const) {
+    assert.equal(
+      parseEnvironment({ ...validEnvironment(), REVISION_RETENTION_COUNT: source })
+        .revisionRetentionCount,
+      expected,
+    );
+  }
+  for (const source of ['0', '257', '01', '+1', '1.0', ' 32', '32 ']) {
+    assert.throws(
+      () => parseEnvironment({ ...validEnvironment(), REVISION_RETENTION_COUNT: source }),
+      EnvironmentValidationError,
+    );
+  }
 });
 
 test('parses persistence settings without requiring unrelated application secrets', () => {

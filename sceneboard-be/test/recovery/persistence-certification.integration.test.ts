@@ -15,7 +15,7 @@ import {
 
 const state = {
   mode: 'restart',
-  registryVersion: '013_d9_v2_checkpoint_capacity',
+  registryVersion: '014_d9_revision_retention_expand',
   connectionProfile: {
     databaseIdentitySha256: 'a'.repeat(64),
     serverVersion: '8.0.40',
@@ -73,7 +73,7 @@ test('returns only a safe failure value and never grants listener authority afte
     caller: 'http-mcp.bootstrap',
     certificationMode: 'BOUNDED_RESTART',
     stateMode: 'restart',
-    registryVersion: '013_d9_v2_checkpoint_capacity',
+    registryVersion: '014_d9_revision_retention_expand',
     retryable: false,
     authorizesListener: false,
   });
