@@ -9,6 +9,7 @@ import styles from './MobileBoardDrawer.module.css';
 export type MobileBoardDrawerSlotsV1 = Readonly<{
   boardIdentity: ReactNode | null;
   pageDisplay: ReactNode | null;
+  mediaAuthoring: ReactNode | null;
   history: ReactNode | null;
   status: ReactNode | null;
   connections: ReactNode | null;
@@ -38,6 +39,7 @@ export function MobileBoardDrawer({
   const slotAvailability = [
     slots.boardIdentity,
     slots.pageDisplay,
+    slots.mediaAuthoring,
     slots.history,
     slots.status,
     slots.connections,
@@ -136,6 +138,7 @@ export function MobileBoardDrawer({
   const orderedSlots: readonly [keyof MobileBoardDrawerSlotsV1, ReactNode | null][] = [
     ['boardIdentity', slots.boardIdentity],
     ['pageDisplay', slots.pageDisplay],
+    ['mediaAuthoring', slots.mediaAuthoring],
     ['history', slots.history],
     ['status', slots.status],
     ['connections', slots.connections],

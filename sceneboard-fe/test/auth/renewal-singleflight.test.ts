@@ -62,6 +62,7 @@ const setup = (responses: Response[], initial: string | null = null) => {
     },
   };
   const requests: Array<{ url: string; init?: RequestInit }> = [];
+  const hintListeners = new Set<() => void>();
   const fetcher = async (url: string | URL | Request, init?: RequestInit) => {
     requests.push({ url: String(url), ...(init === undefined ? {} : { init }) });
     const response = responses.shift();
@@ -73,8 +74,22 @@ const setup = (responses: Response[], initial: string | null = null) => {
     storage,
     fetcher,
     randomBytes: () => new Uint8Array(16).fill(7),
+    subscribeGenerationHints(listener) {
+      hintListeners.add(listener);
+      return () => hintListeners.delete(listener);
+    },
   });
-  return { coordinator, values, writes, locks, requests, activeLockCount: () => activeLocks };
+  return {
+    coordinator,
+    values,
+    writes,
+    locks,
+    requests,
+    emitGenerationHint: () => {
+      for (const listener of hintListeners) listener();
+    },
+    activeLockCount: () => activeLocks,
+  };
 };
 
 test('private reconciliation is one exclusive fixed session probe and commits generation after body consumption', async () => {
@@ -95,6 +110,88 @@ test('a stale application generation dispatches zero network traffic', async () 
   const result = await value.coordinator.dispatchShared({ path: '/api/v1/grants', method: 'GET' });
   assert.equal(result.kind, 'reconciliation_required');
   assert.equal(value.requests.length, 1);
+});
+
+test('binary upload binding freezes one generation and exact raw request identity', async () => {
+  const uploaded = json({ ok: true }, 201);
+  const value = setup([json(snapshot('session_1'), 200, generationA), uploaded]);
+  await value.coordinator.reconcileSessionGeneration();
+  const blob = new Blob([new Uint8Array([1, 2, 3])], { type: 'image/png' });
+  const bound = await value.coordinator.bindBoardBinaryAttempt({
+    requestId: 'request_media_1',
+    path: '/api/v1/boards/board_1/media?requestId=request_media_1',
+    contentType: 'image/png',
+    contentDigest: 'sha-256=:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=:',
+    idempotencyKey: 'media-upload-key-0001',
+    csrfToken: csrf,
+    blob,
+  });
+  assert.equal(bound.kind, 'bound');
+  if (bound.kind !== 'bound') return;
+  assert.equal(Object.isFrozen(bound.attempt), true);
+  assert.equal(Object.isFrozen(bound.binding), true);
+  assert.equal(bound.attempt.sessionGeneration, generationA);
+  const result = await value.coordinator.dispatchBoardBinary(
+    bound.attempt,
+    new AbortController().signal,
+  );
+  assert.equal(result.kind, 'ok');
+  assert.equal(value.requests.length, 2);
+  assert.equal(
+    value.requests[1]?.url,
+    'https://sceneboard.dev/api/v1/boards/board_1/media?requestId=request_media_1',
+  );
+  const init = value.requests[1]?.init;
+  assert.equal(init?.method, 'POST');
+  assert.equal(init?.credentials, 'include');
+  assert.equal(init?.body, blob);
+  const headers = init?.headers as Headers;
+  assert.equal(headers.get('Content-Type'), 'image/png');
+  assert.equal(headers.get('Content-Digest'), bound.attempt.contentDigest);
+  assert.equal(headers.get('Idempotency-Key'), 'media-upload-key-0001');
+  assert.equal(headers.get('X-CSRF-Token'), csrf);
+  assert.equal(headers.has('Origin'), false);
+  assert.equal(headers.has('Content-Length'), false);
+});
+
+test('binary and generation-bound dispatches make zero fetches after generation drift', async () => {
+  const value = setup([json(snapshot('session_1'), 200, generationA)]);
+  await value.coordinator.reconcileSessionGeneration();
+  const bound = await value.coordinator.bindBoardBinaryAttempt({
+    requestId: 'request_media_1',
+    path: '/api/v1/boards/board_1/media?requestId=request_media_1',
+    contentType: 'image/png',
+    contentDigest: 'sha-256=:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=:',
+    idempotencyKey: 'media-upload-key-0001',
+    csrfToken: csrf,
+    blob: new Blob([new Uint8Array([1])], { type: 'image/png' }),
+  });
+  assert.equal(bound.kind, 'bound');
+  if (bound.kind !== 'bound') return;
+  let invalidated = 0;
+  const unsubscribe = value.coordinator.subscribeGenerationInvalidation(
+    bound.binding,
+    () => invalidated++,
+  );
+  value.values.set(sessionCoordinationConstants.GENERATION_KEY, generationB);
+  value.emitGenerationHint();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(invalidated, 1);
+  assert.deepEqual(
+    await value.coordinator.dispatchBoardBinary(bound.attempt, new AbortController().signal),
+    { kind: 'stale_attempt' },
+  );
+  assert.deepEqual(
+    await value.coordinator.dispatchSharedForGeneration(bound.binding, {
+      path: '/api/v1/boards/board_1/mutations',
+      method: 'POST',
+      body: {},
+      csrfToken: csrf,
+    }),
+    { kind: 'stale_attempt' },
+  );
+  assert.equal(value.requests.length, 1);
+  unsubscribe();
 });
 
 test('two renewal callers share one exclusive acquisition and one renewal POST', async () => {

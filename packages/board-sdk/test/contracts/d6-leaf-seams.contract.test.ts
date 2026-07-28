@@ -26,7 +26,10 @@ test('D6 HTTP and scene-transform leaf barrels expose only their closed runtimes
     'parseBoardHttpResultV1',
     'parseBoardOperationHttpResultV2',
   ]);
-  assert.deepEqual(Object.keys(documentTransform).sort(), ['applyDocumentTransformV2']);
+  assert.deepEqual(Object.keys(documentTransform).sort(), [
+    'applyDocumentTransformV2',
+    'placeMediaImageOnPageV1',
+  ]);
   assert.deepEqual(Object.keys(transform).sort(), ['applySceneTransformV1']);
 });
 

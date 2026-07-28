@@ -57,6 +57,7 @@ export function ResponsiveBoardChrome({
         <BoardTopBar
           boardIdentity={slots.boardIdentity}
           pageDisplay={slots.pageDisplay}
+          mediaAuthoring={slots.mediaAuthoring}
           history={slots.history}
           connections={slots.connections}
           ownerAdmin={slots.ownerAdmin}

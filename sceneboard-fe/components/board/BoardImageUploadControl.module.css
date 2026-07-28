@@ -1,0 +1,72 @@
+.control {
+  display: grid;
+  gap: 0.55rem;
+  min-width: min(18rem, 100%);
+  max-width: 22rem;
+}
+
+.drop {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  padding: 0.65rem;
+  border: 1px dashed color-mix(in srgb, currentColor 42%, transparent);
+  border-radius: 0.7rem;
+  background: color-mix(in srgb, currentColor 4%, transparent);
+}
+
+.drop:focus-within {
+  outline: 2px solid var(--focus-ring, #4f7cff);
+  outline-offset: 2px;
+}
+
+.picker {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.preview {
+  display: block;
+  width: min(100%, 12rem);
+  max-height: 7rem;
+  object-fit: contain;
+  border-radius: 0.45rem;
+}
+
+.fields {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.fields label {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.fields input,
+.fields select {
+  min-width: 0;
+  width: 100%;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.status {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 360px) {
+  .control {
+    width: 100%;
+    max-width: 100%;
+  }
+}

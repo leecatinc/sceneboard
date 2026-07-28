@@ -12,6 +12,7 @@ import { BOARDS_CATALOG } from '../../lib/i18n/catalogs/boards';
 import { CODEX_CATALOG } from '../../lib/i18n/catalogs/codex';
 import { COMMON_CATALOG } from '../../lib/i18n/catalogs/common';
 import { PRESENTATION_CATALOG } from '../../lib/i18n/catalogs/presentation';
+import { MEDIA_AUTHORING_CATALOG } from '../../lib/i18n/catalogs/media-authoring';
 import { SETTINGS_CATALOG } from '../../lib/i18n/catalogs/settings';
 import { SHARING_CATALOG } from '../../lib/i18n/catalogs/sharing';
 import {
@@ -35,7 +36,10 @@ const digest = (value: unknown) => createHash('sha256').update(JSON.stringify(va
 
 test('catalog baseline freezes ordered locale values and the AI topic partition', () => {
   const keys = messageKeys().filter(
-    (key) => !key.startsWith('presentation.') && !key.startsWith('sharing.'),
+    (key) =>
+      !key.startsWith('presentation.') &&
+      !key.startsWith('sharing.') &&
+      !key.startsWith('mediaAuthoring.'),
   );
   assert.equal(keys.length, catalogBaseline.keyCount);
   assert.equal(digest(keys), catalogBaseline.keyOrderSha256);
@@ -83,6 +87,17 @@ test('presentation messages are isolated from the frozen catalog baseline', () =
   );
 });
 
+test('media authoring messages are one complete localized topic', () => {
+  const keys = messageKeys().filter((key) => key.startsWith('mediaAuthoring.'));
+  assert.deepEqual(
+    keys,
+    MEDIA_AUTHORING_CATALOG.map((row) => row[0]),
+  );
+  assert.equal(new Set(keys).size, keys.length);
+  for (const locale of SUPPORTED_LOCALES)
+    for (const key of keys) assert.ok(MESSAGES[locale][key].trim().length > 0);
+});
+
 test('topic catalogs have one owner per key and stay below the physical line cap', () => {
   const modules = [
     ['common', COMMON_CATALOG],
@@ -94,6 +109,7 @@ test('topic catalogs have one owner per key and stay below the physical line cap
     ['ai-connections', AI_CONNECTIONS_CATALOG],
     ['codex', CODEX_CATALOG],
     ['presentation', PRESENTATION_CATALOG],
+    ['media-authoring', MEDIA_AUTHORING_CATALOG],
     ['sharing', SHARING_CATALOG],
   ] as const;
   const ownedKeys = modules.flatMap(([, rows]) => rows.map((row) => row[0]));

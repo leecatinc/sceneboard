@@ -15,6 +15,7 @@ import { HitlBlock, type HitlInteractionControllerV1 } from '@sceneboard/board-u
 
 import { BoardStatePanel } from '../../../components/board/BoardStatePanel';
 import { BoardPairingControl } from '../../../components/board/BoardPairingControl';
+import { BoardImageUploadControl } from '../../../components/board/BoardImageUploadControl';
 import {
   OwnerAdminControls,
   type OwnerAdminControlsHandle,
@@ -70,7 +71,10 @@ import {
   resolvePageDisplayModeV1,
   type PageViewportClassV1,
 } from '../../../lib/board/page-display-mode.controller';
-import type { PageDisplayModeV1 } from '../../../lib/board/page-display-mode.types';
+import type {
+  PageCanvasTransformV1,
+  PageDisplayModeV1,
+} from '../../../lib/board/page-display-mode.types';
 import {
   createPresentationLifecycleStateV1,
   presentationSettlementIsCurrentV1,
@@ -212,11 +216,10 @@ export function BoardClient({ boardId }: { boardId: string }) {
     canReset: false,
   });
   const [drawingResetSignal, setDrawingResetSignal] = useState(0);
-  const [api] = useState(() => new BoardApiClient(authSessionClient().sharedCoordinator()));
-  const [invitationApi] = useState(
-    () => new InvitationApi(authSessionClient().sharedCoordinator()),
-  );
-  const [shareApi] = useState(() => new ShareApi(authSessionClient().sharedCoordinator()));
+  const [coordinator] = useState(() => authSessionClient().sharedCoordinator());
+  const [api] = useState(() => new BoardApiClient(coordinator));
+  const [invitationApi] = useState(() => new InvitationApi(coordinator));
+  const [shareApi] = useState(() => new ShareApi(coordinator));
   const [renderedAccess, setRenderedAccess] = useState<{
     boardId: string;
     access: BoardSessionAccessV1;
@@ -255,6 +258,7 @@ export function BoardClient({ boardId }: { boardId: string }) {
   const [moveCaptureActive, setMoveCaptureActive] = useState(false);
   const pageScrollRef = useRef<HTMLDivElement | null>(null);
   const pageElementEpochRef = useRef(0);
+  const pageCanvasTransformRef = useRef<PageCanvasTransformV1 | null>(null);
   const presentationRequestEpochRef = useRef(0);
   const presentationStateRef = useRef(presentationState);
   const presentationPageRef = useRef<HTMLDivElement | null>(null);
@@ -343,6 +347,9 @@ export function BoardClient({ boardId }: { boardId: string }) {
   const bindPageStage = useCallback((element: HTMLDivElement | null) => {
     if (pageScrollRef.current !== element) pageElementEpochRef.current += 1;
     pageScrollRef.current = element;
+  }, []);
+  const bindPageCanvasTransform = useCallback((transform: PageCanvasTransformV1 | null) => {
+    pageCanvasTransformRef.current = transform;
   }, []);
   const restorePresentationFocus = useCallback(() => {
     const invoker = presentationInvokerRef.current;
@@ -772,6 +779,42 @@ export function BoardClient({ boardId }: { boardId: string }) {
         onArchived={() => router.replace('/boards')}
       />
     ) : null;
+  const mediaAuthoring =
+    affordances['media.upload'] &&
+    state.mode.kind !== 'history' &&
+    session.visibleSnapshot !== null &&
+    'document' in session.visibleSnapshot &&
+    resolvedPageId !== null ? (
+      <BoardImageUploadControl
+        coordinator={coordinator}
+        boardId={boardId}
+        document={session.visibleSnapshot.document}
+        pageId={resolvedPageId}
+        expectedRevisionId={session.visibleSnapshot.revision.revisionId}
+        onRefresh={async () => {
+          await session.latest(true);
+        }}
+        onPlaced={async () => {
+          await session.latest(true);
+        }}
+        resolveCanvasViewport={() => {
+          const transform = pageCanvasTransformRef.current;
+          const page = pageScrollRef.current;
+          if (transform === null || page === null) return null;
+          const rect = page.getBoundingClientRect();
+          return {
+            transform,
+            pageViewportRect: {
+              x: rect.left,
+              y: rect.top,
+              width: rect.width,
+              height: rect.height,
+            },
+            scrollTop: page.scrollTop,
+          };
+        }}
+      />
+    ) : null;
   const chromeSlots: MobileBoardDrawerSlotsV1 = {
     boardIdentity: (
       <BoardIdentitySlot
@@ -782,6 +825,7 @@ export function BoardClient({ boardId }: { boardId: string }) {
       />
     ),
     pageDisplay: pageDisplayControls,
+    mediaAuthoring,
     history: affordances['history.read'] ? (
       <BoardHistorySlot
         state={state}
@@ -859,6 +903,7 @@ export function BoardClient({ boardId }: { boardId: string }) {
           moveIdentity={`${boardId}:${visibleSnapshot.revision.revisionId}:${resolvedPageId}`}
           onMoveAvailabilityChange={setMoveAvailable}
           onMoveCaptureActiveChange={setMoveCaptureActive}
+          onCanvasTransformChange={bindPageCanvasTransform}
           label={t('board.sceneCanvas')}
           toolbar={
             <PageNavigationControls

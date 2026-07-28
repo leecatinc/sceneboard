@@ -5,6 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 
 import {
   createPageCanvasTransformV1,
+  type PageCanvasTransformV1,
   type PageDisplayModeV1,
 } from '../../lib/board/page-display-mode.types';
 import {
@@ -34,6 +35,7 @@ export function PresentationStage({
   moveIdentity,
   onMoveAvailabilityChange,
   onMoveCaptureActiveChange,
+  onCanvasTransformChange,
   children,
   label,
 }: {
@@ -47,6 +49,7 @@ export function PresentationStage({
   moveIdentity: string;
   onMoveAvailabilityChange: (available: boolean) => void;
   onMoveCaptureActiveChange: (active: boolean) => void;
+  onCanvasTransformChange?: (transform: PageCanvasTransformV1 | null) => void;
   children: ReactNode;
   label: string;
 }) {
@@ -345,6 +348,10 @@ export function PresentationStage({
           '--page-canvas-reserved-height': `${transform.reservedHeight}px`,
           '--mobile-page-controls-height': `${navigationHeight}px`,
         };
+  useEffect(() => {
+    onCanvasTransformChange?.(transform);
+    return () => onCanvasTransformChange?.(null);
+  }, [onCanvasTransformChange, transform]);
 
   return (
     <div className={styles.root} data-presentation-active={presentationActive}>

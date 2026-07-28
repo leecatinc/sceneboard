@@ -6,6 +6,7 @@ import { BOARDS_CATALOG } from './catalogs/boards';
 import { CODEX_CATALOG } from './catalogs/codex';
 import { COMMON_CATALOG } from './catalogs/common';
 import { PRESENTATION_CATALOG } from './catalogs/presentation';
+import { MEDIA_AUTHORING_CATALOG } from './catalogs/media-authoring';
 import { SETTINGS_CATALOG } from './catalogs/settings';
 import { SHARING_CATALOG } from './catalogs/sharing';
 import { INTERFACE_CATALOG } from './interface-catalog';
@@ -310,6 +311,7 @@ const CATALOG = [
   ...BASE_CATALOG,
   ...INTERFACE_CATALOG,
   ...PRESENTATION_CATALOG,
+  ...MEDIA_AUTHORING_CATALOG,
   ...SHARING_CATALOG,
 ] as const;
 

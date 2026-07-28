@@ -9,7 +9,10 @@ import * as sceneTransform from '@sceneboard/board-sdk/scene-transform';
 import * as sse from '@sceneboard/board-sdk/sse';
 
 test('the serialized SDK checkpoint resolves all six exact package targets', () => {
-  assert.deepEqual(Object.keys(documentTransform).sort(), ['applyDocumentTransformV2']);
+  assert.deepEqual(Object.keys(documentTransform).sort(), [
+    'applyDocumentTransformV2',
+    'placeMediaImageOnPageV1',
+  ]);
   assert.deepEqual(Object.keys(events).sort(), ['createBoardEventReconcilerV1']);
   assert.deepEqual(Object.keys(sse).sort(), [
     'createBoardStreamClientV1',

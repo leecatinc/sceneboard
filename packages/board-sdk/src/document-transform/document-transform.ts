@@ -1,7 +1,11 @@
 import {
+  BOARD_LIMITS_V1,
   BoardDocumentParserV2,
+  collectDocumentNodesV2,
   type BoardDocumentV2,
   type BoardError,
+  type ImageNodeV1,
+  type NodeId,
   type BoardPageV2,
   type BoardParseResult,
   type PageDisplayModeV1,
@@ -22,6 +26,24 @@ export type DocumentTransformOperationV2 =
       scene?: SceneV1;
     }
   | { type: 'page.default.set'; pageId: PageId };
+
+export type MediaImagePlacementV1 =
+  | { kind: 'page-end'; wrapperNodeId: NodeId }
+  | {
+      kind: 'canvas';
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      zIndex: number;
+    };
+
+export type PlaceMediaImageOnPageInputV1 = Readonly<{
+  document: BoardDocumentV2;
+  pageId: PageId;
+  image: ImageNodeV1;
+  placement: MediaImagePlacementV1;
+}>;
 
 const invalidDocument = (
   path: Array<string | number>,
@@ -50,6 +72,96 @@ const safeIndex = (value: unknown): value is number =>
 
 const pageIndex = (document: BoardDocumentV2, pageId: PageId): number =>
   document.pages.findIndex((page) => page.pageId === pageId);
+
+const finiteCanvasPlacement = (
+  placement: Extract<MediaImagePlacementV1, { kind: 'canvas' }>,
+): boolean =>
+  Number.isFinite(placement.x) &&
+  Number.isFinite(placement.y) &&
+  Number.isFinite(placement.width) &&
+  Number.isFinite(placement.height) &&
+  placement.x >= 0 &&
+  placement.y >= 0 &&
+  placement.width > 0 &&
+  placement.height > 0 &&
+  Number.isSafeInteger(placement.zIndex);
+
+export const placeMediaImageOnPageV1 = (
+  input: PlaceMediaImageOnPageInputV1,
+): BoardParseResult<BoardDocumentV2> => {
+  const source = BoardDocumentParserV2.parse(input.document);
+  if (!source.ok) return source;
+  const current = source.data.value;
+  const index = pageIndex(current, input.pageId);
+  if (index < 0) return failed(invalidDocument(['pageId'], 'unresolved_reference'));
+  if (input.image.type !== 'content.image' || input.image.source.type !== 'media')
+    return failed(invalidDocument(['image'], 'limit'));
+
+  const ids = new Set(collectDocumentNodesV2(current).map(({ node }) => node.id));
+  if (ids.has(input.image.id)) return failed(invalidDocument(['image', 'id'], 'limit'));
+  if (
+    input.placement.kind === 'page-end' &&
+    (input.placement.wrapperNodeId === input.image.id || ids.has(input.placement.wrapperNodeId))
+  )
+    return failed(invalidDocument(['placement', 'wrapperNodeId'], 'limit'));
+
+  const page = current.pages[index];
+  if (page === undefined) return failed(invalidDocument(['pageId'], 'unresolved_reference'));
+  const root = page.scene.root;
+  let nextRoot: SceneV1['root'];
+
+  if (root?.type === 'layout.canvas') {
+    if (input.placement.kind !== 'canvas' || !finiteCanvasPlacement(input.placement))
+      return failed(invalidDocument(['placement'], 'limit'));
+    if (root.children.length >= BOARD_LIMITS_V1.maxCanvasItems)
+      return failed(invalidDocument(['placement'], 'limit'));
+    if (
+      input.placement.x + input.placement.width > root.width ||
+      input.placement.y + input.placement.height > root.height
+    )
+      return failed(invalidDocument(['placement'], 'limit'));
+    nextRoot = {
+      ...root,
+      children: [
+        ...root.children,
+        {
+          node: input.image,
+          x: input.placement.x,
+          y: input.placement.y,
+          width: input.placement.width,
+          height: input.placement.height,
+          zIndex: input.placement.zIndex,
+        },
+      ],
+    };
+  } else {
+    if (input.placement.kind !== 'page-end') return failed(invalidDocument(['placement'], 'limit'));
+    if (root === null) nextRoot = input.image;
+    else if (root.type === 'layout.split' && root.direction === 'vertical') {
+      if (root.children.length >= BOARD_LIMITS_V1.maxSplitChildren)
+        return failed(invalidDocument(['placement'], 'limit'));
+      nextRoot = {
+        ...root,
+        children: [...root.children, { node: input.image, weight: 1 }],
+      };
+    } else {
+      nextRoot = {
+        id: input.placement.wrapperNodeId,
+        type: 'layout.split',
+        direction: 'vertical',
+        gap: 16,
+        children: [
+          { node: root, weight: 1 },
+          { node: input.image, weight: 1 },
+        ],
+      };
+    }
+  }
+
+  const pages = [...current.pages];
+  pages[index] = { ...page, scene: { ...page.scene, root: nextRoot } };
+  return BoardDocumentParserV2.parse({ ...current, pages });
+};
 
 export const applyDocumentTransformV2 = (
   source: BoardDocumentV2,

@@ -4,6 +4,7 @@ import type { BoardDocumentV2, PageId } from '@sceneboard/board-schema';
 import { applyDocumentTransformV2 } from '@sceneboard/board-sdk/document-transform';
 
 import { BoardApiTransport } from './board-api-core';
+import type { AuthoringGenerationBindingV1 } from '../auth/renewal-singleflight';
 import type {
   ApiResult,
   BrowserDocumentMutationInput,
@@ -32,6 +33,14 @@ export class BoardDocumentApi extends BoardApiTransport {
       },
       signal,
     );
+  }
+
+  replaceForGeneration(
+    binding: AuthoringGenerationBindingV1,
+    request: DocumentMutationRequest,
+    signal?: AbortSignal,
+  ) {
+    return this.writeDocumentMutationForGeneration(binding, request, signal);
   }
 }
 

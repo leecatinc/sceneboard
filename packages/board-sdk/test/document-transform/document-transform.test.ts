@@ -4,10 +4,14 @@ import test from 'node:test';
 import {
   BoardDocumentParserV2,
   type BoardDocumentV2,
+  type ImageNodeV1,
   type BoardPageV2,
 } from '@sceneboard/board-schema';
 
-import { applyDocumentTransformV2 } from '../../src/document-transform/index.js';
+import {
+  applyDocumentTransformV2,
+  placeMediaImageOnPageV1,
+} from '../../src/document-transform/index.js';
 
 const page = (pageId: string, title = pageId): BoardPageV2 => ({
   pageId: pageId as never,
@@ -129,4 +133,158 @@ test('rejects extra operation fields and duplicate page/node identities through 
   });
   assert.equal(duplicatePage.ok, false);
   if (!duplicatePage.ok) assert.equal(duplicatePage.error.code, 'INVALID_DOCUMENT');
+});
+
+const image = (id = 'image_new'): ImageNodeV1 => ({
+  id: id as never,
+  type: 'content.image',
+  source: { type: 'media', mediaId: 'media_1' as never },
+  decorative: false,
+  alt: 'Uploaded image',
+  fit: 'contain',
+});
+
+test('places media images at page end without mutating the source', () => {
+  const empty = document();
+  const emptyBefore = structuredClone(empty);
+  const placedEmpty = placeMediaImageOnPageV1({
+    document: empty,
+    pageId: 'page_a' as never,
+    image: image(),
+    placement: { kind: 'page-end', wrapperNodeId: 'wrapper_new' as never },
+  });
+  assert.equal(placedEmpty.ok, true);
+  if (!placedEmpty.ok) return;
+  assert.equal(placedEmpty.data.value.pages[0]?.scene.root?.type, 'content.image');
+  assert.deepEqual(empty, emptyBefore);
+
+  const markdown = structuredClone(empty);
+  markdown.pages[0]!.scene.root = {
+    id: 'markdown_old' as never,
+    type: 'content.markdown',
+    markdown: 'Existing',
+  };
+  const wrapped = placeMediaImageOnPageV1({
+    document: markdown,
+    pageId: 'page_a' as never,
+    image: image(),
+    placement: { kind: 'page-end', wrapperNodeId: 'wrapper_new' as never },
+  });
+  assert.equal(wrapped.ok, true);
+  if (!wrapped.ok) return;
+  const root = wrapped.data.value.pages[0]?.scene.root;
+  assert.equal(root?.type, 'layout.split');
+  if (root?.type === 'layout.split') {
+    assert.equal(root.direction, 'vertical');
+    assert.equal(root.gap, 16);
+    assert.deepEqual(
+      root.children.map(({ node, weight }) => [node.id, weight]),
+      [
+        ['markdown_old', 1],
+        ['image_new', 1],
+      ],
+    );
+  }
+
+  const appended = placeMediaImageOnPageV1({
+    document: wrapped.data.value,
+    pageId: 'page_a' as never,
+    image: image('image_second'),
+    placement: { kind: 'page-end', wrapperNodeId: 'unused_wrapper' as never },
+  });
+  assert.equal(appended.ok, true);
+  if (appended.ok && appended.data.value.pages[0]?.scene.root?.type === 'layout.split')
+    assert.equal(appended.data.value.pages[0].scene.root.children.length, 3);
+});
+
+test('places media images in canvas only within finite bounds', () => {
+  const source = document();
+  source.pages[0]!.scene.root = {
+    id: 'canvas_root' as never,
+    type: 'layout.canvas',
+    width: 1_000,
+    height: 800,
+    children: [
+      {
+        node: {
+          id: 'markdown_old' as never,
+          type: 'content.markdown',
+          markdown: 'Existing',
+        },
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 100,
+        zIndex: 0,
+      },
+    ],
+  };
+  const placed = placeMediaImageOnPageV1({
+    document: source,
+    pageId: 'page_a' as never,
+    image: image(),
+    placement: { kind: 'canvas', x: 200, y: 100, width: 640, height: 480, zIndex: 1 },
+  });
+  assert.equal(placed.ok, true);
+  if (placed.ok && placed.data.value.pages[0]?.scene.root?.type === 'layout.canvas')
+    assert.deepEqual(placed.data.value.pages[0].scene.root.children[1], {
+      node: image(),
+      x: 200,
+      y: 100,
+      width: 640,
+      height: 480,
+      zIndex: 1,
+    });
+
+  for (const placement of [
+    { kind: 'page-end', wrapperNodeId: 'wrapper_new' },
+    { kind: 'canvas', x: 900, y: 100, width: 200, height: 100, zIndex: 1 },
+    { kind: 'canvas', x: Number.NaN, y: 0, width: 10, height: 10, zIndex: 1 },
+  ] as const) {
+    const failed = placeMediaImageOnPageV1({
+      document: source,
+      pageId: 'page_a' as never,
+      image: image(),
+      placement: placement as never,
+    });
+    assert.equal(failed.ok, false);
+  }
+});
+
+test('rejects missing pages, cross-kind placement, and node identity collisions atomically', () => {
+  const source = document();
+  source.pages[0]!.scene.root = {
+    id: 'existing' as never,
+    type: 'content.markdown',
+    markdown: 'Existing',
+  };
+  const before = structuredClone(source);
+  const cases = [
+    {
+      document: source,
+      pageId: 'missing',
+      image: image(),
+      placement: { kind: 'page-end', wrapperNodeId: 'wrapper_new' },
+    },
+    {
+      document: source,
+      pageId: 'page_a',
+      image: image('existing'),
+      placement: { kind: 'page-end', wrapperNodeId: 'wrapper_new' },
+    },
+    {
+      document: source,
+      pageId: 'page_a',
+      image: image(),
+      placement: { kind: 'page-end', wrapperNodeId: 'existing' },
+    },
+    {
+      document: source,
+      pageId: 'page_a',
+      image: image(),
+      placement: { kind: 'canvas', x: 0, y: 0, width: 10, height: 10, zIndex: 0 },
+    },
+  ];
+  for (const input of cases) assert.equal(placeMediaImageOnPageV1(input as never).ok, false);
+  assert.deepEqual(source, before);
 });

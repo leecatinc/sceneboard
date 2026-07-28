@@ -59,6 +59,7 @@ export interface SessionCoordinatorDependencies {
   fetcher: typeof fetch;
   randomBytes(length: number): Uint8Array;
   notify?(): void;
+  subscribeGenerationHints?(listener: () => void): () => void;
 }
 
 export type CoordinatorResult<Value> =
@@ -83,11 +84,61 @@ export interface ConsumedResponse {
   bytes: Uint8Array;
 }
 
+declare const AUTHORING_BINDING: unique symbol;
+declare const BOARD_BINARY_ATTEMPT: unique symbol;
+
+export type AuthoringGenerationBindingV1 = Readonly<{
+  [AUTHORING_BINDING]: true;
+  sessionGeneration: string;
+}>;
+
+export type BoardBinaryAttemptV1 = Readonly<{
+  [BOARD_BINARY_ATTEMPT]: true;
+  binding: AuthoringGenerationBindingV1;
+  sessionGeneration: string;
+  requestId: string;
+  path: string;
+  method: 'POST';
+  contentType: 'image/png' | 'image/jpeg' | 'image/webp';
+  contentLength: number;
+  contentDigest: string;
+  idempotencyKey: string;
+  csrfToken: string;
+  blob: Blob;
+}>;
+
+export type BoardBinaryAttemptInputV1 = Readonly<{
+  requestId: string;
+  path: string;
+  contentType: 'image/png' | 'image/jpeg' | 'image/webp';
+  contentDigest: string;
+  idempotencyKey: string;
+  csrfToken: string;
+  blob: Blob;
+}>;
+
+export type BoardBinaryBindResultV1 =
+  | {
+      kind: 'bound';
+      attempt: BoardBinaryAttemptV1;
+      binding: AuthoringGenerationBindingV1;
+    }
+  | { kind: 'stale_attempt' }
+  | { kind: 'unsupported_browser' };
+
+export type GenerationBoundDispatchResultV1 =
+  | { kind: 'ok'; value: ConsumedResponse }
+  | { kind: 'transport_uncertain' }
+  | { kind: 'stale_attempt' }
+  | { kind: 'unsupported_browser' };
+
 export class SessionRequestCoordinator implements BoardStreamDispatchPortV1 {
   private observedGeneration: string | null = null;
   private snapshot: AuthSessionSnapshot | null = null;
   private supported: boolean | null = null;
   private renewal: Promise<CoordinatorResult<AuthSessionSnapshot>> | null = null;
+  private readonly authoringBindings = new WeakSet<object>();
+  private readonly binaryAttempts = new WeakSet<object>();
 
   constructor(
     private readonly apiOrigin: string,
@@ -99,6 +150,176 @@ export class SessionRequestCoordinator implements BoardStreamDispatchPortV1 {
 
   currentSnapshot(): AuthSessionSnapshot | null {
     return this.snapshot;
+  }
+
+  async bindBoardBinaryAttempt(input: BoardBinaryAttemptInputV1): Promise<BoardBinaryBindResultV1> {
+    if (!this.ensureSupported()) return { kind: 'unsupported_browser' };
+    if (
+      !GENERATION_PATTERN.test(this.observedGeneration ?? '') ||
+      this.snapshot?.csrfToken !== input.csrfToken ||
+      input.blob.size < 1 ||
+      input.blob.type !== input.contentType ||
+      !/^sha-256=:[A-Za-z0-9+/]{43}=:$/u.test(input.contentDigest) ||
+      !/^[A-Za-z0-9._~-]{16,128}$/u.test(input.idempotencyKey) ||
+      !/^[A-Za-z0-9_-]{1,128}$/u.test(input.requestId) ||
+      !/^\/api\/v1\/boards\/[A-Za-z0-9_-]{1,128}\/media\?requestId=[A-Za-z0-9_%~-]+$/u.test(
+        input.path,
+      ) ||
+      !input.path.endsWith(`?requestId=${encodeURIComponent(input.requestId)}`)
+    )
+      return { kind: 'stale_attempt' };
+    const result = await this.withApplicationLease('shared', async (lease) => {
+      if (!this.provesCurrentGeneration(lease, this.observedGeneration!, input.csrfToken))
+        return { kind: 'stale_attempt' as const };
+      const binding = Object.freeze({
+        sessionGeneration: lease.expectedGeneration!,
+      }) as AuthoringGenerationBindingV1;
+      const attempt = Object.freeze({
+        binding,
+        sessionGeneration: lease.expectedGeneration!,
+        requestId: input.requestId,
+        path: input.path,
+        method: 'POST' as const,
+        contentType: input.contentType,
+        contentLength: input.blob.size,
+        contentDigest: input.contentDigest,
+        idempotencyKey: input.idempotencyKey,
+        csrfToken: input.csrfToken,
+        blob: input.blob,
+      }) as BoardBinaryAttemptV1;
+      this.authoringBindings.add(binding);
+      this.binaryAttempts.add(attempt);
+      return { kind: 'bound' as const, attempt, binding };
+    });
+    if (result.kind === 'reconciliation_required' || result.kind === 'ok')
+      return { kind: 'stale_attempt' };
+    if (result.kind === 'unsupported_browser') return result;
+    return result;
+  }
+
+  async dispatchBoardBinary(
+    attempt: BoardBinaryAttemptV1,
+    signal: AbortSignal,
+  ): Promise<GenerationBoundDispatchResultV1> {
+    if (!this.ensureSupported()) return { kind: 'unsupported_browser' };
+    if (!this.binaryAttempts.has(attempt) || !this.authoringBindings.has(attempt.binding))
+      return { kind: 'stale_attempt' };
+    let fetched = false;
+    try {
+      const result = await this.withApplicationLease('shared', async (lease) => {
+        if (!this.provesCurrentGeneration(lease, attempt.sessionGeneration, attempt.csrfToken))
+          return { kind: 'stale_attempt' as const };
+        const headers = new Headers({
+          'Content-Type': attempt.contentType,
+          'Content-Digest': attempt.contentDigest,
+          'Idempotency-Key': attempt.idempotencyKey,
+          'X-CSRF-Token': attempt.csrfToken,
+        });
+        fetched = true;
+        const response = await this.dependencies.fetcher(`${this.apiOrigin}${attempt.path}`, {
+          method: attempt.method,
+          credentials: 'include',
+          headers,
+          body: attempt.blob,
+          signal,
+        });
+        const consumed = await consume(response, signal);
+        if (
+          response.status === 401 ||
+          response.status === 503 ||
+          !this.provesCurrentGeneration(lease, attempt.sessionGeneration, attempt.csrfToken)
+        )
+          return { kind: 'stale_attempt' as const };
+        return { kind: 'ok' as const, value: consumed };
+      });
+      return result.kind === 'reconciliation_required' ? { kind: 'stale_attempt' } : result;
+    } catch {
+      return fetched &&
+        this.provesCurrentGenerationNow(attempt.sessionGeneration, attempt.csrfToken)
+        ? { kind: 'transport_uncertain' }
+        : { kind: 'stale_attempt' };
+    }
+  }
+
+  async dispatchSharedForGeneration(
+    binding: AuthoringGenerationBindingV1,
+    request: SharedCookieRequest,
+  ): Promise<GenerationBoundDispatchResultV1> {
+    if (!this.ensureSupported()) return { kind: 'unsupported_browser' };
+    if (!this.authoringBindings.has(binding)) return { kind: 'stale_attempt' };
+    let fetched = false;
+    try {
+      const result = await this.withApplicationLease('shared', async (lease) => {
+        const csrfToken = this.snapshot?.csrfToken;
+        if (
+          csrfToken === undefined ||
+          request.csrfToken !== csrfToken ||
+          !this.provesCurrentGeneration(lease, binding.sessionGeneration, csrfToken)
+        )
+          return { kind: 'stale_attempt' as const };
+        const headers = new Headers();
+        if (request.body !== undefined)
+          headers.set('Content-Type', request.contentType ?? 'application/json');
+        headers.set('X-CSRF-Token', csrfToken);
+        if (request.idempotencyKey !== undefined)
+          headers.set('Idempotency-Key', request.idempotencyKey);
+        fetched = true;
+        const response = await this.dependencies.fetcher(`${this.apiOrigin}${request.path}`, {
+          method: request.method,
+          credentials: 'include',
+          headers,
+          ...(request.body === undefined ? {} : { body: JSON.stringify(request.body) }),
+          ...(request.signal === undefined ? {} : { signal: request.signal }),
+        });
+        const consumed = await consume(response, request.signal, request.responseKind);
+        if (
+          response.status === 401 ||
+          response.status === 503 ||
+          !this.provesCurrentGeneration(lease, binding.sessionGeneration, csrfToken)
+        )
+          return { kind: 'stale_attempt' as const };
+        return { kind: 'ok' as const, value: consumed };
+      });
+      return result.kind === 'reconciliation_required' ? { kind: 'stale_attempt' } : result;
+    } catch {
+      const csrfToken = this.snapshot?.csrfToken;
+      return fetched &&
+        csrfToken !== undefined &&
+        request.csrfToken === csrfToken &&
+        this.provesCurrentGenerationNow(binding.sessionGeneration, csrfToken)
+        ? { kind: 'transport_uncertain' }
+        : { kind: 'stale_attempt' };
+    }
+  }
+
+  subscribeGenerationInvalidation(
+    binding: AuthoringGenerationBindingV1,
+    listener: () => void,
+  ): () => void {
+    if (!this.authoringBindings.has(binding)) {
+      queueMicrotask(listener);
+      return () => undefined;
+    }
+    let active = true;
+    const inspect = () => {
+      void this.withApplicationLease('shared', async (lease) => {
+        const csrfToken = this.snapshot?.csrfToken;
+        if (
+          csrfToken === undefined ||
+          !this.provesCurrentGeneration(lease, binding.sessionGeneration, csrfToken)
+        )
+          if (active) listener();
+      }).then((result) => {
+        if (active && result?.kind === 'reconciliation_required') listener();
+      });
+    };
+    const unsubscribe = this.dependencies.subscribeGenerationHints?.(() => {
+      if (active) inspect();
+    });
+    return () => {
+      active = false;
+      unsubscribe?.();
+    };
   }
 
   async reconcileSessionGeneration(): Promise<CoordinatorResult<AuthSessionSnapshot | null>> {
@@ -504,6 +725,31 @@ export class SessionRequestCoordinator implements BoardStreamDispatchPortV1 {
     }
   }
 
+  private provesCurrentGeneration(
+    lease: SessionCookieLease,
+    generation: string,
+    csrfToken: string,
+  ): boolean {
+    return (
+      lease.active &&
+      lease.mode === 'shared' &&
+      GENERATION_PATTERN.test(generation) &&
+      lease.expectedGeneration === generation &&
+      this.observedGeneration === generation &&
+      this.readAuthoritativeGeneration() === generation &&
+      this.snapshot?.csrfToken === csrfToken
+    );
+  }
+
+  private provesCurrentGenerationNow(generation: string, csrfToken: string): boolean {
+    return (
+      GENERATION_PATTERN.test(generation) &&
+      this.observedGeneration === generation &&
+      this.readAuthoritativeGeneration() === generation &&
+      this.snapshot?.csrfToken === csrfToken
+    );
+  }
+
   private writeGeneration(value: string): void {
     this.dependencies.storage.setItem(GENERATION_KEY, value);
     if (this.dependencies.storage.getItem(GENERATION_KEY) !== value)
@@ -689,6 +935,18 @@ export const browserSessionCoordinator = (apiOrigin: string): SessionRequestCoor
     fetcher: (...arguments_) => fetch(...arguments_),
     randomBytes: (length) => crypto.getRandomValues(new Uint8Array(length)),
     notify: () => channel.postMessage({ type: 'generation-changed' }),
+    subscribeGenerationHints: (listener) => {
+      const onMessage = () => listener();
+      const onStorage = (event: StorageEvent) => {
+        if (event.storageArea === storage && event.key === GENERATION_KEY) listener();
+      };
+      channel.addEventListener('message', onMessage);
+      window.addEventListener('storage', onStorage);
+      return () => {
+        channel.removeEventListener('message', onMessage);
+        window.removeEventListener('storage', onStorage);
+      };
+    },
   });
 };
 
