@@ -6,6 +6,7 @@ import {
   BoardOperationResultParserV2,
   MutationResultParserV1,
   MutationResultParserV2,
+  MediaIngestResultParserV1,
 } from '@sceneboard/board-schema';
 import type {
   BoardSdkDocumentHttpResultV2,
@@ -40,7 +41,9 @@ export type BoardToolNameV1 =
   | 'board_artifact_stop'
   | 'board_interaction_request'
   | 'board_interaction_status'
-  | 'board_interaction_respond';
+  | 'board_interaction_respond'
+  | 'sceneboard_media_upload'
+  | 'sceneboard_media_place';
 
 export type CoreToolNameV1 = Exclude<
   BoardToolNameV1,
@@ -86,6 +89,30 @@ export type BoardMcpLocalErrorV1 =
   | { code: 'BOARD_MCP_CANCELLED'; message: string; retryable: false; details: null }
   | { code: 'BOARD_MCP_RESPONSE_INVALID'; message: string; retryable: false; details: unknown }
   | {
+      code: 'BOARD_MCP_LOCAL_FILE_CHANGED';
+      message: 'Local media file changed during capture';
+      retryable: false;
+      details: null;
+    }
+  | {
+      code: 'BOARD_MCP_LOCAL_FILE_PLATFORM_UNSUPPORTED';
+      message: 'Secure local media capture is unavailable on this platform';
+      retryable: false;
+      details: null;
+    }
+  | {
+      code: 'BOARD_MCP_LOCAL_FILE_TOO_LARGE';
+      message: 'Local media file exceeds the upload limit';
+      retryable: false;
+      details: { limitBytes: 10_485_760 };
+    }
+  | {
+      code: 'BOARD_MCP_LOCAL_MEDIA_UNSUPPORTED';
+      message: 'Local media file format is unsupported';
+      retryable: false;
+      details: { allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp'] };
+    }
+  | {
       code: 'BOARD_MCP_INTERNAL_ERROR';
       message: string;
       retryable: false;
@@ -107,8 +134,36 @@ const LOCAL_ERROR_CODES_V1 = [
   'BOARD_MCP_TIMEOUT',
   'BOARD_MCP_CANCELLED',
   'BOARD_MCP_RESPONSE_INVALID',
+  'BOARD_MCP_LOCAL_FILE_CHANGED',
+  'BOARD_MCP_LOCAL_FILE_PLATFORM_UNSUPPORTED',
+  'BOARD_MCP_LOCAL_FILE_TOO_LARGE',
+  'BOARD_MCP_LOCAL_MEDIA_UNSUPPORTED',
   'BOARD_MCP_INTERNAL_ERROR',
 ] as const;
+const GENERIC_LOCAL_ERROR_CODES_V1 = LOCAL_ERROR_CODES_V1.filter(
+  (code) =>
+    code !== 'BOARD_MCP_LOCAL_FILE_CHANGED' &&
+    code !== 'BOARD_MCP_LOCAL_FILE_PLATFORM_UNSUPPORTED' &&
+    code !== 'BOARD_MCP_LOCAL_FILE_TOO_LARGE' &&
+    code !== 'BOARD_MCP_LOCAL_MEDIA_UNSUPPORTED',
+) as [
+  Exclude<
+    (typeof LOCAL_ERROR_CODES_V1)[number],
+    | 'BOARD_MCP_LOCAL_FILE_CHANGED'
+    | 'BOARD_MCP_LOCAL_FILE_PLATFORM_UNSUPPORTED'
+    | 'BOARD_MCP_LOCAL_FILE_TOO_LARGE'
+    | 'BOARD_MCP_LOCAL_MEDIA_UNSUPPORTED'
+  >,
+  ...Array<
+    Exclude<
+      (typeof LOCAL_ERROR_CODES_V1)[number],
+      | 'BOARD_MCP_LOCAL_FILE_CHANGED'
+      | 'BOARD_MCP_LOCAL_FILE_PLATFORM_UNSUPPORTED'
+      | 'BOARD_MCP_LOCAL_FILE_TOO_LARGE'
+      | 'BOARD_MCP_LOCAL_MEDIA_UNSUPPORTED'
+    >
+  >,
+];
 
 const D1_RESULT_TYPES_V1 = {
   board_list: ['board.list'],
@@ -136,6 +191,8 @@ const D1_RESULT_TYPES_V1 = {
   board_interaction_request: ['hitl.request'],
   board_interaction_status: ['hitl.read'],
   board_interaction_respond: ['hitl.respond'],
+  sceneboard_media_upload: ['media.ingest.result'],
+  sceneboard_media_place: ['document.replace'],
 } as const satisfies Partial<Record<BoardToolNameV1, readonly string[]>>;
 
 export const toolOutputSchemaV1 = (
@@ -144,10 +201,53 @@ export const toolOutputSchemaV1 = (
 ): z.ZodTypeAny => {
   const upstreamCode = z.enum(reachableCodes);
   const value = (code: z.ZodTypeAny) => z.object({ code }).passthrough();
+  const localValue = z.union([
+    value(z.enum(GENERIC_LOCAL_ERROR_CODES_V1)),
+    z
+      .object({
+        code: z.literal('BOARD_MCP_LOCAL_FILE_CHANGED'),
+        message: z.literal('Local media file changed during capture'),
+        retryable: z.literal(false),
+        details: z.null(),
+      })
+      .strict(),
+    z
+      .object({
+        code: z.literal('BOARD_MCP_LOCAL_FILE_PLATFORM_UNSUPPORTED'),
+        message: z.literal('Secure local media capture is unavailable on this platform'),
+        retryable: z.literal(false),
+        details: z.null(),
+      })
+      .strict(),
+    z
+      .object({
+        code: z.literal('BOARD_MCP_LOCAL_FILE_TOO_LARGE'),
+        message: z.literal('Local media file exceeds the upload limit'),
+        retryable: z.literal(false),
+        details: z.object({ limitBytes: z.literal(10_485_760) }).strict(),
+      })
+      .strict(),
+    z
+      .object({
+        code: z.literal('BOARD_MCP_LOCAL_MEDIA_UNSUPPORTED'),
+        message: z.literal('Local media file format is unsupported'),
+        retryable: z.literal(false),
+        details: z
+          .object({
+            allowedMimeTypes: z.tuple([
+              z.literal('image/png'),
+              z.literal('image/jpeg'),
+              z.literal('image/webp'),
+            ]),
+          })
+          .strict(),
+      })
+      .strict(),
+  ]);
   const error = z.discriminatedUnion('source', [
     z.object({ source: z.literal('board'), value: value(upstreamCode) }).strict(),
     z.object({ source: z.literal('pairing'), value: value(upstreamCode) }).strict(),
-    z.object({ source: z.literal('mcp'), value: value(z.enum(LOCAL_ERROR_CODES_V1)) }).strict(),
+    z.object({ source: z.literal('mcp'), value: localValue }).strict(),
   ]);
   const descriptor = z
     .object({
@@ -195,13 +295,32 @@ export const toolOutputSchemaV1 = (
       }
       const expected = D1_RESULT_TYPES_V1[tool as keyof typeof D1_RESULT_TYPES_V1];
       if (expected !== undefined) {
+        if (tool === 'sceneboard_media_upload') {
+          const media = MediaIngestResultParserV1.parse(output.result);
+          if (!media.ok) {
+            context.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ['result'],
+              message: 'result is not an exact media ingest result',
+            });
+          }
+          if (output.metadata !== null) {
+            context.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ['metadata'],
+              message: 'media ingest metadata must be null',
+            });
+          }
+          return;
+        }
         const documentTool =
           tool === 'board_document_replace' ||
           tool === 'board_page_add' ||
           tool === 'board_page_remove' ||
           tool === 'board_page_reorder' ||
           tool === 'board_page_update' ||
-          tool === 'board_page_default_set';
+          tool === 'board_page_default_set' ||
+          tool === 'sceneboard_media_place';
         const documentReadTool = tool === 'board_document_get';
         const parsed =
           output.result.type === 'mutation.result'
@@ -336,6 +455,56 @@ export const notConnectedV1 = (): BoardMcpLocalErrorV1 => ({
   message: 'SceneBoard is not connected',
   retryable: false,
   details: null,
+});
+
+export const credentialUnavailableV1 = (): BoardMcpLocalErrorV1 => ({
+  code: 'BOARD_MCP_CREDENTIAL_UNAVAILABLE',
+  message: 'SceneBoard credential is unavailable',
+  retryable: false,
+  details: null,
+});
+
+export const localMediaErrorV1 = (
+  code:
+    | 'LOCAL_FILE_CHANGED'
+    | 'LOCAL_FILE_PLATFORM_UNSUPPORTED'
+    | 'LOCAL_FILE_TOO_LARGE'
+    | 'LOCAL_MEDIA_UNSUPPORTED',
+): BoardMcpLocalErrorV1 => {
+  if (code === 'LOCAL_FILE_CHANGED')
+    return {
+      code: 'BOARD_MCP_LOCAL_FILE_CHANGED',
+      message: 'Local media file changed during capture',
+      retryable: false,
+      details: null,
+    };
+  if (code === 'LOCAL_FILE_PLATFORM_UNSUPPORTED')
+    return {
+      code: 'BOARD_MCP_LOCAL_FILE_PLATFORM_UNSUPPORTED',
+      message: 'Secure local media capture is unavailable on this platform',
+      retryable: false,
+      details: null,
+    };
+  if (code === 'LOCAL_FILE_TOO_LARGE')
+    return {
+      code: 'BOARD_MCP_LOCAL_FILE_TOO_LARGE',
+      message: 'Local media file exceeds the upload limit',
+      retryable: false,
+      details: { limitBytes: 10_485_760 },
+    };
+  return {
+    code: 'BOARD_MCP_LOCAL_MEDIA_UNSUPPORTED',
+    message: 'Local media file format is unsupported',
+    retryable: false,
+    details: { allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp'] },
+  };
+};
+
+export const internalToolErrorV1 = (incidentId: string): BoardMcpLocalErrorV1 => ({
+  code: 'BOARD_MCP_INTERNAL_ERROR',
+  message: 'SceneBoard tool execution failed',
+  retryable: false,
+  details: { incidentId },
 });
 
 export const localFromSdkErrorV1 = (

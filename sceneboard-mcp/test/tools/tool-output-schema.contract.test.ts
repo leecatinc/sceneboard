@@ -9,6 +9,7 @@ import type { PairingSessionOwnerV1 } from '../../src/pairing/pairing-session.ow
 import type { ProtectedBoardGatewayV1 } from '../../src/tools/protected-board.gateway.js';
 import { BOARD_TOOL_ERROR_CODES_V1, registerCoreToolsV1 } from '../../src/tools/register-tools.js';
 import { toolOutputSchemaV1 } from '../../src/tools/tool-result.js';
+import { localMediaErrorV1 } from '../../src/tools/tool-result.js';
 
 test('manual validation returns a correlated structured failure for invalid tool input', async () => {
   const server = new McpServer({ name: 'SceneBoard', version: '0.0.0' });
@@ -100,4 +101,84 @@ test('terminal tool output schemas reject wrong result tags, request IDs, metada
     }).success,
     true,
   );
+});
+
+test('media output accepts exact ingest correlation and publishes literal redacted local errors', () => {
+  const schema = toolOutputSchemaV1(
+    'sceneboard_media_upload',
+    BOARD_TOOL_ERROR_CODES_V1.sceneboard_media_upload,
+  );
+  const success = {
+    ok: true,
+    tool: 'sceneboard_media_upload',
+    requestId: 'request_1',
+    result: {
+      protocolVersion: 1,
+      type: 'media.ingest.result',
+      requestId: 'request_1',
+      status: 'created',
+      media: {
+        mediaId: 'media_1',
+        sha256: 'a'.repeat(64),
+        mime: 'image/png',
+        width: 10,
+        height: 10,
+        bytes: 8,
+      },
+    },
+    metadata: null,
+  };
+  assert.equal(schema.safeParse(success).success, true);
+  assert.equal(
+    schema.safeParse({
+      ...success,
+      result: { ...success.result, requestId: 'other_request' },
+    }).success,
+    false,
+  );
+  assert.deepEqual(localMediaErrorV1('LOCAL_FILE_CHANGED'), {
+    code: 'BOARD_MCP_LOCAL_FILE_CHANGED',
+    message: 'Local media file changed during capture',
+    retryable: false,
+    details: null,
+  });
+  assert.deepEqual(localMediaErrorV1('LOCAL_FILE_PLATFORM_UNSUPPORTED'), {
+    code: 'BOARD_MCP_LOCAL_FILE_PLATFORM_UNSUPPORTED',
+    message: 'Secure local media capture is unavailable on this platform',
+    retryable: false,
+    details: null,
+  });
+  assert.deepEqual(localMediaErrorV1('LOCAL_FILE_TOO_LARGE'), {
+    code: 'BOARD_MCP_LOCAL_FILE_TOO_LARGE',
+    message: 'Local media file exceeds the upload limit',
+    retryable: false,
+    details: { limitBytes: 10_485_760 },
+  });
+  assert.deepEqual(localMediaErrorV1('LOCAL_MEDIA_UNSUPPORTED'), {
+    code: 'BOARD_MCP_LOCAL_MEDIA_UNSUPPORTED',
+    message: 'Local media file format is unsupported',
+    retryable: false,
+    details: { allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp'] },
+  });
+  const localFailure = {
+    ok: false,
+    tool: 'sceneboard_media_upload',
+    requestId: 'request_1',
+    error: {
+      source: 'mcp',
+      value: localMediaErrorV1('LOCAL_FILE_CHANGED'),
+    },
+  };
+  assert.equal(schema.safeParse(localFailure).success, true);
+  assert.equal(
+    schema.safeParse({
+      ...localFailure,
+      error: {
+        source: 'mcp',
+        value: { ...localMediaErrorV1('LOCAL_FILE_CHANGED'), path: '/secret/file.png' },
+      },
+    }).success,
+    false,
+  );
+  assert.equal(schema.safeParse({ ...success, metadata: {} }).success, false);
 });

@@ -58,7 +58,7 @@ test('unauthenticated discovery contains exactly three safe tools and strict exp
   }
 });
 
-test('authenticated discovery contains exactly 22 core tools and no D7/D8 descriptor', async () => {
+test('authenticated discovery contains exactly 24 core tools and no D7/D8 descriptor', async () => {
   const { server, client } = await fixture(true);
   try {
     const names = (await client.listTools()).tools.map((tool) => tool.name).sort();
@@ -71,7 +71,7 @@ test('authenticated discovery contains exactly 22 core tools and no D7/D8 descri
   }
 });
 
-test('terminal readiness publishes exactly 28 tools without aliases and keeps capability denial put-only', async () => {
+test('terminal readiness publishes exactly 30 tools without aliases and keeps capability denial put-only', async () => {
   const server = new McpServer({ name: 'SceneBoard', version: '0.0.0' });
   const registry = registerCoreToolsV1(server, {
     gateway: { call: async () => ({ connected: false }) } as unknown as ProtectedBoardGatewayV1,

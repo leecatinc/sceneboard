@@ -115,6 +115,8 @@ const terminalToolNames = [
   'board_page_reorder',
   'board_page_update',
   'board_page_default_set',
+  'sceneboard_media_upload',
+  'sceneboard_media_place',
   'board_artifact_get',
   'board_artifact_put',
   'board_artifact_stop',
@@ -661,16 +663,16 @@ const observeToolRegistry = async () => {
   equal(core.slice(0, 3), terminalToolNames.slice(0, 3), 'TOOL_REGISTRY_DRIFT');
   equal(
     core,
-    [...terminalToolNames.slice(0, 19), ...terminalToolNames.slice(22, 25)],
+    [...terminalToolNames.slice(0, 21), ...terminalToolNames.slice(24, 27)],
     'TOOL_REGISTRY_DRIFT',
   );
   equal(
     downstream,
-    [...terminalToolNames.slice(19, 22), ...terminalToolNames.slice(25)],
+    [...terminalToolNames.slice(21, 24), ...terminalToolNames.slice(27)],
     'TOOL_REGISTRY_DRIFT',
   );
   equal(registered, terminalToolNames, 'TOOL_REGISTRY_DRIFT');
-  return { preAuthCount: 3, coreCount: 22, finalCount: 28, terminalNames: terminalToolNames };
+  return { preAuthCount: 3, coreCount: 24, finalCount: 30, terminalNames: terminalToolNames };
 };
 
 const observeMigrations = async (observedById) => {

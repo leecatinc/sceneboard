@@ -55,7 +55,7 @@ test('golden manifest is canonical, stable, and exactly reproducible from all 46
   assert.equal(result.resourceCount, 464);
   assert.equal(result.migrationCount, 25);
   assert.equal(result.sqlAssetCount, 28);
-  assert.equal(result.finalToolCount, 28);
+  assert.equal(result.finalToolCount, 30);
 });
 
 test('manifest hash-placement fixtures fail closed', async (context) => {

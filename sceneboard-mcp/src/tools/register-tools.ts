@@ -45,6 +45,11 @@ import {
   InteractionStatusInputSchemaV1,
   InteractionToolHandlersV1,
 } from './interaction.tools.js';
+import {
+  MediaPlaceInputSchemaV1,
+  MediaToolHandlersV1,
+  MediaUploadInputSchemaV1,
+} from './media.tools.js';
 import { ProtectedBoardGatewayV1 } from './protected-board.gateway.js';
 import {
   SceneClearInputSchemaV1,
@@ -82,6 +87,8 @@ export const CORE_TOOL_NAMES_V1 = [
   'board_page_reorder',
   'board_page_update',
   'board_page_default_set',
+  'sceneboard_media_upload',
+  'sceneboard_media_place',
   'board_history_list',
   'board_history_get',
   'board_history_restore',
@@ -100,9 +107,9 @@ export const DOWNSTREAM_TOOL_NAMES_V1 = [
 ] as const satisfies readonly Exclude<BoardToolNameV1, CoreToolNameV1>[];
 
 export const BOARD_TOOL_NAMES_V1 = [
-  ...CORE_TOOL_NAMES_V1.slice(0, 19),
+  ...CORE_TOOL_NAMES_V1.slice(0, 21),
   ...DOWNSTREAM_TOOL_NAMES_V1.slice(0, 3),
-  ...CORE_TOOL_NAMES_V1.slice(19),
+  ...CORE_TOOL_NAMES_V1.slice(21),
   ...DOWNSTREAM_TOOL_NAMES_V1.slice(3),
 ] as const satisfies readonly BoardToolNameV1[];
 
@@ -368,6 +375,41 @@ export const BOARD_TOOL_ERROR_CODES_V1 = {
     'SERVICE_UNAVAILABLE',
     'INTERNAL_ERROR',
   ],
+  sceneboard_media_upload: [
+    'INVALID_PAYLOAD',
+    'PROTOCOL_VERSION_MISMATCH',
+    'UNAUTHENTICATED',
+    'FORBIDDEN',
+    'BOARD_NOT_FOUND',
+    'INVALID_REQUEST',
+    'IDEMPOTENCY_KEY_REUSED',
+    'IDEMPOTENCY_RESULT_EXPIRED',
+    'PAYLOAD_TOO_LARGE',
+    'INVALID_MEDIA_UPLOAD',
+    'RATE_LIMITED',
+    'SERVICE_UNAVAILABLE',
+    'INTERNAL_ERROR',
+  ],
+  sceneboard_media_place: [
+    'INVALID_PAYLOAD',
+    'PROTOCOL_VERSION_MISMATCH',
+    'UNAUTHENTICATED',
+    'FORBIDDEN',
+    'BOARD_NOT_FOUND',
+    'REVISION_NOT_FOUND',
+    'REVISION_CONFLICT',
+    'IDEMPOTENCY_KEY_REUSED',
+    'DOCUMENT_VERSION_MISMATCH',
+    'INVALID_DOCUMENT',
+    'UNKNOWN_NODE_TYPE',
+    'INVALID_LAYOUT',
+    'DUPLICATE_NODE_ID',
+    'LIMIT_EXCEEDED',
+    'PAYLOAD_TOO_LARGE',
+    'RATE_LIMITED',
+    'SERVICE_UNAVAILABLE',
+    'INTERNAL_ERROR',
+  ],
   board_history_list: [
     'INVALID_PAYLOAD',
     'PROTOCOL_VERSION_MISMATCH',
@@ -509,6 +551,7 @@ export const registerCoreToolsV1 = (
   const history = new HistoryToolHandlersV1(options.gateway);
   const artifacts = new ArtifactToolHandlersV1(options.gateway);
   const interactions = new InteractionToolHandlersV1(options.gateway);
+  const media = new MediaToolHandlersV1(options.gateway);
   const names = options.downstreamReady === true ? BOARD_TOOL_NAMES_V1 : CORE_TOOL_NAMES_V1;
   const protectedNames = names.filter(
     (name) => !SAFE_TOOL_NAMES_V1.includes(name as (typeof SAFE_TOOL_NAMES_V1)[number]),
@@ -695,6 +738,20 @@ export const registerCoreToolsV1 = (
     'Set the existing default page through a whole-document replacement.',
     PageDefaultSetInputSchemaV2,
     (raw, signal) => documents.defaultSet(raw, signal),
+    true,
+  );
+  add(
+    'sceneboard_media_upload',
+    'Upload one explicitly authorized local PNG, JPEG, or WebP file.',
+    MediaUploadInputSchemaV1,
+    (raw, signal) => media.upload(raw, signal),
+    true,
+  );
+  add(
+    'sceneboard_media_place',
+    'Place one immutable media image in an exact V2 document revision.',
+    MediaPlaceInputSchemaV1,
+    (raw, signal) => media.place(raw, signal),
     true,
   );
   if (options.downstreamReady === true) {
