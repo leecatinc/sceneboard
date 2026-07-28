@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sceneboard.dev/schemas/run-exclusion.v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "status",
+    "decisionId",
+    "campaignIds",
+    "provenance",
+    "decisionProvenanceSha256",
+    "runId",
+    "timestamp",
+    "reason",
+    "attemptId"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "status": { "const": "excluded-by-user-current-run" },
+    "decisionId": { "const": "AMD-06" },
+    "campaignIds": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": { "enum": ["database-capacity", "redis-loss-capacity", "multi-client-capacity"] }
+    },
+    "provenance": { "const": "user-decision" },
+    "decisionProvenanceSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "runId": { "type": "string", "minLength": 1 },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "reason": { "type": "string", "minLength": 1 },
+    "attemptId": { "type": "string", "minLength": 1 }
+  }
+}

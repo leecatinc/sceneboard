@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sceneboard.dev/schemas/presentation-contract-manifest.v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "manifestVersion",
+    "inputInventorySha256",
+    "requirements",
+    "decisions",
+    "owners",
+    "publishers",
+    "evidence",
+    "exclusions"
+  ],
+  "properties": {
+    "manifestVersion": { "const": 1 },
+    "inputInventorySha256": { "$ref": "#/$defs/sha256" },
+    "requirements": {
+      "type": "array",
+      "minItems": 16,
+      "maxItems": 16,
+      "items": { "$ref": "#/$defs/requirement" }
+    },
+    "decisions": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": { "$ref": "#/$defs/decision" }
+    },
+    "owners": {
+      "type": "array",
+      "minItems": 28,
+      "maxItems": 28,
+      "items": { "$ref": "#/$defs/owner" }
+    },
+    "publishers": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/publisher" }
+    },
+    "evidence": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/evidence" }
+    },
+    "exclusions": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "items": { "$ref": "#/$defs/exclusion" }
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "issue": { "type": "string", "pattern": "^I-(1[7-9]|2[0-9]|3[0-9]|4[0-4])$" },
+    "boundary": { "enum": ["D1", "D2", "D3", "D4", "D5", "D6", "D7", "D8", "D9"] },
+    "requirement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requirementId", "ownerIssues", "publisherIds", "evidenceIds"],
+      "properties": {
+        "requirementId": { "type": "string", "pattern": "^REQ-1(1[8-9]|2[0-9]|3[0-3])$" },
+        "ownerIssues": { "type": "array", "items": { "$ref": "#/$defs/issue" }, "uniqueItems": true },
+        "publisherIds": { "type": "array", "minItems": 1, "items": { "type": "string" }, "uniqueItems": true },
+        "evidenceIds": { "type": "array", "minItems": 1, "items": { "type": "string" }, "uniqueItems": true }
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decisionId",
+        "ownerIssue",
+        "boundaryOwner",
+        "canonicalPublisherId",
+        "canonicalInputSha256",
+        "evidenceIds",
+        "releaseIndexPath"
+      ],
+      "properties": {
+        "decisionId": { "type": "string" },
+        "ownerIssue": { "$ref": "#/$defs/issue" },
+        "boundaryOwner": { "$ref": "#/$defs/boundary" },
+        "canonicalPublisherId": { "type": "string" },
+        "canonicalInputSha256": { "$ref": "#/$defs/sha256" },
+        "evidenceIds": { "type": "array", "minItems": 1, "items": { "type": "string" }, "uniqueItems": true },
+        "releaseIndexPath": { "type": "string" }
+      }
+    },
+    "owner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["issueId", "boundaryOwner"],
+      "properties": {
+        "issueId": { "$ref": "#/$defs/issue" },
+        "boundaryOwner": { "$ref": "#/$defs/boundary" }
+      }
+    },
+    "publisher": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["publisherId", "kind", "ownerIssue", "boundaryOwner", "path", "sha256"],
+      "properties": {
+        "publisherId": { "type": "string" },
+        "kind": {
+          "enum": ["schema", "migration-registry", "migration-sql", "http-route", "mcp-tool", "skill-source", "skill-archive", "browser-scenario", "deterministic-evidence", "security-inventory", "exclusion-schema", "exclusion-record"]
+        },
+        "ownerIssue": { "$ref": "#/$defs/issue" },
+        "boundaryOwner": { "$ref": "#/$defs/boundary" },
+        "path": { "type": "string" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["evidenceId", "publisherId", "ownerIssue", "boundaryOwner", "status", "sha256"],
+      "properties": {
+        "evidenceId": { "type": "string" },
+        "publisherId": { "type": "string" },
+        "ownerIssue": { "$ref": "#/$defs/issue" },
+        "boundaryOwner": { "$ref": "#/$defs/boundary" },
+        "status": { "const": "PASS" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "exclusion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decisionId", "status", "recordPath", "recordSha256", "attemptId", "campaignIds"],
+      "properties": {
+        "decisionId": { "const": "AMD-06" },
+        "status": { "const": "excluded-by-user-current-run" },
+        "recordPath": { "type": "string" },
+        "recordSha256": { "$ref": "#/$defs/sha256" },
+        "attemptId": { "type": "string" },
+        "campaignIds": { "type": "array", "minItems": 1, "items": { "type": "string" }, "uniqueItems": true }
+      }
+    }
+  }
+}

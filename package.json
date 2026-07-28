@@ -37,6 +37,7 @@
     "test:contracts": "npm run test --workspace @sceneboard/board-schema",
     "test:browser:c10": "node --test e2e/*.test.mjs",
     "verify:contracts": "node scripts/verify-contract-manifest.mjs",
+    "verify:presentation-contracts": "node scripts/verify-presentation-contract-manifest.mjs",
     "verify:dependencies": "node scripts/verify-dependency-reproducibility.mjs",
     "verify:media-native": "node scripts/certify-media-native-dependency.mjs",
     "verify:config": "node scripts/audit-secret-safe-config.mjs",
@@ -51,7 +52,7 @@
     "certify:capacity": "node scripts/run-local-certification.mjs --phase=capacity",
     "certify:release": "node scripts/run-local-certification.mjs --phase=release",
     "check:contracts": "npm run typecheck:contracts && npm run test:contracts",
-    "check": "npm run verify:config && npm run verify:dependencies && npm run verify:media-native && npm run check:contract-publishers && npm run verify:contracts && npm run check:sceneboard-skill && npm run check:history-retained-contract && npm run format:check && npm run lint && npm run typecheck && npm test && npm run build:check",
+    "check": "npm run verify:config && npm run verify:dependencies && npm run verify:media-native && npm run check:contract-publishers && npm run verify:contracts && npm run verify:presentation-contracts && npm run check:sceneboard-skill && npm run check:history-retained-contract && npm run format:check && npm run lint && npm run typecheck && npm test && npm run build:check",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present && npm run test:certification"
   },

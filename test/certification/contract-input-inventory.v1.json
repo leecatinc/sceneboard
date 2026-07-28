@@ -4071,17 +4071,26 @@
           "projectionId": null,
           "selector": "whole-file"
         },
-        {
-          "resourceId": "MIGRATION-ASSET-28",
-          "owner": "D9",
-          "path": "sceneboard-be/src/database/migrations/sql/022_d9_media_retention_recovery.up.sql",
-          "exportName": null,
-          "exportKind": null,
-          "projectionId": null,
-          "selector": "whole-file"
-        }
-      ],
-      "expectedCardinality": 29,
+    {
+      "resourceId": "MIGRATION-ASSET-28",
+      "owner": "D9",
+      "path": "sceneboard-be/src/database/migrations/sql/022_d9_media_retention_recovery.up.sql",
+      "exportName": null,
+      "exportKind": null,
+      "projectionId": null,
+      "selector": "whole-file"
+    },
+    {
+      "resourceId": "MIGRATION-ASSET-29",
+      "owner": "D9",
+      "path": "sceneboard-be/src/database/migrations/sql/023_d9_share_analytics.up.sql",
+      "exportName": null,
+      "exportKind": null,
+      "projectionId": null,
+      "selector": "whole-file"
+    }
+  ],
+  "expectedCardinality": 30,
       "canonicalization": "utf8-lf",
       "materializationPredecessor": null,
       "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"

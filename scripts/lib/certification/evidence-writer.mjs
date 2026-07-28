@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
 import { relative, resolve } from 'node:path';
 import { CertificationError, canonicalJson, sha256 } from './canonical-json.mjs';
@@ -68,12 +69,14 @@ export class CertificationEvidenceWriter {
     await mkdir(resolve(attemptRoot, 'records'), { mode: 0o700 });
     await mkdir(resolve(attemptRoot, 'attachments'), { mode: 0o700 });
     await mkdir(resolve(attemptRoot, 'phases'), { mode: 0o700 });
-    return new CertificationEvidenceWriter({ attemptRoot, ownerToken });
+    await mkdir(resolve(attemptRoot, 'exclusions'), { mode: 0o700 });
+    return new CertificationEvidenceWriter({ attemptRoot, ownerToken, attemptId });
   }
 
-  constructor({ attemptRoot, ownerToken }) {
+  constructor({ attemptRoot, ownerToken, attemptId }) {
     this.attemptRoot = attemptRoot;
     this.ownerToken = ownerToken;
+    this.attemptId = attemptId;
   }
 
   #assertToken(ownerToken) {
@@ -127,6 +130,20 @@ export class CertificationEvidenceWriter {
     return exclusiveJson(resolve(this.attemptRoot, 'first-failure.json'), failure);
   }
 
+  async writeRunExclusion(ownerToken, exclusion) {
+    this.#assertToken(ownerToken);
+    if (
+      exclusion?.schemaVersion !== 1 ||
+      exclusion?.status !== 'excluded-by-user-current-run' ||
+      exclusion?.decisionId !== 'AMD-06' ||
+      exclusion?.attemptId !== this.attemptId
+    )
+      throw new CertificationError('EVIDENCE_EXCLUSION_INVALID');
+    const path = resolveOwnedChild(resolve(this.attemptRoot, 'exclusions'), 'AMD-06.json');
+    const recordSha256 = await exclusiveJson(path, exclusion);
+    return { path: 'exclusions/AMD-06.json', recordSha256 };
+  }
+
   async finalizePhase(ownerToken, phaseId, index) {
     this.#assertToken(ownerToken);
     const temporary = resolveOwnedChild(resolve(this.attemptRoot, 'phases'), `${phaseId}.tmp`);
@@ -167,6 +184,22 @@ export class CertificationEvidenceWriter {
 
   async finalizeRelease(ownerToken, index) {
     this.#assertToken(ownerToken);
+    if (existsSync(resolve(this.attemptRoot, 'release-index.json')))
+      throw new CertificationError('EVIDENCE_OUTPUT_OWNERSHIP_VIOLATION');
+    const exclusions = await readdir(resolve(this.attemptRoot, 'exclusions'));
+    if (exclusions.length > 0) {
+      if (
+        exclusions.length !== 1 ||
+        exclusions[0] !== 'AMD-06.json' ||
+        index?.runExclusion?.path !== 'exclusions/AMD-06.json'
+      )
+        throw new CertificationError('EVIDENCE_EXCLUSION_HASH_MISSING');
+      const exclusionBytes = await readFile(
+        resolveOwnedChild(resolve(this.attemptRoot, 'exclusions'), 'AMD-06.json'),
+      );
+      if (index.runExclusion.recordSha256 !== sha256(exclusionBytes))
+        throw new CertificationError('EVIDENCE_EXCLUSION_HASH_MISSING');
+    }
     const evidenceTreeSha256 = await this.evidenceTreeSha256();
     const release = { ...index, evidenceTreeSha256 };
     const releaseIndexSha256 = await exclusiveJson(

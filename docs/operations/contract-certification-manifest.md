@@ -1,18 +1,34 @@
-# SceneBoard contract certification manifest
+# SceneBoard contract certification manifests
 
-`test/certification/contract-input-inventory.v1.json` is the closed literal input list. `test/certification/contract-manifest.v1.json` stores one owner and observed fingerprint for each of its 412 alias-independent global keys.
+The D1-D9 baseline remains frozen in `contract-input-inventory.v1.json` and
+`contract-manifest.v1.json`. It now contains 465 alias-independent resources,
+26 migration registry entries, and 29 SQL assets. `npm run verify:contracts`
+recomputes that baseline read-only.
 
-The global key is `(canonicalPath, exportName, exportKind, selectorSha256, canonicalization)`. Labels such as inventory/resource ID do not define identity. Paths are repository-relative and include the exact read-only downloadable `sceneboard-mcp/plugins/sceneboard/skills/sceneboard` skill files. Symlinks, globs, discovery, owner inference, whole-file/projection overlap, selector overlap, aliases, and a second topology file fail closed.
+The presentation increment has a separate closed authority:
 
-The manifest freezes:
+- `presentation-contract-input-inventory.v1.json` lists the exact inputs.
+- `presentation-contract-manifest.schema.json` rejects unknown top-level and
+  nested fields.
+- `presentation-contract-manifest.v1.json` materializes hashes and bridges
+  REQ-118 through REQ-133, six approved decisions, I-17 through I-44, and D1
+  through D9.
+- `presentation-release-index.v1.json` links the manifest hash and current-run
+  AMD-06 exclusion hash.
+- `run-exclusion.amd-06.v1.json` is the immutable, run-scoped exclusion record.
 
-- nine represented D1-D9 owners and 375 results;
-- local app/API/runtime origins `127.0.0.1:3410`, `127.0.0.1:3411`, `127.0.0.2:3412`, plus MCP stdio;
-- 15 migration entries and 18 SQL assets;
-- exact 3/15/21 MCP cuts and terminal tool order;
-- D3's nine paths/17 selectors and four browser-adapter publishers/20 disjoint methods;
-- 181 D1 fixtures, four schema projections, eight downloadable-skill contract files, and 418 public-registry dependencies.
+Run `npm run verify:presentation-contracts` to verify both the manifest and
+release index. Normal verification never rewrites either file. Maintainers may
+use `node scripts/verify-presentation-contract-manifest.mjs --write` only after
+an intentional inventory/input change and must commit the inventory, generated
+manifest, release index, and verification evidence together.
 
-The committed manifest is canonical JSON and contains `inventorySha256`, but never `manifestSha256`, source commit, attempt/lane identity, or runtime evidence hashes. `npm run verify:contracts` recomputes all results read-only and never rewrites the inventory or manifest.
+The presentation verifier rejects missing or reordered requirements and
+decisions, owner drift, path aliases and symlinks, duplicate inputs, orphan
+publishers, self-reference, migration sequence drift, exclusion-as-PASS, and a
+release index without the exclusion content hash. The collision-free
+presentation migration sequence is exactly 013 through 023.
 
-The runtime release envelope owns the manifest SHA-256 and execution identity. Watched-input drift aborts the entire attempt; partial recomputation is forbidden.
+The committed manifest owns only reproducible source hashes. It never embeds
+its own hash, a source commit, or a runtime attempt identity. Runtime evidence
+owns those values and uses the manifest SHA-256 as an immutable attempt input.

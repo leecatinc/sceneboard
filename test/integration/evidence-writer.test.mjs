@@ -51,6 +51,46 @@ test('evidence writer is append-only, token-bound, bounded, and non-self-referen
     status: 'PASS',
     recordIds: ['STATIC-001'],
   });
+  const exclusion = await writer.writeRunExclusion(writer.ownerToken, {
+    schemaVersion: 1,
+    status: 'excluded-by-user-current-run',
+    decisionId: 'AMD-06',
+    campaignIds: ['database-capacity', 'multi-client-capacity', 'redis-loss-capacity'],
+    provenance: 'user-decision',
+    decisionProvenanceSha256: hash,
+    runId: 'test-run',
+    timestamp: '2026-07-28T07:00:00.000Z',
+    reason: 'heavyweight campaigns excluded by the user for this run',
+    attemptId: 'attempt-001',
+  });
+  await assert.rejects(
+    () =>
+      writer.writeRunExclusion(writer.ownerToken, {
+        schemaVersion: 1,
+        status: 'excluded-by-user-current-run',
+        decisionId: 'AMD-06',
+        attemptId: 'attempt-001',
+      }),
+    (error) => error?.code === 'EVIDENCE_OUTPUT_OWNERSHIP_VIOLATION',
+  );
+  await assert.rejects(
+    () =>
+      writer.writeRunExclusion('wrong-token', {
+        schemaVersion: 1,
+        status: 'excluded-by-user-current-run',
+        decisionId: 'AMD-06',
+        attemptId: 'attempt-001',
+      }),
+    (error) => error?.code === 'EVIDENCE_OUTPUT_OWNERSHIP_VIOLATION',
+  );
+  await assert.rejects(
+    () =>
+      writer.finalizeRelease(writer.ownerToken, {
+        schemaVersion: 1,
+        status: 'PASS',
+      }),
+    (error) => error?.code === 'EVIDENCE_EXCLUSION_HASH_MISSING',
+  );
   const released = await writer.finalizeRelease(writer.ownerToken, {
     schemaVersion: 1,
     attemptEnvelope: {
@@ -64,6 +104,14 @@ test('evidence writer is append-only, token-bound, bounded, and non-self-referen
     status: 'PASS',
     phases: ['static'],
     cleanupStatus: 'PASS',
+    presentationManifestSha256: hash,
+    runExclusion: {
+      decisionId: 'AMD-06',
+      status: 'excluded-by-user-current-run',
+      path: exclusion.path,
+      recordSha256: exclusion.recordSha256,
+      attemptId: 'attempt-001',
+    },
   });
   assert.match(released.evidenceTreeSha256, /^[0-9a-f]{64}$/u);
   await assert.rejects(

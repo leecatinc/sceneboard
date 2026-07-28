@@ -26125,6 +26125,95 @@ var PublicShareStateSchemaV1 = z.union([
   });
 });
 
+// packages/board-schema/src/share-analytics.ts
+var DateOnlySchemaV1 = z.string().regex(/^\d{4}-\d{2}-\d{2}$/u).refine((value) => {
+  const instant = Date.parse(`${value}T00:00:00.000Z`);
+  return Number.isFinite(instant) && new Date(instant).toISOString().slice(0, 10) === value;
+});
+var CountSchemaV1 = z.number().int().safe().nonnegative();
+var GenerationSchemaV1 = z.number().int().safe().positive();
+var ViewContextIdSchemaV1 = GlobalIdStringSchemaV1;
+var ViewCsrfTokenSchemaV1 = z.string().min(32).max(512).regex(/^[\x21-\x7e]+$/u);
+var ShareAnalyticsContextRequestSchemaV1 = z.object({}).strict();
+var ShareAnalyticsContextSchemaV1 = z.object({
+  viewContextId: ViewContextIdSchemaV1,
+  revisionId: RevisionIdSchemaV1,
+  publicationGeneration: GenerationSchemaV1,
+  accessGeneration: GenerationSchemaV1,
+  pageIds: z.array(PageIdSchemaV1).min(1).max(1e3),
+  expiresAt: TimestampSchemaV1,
+  csrfToken: ViewCsrfTokenSchemaV1
+}).strict().superRefine((value, context) => {
+  const seen = /* @__PURE__ */ new Set();
+  value.pageIds.forEach((pageId, index) => {
+    if (seen.has(pageId))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["pageIds", index],
+        message: "duplicate page ID"
+      });
+    seen.add(pageId);
+  });
+});
+var ShareAnalyticsEventSchemaV1 = z.object({
+  viewContextId: ViewContextIdSchemaV1,
+  eventKind: z.enum(["first-visible", "page-visible"]),
+  pageId: PageIdSchemaV1,
+  idempotencyKey: IdempotencyKeySchemaV1
+}).strict();
+var ShareAnalyticsEventResultSchemaV1 = z.object({
+  status: z.enum(["counted", "deduped"]),
+  replayed: z.boolean()
+}).strict();
+var AggregateSummarySchemaV1 = z.object({
+  boardOpens: CountSchemaV1,
+  pageViews: CountSchemaV1,
+  estimatedDailyReach: CountSchemaV1,
+  lastAggregatedAt: TimestampSchemaV1.nullable()
+}).strict();
+var ShareAnalyticsPageReportSchemaV1 = z.object({
+  pageId: PageIdSchemaV1,
+  pageOrdinal: z.number().int().safe().nonnegative(),
+  titleLabel: ShortTextSchemaV1,
+  pageViews: CountSchemaV1,
+  pageReachBasisPoints: z.number().int().min(0).max(1e4).nullable()
+}).strict();
+var ShareAnalyticsPublicationReportSchemaV1 = z.object({
+  shareId: GlobalIdStringSchemaV1,
+  publicationGeneration: GenerationSchemaV1,
+  revisionId: RevisionIdSchemaV1,
+  ...AggregateSummarySchemaV1.shape,
+  pages: z.array(ShareAnalyticsPageReportSchemaV1).max(1e3)
+}).strict();
+var ShareAnalyticsReportSchemaV1 = z.object({
+  boardId: BoardIdSchemaV1,
+  from: DateOnlySchemaV1,
+  to: DateOnlySchemaV1,
+  totals: AggregateSummarySchemaV1,
+  publications: z.array(ShareAnalyticsPublicationReportSchemaV1).max(1e4)
+}).strict().refine((value) => value.from <= value.to, {
+  path: ["to"],
+  message: "to must be on or after from"
+});
+var SHARE_ANALYTICS_ERROR_CODES_V1 = [
+  "INVALID_PAYLOAD",
+  "UNAUTHENTICATED",
+  "CSRF_INVALID",
+  "SHARE_VIEW_UNAVAILABLE",
+  "BOARD_NOT_FOUND",
+  "IDEMPOTENCY_KEY_REUSED",
+  "RATE_LIMITED",
+  "SERVICE_UNAVAILABLE"
+];
+var ShareAnalyticsErrorCodeSchemaV1 = z.enum(SHARE_ANALYTICS_ERROR_CODES_V1);
+var ShareAnalyticsErrorEnvelopeSchemaV1 = z.object({
+  error: z.object({
+    code: ShareAnalyticsErrorCodeSchemaV1,
+    message: z.string().min(1).max(128),
+    requestId: GlobalIdStringSchemaV1
+  }).strict()
+}).strict();
+
 // packages/board-schema/src/invitations.ts
 var InvitationRoleSchemaV1 = z.enum(["editor", "viewer"]);
 var InvitationStateSchemaV1 = z.enum([
@@ -28474,6 +28563,16 @@ var PublicArtifactSummaryParserV1 = createParserV1(PublicArtifactSummarySchemaV1
 var PublicMediaResourceParserV1 = createParserV1(PublicMediaResourceSchemaV1);
 var PublicBoardProjectionParserV1 = createParserV1(PublicBoardProjectionSchemaV1);
 var PublicShareStateParserV1 = createParserV1(PublicShareStateSchemaV1);
+var ShareAnalyticsContextRequestParserV1 = createParserV1(
+  ShareAnalyticsContextRequestSchemaV1
+);
+var ShareAnalyticsContextParserV1 = createParserV1(ShareAnalyticsContextSchemaV1);
+var ShareAnalyticsEventParserV1 = createParserV1(ShareAnalyticsEventSchemaV1);
+var ShareAnalyticsEventResultParserV1 = createParserV1(ShareAnalyticsEventResultSchemaV1);
+var ShareAnalyticsReportParserV1 = createParserV1(ShareAnalyticsReportSchemaV1);
+var ShareAnalyticsErrorEnvelopeParserV1 = createParserV1(
+  ShareAnalyticsErrorEnvelopeSchemaV1
+);
 var BoardAuthorizationPrincipalParserV1 = createParserV1(
   BoardAuthorizationPrincipalSchemaV1
 );

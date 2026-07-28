@@ -27,7 +27,20 @@
     "status": { "enum": ["PASS", "FAIL", "BLOCKED"] },
     "phases": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
     "cleanupStatus": { "enum": ["PASS", "FAIL", "NOT_STARTED"] },
-    "evidenceTreeSha256": { "$ref": "#/$defs/sha256" }
+    "evidenceTreeSha256": { "$ref": "#/$defs/sha256" },
+    "presentationManifestSha256": { "$ref": "#/$defs/sha256" },
+    "runExclusion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decisionId", "status", "path", "recordSha256", "attemptId"],
+      "properties": {
+        "decisionId": { "const": "AMD-06" },
+        "status": { "const": "excluded-by-user-current-run" },
+        "path": { "const": "exclusions/AMD-06.json" },
+        "recordSha256": { "$ref": "#/$defs/sha256" },
+        "attemptId": { "type": "string" }
+      }
+    }
   },
   "$defs": { "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" } }
 }

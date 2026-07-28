@@ -47,6 +47,10 @@ test('downloadable sceneboard skill matches the exact terminal tool and authorit
   );
   assert.match(references['history.md'] ?? '', /MySQL owns.*pairing records\/deadlines\/outcomes/u);
   assert.match(references['platform.md'] ?? '', /Redis is never pairing-state\/TTL/u);
+  assert.equal(combined.match(/\/absolute\/path\/to\/image\.png/gu)?.length, 1);
+  assert.match(references['commands.md'] ?? '', /sceneboard_media_upload/u);
+  assert.match(references['commands.md'] ?? '', /sceneboard_media_place/u);
+  assert.doesNotMatch(combined, /(?:result|response|error|log|state).{0,40}\/absolute\/path/iu);
 
   assert.doesNotMatch(
     combined,
