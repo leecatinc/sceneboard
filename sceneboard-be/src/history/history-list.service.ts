@@ -68,11 +68,12 @@ const principalKind = (value: string): 'user' | 'mcp_client' | 'service' => {
 };
 const originType = (
   value: string,
-): 'board.create' | 'scene.replace' | 'scene.clear' | 'scene.restore' => {
+): 'board.create' | 'scene.replace' | 'scene.clear' | 'scene.restore' | 'document.replace' => {
   if (value === 'C') return 'board.create';
   if (value === 'R') return 'scene.replace';
   if (value === 'L') return 'scene.clear';
   if (value === 'S') return 'scene.restore';
+  if (value === 'D') return 'document.replace';
   throw new BoardPersistenceError('row_integrity');
 };
 

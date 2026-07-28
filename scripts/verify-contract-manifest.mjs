@@ -80,7 +80,7 @@ const expectedGroups = new Map([
   ['D2-HTTP-CONFIG', 4],
   ['D3-PUBLISHER', 2],
   ['D3-PERSISTENCE', 10],
-  ['D3-BOARD-SEAMS', 18],
+  ['D3-BOARD-SEAMS', 20],
   ['D4-SEAMS', 10],
   ['D2-D5-D7-D8-BROWSER-PUBLISHERS', 9],
   ['D5-BROWSER-API-SEAMS', 22],
@@ -89,11 +89,11 @@ const expectedGroups = new Map([
   ['D6-INSTALLED-SKILL', 42],
   ['D7-ARTIFACT-SEAM', 7],
   ['D8-HITL-SEAM', 6],
-  ['MIGRATION-REGISTRY-ASSETS', 19],
+  ['MIGRATION-REGISTRY-ASSETS', 20],
   ['D2-MIGRATION-RUNNER', 5],
   ['RUNTIME-TOPOLOGY', 3],
   ['DEPENDENCY-EVIDENCE', 11],
-  ['SCHEMA-MODEL-EVIDENCE', 6],
+  ['SCHEMA-MODEL-EVIDENCE', 7],
 ]);
 const terminalToolNames = [
   'board_connection_status',
@@ -592,7 +592,7 @@ const validatePublishers = async (observedById) => {
     names.push(selector.memberName);
     d3ByPath.set(selector.sourcePath, names);
   }
-  if (d3ByPath.size !== 9 || d3.selectors.length !== 18) fail('CONTRACT_OWNER_PUBLISHER_STALE');
+  if (d3ByPath.size !== 9 || d3.selectors.length !== 20) fail('CONTRACT_OWNER_PUBLISHER_STALE');
   for (const [path, memberNames] of d3ByPath) {
     const source = lfText(await readFile(resolve(root, path)));
     const ast = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
@@ -670,7 +670,7 @@ const observeMigrations = async (observedById) => {
   const versions = [...source.matchAll(/\bversion: '([^']+)'/gu)].map((match) => match[1]);
   const upAssets = [...source.matchAll(/\bupAsset: '([^']+)'/gu)].map((match) => match[1]);
   const downAssets = [...source.matchAll(/\bdownAsset: '([^']+)'/gu)].map((match) => match[1]);
-  if (versions.length !== 15 || upAssets.length !== 15 || downAssets.length !== 3)
+  if (versions.length !== 16 || upAssets.length !== 16 || downAssets.length !== 3)
     fail('MIGRATION_REGISTRY_DRIFT');
   const assets = [...observedById.values()].filter(({ resourceId }) =>
     resourceId.startsWith('MIGRATION-ASSET-'),
@@ -789,6 +789,7 @@ export const observeContractInventory = async ({ inventoryValue, inventoryBytes 
     'SCHEMA-PROJECTION-03',
     'SCHEMA-PROJECTION-04',
     'SCHEMA-PROJECTION-05',
+    'SCHEMA-PROJECTION-06',
   ];
   const schemaModel = {
     contractSha256: observedById.get('SCHEMA-PROJECTION-01')?.result.fingerprintSha256,

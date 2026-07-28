@@ -2,12 +2,16 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
+  BoardEventEnvelopeParserV2,
   MutationRequestParserV1,
+  MutationRequestParserV2,
   MutationResultParserV1,
+  MutationResultParserV2,
   normalizeActorContextV1,
   type ActorContextV1,
   type BoardId,
   type MutationRequestV1,
+  type MutationRequestV2,
 } from '@sceneboard/board-schema';
 import type { PoolConnection, ResultSetHeader } from 'mysql2/promise';
 
@@ -19,7 +23,7 @@ import type {
   ResolvedBoardPrincipalV1,
 } from '../../src/grants/board-access.policy.js';
 import { BoardMutationService } from '../../src/revisions/board-mutation.service.js';
-import { SceneCheckpointCodec } from '../../src/revisions/scene-checkpoint.codec.js';
+import { DocumentCheckpointCodec } from '../../src/revisions/document-checkpoint.codec.js';
 
 const boardId = 'AAECAwQFBgcICQoLDA0ODw' as BoardId;
 const headRevisionId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -65,22 +69,114 @@ const request = (
   return parsed.data.value;
 };
 
-const setup = async (type: 'scene.clear' | 'scene.restore') => {
-  const calls: string[] = [];
-  const sourceCheckpoint = await new SceneCheckpointCodec().encode({
+const documentRequest = (requestId: string): MutationRequestV2 => {
+  const parsed = MutationRequestParserV2.parse({
     protocolVersion: 1,
-    type: 'scene',
-    root: null,
+    requestId,
+    idempotencyKey: 'mutation-key-0001',
+    boardId,
+    expectedRevisionId: headRevisionId,
+    command: {
+      type: 'document.replace',
+      document: {
+        schemaVersion: 2,
+        defaultPageId: 'page_1',
+        pages: [
+          {
+            pageId: 'page_1',
+            title: 'First',
+            displayMode: 'fit-page',
+            scene: { protocolVersion: 1, type: 'scene', root: null },
+          },
+        ],
+      },
+    },
   });
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) throw new Error('invalid document request fixture');
+  return parsed.data.value;
+};
+
+const oversizedDocumentRequest = (): MutationRequestV2 =>
+  ({
+    protocolVersion: 1,
+    requestId: 'request_document_too_large',
+    idempotencyKey: 'mutation-key-0001',
+    boardId,
+    expectedRevisionId: headRevisionId,
+    command: {
+      type: 'document.replace',
+      document: {
+        schemaVersion: 2,
+        defaultPageId: 'page_0',
+        pages: Array.from({ length: 35 }, (_, pageIndex) => ({
+          pageId: `page_${pageIndex}`,
+          title: '',
+          displayMode: 'fit-page',
+          scene: {
+            protocolVersion: 1,
+            type: 'scene',
+            root: {
+              id: `root_${pageIndex}`,
+              type: 'layout.split',
+              direction: 'horizontal',
+              gap: 0,
+              children: Array.from({ length: 3 }, (_, nodeIndex) => ({
+                node: {
+                  id: `code_${pageIndex}_${nodeIndex}`,
+                  type: 'content.code',
+                  language: 'text',
+                  code: 'x'.repeat(200_000),
+                  showLineNumbers: false,
+                  wrap: false,
+                },
+                weight: 1,
+              })),
+            },
+          },
+        })),
+      },
+    },
+  }) as unknown as MutationRequestV2;
+
+const setup = async (
+  type: 'scene.clear' | 'scene.restore' | 'document.replace',
+  headSchemaVersion: '1.0.0' | '2.0.0' = '1.0.0',
+  sourceSchemaVersion: '1.0.0' | '2.0.0' = '1.0.0',
+) => {
+  const calls: string[] = [];
+  const sourceCheckpoint =
+    sourceSchemaVersion === '1.0.0'
+      ? await new DocumentCheckpointCodec().encodeScene({
+          protocolVersion: 1,
+          type: 'scene',
+          root: null,
+        })
+      : await new DocumentCheckpointCodec().encodeDocument({
+          schemaVersion: 2,
+          defaultPageId: 'source_page',
+          pages: [
+            {
+              pageId: 'source_page',
+              title: '',
+              displayMode: 'fit-page',
+              scene: { protocolVersion: 1, type: 'scene', root: null },
+            },
+          ],
+        });
   let stored: Record<string, unknown> | null = null;
   let revisionWrites = 0;
   let sourceReads = 0;
   let referenceReads = 0;
+  let idempotencyInserts = 0;
+  let revisionInsertBinds: unknown[] | null = null;
+  let eventInsertBinds: unknown[] | null = null;
   const connection = {
     async execute(sql: string, binds: unknown[] = []): Promise<[unknown, unknown]> {
       const normalized = sql.replace(/\s+/g, ' ').trim();
       calls.push(normalized);
       if (normalized.startsWith('INSERT INTO board_idempotency_records')) {
+        idempotencyInserts += 1;
         if (stored !== null) return [{ affectedRows: 0, insertId: 60 } as ResultSetHeader, []];
         stored = {
           statusCode: 'P',
@@ -98,7 +194,8 @@ const setup = async (type: 'scene.clear' | 'scene.restore') => {
         };
         return [{ affectedRows: 1, insertId: 60 } as ResultSetHeader, []];
       }
-      if (normalized.includes('FROM board_idempotency_records')) return [[stored], []];
+      if (normalized.includes('FROM board_idempotency_records'))
+        return [stored === null ? [] : [stored], []];
       if (
         normalized.includes('FROM boards b') &&
         normalized.includes('JOIN board_revisions r') &&
@@ -140,6 +237,7 @@ const setup = async (type: 'scene.clear' | 'scene.restore') => {
               headRevisionId: Buffer.from(headRevisionId.replaceAll('-', ''), 'hex'),
               headRevisionNumber: '2',
               lastEventSequence: '2',
+              sceneSchemaVersion: headSchemaVersion,
             },
           ],
           [],
@@ -166,6 +264,7 @@ const setup = async (type: 'scene.clear' | 'scene.restore') => {
       }
       if (normalized.startsWith('INSERT INTO board_revisions')) {
         revisionWrites += 1;
+        revisionInsertBinds = [...binds];
         return [{ affectedRows: 1, insertId: 71 } as ResultSetHeader, []];
       }
       if (normalized.startsWith('UPDATE board_heads')) {
@@ -175,6 +274,7 @@ const setup = async (type: 'scene.clear' | 'scene.restore') => {
         return [{ affectedRows: 1, insertId: 0 } as ResultSetHeader, []];
       }
       if (normalized.startsWith('INSERT INTO board_event_outbox')) {
+        eventInsertBinds = [...binds];
         return [{ affectedRows: 1, insertId: 80 } as ResultSetHeader, []];
       }
       if (normalized.startsWith('UPDATE board_idempotency_records')) {
@@ -241,7 +341,10 @@ const setup = async (type: 'scene.clear' | 'scene.restore') => {
     revisionWrites: () => revisionWrites,
     sourceReads: () => sourceReads,
     referenceReads: () => referenceReads,
-    service: new BoardMutationService(policy, new SceneCheckpointCodec(), {
+    idempotencyInserts: () => idempotencyInserts,
+    revisionInsertBinds: () => revisionInsertBinds,
+    eventInsertBinds: () => eventInsertBinds,
+    service: new BoardMutationService(policy, new DocumentCheckpointCodec(), {
       now: () => new Date('2026-07-16T12:00:00.000Z'),
       generateUuid: () => generated.shift() ?? '33332233-4455-4677-8899-aabbccddeeff',
     }),
@@ -317,4 +420,99 @@ test('restore copies one verified immutable source and replay never reads or dec
   assert.equal(value.sourceReads(), 2);
   assert.equal(value.referenceReads(), 2);
   assert.equal(value.revisionWrites(), 1);
+});
+
+test('document.replace promotes a v1 head to one exact v2 checkpoint, event, and replayable result', async () => {
+  const value = await setup('document.replace');
+  const requestValue = documentRequest('request_document_1');
+  const result = await value.service.applyDocumentMutation({
+    principal: principal(),
+    request: requestValue,
+  });
+  assert.equal(MutationResultParserV2.parse(result).ok, true);
+  assert.equal(result.result.type, 'document.replace');
+  if (result.result.type !== 'document.replace' || requestValue.command.type !== 'document.replace')
+    return;
+  assert.deepEqual(result.result.document, requestValue.command.document);
+  assert.equal(result.result.originType, 'document.replace');
+  assert.equal(result.result.sourceRevisionId, null);
+  assert.equal(value.revisionInsertBinds()?.[5], 'D');
+  assert.equal(value.revisionInsertBinds()?.[7], '2.0.0');
+  const eventPayload = value.eventInsertBinds()?.[4];
+  assert.ok(Buffer.isBuffer(eventPayload));
+  const event = BoardEventEnvelopeParserV2.parseBytes(eventPayload);
+  assert.equal(event.ok, true);
+  if (event.ok) {
+    assert.equal(event.data.value.data.type, 'board.revision.created');
+    if (event.data.value.data.type === 'board.revision.created') {
+      assert.equal(event.data.value.data.originType, 'document.replace');
+      assert.equal(event.data.value.data.sourceRevisionId, null);
+    }
+  }
+  const replay = await value.service.applyDocumentMutation({
+    principal: principal(),
+    request: documentRequest('request_document_2'),
+  });
+  assert.equal(replay.replayed, true);
+  assert.deepEqual(replay.result, result.result);
+  assert.equal(value.revisionWrites(), 1);
+});
+
+test('rejects an oversized document before authorization transaction or any durable side effect', async () => {
+  const value = await setup('document.replace');
+  await assert.rejects(
+    value.service.applyDocumentMutation({
+      principal: principal(),
+      request: oversizedDocumentRequest(),
+    }),
+    (error: unknown) =>
+      error instanceof BoardContractError &&
+      error.boardError.code === 'PAYLOAD_TOO_LARGE' &&
+      error.boardError.details.scope === 'document',
+  );
+  assert.equal(value.calls.length, 0);
+  assert.equal(value.idempotencyInserts(), 0);
+  assert.equal(value.revisionWrites(), 0);
+});
+
+test('a v2 head rejects legacy scene writes before idempotency, revision, or outbox insertion', async () => {
+  const value = await setup('scene.clear', '2.0.0');
+  await assert.rejects(
+    value.service.applySceneMutation({
+      principal: principal(),
+      request: request('scene.clear', 'request_legacy_on_v2'),
+    }),
+    (error: unknown) =>
+      error instanceof BoardContractError &&
+      error.boardError.code === 'DOCUMENT_VERSION_MISMATCH' &&
+      error.boardError.details.headSchemaVersion === 2 &&
+      error.boardError.details.commandSchemaVersion === 1,
+  );
+  assert.equal(value.idempotencyInserts(), 0);
+  assert.equal(value.revisionWrites(), 0);
+  assert.equal(
+    value.calls.some((call) => call.startsWith('INSERT INTO board_event_outbox')),
+    false,
+  );
+});
+
+test('restore deterministically preserves v2 sources and wraps retained v1 sources over v2 heads', async () => {
+  for (const [headVersion, sourceVersion] of [
+    ['2.0.0', '1.0.0'],
+    ['1.0.0', '2.0.0'],
+    ['2.0.0', '2.0.0'],
+  ] as const) {
+    const value = await setup('scene.restore', headVersion, sourceVersion);
+    const result = await value.service.applySceneMutation({
+      principal: principal(),
+      request: request(
+        'scene.restore',
+        `request_restore_${headVersion.replaceAll('.', '')}_${sourceVersion.replaceAll('.', '')}`,
+      ),
+    });
+    assert.equal(result.result.type, 'scene.restore');
+    assert.equal(value.revisionInsertBinds()?.[4], '65');
+    assert.equal(value.revisionInsertBinds()?.[5], 'S');
+    assert.equal(value.revisionInsertBinds()?.[7], '2.0.0');
+  }
 });

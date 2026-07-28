@@ -96,13 +96,14 @@ test('D3 publishes the exact segmented application, snapshot, and outbox seams',
     'scene.replace',
     'scene.clear',
     'scene.restore',
+    'document.replace',
     'history.list',
     'history.get',
     'snapshot.compose',
     'outbox.delivery',
   ]);
-  assert.equal(publisher.selectors.length, 18);
-  assert.equal(new Set(publisher.selectors.map(({ projectionId }) => projectionId)).size, 18);
+  assert.equal(publisher.selectors.length, 20);
+  assert.equal(new Set(publisher.selectors.map(({ projectionId }) => projectionId)).size, 20);
   const covered = new Set(publisher.selectors.flatMap(({ contractIds }) => contractIds));
   assert.deepEqual([...covered].sort(), [...publisher.contractIds].sort());
   for (const selector of publisher.selectors) {

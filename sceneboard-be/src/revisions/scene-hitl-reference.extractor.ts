@@ -1,4 +1,9 @@
-import type { BoardNodeV1, HitlRequestId, SceneV1 } from '@sceneboard/board-schema';
+import type {
+  BoardDocumentV2,
+  BoardNodeV1,
+  HitlRequestId,
+  SceneV1,
+} from '@sceneboard/board-schema';
 
 const childrenOf = (node: BoardNodeV1): BoardNodeV1[] => {
   if (
@@ -26,6 +31,16 @@ export const extractUniqueSceneHitlRequestIds = (scene: SceneV1): HitlRequestId[
     }
     if (node.type === 'content.hitl' && !result.has(node.hitlRequestId)) {
       result.set(node.hitlRequestId, node.hitlRequestId);
+    }
+  }
+  return [...result.values()];
+};
+
+export const extractUniqueDocumentHitlRequestIds = (document: BoardDocumentV2): HitlRequestId[] => {
+  const result = new Map<string, HitlRequestId>();
+  for (const page of document.pages) {
+    for (const id of extractUniqueSceneHitlRequestIds(page.scene)) {
+      if (!result.has(id)) result.set(id, id);
     }
   }
   return [...result.values()];

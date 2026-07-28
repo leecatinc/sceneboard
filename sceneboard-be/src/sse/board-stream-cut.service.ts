@@ -1,9 +1,9 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
-  BoardEventEnvelopeParserV1,
-  type BoardEventEnvelopeV1,
+  BoardEventEnvelopeParserV2,
+  type BoardEventEnvelopeV2,
   type BoardId,
-  type BoardSnapshotV1,
+  type BoardSnapshot,
   type RequestId,
   type TimestampV1,
 } from '@sceneboard/board-schema';
@@ -19,7 +19,7 @@ import type { ResolvedBoardPrincipalV1 } from '../grants/board-access.policy.js'
 import { SseCursorCodec } from './sse-cursor.codec.js';
 
 export type PreparedBoardStreamFrameV1 = {
-  envelope: BoardEventEnvelopeV1;
+  envelope: BoardEventEnvelopeV2;
   canonicalBytes: Uint8Array;
   cursor: string;
 };
@@ -96,7 +96,7 @@ export class BoardStreamCutService {
   async #authorizedSnapshot(
     principal: ResolvedBoardPrincipalV1,
     boardId: BoardId,
-  ): Promise<BoardSnapshotV1> {
+  ): Promise<BoardSnapshot> {
     const result = await this.boards.get({
       principal,
       requestId: this.crypto.generatePublicIdV1() as RequestId,
@@ -106,10 +106,10 @@ export class BoardStreamCutService {
     return result.result.snapshot;
   }
 
-  #snapshotCut(snapshot: BoardSnapshotV1): PreparedBoardStreamCutV1 {
+  #snapshotCut(snapshot: BoardSnapshot): PreparedBoardStreamCutV1 {
     const occurredAt = new Date().toISOString() as TimestampV1;
     const eventId = this.cursors.createSnapshotEventId();
-    const parsed = BoardEventEnvelopeParserV1.parse({
+    const parsed = BoardEventEnvelopeParserV2.parse({
       protocolVersion: 1,
       type: 'board.event',
       boardId: snapshot.boardId,

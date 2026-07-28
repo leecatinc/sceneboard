@@ -12,7 +12,7 @@ import {
 import type { PoolConnection, ResultSetHeader } from 'mysql2/promise';
 
 import { BoardCreateService } from '../../src/boards/board-create.service.js';
-import { SceneCheckpointCodec } from '../../src/revisions/scene-checkpoint.codec.js';
+import { DocumentCheckpointCodec } from '../../src/revisions/document-checkpoint.codec.js';
 import type {
   AuthorizedBoardContextV1,
   AuthorizedBoardTransactionInputV1,
@@ -214,7 +214,7 @@ const setup = (options: SetupOptions = {}) => {
   const crypto = {
     generatePublicIdV1: () => boardIds.shift() ?? 'AgECAwQFBgcICQoLDA0ODw',
   } as CryptoService;
-  const service = new BoardCreateService(policy, crypto, new SceneCheckpointCodec(), {
+  const service = new BoardCreateService(policy, crypto, new DocumentCheckpointCodec(), {
     now: () => new Date('2026-07-16T12:00:00.000Z'),
     generateUuid: () =>
       generatedIds.shift() ??

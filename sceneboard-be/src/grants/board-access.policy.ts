@@ -16,6 +16,7 @@ export const AUTHORIZED_BOARD_OPERATIONS_V1 = [
   'scene.replace',
   'scene.clear',
   'scene.restore',
+  'document.replace',
   'history.list',
   'history.get',
   'hitl.request',
@@ -44,6 +45,7 @@ export type D3BoardOperationV1 = Extract<
   | 'scene.replace'
   | 'scene.clear'
   | 'scene.restore'
+  | 'document.replace'
   | 'history.list'
   | 'history.get'
 >;
@@ -170,6 +172,7 @@ const AUTHORIZATION_RULES: Readonly<Record<BoardAccessOperationV1, Authorization
   'scene.replace': write(['board.write'], 'D3'),
   'scene.clear': write(['board.write'], 'D3'),
   'scene.restore': write(['board.write', 'board.history.read'], 'D3'),
+  'document.replace': write(['board.write'], 'D3'),
   'history.list': read(['board.history.read'], 'D3'),
   'history.get': read(['board.history.read'], 'D3'),
   'hitl.request': write(['board.hitl.request'], 'D8'),

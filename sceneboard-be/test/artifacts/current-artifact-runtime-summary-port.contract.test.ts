@@ -25,7 +25,11 @@ test('returns no rows and performs no query for a snapshot without artifact refe
       sourceRevisionId: null,
       actor: { principalKind: 'user', principalId: 'user_1' },
     },
-    scene: { protocolVersion: 1, type: 'scene', root: null },
+    checkpoint: {
+      kind: 'scene',
+      scene: { protocolVersion: 1, type: 'scene', root: null },
+      canonicalBytes: Buffer.alloc(0),
+    },
     lastEventSequence: 1,
   } as never);
   assert.deepEqual(result, []);

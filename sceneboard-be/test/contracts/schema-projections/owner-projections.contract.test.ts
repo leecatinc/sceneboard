@@ -6,8 +6,8 @@ import {
   projectionAggregateSha256,
 } from './schema-projection.test-helper.js';
 
-test('four owner projections bind the shared schema and exact 15-entry 18-asset registry', () => {
-  const projections = (['D2', 'D3', 'D7', 'D8'] as const).map(assertOwnerProjection);
+test('five owner projections bind the shared schema and exact 16-entry 19-asset registry', () => {
+  const projections = (['D2', 'D3', 'D7', 'D8', 'D9'] as const).map(assertOwnerProjection);
   const entries = projections
     .flatMap(({ registryEntries }) => registryEntries)
     .sort((left, right) => left.order - right.order);
@@ -15,12 +15,12 @@ test('four owner projections bind the shared schema and exact 15-entry 18-asset 
     entries.map(({ version }) => version),
     MIGRATION_REGISTRY.map(({ version }) => version),
   );
-  assert.equal(new Set(entries.map(({ order }) => order)).size, 15);
+  assert.equal(new Set(entries.map(({ order }) => order)).size, 16);
   const assets = entries.flatMap(({ upAsset, downAsset }) =>
     downAsset === null ? [upAsset] : [upAsset, downAsset],
   );
-  assert.equal(assets.length, 18);
-  assert.equal(new Set(assets).size, 18);
+  assert.equal(assets.length, 19);
+  assert.equal(new Set(assets).size, 19);
   const tables = projections.flatMap(({ tables }) => tables.map(({ name }) => name));
   assert.equal(tables.length, 23);
   assert.equal(new Set(tables).size, tables.length);

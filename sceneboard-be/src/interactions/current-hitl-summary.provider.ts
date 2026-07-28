@@ -2,8 +2,11 @@ import type { HitlInteractionV1 } from '@sceneboard/board-schema';
 import type { PoolConnection } from 'mysql2/promise';
 
 import { BoardPersistenceError } from '../common/errors/board-persistence.error.js';
-import { extractUniqueSceneHitlRequestIds } from '../revisions/scene-hitl-reference.extractor.js';
-import type { SnapshotCompositionInputV1 } from '../revisions/snapshot-composition.service.js';
+import {
+  extractUniqueDocumentHitlRequestIds,
+  extractUniqueSceneHitlRequestIds,
+} from '../revisions/scene-hitl-reference.extractor.js';
+import type { SnapshotCompositionInput } from '../revisions/snapshot-composition.service.js';
 import { CurrentHitlSummaryPort } from '../snapshots/ports/current-hitl-summary.port.js';
 import { INTERACTION_ROW_COLUMNS } from './persistence/interaction.repository.js';
 import {
@@ -18,9 +21,12 @@ interface SnapshotInteractionRowV1 extends InteractionRowV1 {
 export class CurrentHitlSummaryProvider extends CurrentHitlSummaryPort {
   async readAuthorizedAtCut(
     connection: PoolConnection,
-    input: SnapshotCompositionInputV1,
+    input: SnapshotCompositionInput,
   ): Promise<readonly HitlInteractionV1[]> {
-    const ids = extractUniqueSceneHitlRequestIds(input.scene);
+    const ids =
+      input.checkpoint.kind === 'scene'
+        ? extractUniqueSceneHitlRequestIds(input.checkpoint.scene)
+        : extractUniqueDocumentHitlRequestIds(input.checkpoint.document);
     const summaries: HitlInteractionV1[] = [];
     for (let offset = 0; offset < ids.length; offset += 100) {
       const batch = ids.slice(offset, offset + 100);

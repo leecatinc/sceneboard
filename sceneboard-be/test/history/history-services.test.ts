@@ -27,7 +27,7 @@ import {
   HistoryListService,
   type HistoryListRequestV1,
 } from '../../src/history/history-list.service.js';
-import { SceneCheckpointCodec } from '../../src/revisions/scene-checkpoint.codec.js';
+import { DocumentCheckpointCodec } from '../../src/revisions/document-checkpoint.codec.js';
 import { SnapshotCompositionService } from '../../src/revisions/snapshot-composition.service.js';
 import { InactiveCurrentArtifactRuntimeSummaryProvider } from '../../src/snapshots/providers/inactive-current-artifact-runtime-summary.provider.js';
 import { InactiveCurrentHitlSummaryProvider } from '../../src/snapshots/providers/inactive-current-hitl-summary.provider.js';
@@ -114,7 +114,7 @@ test('history list uses one narrow newest-first page and cursors from the last r
             revisionCreatedAt: '2026-07-16 12:00:03.000',
             previousRevisionId: bytes(revisions[1]),
             sourceRevisionId: null,
-            originCode: 'L',
+            originCode: 'D',
             actorKind: 'U',
             actorPrincipalId: 'user_1',
             label: 'Cleared',
@@ -170,6 +170,7 @@ test('history list uses one narrow newest-first page and cursors from the last r
     ),
     [3, 2],
   );
+  assert.equal(result.result.entries[0]?.originType, 'document.replace');
   assert.equal(cursors.parse(result.result.nextCursor, boardId), 2);
   assert.deepEqual(response.metadata, {
     protocolVersion: 1,
@@ -186,11 +187,18 @@ test('history list uses one narrow newest-first page and cursors from the last r
   assert.deepEqual(calls[0]?.binds, [boardId]);
 });
 
-test('history get composes an immutable selected scene with current response-cut capabilities and watermark', async () => {
-  const checkpoint = await new SceneCheckpointCodec().encode({
-    protocolVersion: 1,
-    type: 'scene',
-    root: null,
+test('history get composes an immutable selected v2 document with current response-cut capabilities and watermark', async () => {
+  const checkpoint = await new DocumentCheckpointCodec().encodeDocument({
+    schemaVersion: 2,
+    defaultPageId: 'page_1',
+    pages: [
+      {
+        pageId: 'page_1',
+        title: '',
+        displayMode: 'fit-page',
+        scene: { protocolVersion: 1, type: 'scene', root: null },
+      },
+    ],
   });
   const calls: string[] = [];
   const connection = {
@@ -203,15 +211,15 @@ test('history get composes an immutable selected scene with current response-cut
             {
               revisionPk: '65',
               revisionId: bytes(revisions[0]),
-              revisionNumber: '1',
+              revisionNumber: '2',
               revisionCreatedAt: '2026-07-16 12:00:01.000',
-              previousRevisionId: null,
+              previousRevisionId: bytes(revisions[1]),
               sourceRevisionId: null,
-              originCode: 'C',
+              originCode: 'D',
               actorKind: 'U',
               actorPrincipalId: 'user_1',
-              label: 'Created',
-              nextRevisionId: bytes(revisions[1]),
+              label: 'Updated document',
+              nextRevisionId: bytes(revisions[2]),
               latestRevisionId: bytes(revisions[2]),
               sceneSchemaVersion: checkpoint.schemaVersion,
               sceneCodec: checkpoint.codec,
@@ -249,15 +257,18 @@ test('history get composes an immutable selected scene with current response-cut
   );
   const response = await new HistoryGetService(
     policy,
-    new SceneCheckpointCodec(),
+    new DocumentCheckpointCodec(),
     snapshots,
   ).getWithMetadata({ principal: principal(), request: parseGet() });
   const result = response.result;
   assert.equal(BoardOperationResultParserV1.parse(result).ok, true);
   assert.equal(result.result.type, 'history.get');
   if (result.result.type !== 'history.get') return;
-  assert.equal(result.result.entry.revision.revisionNumber, 1);
-  assert.equal(result.result.snapshot.scene.root, null);
+  assert.equal(result.result.entry.revision.revisionNumber, 2);
+  assert.equal('document' in result.result.snapshot, true);
+  if (!('document' in result.result.snapshot)) return;
+  assert.equal(result.result.snapshot.document.defaultPageId, 'page_1');
+  assert.equal(result.result.snapshot.capabilities.schemaVersion, '1.1.0');
   assert.equal(result.result.snapshot.lastEventSequence, 3);
   assert.deepEqual(result.result.snapshot.capabilities.grantedCapabilities, [
     'board.history.read',
@@ -266,11 +277,11 @@ test('history get composes an immutable selected scene with current response-cut
   assert.deepEqual(response.metadata, {
     protocolVersion: 1,
     type: 'history.adapter-metadata',
-    entries: [{ revisionId: revisions[0], label: 'Created' }],
+    entries: [{ revisionId: revisions[0], label: 'Updated document' }],
     navigation: {
       revisionId: revisions[0],
-      previousRevisionId: null,
-      nextRevisionId: revisions[1],
+      previousRevisionId: revisions[1],
+      nextRevisionId: revisions[2],
       latestRevisionId: revisions[2],
     },
   });

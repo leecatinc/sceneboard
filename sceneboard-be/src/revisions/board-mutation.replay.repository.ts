@@ -1,7 +1,7 @@
 import {
-  MutationResultParserV1,
-  type MutationRequestV1,
-  type MutationResultV1,
+  MutationResultParserV2,
+  type MutationRequestV2,
+  type MutationResultV2,
 } from '@sceneboard/board-schema';
 import type { PoolConnection } from 'mysql2/promise';
 
@@ -26,9 +26,10 @@ export class BoardMutationReplayRepository {
   async replayOrReject(
     connection: PoolConnection,
     context: AuthorizedBoardContextV1,
-    request: MutationRequestV1,
+    request: MutationRequestV2,
     prepared: PreparedMutationV1,
-  ): Promise<MutationResultV1> {
+    missing: 'collision' | 'return-null' = 'collision',
+  ): Promise<MutationResultV2 | null> {
     const [rows] = await connection.execute<MutationIdempotencyRow[]>(
       `
       SELECT status_code AS statusCode, operation_type AS operationType,
@@ -54,7 +55,10 @@ export class BoardMutationReplayRepository {
       ],
     );
     const row = rows[0];
-    if (rows.length === 0) throw new MutationIdentifierCollisionError('record');
+    if (rows.length === 0) {
+      if (missing === 'return-null') return null;
+      throw new MutationIdentifierCollisionError('record');
+    }
     if (rows.length !== 1 || row === undefined) throw internalFailure();
     if (!digestEquals(row.fingerprintSha256, prepared.fingerprintSha256)) {
       if (row.actorGrantId !== context.actor.grantId) {
@@ -84,12 +88,12 @@ export class BoardMutationReplayRepository {
       row.resultRevisionPk === null ||
       row.resultCanonicalBytes !== row.resultPayload.byteLength ||
       row.resultPayload.byteLength < 1 ||
-      row.resultPayload.byteLength > 1_048_576 ||
+      row.resultPayload.byteLength > 33_554_432 ||
       !digestEquals(digest(row.resultPayload), row.resultSha256)
     ) {
       throw internalFailure();
     }
-    const stored = MutationResultParserV1.parseBytes(row.resultPayload);
+    const stored = MutationResultParserV2.parseBytes(row.resultPayload);
     if (
       !stored.ok ||
       !Buffer.from(stored.data.canonicalBytes).equals(row.resultPayload) ||
@@ -103,7 +107,8 @@ export class BoardMutationReplayRepository {
     const resultRevisionId =
       stored.data.value.result.type === 'scene.restore' ||
       stored.data.value.result.type === 'scene.replace' ||
-      stored.data.value.result.type === 'scene.clear'
+      stored.data.value.result.type === 'scene.clear' ||
+      stored.data.value.result.type === 'document.replace'
         ? stored.data.value.result.revision.revisionId
         : null;
     if (resultRevisionId === null) throw internalFailure();
@@ -131,7 +136,7 @@ export class BoardMutationReplayRepository {
     ) {
       throw internalFailure();
     }
-    const replay = MutationResultParserV1.parse({
+    const replay = MutationResultParserV2.parse({
       ...stored.data.value,
       requestId: request.requestId,
       replayed: true,

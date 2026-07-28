@@ -1,11 +1,15 @@
 import {
-  BoardEventEnvelopeParserV1,
+  BoardEventEnvelopeParserV2,
   MutationResultParserV1,
+  MutationResultParserV2,
   type MutationRequestV1,
+  type MutationRequestV2,
   type MutationResultV1,
+  type MutationResultV2,
 } from '@sceneboard/board-schema';
 import type { PoolConnection, ResultSetHeader } from 'mysql2/promise';
 
+import { BoardContractError } from '../common/errors/app-error.js';
 import { BoardPersistenceError } from '../common/errors/board-persistence.error.js';
 import type {
   AuthorizedBoardContextV1,
@@ -19,6 +23,7 @@ import {
   actorCode,
   boardArchived,
   digest,
+  documentVersionMismatch,
   insertedPk,
   internalFailure,
   invalidMutation,
@@ -34,7 +39,7 @@ import {
   type MutationRuntime,
   type PreparedMutationV1,
 } from './board-mutation.types.js';
-import { SceneCheckpointCodec } from './scene-checkpoint.codec.js';
+import { DocumentCheckpointCodec } from './document-checkpoint.codec.js';
 
 const MAX_SAFE_SEQUENCE = Number.MAX_SAFE_INTEGER;
 
@@ -45,7 +50,7 @@ export class BoardMutationService {
 
   constructor(
     private readonly accessPolicy: BoardAccessPolicy,
-    checkpoints: SceneCheckpointCodec,
+    checkpoints: DocumentCheckpointCodec,
     runtime: Partial<MutationRuntime> = {},
   ) {
     this.preparer = new BoardMutationPreparer(checkpoints, runtime);
@@ -56,6 +61,24 @@ export class BoardMutationService {
     principal: ResolvedBoardPrincipalV1;
     request: MutationRequestV1;
   }): Promise<MutationResultV1> {
+    const result = await this.applyCheckpointMutation(input);
+    const parsed = MutationResultParserV1.parse(result);
+    if (!parsed.ok) throw internalFailure();
+    return parsed.data.value;
+  }
+
+  async applyDocumentMutation(input: {
+    principal: ResolvedBoardPrincipalV1;
+    request: MutationRequestV2;
+  }): Promise<MutationResultV2> {
+    if (input.request.command.type !== 'document.replace') throw invalidMutation();
+    return this.applyCheckpointMutation(input);
+  }
+
+  private async applyCheckpointMutation(input: {
+    principal: ResolvedBoardPrincipalV1;
+    request: MutationRequestV2;
+  }): Promise<MutationResultV2> {
     if (!isSceneMutation(input.request.command.type)) throw invalidMutation();
     let prepared = await this.preparer.prepare(input);
     for (let collisionCount = 0; collisionCount <= 3; collisionCount += 1) {
@@ -82,11 +105,102 @@ export class BoardMutationService {
   private async applyNewOrReplay(
     connection: PoolConnection,
     context: AuthorizedBoardContextV1,
-    request: MutationRequestV1,
+    request: MutationRequestV2,
     prepared: PreparedMutationV1,
-  ): Promise<MutationResultV1> {
+  ): Promise<MutationResultV2> {
     const operation = request.command.type;
     if (!isSceneMutation(operation)) throw invalidMutation();
+    const replay = await this.replayRepository.replayOrReject(
+      connection,
+      context,
+      request,
+      prepared,
+      'return-null',
+    );
+    if (replay !== null) return replay;
+    const restore =
+      operation === 'scene.restore'
+        ? await this.restoreRepository.prepareRestore(connection, request)
+        : null;
+    const head = await this.lockHead(connection, request);
+    const actualRevisionId = revisionIdFromBytes(head.headRevisionId);
+    const headNumber = safePositive(head.headRevisionNumber);
+    const lastSequence = safePositive(head.lastEventSequence);
+    const headSchemaVersion =
+      head.sceneSchemaVersion === '1.0.0' ? 1 : head.sceneSchemaVersion === '2.0.0' ? 2 : null;
+    if (headSchemaVersion === null) throw new BoardPersistenceError('row_integrity');
+    if (actualRevisionId !== request.expectedRevisionId) {
+      throw revisionConflict(request, actualRevisionId, headNumber);
+    }
+    if (headSchemaVersion === 2 && (operation === 'scene.replace' || operation === 'scene.clear')) {
+      throw documentVersionMismatch(2, 1, operation);
+    }
+    if (headNumber >= MAX_SAFE_SEQUENCE || lastSequence >= MAX_SAFE_SEQUENCE) {
+      throw new BoardPersistenceError('capacity_exhausted');
+    }
+    const selected =
+      restore === null
+        ? {
+            checkpoint: prepared.checkpoint,
+            references: prepared.references,
+            sourceRevisionPk: null,
+          }
+        : await this.restoreRepository.revalidateRestore(
+            connection,
+            head.boardPk,
+            restore,
+            head.sceneSchemaVersion,
+            request.boardId,
+          );
+    if (selected.checkpoint === null || selected.references === null) throw internalFailure();
+    const revisionNumber = headNumber + 1;
+    const sequence = lastSequence + 1;
+    const revision = {
+      revisionId: prepared.revisionId,
+      revisionNumber,
+      createdAt: prepared.occurredAt,
+    };
+    const sourceRevisionId =
+      operation === 'scene.restore' ? request.command.sourceRevisionId : null;
+    const event = BoardEventEnvelopeParserV2.parse({
+      protocolVersion: 1,
+      type: 'board.event',
+      boardId: request.boardId,
+      eventId: prepared.eventId,
+      sequence,
+      occurredAt: prepared.occurredAt,
+      revisionId: prepared.revisionId,
+      data: {
+        type: 'board.revision.created',
+        revision,
+        originType: operation,
+        sourceRevisionId,
+      },
+    });
+    if (!event.ok) throw new BoardContractError(event.error);
+    const eventPayload = Buffer.from(event.data.canonicalBytes);
+    const result = MutationResultParserV2.parse({
+      protocolVersion: 1,
+      type: 'mutation.result',
+      requestId: request.requestId,
+      boardId: request.boardId,
+      replayed: false,
+      eventIds: [prepared.eventId],
+      result:
+        operation === 'scene.restore'
+          ? { type: operation, sourceRevisionId: request.command.sourceRevisionId, revision }
+          : operation === 'document.replace'
+            ? {
+                type: operation,
+                revision,
+                originType: operation,
+                sourceRevisionId: null,
+                document: request.command.document,
+              }
+            : { type: operation, revision },
+    });
+    if (!result.ok) throw new BoardContractError(result.error);
+    const resultPayload = Buffer.from(result.data.canonicalBytes);
     const [pending] = await connection.execute<ResultSetHeader>(
       `
       INSERT INTO board_idempotency_records (
@@ -118,40 +232,24 @@ export class BoardMutationService {
       ],
     );
     if (pending.affectedRows !== 1) {
-      return this.replayRepository.replayOrReject(connection, context, request, prepared);
+      const raced = await this.replayRepository.replayOrReject(
+        connection,
+        context,
+        request,
+        prepared,
+      );
+      if (raced === null) throw internalFailure();
+      return raced;
     }
     const recordPk = insertedPk(pending);
-    const restore =
-      operation === 'scene.restore'
-        ? await this.restoreRepository.prepareRestore(connection, request)
-        : null;
-    const head = await this.lockHead(connection, request);
-    const actualRevisionId = revisionIdFromBytes(head.headRevisionId);
-    const headNumber = safePositive(head.headRevisionNumber);
-    const lastSequence = safePositive(head.lastEventSequence);
-    if (actualRevisionId !== request.expectedRevisionId) {
-      throw revisionConflict(request, actualRevisionId, headNumber);
-    }
-    if (headNumber >= MAX_SAFE_SEQUENCE || lastSequence >= MAX_SAFE_SEQUENCE) {
-      throw new BoardPersistenceError('capacity_exhausted');
-    }
-    const selected =
-      restore === null
-        ? {
-            checkpoint: prepared.checkpoint,
-            references: prepared.references,
-            sourceRevisionPk: null,
-          }
-        : await this.restoreRepository.revalidateRestore(connection, head.boardPk, restore);
-    if (selected.checkpoint === null || selected.references === null) throw internalFailure();
-    const revisionNumber = headNumber + 1;
-    const sequence = lastSequence + 1;
     const label =
       operation === 'scene.replace'
         ? 'Updated'
         : operation === 'scene.clear'
           ? 'Cleared'
-          : `Restored revision ${restore?.row.revisionNumber ?? ''}`;
+          : operation === 'document.replace'
+            ? 'Updated document'
+            : `Restored revision ${restore?.row.revisionNumber ?? ''}`;
     let revisionInsert: ResultSetHeader;
     try {
       [revisionInsert] = await connection.execute<ResultSetHeader>(
@@ -170,7 +268,13 @@ export class BoardMutationService {
           revisionNumber,
           head.headRevisionPk,
           selected.sourceRevisionPk,
-          operation === 'scene.replace' ? 'R' : operation === 'scene.clear' ? 'L' : 'S',
+          operation === 'scene.replace'
+            ? 'R'
+            : operation === 'scene.clear'
+              ? 'L'
+              : operation === 'document.replace'
+                ? 'D'
+                : 'S',
           label,
           selected.checkpoint.schemaVersion,
           selected.checkpoint.codec,
@@ -219,30 +323,6 @@ export class BoardMutationService {
       [prepared.occurredAtSql, head.boardPk],
     );
     if (boardUpdate.affectedRows !== 1) throw internalFailure();
-    const revision = {
-      revisionId: prepared.revisionId,
-      revisionNumber,
-      createdAt: prepared.occurredAt,
-    };
-    const sourceRevisionId =
-      operation === 'scene.restore' ? request.command.sourceRevisionId : null;
-    const event = BoardEventEnvelopeParserV1.parse({
-      protocolVersion: 1,
-      type: 'board.event',
-      boardId: request.boardId,
-      eventId: prepared.eventId,
-      sequence,
-      occurredAt: prepared.occurredAt,
-      revisionId: prepared.revisionId,
-      data: {
-        type: 'board.revision.created',
-        revision,
-        originType: operation,
-        sourceRevisionId,
-      },
-    });
-    if (!event.ok) throw internalFailure();
-    const eventPayload = Buffer.from(event.data.canonicalBytes);
     try {
       const [eventInsert] = await connection.execute<ResultSetHeader>(
         `
@@ -269,20 +349,6 @@ export class BoardMutationService {
         throw new MutationIdentifierCollisionError('event');
       throw error;
     }
-    const result = MutationResultParserV1.parse({
-      protocolVersion: 1,
-      type: 'mutation.result',
-      requestId: request.requestId,
-      boardId: request.boardId,
-      replayed: false,
-      eventIds: [prepared.eventId],
-      result:
-        operation === 'scene.restore'
-          ? { type: operation, sourceRevisionId: request.command.sourceRevisionId, revision }
-          : { type: operation, revision },
-    });
-    if (!result.ok) throw internalFailure();
-    const resultPayload = Buffer.from(result.data.canonicalBytes);
     const [complete] = await connection.execute<ResultSetHeader>(
       `
       UPDATE board_idempotency_records
@@ -309,7 +375,7 @@ export class BoardMutationService {
 
   private async lockHead(
     connection: PoolConnection,
-    request: MutationRequestV1,
+    request: MutationRequestV2,
   ): Promise<LockedHeadRow> {
     const [rows] = await connection.execute<LockedHeadRow[]>(
       `
@@ -319,7 +385,8 @@ export class BoardMutationService {
         CAST(h.head_revision_pk AS CHAR) AS headRevisionPk,
         hr.revision_id AS headRevisionId,
         CAST(h.head_revision_number AS CHAR) AS headRevisionNumber,
-        CAST(h.last_event_sequence AS CHAR) AS lastEventSequence
+        CAST(h.last_event_sequence AS CHAR) AS lastEventSequence,
+        hr.scene_schema_version AS sceneSchemaVersion
       FROM boards b
       JOIN board_heads h ON h.board_pk = b.board_pk
       JOIN board_revisions hr

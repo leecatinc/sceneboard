@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "migration": "013_d9_v2_checkpoint_capacity",
+  "table": "board_revisions",
+  "columns": {
+    "scene_schema_version": "char(5) ascii ascii_bin not null",
+    "scene_codec": "char(1) ascii ascii_bin not null",
+    "scene_payload": "longblob not null",
+    "scene_canonical_bytes": "int unsigned not null",
+    "scene_stored_bytes": "int unsigned not null"
+  },
+  "acceptedBranches": {
+    "1.0.0": {
+      "codec": "B",
+      "canonicalBytes": [1, 786432],
+      "storedBytes": [1, 800000]
+    },
+    "2.0.0": {
+      "codec": "B",
+      "canonicalBytes": [1, 20971520],
+      "storedBytes": [1, 33554432]
+    }
+  },
+  "storedBytesMustEqualOctetLength": true,
+  "reversible": false
+}

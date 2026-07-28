@@ -65,6 +65,72 @@ interface LockRow extends RowDataPacket {
   acquired: number | string | null;
 }
 
+export interface V2CheckpointColumnProjection {
+  columnName: string;
+  columnType: string;
+  characterSetName: string | null;
+  collationName: string | null;
+  isNullable: string;
+}
+
+export interface V2CheckpointConstraintProjection {
+  constraintName: string;
+  checkClause: string;
+}
+
+export const assessV2CheckpointCapacity = (
+  columnRows: readonly V2CheckpointColumnProjection[],
+  constraintRows: readonly V2CheckpointConstraintProjection[],
+): void => {
+  const columns = new Map(columnRows.map((row) => [row.columnName, row]));
+  const expected = {
+    scene_schema_version: ['char(5)', 'ascii', 'ascii_bin', 'NO'],
+    scene_codec: ['char(1)', 'ascii', 'ascii_bin', 'NO'],
+    scene_payload: ['longblob', null, null, 'NO'],
+    scene_canonical_bytes: ['int unsigned', null, null, 'NO'],
+    scene_stored_bytes: ['int unsigned', null, null, 'NO'],
+  } as const;
+  for (const [name, values] of Object.entries(expected)) {
+    const actual = columns.get(name);
+    if (
+      actual === undefined ||
+      actual.columnType.toLowerCase() !== values[0] ||
+      actual.characterSetName !== values[1] ||
+      actual.collationName !== values[2] ||
+      actual.isNullable !== values[3]
+    ) {
+      throw new MigrationStateError(`v2 checkpoint column drift: ${name}`);
+    }
+  }
+
+  const constraints = new Map(
+    constraintRows.map((row) => [
+      row.constraintName,
+      row.checkClause.toLowerCase().replaceAll(/\s+/g, ''),
+    ]),
+  );
+  const checkpoint = constraints.get('chk_revisions_checkpoint') ?? '';
+  for (const required of [
+    "scene_codec='b'",
+    'scene_stored_bytes=octet_length(scene_payload)',
+    "scene_schema_version='1.0.0'",
+    'scene_canonical_bytesbetween1and786432',
+    'scene_stored_bytesbetween1and800000',
+    "scene_schema_version='2.0.0'",
+    'scene_canonical_bytesbetween1and20971520',
+    'scene_stored_bytesbetween1and33554432',
+  ]) {
+    if (!checkpoint.includes(required))
+      throw new MigrationStateError(`v2 checkpoint predicate drift: ${required}`);
+  }
+  if (
+    !constraints.get('chk_revisions_codec')?.includes("scene_codec='b'") ||
+    !constraints.get('chk_revisions_origin')?.includes("'d'")
+  ) {
+    throw new MigrationStateError('v2 checkpoint discriminator constraints are missing');
+  }
+};
+
 const LEDGER_BOOTSTRAP_SQL = `
   CREATE TABLE IF NOT EXISTS schema_migrations (
     version VARCHAR(100) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
@@ -212,6 +278,10 @@ export class MigrationRunner {
     connection: PoolConnection,
     postcondition: string,
   ): Promise<void> {
+    if (postcondition === 'd9_v2_checkpoint_capacity_v1') {
+      await this.verifyV2CheckpointCapacity(connection);
+      return;
+    }
     const postconditions: Readonly<Record<string, readonly string[]>> = {
       d2_identity_sessions_audit_v1: ['users', 'auth_sessions', 'security_audit_events'],
       d3_boards_v1: ['boards'],
@@ -254,6 +324,49 @@ export class MigrationRunner {
       if (!actual.has(table))
         throw new MigrationStateError(`postcondition is missing table ${table}`);
     }
+  }
+
+  private async verifyV2CheckpointCapacity(connection: PoolConnection): Promise<void> {
+    const [columnRows] = await connection.query<
+      Array<RowDataPacket & V2CheckpointColumnProjection>
+    >(
+      `SELECT
+         column_name AS columnName,
+         column_type AS columnType,
+         character_set_name AS characterSetName,
+         collation_name AS collationName,
+         is_nullable AS isNullable
+       FROM information_schema.columns
+       WHERE table_schema = DATABASE()
+         AND table_name = 'board_revisions'
+         AND column_name IN (
+           'scene_schema_version',
+           'scene_codec',
+           'scene_payload',
+           'scene_canonical_bytes',
+           'scene_stored_bytes'
+         )`,
+    );
+    const [constraintRows] = await connection.query<
+      Array<RowDataPacket & V2CheckpointConstraintProjection>
+    >(
+      `SELECT
+         tc.constraint_name AS constraintName,
+         cc.check_clause AS checkClause
+       FROM information_schema.table_constraints tc
+       JOIN information_schema.check_constraints cc
+         ON cc.constraint_schema = tc.constraint_schema
+           AND cc.constraint_name = tc.constraint_name
+       WHERE tc.table_schema = DATABASE()
+         AND tc.table_name = 'board_revisions'
+         AND tc.constraint_type = 'CHECK'
+         AND tc.constraint_name IN (
+           'chk_revisions_origin',
+           'chk_revisions_codec',
+           'chk_revisions_checkpoint'
+         )`,
+    );
+    assessV2CheckpointCapacity(columnRows, constraintRows);
   }
 
   private async withMigrationLock<Value>(

@@ -4,8 +4,11 @@ import test from 'node:test';
 
 import {
   BoardEventEnvelopeParserV1,
+  BoardEventEnvelopeParserV2,
+  DEFAULT_BOARD_CAPABILITIES_V2,
   type BoardId,
   type BoardSnapshotV1,
+  type BoardSnapshotV2,
   type EventId,
 } from '@sceneboard/board-schema';
 
@@ -54,6 +57,66 @@ test('no cursor yields one synthetic snapshot envelope and bound signed cursor',
   assert.equal(cursor.b, snapshot.boardId);
   assert.equal(cursor.s, snapshot.lastEventSequence);
   assert.equal(cursor.e, frame.envelope.eventId);
+});
+
+test('no cursor emits a negotiated v2 document snapshot cut without a legacy Scene cast', async () => {
+  const base = snapshotFixture();
+  const { scene: _scene, ...shared } = base;
+  const snapshot = {
+    ...shared,
+    revision: {
+      ...base.revision,
+      revisionId: 'revision_v2',
+      revisionNumber: 2,
+      previousRevisionId: base.revision.revisionId,
+      originType: 'document.replace',
+      sourceRevisionId: null,
+    },
+    document: {
+      schemaVersion: 2,
+      defaultPageId: 'page_1',
+      pages: [
+        {
+          pageId: 'page_1',
+          title: '',
+          displayMode: 'fit-page',
+          scene: { protocolVersion: 1, type: 'scene', root: null },
+        },
+      ],
+    },
+    capabilities: {
+      ...DEFAULT_BOARD_CAPABILITIES_V2,
+      supported: {
+        ...DEFAULT_BOARD_CAPABILITIES_V2.supported,
+        nodeTypes: [...DEFAULT_BOARD_CAPABILITIES_V2.supported.nodeTypes],
+        commandTypes: [...DEFAULT_BOARD_CAPABILITIES_V2.supported.commandTypes],
+        operationTypes: [...DEFAULT_BOARD_CAPABILITIES_V2.supported.operationTypes],
+        eventTypes: [...DEFAULT_BOARD_CAPABILITIES_V2.supported.eventTypes],
+        hitlKinds: [...DEFAULT_BOARD_CAPABILITIES_V2.supported.hitlKinds],
+        artifactRequestCapabilities: [
+          ...DEFAULT_BOARD_CAPABILITIES_V2.supported.artifactRequestCapabilities,
+        ],
+      },
+      limits: { ...DEFAULT_BOARD_CAPABILITIES_V2.limits },
+      grantedCapabilities: [...base.capabilities.grantedCapabilities],
+      allowedArtifactRequestCapabilities: [...base.capabilities.allowedArtifactRequestCapabilities],
+    },
+  } as BoardSnapshotV2;
+  const codec = new SseCursorCodec(new RedisStreamKeyspace(Buffer.alloc(32, 13)));
+  const service = new BoardStreamCutService(
+    { get: async () => ({ result: { type: 'board.get', snapshot } }) } as never,
+    {} as never,
+    codec,
+    { generatePublicIdV1: () => 'request_1' } as never,
+  );
+  const cut = await service.prepare(principal as never, snapshot.boardId, null);
+  const frame = cut.frames[0];
+  assert.ok(frame);
+  assert.equal(BoardEventEnvelopeParserV2.parseBytes(frame.canonicalBytes).ok, true);
+  assert.equal(frame.envelope.data.type, 'board.snapshot');
+  if (frame.envelope.data.type === 'board.snapshot') {
+    assert.equal('document' in frame.envelope.data.snapshot, true);
+  }
 });
 
 test('usable snapshot cursor replays only the complete contiguous suffix', async () => {

@@ -28,7 +28,7 @@ import type {
   BoardAccessPolicy,
   ResolvedBoardPrincipalV1,
 } from '../grants/board-access.policy.js';
-import { SceneCheckpointCodec } from '../revisions/scene-checkpoint.codec.js';
+import { DocumentCheckpointCodec } from '../revisions/document-checkpoint.codec.js';
 import { currentBoardCapabilitiesFromContext } from '../grants/current-board-capabilities.js';
 
 export type BoardCreateRequestV1 = Extract<
@@ -57,7 +57,7 @@ interface PreparedCreateV1 {
   actorScopesSha256: Buffer;
   commandPayloadSha256: Buffer;
   idempotencyScopeSha256: Buffer;
-  checkpoint: Awaited<ReturnType<SceneCheckpointCodec['encode']>>;
+  checkpoint: Awaited<ReturnType<DocumentCheckpointCodec['encodeScene']>>;
 }
 
 interface CreateIdempotencyRow extends RowDataPacket {
@@ -179,7 +179,7 @@ export class BoardCreateService {
   constructor(
     private readonly accessPolicy: BoardAccessPolicy,
     private readonly crypto: CryptoService,
-    private readonly checkpointCodec: SceneCheckpointCodec,
+    private readonly checkpointCodec: DocumentCheckpointCodec,
     runtime: Partial<BoardCreateRuntime> = {},
   ) {
     this.runtime = {
@@ -279,7 +279,7 @@ export class BoardCreateService {
       actorScopesSha256: hash(actorScopesPayload),
       commandPayloadSha256: hash(commandPayload),
       idempotencyScopeSha256: hash(idempotencyScope),
-      checkpoint: await this.checkpointCodec.encode({
+      checkpoint: await this.checkpointCodec.encodeScene({
         protocolVersion: 1,
         type: 'scene',
         root: null,

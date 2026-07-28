@@ -12,7 +12,7 @@ test('binds every staged registry asset to non-empty deterministic SQL', async (
     assets.add(entry.upAsset);
     if (entry.downAsset !== null) assets.add(entry.downAsset);
   }
-  assert.equal(assets.size, 18);
+  assert.equal(assets.size, 19);
   for (const asset of assets) {
     const bytes = await readFile(new URL(asset, directory));
     const source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
@@ -48,8 +48,8 @@ test('interleaves the irreversible D3 board owner before D2 grant bindings', asy
   assert.doesNotMatch(source, /REGEXP_LIKE\s*\(\s*public_id/);
 });
 
-test('materializes the exact terminal fifteen-entry and eighteen-asset checkpoint', async () => {
-  assert.equal(MIGRATION_REGISTRY.length, 15);
+test('materializes the exact terminal sixteen-entry and nineteen-asset checkpoint', async () => {
+  assert.equal(MIGRATION_REGISTRY.length, 16);
   assert.equal(MIGRATION_REGISTRY.filter((entry) => entry.reversible).length, 3);
   const directory = new URL('../../src/database/migrations/sql/', import.meta.url);
   const expectedTables = new Map([
@@ -89,9 +89,17 @@ test('materializes the exact terminal fifteen-entry and eighteen-asset checkpoin
     'utf8',
   );
   assert.doesNotMatch(references, /REFERENCES artifacts/u);
+  const capacity = await readFile(
+    new URL('013_d9_v2_checkpoint_capacity.up.sql', directory),
+    'utf8',
+  );
+  assert.equal(splitSqlStatements(capacity).length, 1);
+  assert.match(capacity, /MODIFY COLUMN scene_payload LONGBLOB NOT NULL/u);
+  assert.match(capacity, /MODIFY COLUMN scene_canonical_bytes INT UNSIGNED NOT NULL/u);
+  assert.match(capacity, /scene_schema_version = '2\.0\.0'/u);
 });
 
-test('the live runner verifies every terminal D7 and D8 migration postcondition', async () => {
+test('the live runner verifies every terminal D7, D8, and D9 migration postcondition', async () => {
   const source = await readFile(
     new URL('../../src/database/migrations/runner.ts', import.meta.url),
     'utf8',
@@ -105,6 +113,7 @@ test('the live runner verifies every terminal D7 and D8 migration postcondition'
     'd8_board_hitl_interactions_v1',
   ])
     assert.match(source, new RegExp(`${postcondition}:`));
+  assert.match(source, /postcondition === 'd9_v2_checkpoint_capacity_v1'/u);
 });
 
 test('binds D2 pairing and grant tables to the exact D3 public board key', async () => {

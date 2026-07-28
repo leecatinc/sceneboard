@@ -3,7 +3,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import {
   BoardIdParserV1,
-  BoardEventEnvelopeParserV1,
+  BoardEventEnvelopeParserV2,
   type BoardId,
   type EventId,
   type RevisionId,
@@ -248,7 +248,7 @@ export class BoardEventOutboxRepository
     ) {
       throw new Error('event payload integrity failure');
     }
-    const parsed = BoardEventEnvelopeParserV1.parseBytes(row.eventPayload);
+    const parsed = BoardEventEnvelopeParserV2.parseBytes(row.eventPayload);
     if (!parsed.ok) throw new Error('stored event schema failure');
     const eventPk = safeBigInt(row.eventPk);
     const eventId = asEventId(row.eventId);

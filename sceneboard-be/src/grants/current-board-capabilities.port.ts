@@ -2,7 +2,7 @@ import {
   ARTIFACT_REQUEST_CAPABILITIES_V1,
   type ActorContextV1,
   type ArtifactRequestCapabilityV1,
-  type BoardCapabilitiesV1,
+  type BoardCapabilities,
   type BoardId,
 } from '@sceneboard/board-schema';
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
@@ -18,8 +18,13 @@ interface CapabilityPolicyRow extends RowDataPacket {
 export class MysqlCurrentBoardCapabilitiesPort {
   async readAuthorizedAtCut(
     connection: PoolConnection,
-    input: { actor: ActorContextV1; boardId: BoardId; lastEventSequence: number },
-  ): Promise<BoardCapabilitiesV1> {
+    input: {
+      actor: ActorContextV1;
+      boardId: BoardId;
+      lastEventSequence: number;
+      checkpointSchemaVersion?: 1 | 2;
+    },
+  ): Promise<BoardCapabilities> {
     if (!Number.isSafeInteger(input.lastEventSequence) || input.lastEventSequence < 1) {
       throw new BoardPersistenceError('row_integrity');
     }
@@ -56,12 +61,15 @@ export class MysqlCurrentBoardCapabilitiesPort {
       allowed.push(row.capability as ArtifactRequestCapabilityV1);
     }
     allowed.sort();
-    return currentBoardCapabilitiesFromContext({
+    const context = {
       actor: input.actor,
       artifactCapabilityPolicy: {
         allowedArtifactRequestCapabilities: allowed,
         policyEpoch: epoch.toString('base64url'),
       },
-    });
+    };
+    return input.checkpointSchemaVersion === 2
+      ? currentBoardCapabilitiesFromContext(context, 2)
+      : currentBoardCapabilitiesFromContext(context, 1);
   }
 }

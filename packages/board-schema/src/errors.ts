@@ -4,6 +4,7 @@ import { ArtifactReferenceSchemaV1 } from './artifacts.js';
 import {
   ARTIFACT_REQUEST_CAPABILITIES_V1,
   BOARD_MUTATION_COMMAND_TYPES_V1,
+  BOARD_MUTATION_COMMAND_TYPES_V2,
   CLIENT_GRANT_CAPABILITIES_V1,
 } from './catalogs.js';
 import {
@@ -290,6 +291,25 @@ export type RevisionConflictErrorV1 = Extract<BoardErrorV1, { code: 'REVISION_CO
 export type IdempotencyKeyReusedDetailsV1 = z.infer<typeof MutationReuseDetailsSchemaV1>;
 
 const BoardErrorSchemaV2Only = z.discriminatedUnion('code', [
+  branch(
+    'IDEMPOTENCY_KEY_REUSED',
+    'conflict',
+    false,
+    409,
+    z
+      .object({
+        scope: z.literal('board.mutation'),
+        boardId: BoardIdSchemaV1,
+        operationType: z.enum(BOARD_MUTATION_COMMAND_TYPES_V2),
+        reason: z.enum([
+          'grant_changed',
+          'scopes_changed',
+          'expected_revision_changed',
+          'payload_changed',
+        ]),
+      })
+      .strict(),
+  ),
   branch(
     'DOCUMENT_VERSION_MISMATCH',
     'conflict',

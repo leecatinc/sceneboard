@@ -3,7 +3,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import {
   canonicalizeJsonV1,
   type EventId,
-  type MutationRequestV1,
+  type MutationRequestV2,
   type RevisionId,
   type TimestampV1,
 } from '@sceneboard/board-schema';
@@ -49,7 +49,7 @@ export const invalidMutation = (): BoardContractError =>
     category: 'validation',
     retryable: false,
     httpStatusHint: 400,
-    details: { path: ['command', 'type'], issue: 'expected a scene mutation' },
+    details: { path: ['command', 'type'], issue: 'expected a checkpoint mutation' },
   });
 
 export const revisionNotFound = (revisionId: RevisionId): BoardContractError =>
@@ -64,7 +64,7 @@ export const revisionNotFound = (revisionId: RevisionId): BoardContractError =>
     details: { revisionId },
   });
 
-export const boardArchived = (request: MutationRequestV1, archivedAt: string): BoardContractError =>
+export const boardArchived = (request: MutationRequestV2, archivedAt: string): BoardContractError =>
   new BoardContractError({
     protocolVersion: 1,
     type: 'board.error',
@@ -80,7 +80,7 @@ export const boardArchived = (request: MutationRequestV1, archivedAt: string): B
   });
 
 export const revisionConflict = (
-  request: MutationRequestV1,
+  request: MutationRequestV2,
   actualRevisionId: RevisionId,
   actualRevisionNumber: number,
 ): BoardContractError =>
@@ -102,7 +102,7 @@ export const revisionConflict = (
   });
 
 export const idempotencyReuse = (
-  request: MutationRequestV1,
+  request: MutationRequestV2,
   reason: 'grant_changed' | 'scopes_changed' | 'expected_revision_changed' | 'payload_changed',
 ): BoardContractError =>
   new BoardContractError({
@@ -175,4 +175,23 @@ export const referenceRowsEqual = (
 ): boolean => JSON.stringify(left) === JSON.stringify(right);
 
 export const isSceneMutation = (value: string): value is SceneMutationTypeV1 =>
-  value === 'scene.replace' || value === 'scene.clear' || value === 'scene.restore';
+  value === 'scene.replace' ||
+  value === 'scene.clear' ||
+  value === 'scene.restore' ||
+  value === 'document.replace';
+
+export const documentVersionMismatch = (
+  headSchemaVersion: 1 | 2,
+  commandSchemaVersion: 1 | 2,
+  commandType: SceneMutationTypeV1,
+): BoardContractError =>
+  new BoardContractError({
+    protocolVersion: 1,
+    type: 'board.error',
+    code: 'DOCUMENT_VERSION_MISMATCH',
+    message: 'Document version mismatch',
+    category: 'conflict',
+    retryable: false,
+    httpStatusHint: 409,
+    details: { headSchemaVersion, commandSchemaVersion, commandType },
+  });

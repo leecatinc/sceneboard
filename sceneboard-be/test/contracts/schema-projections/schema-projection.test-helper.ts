@@ -26,7 +26,7 @@ interface ProjectionTableV1 {
 
 export interface OwnerProjectionV1 {
   schemaVersion: 1;
-  owner: 'D2' | 'D3' | 'D7' | 'D8';
+  owner: 'D2' | 'D3' | 'D7' | 'D8' | 'D9';
   contractSha256: string;
   registryEntries: ProjectionEntryV1[];
   tables: ProjectionTableV1[];

@@ -2227,6 +2227,15 @@
           "selector": "ClassDeclaration[name=BoardMutationService]/MethodDeclaration[name=applySceneMutation]"
         },
         {
+          "resourceId": "D3-DOCUMENT-MUTATE",
+          "owner": "D3",
+          "path": "sceneboard-be/src/revisions/board-mutation.service.ts",
+          "exportName": "BoardMutationService",
+          "exportKind": "class",
+          "projectionId": "D3-DOCUMENT-MUTATE",
+          "selector": "ClassDeclaration[name=BoardMutationService]/MethodDeclaration[name=applyDocumentMutation]"
+        },
+        {
           "resourceId": "D3-HISTORY-LIST",
           "owner": "D3",
           "path": "sceneboard-be/src/history/history-list.service.ts",
@@ -2270,6 +2279,15 @@
           "exportKind": "class",
           "projectionId": "D3-SNAPSHOT-COMPOSE",
           "selector": "ClassDeclaration[name=SnapshotCompositionService]/MethodDeclaration[name=compose]"
+        },
+        {
+          "resourceId": "D3-SNAPSHOT-COMPOSE-DOCUMENT",
+          "owner": "D3",
+          "path": "sceneboard-be/src/revisions/snapshot-composition.service.ts",
+          "exportName": "SnapshotCompositionService",
+          "exportKind": "class",
+          "projectionId": "D3-SNAPSHOT-COMPOSE-DOCUMENT",
+          "selector": "ClassDeclaration[name=SnapshotCompositionService]/MethodDeclaration[name=composeDocument]"
         },
         {
           "resourceId": "D3-OUTBOX-LIST-PENDING",
@@ -2335,7 +2353,7 @@
           "selector": "ClassDeclaration[name=BoardEventOutboxRepository]/MethodDeclaration[name=getHealth]"
         }
       ],
-      "expectedCardinality": 18,
+      "expectedCardinality": 20,
       "canonicalization": "typescript-ast",
       "materializationPredecessor": "D3-PUBLISHER",
       "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
@@ -3647,9 +3665,18 @@
           "exportKind": null,
           "projectionId": null,
           "selector": "whole-file"
+        },
+        {
+          "resourceId": "MIGRATION-ASSET-19",
+          "owner": "D9",
+          "path": "sceneboard-be/src/database/migrations/sql/013_d9_v2_checkpoint_capacity.up.sql",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
         }
       ],
-      "expectedCardinality": 19,
+      "expectedCardinality": 20,
       "canonicalization": "utf8-lf",
       "materializationPredecessor": null,
       "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
@@ -3905,6 +3932,15 @@
           "selector": "whole-file"
         },
         {
+          "resourceId": "SCHEMA-PROJECTION-06",
+          "owner": "D9",
+          "path": "sceneboard-be/test/contracts/schema-projections/d9.expected-schema.v1.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
           "resourceId": "SCHEMA-PROJECTION-AGGREGATE-TEST",
           "owner": "D2",
           "path": "sceneboard-be/test/contracts/schema-projections/owner-projections.contract.test.ts",
@@ -3914,7 +3950,7 @@
           "selector": "whole-file"
         }
       ],
-      "expectedCardinality": 6,
+      "expectedCardinality": 7,
       "canonicalization": "canonical-json",
       "materializationPredecessor": "MIGRATION-REGISTRY-ASSETS",
       "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"

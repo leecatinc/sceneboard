@@ -9,8 +9,11 @@ import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 
 import { BoardPersistenceError } from '../common/errors/board-persistence.error.js';
 import { parseMysqlTimestampUtc } from '../common/time/mysql-timestamp.js';
-import { extractUniqueSceneArtifactPairs } from '../revisions/scene-artifact-reference.extractor.js';
-import type { SnapshotCompositionInputV1 } from '../revisions/snapshot-composition.service.js';
+import {
+  extractUniqueDocumentArtifactPairs,
+  extractUniqueSceneArtifactPairs,
+} from '../revisions/scene-artifact-reference.extractor.js';
+import type { SnapshotCompositionInput } from '../revisions/snapshot-composition.service.js';
 import { CurrentArtifactRuntimeSummaryPort } from '../snapshots/ports/current-artifact-runtime-summary.port.js';
 
 interface RuntimeRow extends RowDataPacket {
@@ -36,9 +39,12 @@ const status = (code: string): ArtifactRuntimeSummaryV1['status'] => {
 export class CurrentArtifactRuntimeSummaryProvider extends CurrentArtifactRuntimeSummaryPort {
   async readAuthorizedAtCut(
     connection: PoolConnection,
-    input: SnapshotCompositionInputV1,
+    input: SnapshotCompositionInput,
   ): Promise<readonly ArtifactRuntimeSummaryV1[]> {
-    const pairs = extractUniqueSceneArtifactPairs(input.scene);
+    const pairs =
+      input.checkpoint.kind === 'scene'
+        ? extractUniqueSceneArtifactPairs(input.checkpoint.scene)
+        : extractUniqueDocumentArtifactPairs(input.checkpoint.document);
     const summaries: ArtifactRuntimeSummaryV1[] = [];
     for (let offset = 0; offset < pairs.length; offset += 100) {
       const batch = pairs.slice(offset, offset + 100);

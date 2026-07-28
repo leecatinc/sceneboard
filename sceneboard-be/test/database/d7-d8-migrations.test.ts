@@ -8,7 +8,10 @@ import { splitSqlStatements } from '../../src/database/migrations/sql-splitter.j
 const directory = new URL('../../src/database/migrations/sql/', import.meta.url);
 
 test('serializes D7 007-011 and D8 012 as six forward-only single-table migrations', async () => {
-  const terminal = MIGRATION_REGISTRY.slice(-6);
+  const terminal = MIGRATION_REGISTRY.filter((entry) =>
+    /^(?:007|008|009|010|011)_d7_|^012_d8_/u.test(entry.version),
+  );
+  assert.equal(terminal.length, 6);
   assert.equal(
     terminal.every((entry) => !entry.reversible && entry.downAsset === null),
     true,

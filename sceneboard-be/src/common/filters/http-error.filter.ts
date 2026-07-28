@@ -2,7 +2,7 @@ import { Catch, Inject, type ArgumentsHost, type ExceptionFilter } from '@nestjs
 
 import { AppError, BoardContractError } from '../errors/app-error.js';
 import { ArtifactBrokerError } from '../errors/artifact-broker.error.js';
-import type { BoardErrorV1 } from '@sceneboard/board-schema';
+import type { BoardError, BoardErrorV1 } from '@sceneboard/board-schema';
 import { CryptoService } from '../security/crypto.service.js';
 import {
   admittedBoardRequestId,
@@ -93,7 +93,7 @@ const boardErrorFromAppError = (error: AppError): BoardErrorV1 => {
   return boardInternalError();
 };
 
-const retryAfterSeconds = (error: BoardErrorV1): number | null => {
+const retryAfterSeconds = (error: BoardError): number | null => {
   if (error.code === 'RATE_LIMITED') return error.details.retryAfterSeconds;
   if (error.code === 'SERVICE_UNAVAILABLE') return error.details.retryAfterSeconds;
   return null;

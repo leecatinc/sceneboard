@@ -1,4 +1,4 @@
-import type { BoardErrorV1 } from '@sceneboard/board-schema';
+import type { BoardError, BoardErrorV1 } from '@sceneboard/board-schema';
 
 export const D2_ERROR_CATALOG = {
   INVALID_PAYLOAD: { status: 400, message: 'Invalid payload' },
@@ -65,10 +65,10 @@ export class AppError extends Error {
 }
 
 export class BoardContractError extends Error {
-  readonly boardError: BoardErrorV1;
+  readonly boardError: BoardError;
   readonly status: number;
 
-  constructor(boardError: BoardErrorV1) {
+  constructor(boardError: BoardError) {
     super(boardError.message);
     this.name = 'BoardContractError';
     this.boardError = boardError;

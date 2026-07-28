@@ -134,7 +134,7 @@ test('rejects non-exact bearer transport before persistence and has one normaliz
   assert.equal(source.match(/normalizeActorContextV1\s*\(/g)?.length, 1);
 });
 
-test('owns the exact sixteen-operation authorization matrix', () => {
+test('owns the exact seventeen-operation authorization matrix', () => {
   const expected: readonly AuthorizedBoardOperationV1[] = [
     'board.list',
     'board.get',
@@ -144,6 +144,7 @@ test('owns the exact sixteen-operation authorization matrix', () => {
     'scene.replace',
     'scene.clear',
     'scene.restore',
+    'document.replace',
     'history.list',
     'history.get',
     'hitl.request',
@@ -154,7 +155,8 @@ test('owns the exact sixteen-operation authorization matrix', () => {
     'artifact.stop',
   ];
   assert.deepEqual(AUTHORIZED_BOARD_OPERATIONS_V1, expected);
-  assert.equal(new Set(AUTHORIZED_BOARD_OPERATIONS_V1).size, 16);
+  assert.equal(new Set(AUTHORIZED_BOARD_OPERATIONS_V1).size, 17);
+  assert.deepEqual(authorizationRuleFor('document.replace').requiredCapabilities, ['board.write']);
   assert.deepEqual(authorizationRuleFor('scene.restore').requiredCapabilities, [
     'board.write',
     'board.history.read',

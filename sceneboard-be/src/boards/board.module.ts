@@ -10,7 +10,7 @@ import { HistoryCursorCodec } from '../history/history-cursor.codec.js';
 import { HistoryGetService } from '../history/history-get.service.js';
 import { HistoryListService } from '../history/history-list.service.js';
 import { InteractionsModule } from '../interactions/interactions.module.js';
-import { SceneCheckpointCodec } from '../revisions/scene-checkpoint.codec.js';
+import { DocumentCheckpointCodec } from '../revisions/document-checkpoint.codec.js';
 import { BoardMutationService } from '../revisions/board-mutation.service.js';
 import { SnapshotCompositionService } from '../revisions/snapshot-composition.service.js';
 import { CurrentArtifactRuntimeSummaryPort } from '../snapshots/ports/current-artifact-runtime-summary.port.js';
@@ -28,7 +28,7 @@ import { BoardController } from './board.controller.js';
   imports: [GrantModule, ArtifactsModule, InteractionsModule],
   controllers: [BoardController],
   providers: [
-    SceneCheckpointCodec,
+    DocumentCheckpointCodec,
     MysqlCurrentBoardCapabilitiesPort,
     {
       provide: BoardListCursorCodec,
@@ -56,11 +56,11 @@ import { BoardController } from './board.controller.js';
     },
     {
       provide: BoardCreateService,
-      inject: [MysqlBoardAccessPolicy, CryptoService, SceneCheckpointCodec],
+      inject: [MysqlBoardAccessPolicy, CryptoService, DocumentCheckpointCodec],
       useFactory: (
         accessPolicy: MysqlBoardAccessPolicy,
         crypto: CryptoService,
-        checkpointCodec: SceneCheckpointCodec,
+        checkpointCodec: DocumentCheckpointCodec,
       ) => new BoardCreateService(accessPolicy, crypto, checkpointCodec),
     },
     {
@@ -76,10 +76,10 @@ import { BoardController } from './board.controller.js';
     },
     {
       provide: BoardGetService,
-      inject: [MysqlBoardAccessPolicy, SceneCheckpointCodec, SnapshotCompositionService],
+      inject: [MysqlBoardAccessPolicy, DocumentCheckpointCodec, SnapshotCompositionService],
       useFactory: (
         accessPolicy: MysqlBoardAccessPolicy,
-        checkpointCodec: SceneCheckpointCodec,
+        checkpointCodec: DocumentCheckpointCodec,
         snapshots: SnapshotCompositionService,
       ) => new BoardGetService(accessPolicy, checkpointCodec, snapshots),
     },
@@ -96,9 +96,11 @@ import { BoardController } from './board.controller.js';
     },
     {
       provide: BoardMutationService,
-      inject: [MysqlBoardAccessPolicy, SceneCheckpointCodec],
-      useFactory: (accessPolicy: MysqlBoardAccessPolicy, checkpointCodec: SceneCheckpointCodec) =>
-        new BoardMutationService(accessPolicy, checkpointCodec),
+      inject: [MysqlBoardAccessPolicy, DocumentCheckpointCodec],
+      useFactory: (
+        accessPolicy: MysqlBoardAccessPolicy,
+        checkpointCodec: DocumentCheckpointCodec,
+      ) => new BoardMutationService(accessPolicy, checkpointCodec),
     },
     {
       provide: HistoryListService,
@@ -108,10 +110,10 @@ import { BoardController } from './board.controller.js';
     },
     {
       provide: HistoryGetService,
-      inject: [MysqlBoardAccessPolicy, SceneCheckpointCodec, SnapshotCompositionService],
+      inject: [MysqlBoardAccessPolicy, DocumentCheckpointCodec, SnapshotCompositionService],
       useFactory: (
         accessPolicy: MysqlBoardAccessPolicy,
-        checkpointCodec: SceneCheckpointCodec,
+        checkpointCodec: DocumentCheckpointCodec,
         snapshots: SnapshotCompositionService,
       ) => new HistoryGetService(accessPolicy, checkpointCodec, snapshots),
     },

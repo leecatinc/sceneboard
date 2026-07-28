@@ -17,8 +17,11 @@ import { BoardPersistenceError } from '../common/errors/board-persistence.error.
 import { formatPublicUuidV4 } from '../common/ids/public-uuid.storage.js';
 import { parseMysqlTimestampUtc } from '../common/time/mysql-timestamp.js';
 import type { BoardAccessPolicy, ResolvedBoardPrincipalV1 } from '../grants/board-access.policy.js';
-import { extractSceneArtifactReferences } from '../revisions/scene-artifact-reference.extractor.js';
-import { SceneCheckpointCodec } from '../revisions/scene-checkpoint.codec.js';
+import { DocumentCheckpointCodec } from '../revisions/document-checkpoint.codec.js';
+import {
+  extractDocumentArtifactReferences,
+  extractSceneArtifactReferences,
+} from '../revisions/scene-artifact-reference.extractor.js';
 import { SnapshotCompositionService } from '../revisions/snapshot-composition.service.js';
 
 interface BoardHeadRow extends RowDataPacket {
@@ -87,6 +90,7 @@ const originType = (value: string): RevisionOriginTypeV1 => {
   if (value === 'R') return 'scene.replace';
   if (value === 'L') return 'scene.clear';
   if (value === 'S') return 'scene.restore';
+  if (value === 'D') return 'document.replace';
   throw new BoardPersistenceError('row_integrity');
 };
 
@@ -109,7 +113,7 @@ const parsedPrincipalId = (value: string): PrincipalId => {
 export class BoardGetService {
   constructor(
     private readonly accessPolicy: BoardAccessPolicy,
-    private readonly checkpoints: SceneCheckpointCodec,
+    private readonly checkpoints: DocumentCheckpointCodec,
     private readonly snapshots: SnapshotCompositionService,
   ) {}
 
@@ -131,15 +135,15 @@ export class BoardGetService {
         if (boardId !== input.boardId) throw new BoardPersistenceError('row_integrity');
         const revisionNumber = safePositive(row.revisionNumber);
         const lastEventSequence = safePositive(row.lastEventSequence);
-        const scene = await this.checkpoints.decode({
-          schemaVersion: row.sceneSchemaVersion as '1.0.0',
-          codec: row.sceneCodec as 'B',
+        const checkpoint = await this.checkpoints.decode({
+          schemaVersion: row.sceneSchemaVersion,
+          codec: row.sceneCodec,
           payload: row.scenePayload,
           canonicalBytes: row.sceneCanonicalBytes,
           storedBytes: row.sceneStoredBytes,
           sha256: row.sceneSha256,
         });
-        await this.assertReferences(connection, row.revisionPk, scene.scene);
+        await this.assertReferences(connection, row.revisionPk, checkpoint);
         const revision = {
           revisionId: parsedRevisionId(row.revisionId),
           revisionNumber,
@@ -154,13 +158,22 @@ export class BoardGetService {
             principalId: parsedPrincipalId(row.actorPrincipalId),
           },
         } as const;
-        const snapshot = await this.snapshots.compose(connection, {
-          actor: context.actor,
-          boardId,
-          revision,
-          scene: scene.scene,
-          lastEventSequence,
-        });
+        const snapshot =
+          checkpoint.kind === 'scene'
+            ? await this.snapshots.compose(connection, {
+                actor: context.actor,
+                boardId,
+                revision,
+                checkpoint,
+                lastEventSequence,
+              })
+            : await this.snapshots.composeDocument(connection, {
+                actor: context.actor,
+                boardId,
+                revision,
+                checkpoint,
+                lastEventSequence,
+              });
         const parsed = BoardOperationResultParserV1.parse({
           protocolVersion: 1,
           type: 'board.operation.result',
@@ -238,7 +251,7 @@ export class BoardGetService {
   private async assertReferences(
     connection: PoolConnection,
     revisionPk: string,
-    scene: Parameters<typeof extractSceneArtifactReferences>[0],
+    checkpoint: Awaited<ReturnType<DocumentCheckpointCodec['decode']>>,
   ): Promise<void> {
     const [rows] = await connection.execute<RevisionArtifactRefRow[]>(
       `
@@ -259,7 +272,11 @@ export class BoardGetService {
       referenceCode: row.referenceCode,
       occurrenceCount: row.occurrenceCount,
     }));
-    if (JSON.stringify(stored) !== JSON.stringify(extractSceneArtifactReferences(scene))) {
+    const expected =
+      checkpoint.kind === 'scene'
+        ? extractSceneArtifactReferences(checkpoint.scene)
+        : extractDocumentArtifactReferences(checkpoint.document);
+    if (JSON.stringify(stored) !== JSON.stringify(expected)) {
       throw new BoardPersistenceError('row_integrity');
     }
   }

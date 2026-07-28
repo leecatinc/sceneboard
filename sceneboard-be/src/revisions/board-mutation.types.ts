@@ -2,9 +2,16 @@ import type { EventId, RevisionId, TimestampV1 } from '@sceneboard/board-schema'
 import type { RowDataPacket } from 'mysql2/promise';
 
 import type { SceneArtifactReferenceRowV1 } from './scene-artifact-reference.extractor.js';
-import type { EncodedSceneCheckpointV1 } from './scene-checkpoint.codec.js';
+import type {
+  DecodedBoardCheckpoint,
+  EncodedBoardCheckpoint,
+} from './document-checkpoint.codec.js';
 
-export type SceneMutationTypeV1 = 'scene.replace' | 'scene.clear' | 'scene.restore';
+export type SceneMutationTypeV1 =
+  | 'scene.replace'
+  | 'scene.clear'
+  | 'scene.restore'
+  | 'document.replace';
 
 export interface MutationRuntime {
   now(): Date;
@@ -26,7 +33,7 @@ export interface PreparedMutationV1 {
   actorScopesSha256: Buffer;
   commandPayloadSha256: Buffer;
   idempotencyScopeSha256: Buffer;
-  checkpoint: EncodedSceneCheckpointV1 | null;
+  checkpoint: EncodedBoardCheckpoint | null;
   references: readonly SceneArtifactReferenceRowV1[] | null;
 }
 
@@ -52,6 +59,7 @@ export interface LockedHeadRow extends RowDataPacket {
   headRevisionId: Buffer;
   headRevisionNumber: string;
   lastEventSequence: string;
+  sceneSchemaVersion: string;
 }
 
 export interface RestoreSourceRow extends RowDataPacket {
@@ -81,7 +89,8 @@ export interface ReplayRelationRow extends RowDataPacket {
 
 export interface RestorePreparedV1 {
   row: RestoreSourceRow;
-  checkpoint: EncodedSceneCheckpointV1;
+  checkpoint: EncodedBoardCheckpoint;
+  decoded: DecodedBoardCheckpoint;
   references: readonly SceneArtifactReferenceRowV1[];
 }
 

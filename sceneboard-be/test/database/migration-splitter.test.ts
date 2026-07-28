@@ -34,7 +34,7 @@ test('rejects empty, unterminated, delimiter-changing, executable-comment, and N
   assert.deepEqual(splitSqlStatements('SELECT 1'), ['SELECT 1']);
 });
 
-test('freezes the exact terminal D2/D3/D7/D8 checkpoint order and reversibility', () => {
+test('freezes the exact terminal D2/D3/D7/D8/D9 checkpoint order and reversibility', () => {
   assert.deepEqual(MIGRATION_REGISTRY, [
     {
       version: '001_d2_identity_sessions_audit',
@@ -140,6 +140,13 @@ test('freezes the exact terminal D2/D3/D7/D8 checkpoint order and reversibility'
       reversible: false,
       downAsset: null,
       postcondition: 'd8_board_hitl_interactions_v1',
+    },
+    {
+      version: '013_d9_v2_checkpoint_capacity',
+      upAsset: '013_d9_v2_checkpoint_capacity.up.sql',
+      reversible: false,
+      downAsset: null,
+      postcondition: 'd9_v2_checkpoint_capacity_v1',
     },
   ]);
 });

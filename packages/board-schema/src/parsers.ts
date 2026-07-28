@@ -727,7 +727,7 @@ export const BoardOperationResultParserV2 = createParser(
   true,
 );
 export const BoardSnapshotParserV2 = createParser(BoardSnapshotSchemaV2, 'document', true);
-export const BoardSnapshotParser = createParser(BoardSnapshotSchema, 'document', true);
+export const BoardSnapshotParser = createParser(BoardSnapshotSchema, 'generic', true);
 export const BoardEventEnvelopeParserV2 = createParser(BoardEventEnvelopeSchemaV2, 'event', true);
 export const BoardCapabilitiesParserV2 = createParser(BoardCapabilitiesSchemaV2);
 export const BoardCapabilitiesParser = createParser(BoardCapabilitiesSchema);

@@ -17,8 +17,11 @@ import { BoardPersistenceError } from '../common/errors/board-persistence.error.
 import { formatPublicUuidV4, parsePublicUuidV4 } from '../common/ids/public-uuid.storage.js';
 import { parseMysqlTimestampUtc } from '../common/time/mysql-timestamp.js';
 import type { BoardAccessPolicy, ResolvedBoardPrincipalV1 } from '../grants/board-access.policy.js';
-import { extractSceneArtifactReferences } from '../revisions/scene-artifact-reference.extractor.js';
-import { SceneCheckpointCodec } from '../revisions/scene-checkpoint.codec.js';
+import { DocumentCheckpointCodec } from '../revisions/document-checkpoint.codec.js';
+import {
+  extractDocumentArtifactReferences,
+  extractSceneArtifactReferences,
+} from '../revisions/scene-artifact-reference.extractor.js';
 import { SnapshotCompositionService } from '../revisions/snapshot-composition.service.js';
 import { historyGetMetadata, type HistoryAdapterMetadataV1 } from './history-adapter-metadata.js';
 
@@ -98,18 +101,19 @@ const principalKind = (value: string): 'user' | 'mcp_client' | 'service' => {
 };
 const originType = (
   value: string,
-): 'board.create' | 'scene.replace' | 'scene.clear' | 'scene.restore' => {
+): 'board.create' | 'scene.replace' | 'scene.clear' | 'scene.restore' | 'document.replace' => {
   if (value === 'C') return 'board.create';
   if (value === 'R') return 'scene.replace';
   if (value === 'L') return 'scene.clear';
   if (value === 'S') return 'scene.restore';
+  if (value === 'D') return 'document.replace';
   throw new BoardPersistenceError('row_integrity');
 };
 
 export class HistoryGetService {
   constructor(
     private readonly accessPolicy: BoardAccessPolicy,
-    private readonly checkpoints: SceneCheckpointCodec,
+    private readonly checkpoints: DocumentCheckpointCodec,
     private readonly snapshots: SnapshotCompositionService,
   ) {}
 
@@ -145,14 +149,14 @@ export class HistoryGetService {
         const revisionNumber = positive(row.revisionNumber);
         const lastEventSequence = positive(row.lastEventSequence);
         const decoded = await this.checkpoints.decode({
-          schemaVersion: row.sceneSchemaVersion as '1.0.0',
-          codec: row.sceneCodec as 'B',
+          schemaVersion: row.sceneSchemaVersion,
+          codec: row.sceneCodec,
           payload: row.scenePayload,
           canonicalBytes: row.sceneCanonicalBytes,
           storedBytes: row.sceneStoredBytes,
           sha256: row.sceneSha256,
         });
-        await this.assertReferences(connection, row.revisionPk, decoded.scene);
+        await this.assertReferences(connection, row.revisionPk, decoded);
         const revision = {
           revisionId: selectedRevisionId,
           revisionNumber,
@@ -167,13 +171,22 @@ export class HistoryGetService {
             principalId: principalId(row.actorPrincipalId),
           },
         };
-        const snapshot = await this.snapshots.compose(connection, {
-          actor: context.actor,
-          boardId: input.request.boardId,
-          revision,
-          scene: decoded.scene,
-          lastEventSequence,
-        });
+        const snapshot =
+          decoded.kind === 'scene'
+            ? await this.snapshots.compose(connection, {
+                actor: context.actor,
+                boardId: input.request.boardId,
+                revision,
+                checkpoint: decoded,
+                lastEventSequence,
+              })
+            : await this.snapshots.composeDocument(connection, {
+                actor: context.actor,
+                boardId: input.request.boardId,
+                revision,
+                checkpoint: decoded,
+                lastEventSequence,
+              });
         const entry: HistoryEntryV1 = {
           revision: {
             revisionId: revision.revisionId,
@@ -267,7 +280,7 @@ export class HistoryGetService {
   private async assertReferences(
     connection: PoolConnection,
     revisionPk: string,
-    scene: Parameters<typeof extractSceneArtifactReferences>[0],
+    checkpoint: Awaited<ReturnType<DocumentCheckpointCodec['decode']>>,
   ): Promise<void> {
     const [rows] = await connection.execute<ReferenceRow[]>(
       `
@@ -285,7 +298,11 @@ export class HistoryGetService {
       referenceCode: row.referenceCode,
       occurrenceCount: row.occurrenceCount,
     }));
-    if (JSON.stringify(stored) !== JSON.stringify(extractSceneArtifactReferences(scene))) {
+    const expected =
+      checkpoint.kind === 'scene'
+        ? extractSceneArtifactReferences(checkpoint.scene)
+        : extractDocumentArtifactReferences(checkpoint.document);
+    if (JSON.stringify(stored) !== JSON.stringify(expected)) {
       throw new BoardPersistenceError('row_integrity');
     }
   }

@@ -20,7 +20,7 @@ import type {
   ResolvedBoardPrincipalV1,
 } from '../../src/grants/board-access.policy.js';
 import { MysqlCurrentBoardCapabilitiesPort } from '../../src/grants/current-board-capabilities.port.js';
-import { SceneCheckpointCodec } from '../../src/revisions/scene-checkpoint.codec.js';
+import { DocumentCheckpointCodec } from '../../src/revisions/document-checkpoint.codec.js';
 import { SnapshotCompositionService } from '../../src/revisions/snapshot-composition.service.js';
 import { InactiveCurrentArtifactRuntimeSummaryProvider } from '../../src/snapshots/providers/inactive-current-artifact-runtime-summary.provider.js';
 import { InactiveCurrentHitlSummaryProvider } from '../../src/snapshots/providers/inactive-current-hitl-summary.provider.js';
@@ -63,12 +63,25 @@ const request = (): { requestId: RequestId; boardId: BoardId } => {
   };
 };
 
-const setup = async (referenceMismatch = false) => {
-  const checkpoint = await new SceneCheckpointCodec().encode({
-    protocolVersion: 1,
-    type: 'scene',
-    root: null,
-  });
+const setup = async (referenceMismatch = false, documentMode = false) => {
+  const checkpoint = documentMode
+    ? await new DocumentCheckpointCodec().encodeDocument({
+        schemaVersion: 2,
+        defaultPageId: 'page_1',
+        pages: [
+          {
+            pageId: 'page_1',
+            title: '',
+            displayMode: 'fit-page',
+            scene: { protocolVersion: 1, type: 'scene', root: null },
+          },
+        ],
+      })
+    : await new DocumentCheckpointCodec().encodeScene({
+        protocolVersion: 1,
+        type: 'scene',
+        root: null,
+      });
   const calls: string[] = [];
   const connection = {
     async execute(sql: string): Promise<[unknown, unknown]> {
@@ -86,10 +99,12 @@ const setup = async (referenceMismatch = false) => {
               archivedAt: null,
               revisionPk: '70',
               revisionId: Buffer.from('00112233445546778899aabbccddeeff', 'hex'),
-              revisionNumber: '1',
-              previousRevisionId: null,
+              revisionNumber: documentMode ? '2' : '1',
+              previousRevisionId: documentMode
+                ? Buffer.from('10112233445546778899aabbccddeeff', 'hex')
+                : null,
               sourceRevisionId: null,
-              originCode: 'C',
+              originCode: documentMode ? 'D' : 'C',
               sceneSchemaVersion: checkpoint.schemaVersion,
               sceneCodec: checkpoint.codec,
               scenePayload: checkpoint.payload,
@@ -99,7 +114,7 @@ const setup = async (referenceMismatch = false) => {
               actorKind: 'U',
               actorPrincipalId: 'user_1',
               revisionCreatedAt: '2026-07-16 12:00:01.000',
-              lastEventSequence: '1',
+              lastEventSequence: documentMode ? '2' : '1',
             },
           ],
           [],
@@ -160,7 +175,7 @@ const setup = async (referenceMismatch = false) => {
   );
   return {
     calls,
-    service: new BoardGetService(policy, new SceneCheckpointCodec(), snapshots),
+    service: new BoardGetService(policy, new DocumentCheckpointCodec(), snapshots),
   };
 };
 
@@ -193,4 +208,17 @@ test('fails closed when persisted artifact references do not match the checkpoin
       error instanceof BoardPersistenceError && error.category === 'row_integrity',
   );
   assert.equal(value.calls.length, 2);
+});
+
+test('decodes a v2 document head and returns matching v2 capabilities without a Scene cast', async () => {
+  const value = await setup(false, true);
+  const result = await value.service.get({ principal: principal(), ...request() });
+  assert.equal(result.result.type, 'board.get');
+  if (result.result.type !== 'board.get') return;
+  assert.equal('document' in result.result.snapshot, true);
+  if (!('document' in result.result.snapshot)) return;
+  assert.equal(result.result.snapshot.document.defaultPageId, 'page_1');
+  assert.equal(result.result.snapshot.revision.originType, 'document.replace');
+  assert.equal(result.result.snapshot.capabilities.schemaVersion, '1.1.0');
+  assert.equal(result.result.snapshot.lastEventSequence, 2);
 });

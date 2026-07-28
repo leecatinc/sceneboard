@@ -1,20 +1,21 @@
 import {
-  buildMutationFingerprintV1,
   type EventId,
-  type MutationRequestV1,
+  type MutationRequestV2,
   type RevisionId,
   type SceneV1,
   type TimestampV1,
 } from '@sceneboard/board-schema';
 
-import { BoardContractError } from '../common/errors/app-error.js';
 import { generatePublicUuidV4, parsePublicUuidV4 } from '../common/ids/public-uuid.storage.js';
 import { formatMysqlTimestampUtc } from '../common/time/mysql-timestamp.js';
 import type { ResolvedBoardPrincipalV1 } from '../grants/board-access.policy.js';
 import { canonicalBytes, digest, internalFailure } from './board-mutation.support.js';
 import type { CollisionKind, MutationRuntime, PreparedMutationV1 } from './board-mutation.types.js';
-import { extractSceneArtifactReferences } from './scene-artifact-reference.extractor.js';
-import { SceneCheckpointCodec } from './scene-checkpoint.codec.js';
+import { DocumentCheckpointCodec } from './document-checkpoint.codec.js';
+import {
+  extractDocumentArtifactReferences,
+  extractSceneArtifactReferences,
+} from './scene-artifact-reference.extractor.js';
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
 
@@ -22,7 +23,7 @@ export class BoardMutationPreparer {
   private readonly runtime: MutationRuntime;
 
   constructor(
-    private readonly checkpoints: SceneCheckpointCodec,
+    private readonly checkpoints: DocumentCheckpointCodec,
     runtime: Partial<MutationRuntime> = {},
   ) {
     this.runtime = {
@@ -33,14 +34,15 @@ export class BoardMutationPreparer {
 
   async prepare(input: {
     principal: ResolvedBoardPrincipalV1;
-    request: MutationRequestV1;
+    request: MutationRequestV2;
   }): Promise<PreparedMutationV1> {
-    const fingerprint = buildMutationFingerprintV1({
-      ...input.request,
+    const fingerprintPayload = canonicalBytes({
+      protocolVersion: 1,
+      boardId: input.request.boardId,
+      expectedRevisionId: input.request.expectedRevisionId,
+      command: input.request.command,
       actor: input.principal.actor,
     });
-    if (!fingerprint.ok) throw new BoardContractError(fingerprint.error);
-    const fingerprintPayload = Buffer.from(fingerprint.data.canonicalBytes);
     const actorScopesPayload = canonicalBytes(input.principal.actor.scopes);
     const commandPayload = canonicalBytes(input.request.command);
     const scopePayload = canonicalBytes({
@@ -61,7 +63,14 @@ export class BoardMutationPreparer {
     else if (input.request.command.type === 'scene.clear') {
       scene = { protocolVersion: 1, type: 'scene', root: null };
     }
-    const checkpoint = scene === null ? null : await this.checkpoints.encode(scene);
+    const document =
+      input.request.command.type === 'document.replace' ? input.request.command.document : null;
+    const checkpoint =
+      scene !== null
+        ? await this.checkpoints.encodeScene(scene)
+        : document !== null
+          ? await this.checkpoints.encodeDocument(document)
+          : null;
     return {
       revisionId: revisionUuid as RevisionId,
       revisionIdBytes: Buffer.from(parsePublicUuidV4(revisionUuid)),
@@ -78,7 +87,12 @@ export class BoardMutationPreparer {
       commandPayloadSha256: digest(commandPayload),
       idempotencyScopeSha256: digest(scopePayload),
       checkpoint,
-      references: scene === null ? null : extractSceneArtifactReferences(scene),
+      references:
+        scene !== null
+          ? extractSceneArtifactReferences(scene)
+          : document !== null
+            ? extractDocumentArtifactReferences(document)
+            : null,
     };
   }
 

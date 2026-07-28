@@ -1,4 +1,4 @@
-import type { BoardNodeV1, SceneV1 } from '@sceneboard/board-schema';
+import type { BoardDocumentV2, BoardNodeV1, SceneV1 } from '@sceneboard/board-schema';
 
 import { BoardPersistenceError } from '../common/errors/board-persistence.error.js';
 
@@ -62,6 +62,29 @@ export const extractSceneArtifactReferences = (scene: SceneV1): SceneArtifactRef
   );
 };
 
+export const extractDocumentArtifactReferences = (
+  document: BoardDocumentV2,
+): SceneArtifactReferenceRowV1[] => {
+  const counts = new Map<string, SceneArtifactReferenceRowV1>();
+  for (const page of document.pages) {
+    for (const reference of extractSceneArtifactReferences(page.scene)) {
+      const key = `${reference.artifactId}\0${reference.artifactVersionId}\0${reference.referenceCode}`;
+      const existing = counts.get(key);
+      if (existing === undefined) counts.set(key, { ...reference });
+      else {
+        existing.occurrenceCount += reference.occurrenceCount;
+        if (existing.occurrenceCount > 500) throw new BoardPersistenceError('capacity_exhausted');
+      }
+    }
+  }
+  return [...counts.values()].sort(
+    (left, right) =>
+      left.artifactId.localeCompare(right.artifactId) ||
+      left.artifactVersionId.localeCompare(right.artifactVersionId) ||
+      left.referenceCode.localeCompare(right.referenceCode),
+  );
+};
+
 export const extractUniqueSceneArtifactPairs = (scene: SceneV1): SceneArtifactPairV1[] => {
   if (scene.root === null) return [];
   const pairs = new Map<string, SceneArtifactPairV1>();
@@ -87,6 +110,19 @@ export const extractUniqueSceneArtifactPairs = (scene: SceneV1): SceneArtifactPa
         artifactId: reference.artifactId,
         artifactVersionId: reference.versionId,
       });
+  }
+  return [...pairs.values()];
+};
+
+export const extractUniqueDocumentArtifactPairs = (
+  document: BoardDocumentV2,
+): SceneArtifactPairV1[] => {
+  const pairs = new Map<string, SceneArtifactPairV1>();
+  for (const page of document.pages) {
+    for (const pair of extractUniqueSceneArtifactPairs(page.scene)) {
+      const key = `${pair.artifactId}\0${pair.artifactVersionId}`;
+      if (!pairs.has(key)) pairs.set(key, pair);
+    }
   }
   return [...pairs.values()];
 };

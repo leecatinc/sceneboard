@@ -1,4 +1,8 @@
-import type { MutationRequestV1 } from '@sceneboard/board-schema';
+import {
+  adaptLegacySceneToDocumentV2,
+  type BoardId,
+  type MutationRequestV2,
+} from '@sceneboard/board-schema';
 import type { PoolConnection, ResultSetHeader } from 'mysql2/promise';
 
 import { BoardPersistenceError } from '../common/errors/board-persistence.error.js';
@@ -16,17 +20,21 @@ import type {
   StoredReferenceRow,
 } from './board-mutation.types.js';
 import {
+  extractDocumentArtifactReferences,
   extractSceneArtifactReferences,
   type SceneArtifactReferenceRowV1,
 } from './scene-artifact-reference.extractor.js';
-import { SceneCheckpointCodec, type EncodedSceneCheckpointV1 } from './scene-checkpoint.codec.js';
+import {
+  DocumentCheckpointCodec,
+  type EncodedBoardCheckpoint,
+} from './document-checkpoint.codec.js';
 
 export class BoardMutationRestoreRepository {
-  constructor(private readonly checkpoints: SceneCheckpointCodec) {}
+  constructor(private readonly checkpoints: DocumentCheckpointCodec) {}
 
   async prepareRestore(
     connection: PoolConnection,
-    request: MutationRequestV1,
+    request: MutationRequestV2,
   ): Promise<RestorePreparedV1> {
     if (request.command.type !== 'scene.restore') throw internalFailure();
     const sourceBytes = uuidBytesOrNull(request.command.sourceRevisionId);
@@ -61,21 +69,25 @@ export class BoardMutationRestoreRepository {
     }
     safePositive(row.revisionNumber);
     const decoded = await this.checkpoints.decode({
-      schemaVersion: row.sceneSchemaVersion as '1.0.0',
-      codec: row.sceneCodec as 'B',
+      schemaVersion: row.sceneSchemaVersion,
+      codec: row.sceneCodec,
       payload: row.scenePayload,
       canonicalBytes: row.sceneCanonicalBytes,
       storedBytes: row.sceneStoredBytes,
       sha256: row.sceneSha256,
     });
     const references = await this.readReferences(connection, row.revisionPk);
-    if (!referenceRowsEqual(references, extractSceneArtifactReferences(decoded.scene))) {
+    const expectedReferences =
+      decoded.kind === 'scene'
+        ? extractSceneArtifactReferences(decoded.scene)
+        : extractDocumentArtifactReferences(decoded.document);
+    if (!referenceRowsEqual(references, expectedReferences)) {
       throw new BoardPersistenceError('row_integrity');
     }
     return {
       row,
       checkpoint: {
-        schemaVersion: '1.0.0',
+        schemaVersion: decoded.kind === 'scene' ? '1.0.0' : '2.0.0',
         codec: 'B',
         payload: Buffer.from(row.scenePayload),
         canonicalPayload: Buffer.from(decoded.canonicalBytes),
@@ -83,6 +95,7 @@ export class BoardMutationRestoreRepository {
         storedBytes: row.sceneStoredBytes,
         sha256: Buffer.from(row.sceneSha256),
       },
+      decoded,
       references,
     };
   }
@@ -91,8 +104,10 @@ export class BoardMutationRestoreRepository {
     connection: PoolConnection,
     boardPk: string,
     prepared: RestorePreparedV1,
+    headSchemaVersion: string,
+    boardId: BoardId,
   ): Promise<{
-    checkpoint: EncodedSceneCheckpointV1;
+    checkpoint: EncodedBoardCheckpoint;
     references: readonly SceneArtifactReferenceRowV1[];
     sourceRevisionPk: string;
   }> {
@@ -134,11 +149,20 @@ export class BoardMutationRestoreRepository {
     if (!referenceRowsEqual(references, prepared.references)) {
       throw new BoardPersistenceError('row_integrity');
     }
-    return {
-      checkpoint: prepared.checkpoint,
-      references,
-      sourceRevisionPk: row.revisionPk,
-    };
+    if (headSchemaVersion !== '1.0.0' && headSchemaVersion !== '2.0.0')
+      throw new BoardPersistenceError('row_integrity');
+    if (prepared.decoded.kind === 'scene' && headSchemaVersion === '2.0.0') {
+      const document = adaptLegacySceneToDocumentV2({
+        boardId,
+        scene: prepared.decoded.scene,
+      });
+      return {
+        checkpoint: await this.checkpoints.encodeDocument(document),
+        references: extractDocumentArtifactReferences(document),
+        sourceRevisionPk: row.revisionPk,
+      };
+    }
+    return { checkpoint: prepared.checkpoint, references, sourceRevisionPk: row.revisionPk };
   }
 
   async insertReferences(

@@ -3,7 +3,10 @@ import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 
 import { CurrentHitlSummaryProvider } from '../../src/interactions/current-hitl-summary.provider.js';
-import { extractUniqueSceneHitlRequestIds } from '../../src/revisions/scene-hitl-reference.extractor.js';
+import {
+  extractUniqueDocumentHitlRequestIds,
+  extractUniqueSceneHitlRequestIds,
+} from '../../src/revisions/scene-hitl-reference.extractor.js';
 
 test('extracts unique HITL references in first scene order and checks open HITL for an empty scene', async () => {
   const scene = {
@@ -32,7 +35,11 @@ test('extracts unique HITL references in first scene order and checks open HITL 
     } as never,
     {
       boardId: 'board_1',
-      scene: { protocolVersion: 1, type: 'scene', root: null },
+      checkpoint: {
+        kind: 'scene',
+        scene: { protocolVersion: 1, type: 'scene', root: null },
+        canonicalBytes: Buffer.alloc(0),
+      },
       lastEventSequence: 0,
     } as never,
   );
@@ -105,7 +112,11 @@ test('projects referenced rows in first-scene order and enforces the inclusive e
         return [[row(0, 'hitl_2'), row(1, 'hitl_1')], []];
       },
     } as never,
-    { boardId: 'board_1', scene, lastEventSequence: 4 } as never,
+    {
+      boardId: 'board_1',
+      checkpoint: { kind: 'scene', scene, canonicalBytes: Buffer.alloc(0) },
+      lastEventSequence: 4,
+    } as never,
   );
   assert.deepEqual(
     summaries.map((item) => item.hitlRequestId),
@@ -120,7 +131,11 @@ test('projects referenced rows in first-scene order and enforces the inclusive e
             ? [[], []]
             : [[row(0, 'hitl_2', '5'), row(1, 'hitl_1', '5')], []],
       } as never,
-      { boardId: 'board_1', scene, lastEventSequence: 4 } as never,
+      {
+        boardId: 'board_1',
+        checkpoint: { kind: 'scene', scene, canonicalBytes: Buffer.alloc(0) },
+        lastEventSequence: 4,
+      } as never,
     ),
   );
 });
@@ -179,10 +194,44 @@ test('appends open HITL without a scene node and avoids duplicating referenced i
           ? [[row('hitl_1', '1'), row('hitl_2', '2')], []]
           : [[{ inputOrdinal: 0, ...row('hitl_1', '1') }], []],
     } as never,
-    { boardId: 'board_1', scene, lastEventSequence: 4 } as never,
+    {
+      boardId: 'board_1',
+      checkpoint: { kind: 'scene', scene, canonicalBytes: Buffer.alloc(0) },
+      lastEventSequence: 4,
+    } as never,
   );
   assert.deepEqual(
     summaries.map((item) => item.hitlRequestId),
     ['hitl_1', 'hitl_2'],
+  );
+});
+
+test('extracts page-2-only HITL references in stable document page order', () => {
+  const hitlScene = (id: string, hitlRequestId: string) =>
+    ({
+      protocolVersion: 1,
+      type: 'scene',
+      root: { id, type: 'content.hitl', hitlRequestId },
+    }) as never;
+  assert.deepEqual(
+    extractUniqueDocumentHitlRequestIds({
+      schemaVersion: 2,
+      defaultPageId: 'page_1',
+      pages: [
+        {
+          pageId: 'page_1',
+          title: '',
+          displayMode: 'fit-page',
+          scene: hitlScene('node_1', 'hitl_2'),
+        },
+        {
+          pageId: 'page_2',
+          title: '',
+          displayMode: 'fit-page',
+          scene: hitlScene('node_2', 'hitl_1'),
+        },
+      ],
+    } as never),
+    ['hitl_2', 'hitl_1'],
   );
 });

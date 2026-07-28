@@ -11,6 +11,7 @@
     "scene.replace",
     "scene.clear",
     "scene.restore",
+    "document.replace",
     "history.list",
     "history.get",
     "snapshot.compose",
@@ -98,6 +99,19 @@
       ]
     },
     {
+      "projectionId": "D3-DOCUMENT-MUTATE",
+      "sourcePath": "sceneboard-be/src/revisions/board-mutation.service.ts",
+      "exportName": "BoardMutationService",
+      "exportKind": "class",
+      "memberName": "applyDocumentMutation",
+      "memberKind": "method",
+      "signature": "async applyDocumentMutation(input: { principal: ResolvedBoardPrincipalV1; request: MutationRequestV2; }): Promise<MutationResultV2>",
+      "selector": "ClassDeclaration[name=BoardMutationService]/MethodDeclaration[name=applyDocumentMutation]",
+      "contractIds": [
+        "document.replace"
+      ]
+    },
+    {
       "projectionId": "D3-HISTORY-LIST",
       "sourcePath": "sceneboard-be/src/history/history-list.service.ts",
       "exportName": "HistoryListService",
@@ -158,6 +172,19 @@
       "memberKind": "method",
       "signature": "async compose( connection: PoolConnection, input: SnapshotCompositionInputV1, ): Promise<BoardSnapshotV1>",
       "selector": "ClassDeclaration[name=SnapshotCompositionService]/MethodDeclaration[name=compose]",
+      "contractIds": [
+        "snapshot.compose"
+      ]
+    },
+    {
+      "projectionId": "D3-SNAPSHOT-COMPOSE-DOCUMENT",
+      "sourcePath": "sceneboard-be/src/revisions/snapshot-composition.service.ts",
+      "exportName": "SnapshotCompositionService",
+      "exportKind": "class",
+      "memberName": "composeDocument",
+      "memberKind": "method",
+      "signature": "async composeDocument( connection: PoolConnection, input: SnapshotCompositionInputV2, ): Promise<BoardSnapshotV2>",
+      "selector": "ClassDeclaration[name=SnapshotCompositionService]/MethodDeclaration[name=composeDocument]",
       "contractIds": [
         "snapshot.compose"
       ]
@@ -254,5 +281,5 @@
       ]
     }
   ],
-  "tupleListSha256": "1d48b7d8425dc0f550d140aa3cdbde7517aede123e665026b9b0bbe1cffe2395"
+  "tupleListSha256": "99781616279b50e4f3fc073cade77b37dc3730756b51c9c42472a2949834352f"
 }

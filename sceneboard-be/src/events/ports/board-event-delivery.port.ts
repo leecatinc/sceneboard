@@ -1,4 +1,4 @@
-import type { BoardEventEnvelopeV1, BoardId, EventId, RevisionId } from '@sceneboard/board-schema';
+import type { BoardEventEnvelopeV2, BoardId, EventId, RevisionId } from '@sceneboard/board-schema';
 
 export type PendingBoardEventCandidateV1 = { eventPk: bigint; eventId: EventId };
 
@@ -8,8 +8,8 @@ export type DeliverableBoardEventV1 = {
   boardId: BoardId;
   revisionId: RevisionId | null;
   sequence: number;
-  eventType: BoardEventEnvelopeV1['data']['type'];
-  envelope: BoardEventEnvelopeV1;
+  eventType: BoardEventEnvelopeV2['data']['type'];
+  envelope: BoardEventEnvelopeV2;
   canonicalBytes: Uint8Array;
 };
 
