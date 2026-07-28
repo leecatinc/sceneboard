@@ -10,7 +10,7 @@ test('serialized browser adapter union contains one exact disjoint four-owner se
     selectors.map(({ memberName }) => memberName),
   );
   const contractIds = publishers.flatMap((publisher) => publisher.contractIds);
-  assert.equal(names.length, 24);
+  assert.equal(names.length, 25);
   assert.equal(new Set(names).size, names.length);
   assert.equal(new Set(contractIds).size, contractIds.length);
   assert.equal(
@@ -28,6 +28,7 @@ test('serialized browser adapter union contains one exact disjoint four-owner se
     'listBoards',
     'createBoard',
     'getBoard',
+    'getCapabilities',
     'archiveBoard',
     'renameBoard',
     'listHistory',

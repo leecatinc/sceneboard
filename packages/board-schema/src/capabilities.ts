@@ -39,6 +39,36 @@ const sortedSubset = <T extends readonly [string, ...string[]]>(catalog: T) =>
 
 export const BoardAuthorizationCapabilitySchemaV1 = z.enum(BOARD_AUTHORIZATION_CAPABILITIES_V1);
 
+const ConnectionLifecyclePermissionSchemaV1 = z.enum(['board.archive', 'board.create']);
+
+export const BoardSessionAccessSchemaV1 = z
+  .object({
+    protocolVersion: z.literal(PROTOCOL_VERSION),
+    type: z.literal('board.session.access'),
+    capabilityEpoch: z.number().int().safe().min(0),
+    authorizationCapabilities: sortedSubset(BOARD_AUTHORIZATION_CAPABILITIES_V1),
+    connectionGrantCeiling: z
+      .object({
+        scopes: sortedSubset(CLIENT_GRANT_CAPABILITIES_V1),
+        lifecyclePermissions: z
+          .array(ConnectionLifecyclePermissionSchemaV1)
+          .superRefine((values, context) => {
+            for (let index = 1; index < values.length; index += 1)
+              if ((values[index - 1] ?? '') >= (values[index] ?? '')) {
+                context.addIssue({
+                  code: z.ZodIssueCode.custom,
+                  message: 'lifecycle permissions must be sorted and unique',
+                });
+                break;
+              }
+          }),
+      })
+      .strict(),
+  })
+  .strict();
+
+export type BoardSessionAccessV1 = z.infer<typeof BoardSessionAccessSchemaV1>;
+
 const BoardLimitsSchemaV1 = z
   .object(
     Object.fromEntries(

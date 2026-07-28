@@ -184,6 +184,7 @@ const BASE_CATALOG_ORDER = [
   'board.artifactZoomUnavailable',
   'board.resetArtifactView',
   'board.stopRendering',
+  'board.capabilitiesChanged',
   'board.notFound',
   'board.unavailable',
   'board.sceneUnavailable',

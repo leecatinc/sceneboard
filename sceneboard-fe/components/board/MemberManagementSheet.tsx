@@ -16,6 +16,7 @@ import {
 } from '../../lib/board/member-management-state';
 import { ConfirmationDialog } from '../app/ConfirmationDialog';
 import { useI18n } from '../i18n/I18nProvider';
+import type { OwnerAdminCloseRegistration } from './OwnerAdminControls';
 import styles from './MemberManagementSheet.module.css';
 
 type Confirmation =
@@ -29,11 +30,15 @@ export function MemberManagementSheet({
   boardId,
   enabled,
   routeKey,
+  forcedCloseEpoch,
+  registerClose,
 }: {
   api: InvitationApi;
   boardId: string;
   enabled: boolean;
   routeKey: string;
+  forcedCloseEpoch: number;
+  registerClose: OwnerAdminCloseRegistration;
 }) {
   const { t, formatDateTime } = useI18n();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -105,6 +110,12 @@ export function MemberManagementSheet({
   }, [close, enabled, open]);
 
   useEffect(() => close, [close, routeKey]);
+
+  useEffect(() => registerClose(close), [close, registerClose]);
+
+  useEffect(() => {
+    close();
+  }, [close, forcedCloseEpoch]);
 
   useEffect(() => {
     searchAbortRef.current?.abort();

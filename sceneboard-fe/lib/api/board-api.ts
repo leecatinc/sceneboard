@@ -22,6 +22,7 @@ import type {
   ArtifactNetworkResult,
   ArtifactPackageResult,
   BoardArchiveResult,
+  BoardCapabilitiesResult,
   BoardCreateResult,
   BoardGetResult,
   BoardListResult,
@@ -55,6 +56,7 @@ export type {
   ArtifactNetworkResult,
   ArtifactPackageResult,
   BoardArchiveResult,
+  BoardCapabilitiesResult,
   BoardCreateResult,
   BoardGetResult,
   BoardListResult,
@@ -117,6 +119,13 @@ export class BoardApiClient {
 
   async getBoard(boardId: string, signal?: AbortSignal): Promise<ApiResult<BoardGetResult>> {
     return this.resources.getBoard(boardId, signal);
+  }
+
+  async getCapabilities(
+    boardId: string,
+    signal?: AbortSignal,
+  ): Promise<ApiResult<BoardCapabilitiesResult>> {
+    return this.resources.getCapabilities(boardId, signal);
   }
 
   async archiveBoard(input: ArchiveBoardInput): Promise<ApiResult<BoardArchiveResult>> {
@@ -233,31 +242,41 @@ export class BoardApiClient {
     return this.connectionApi().listGrants(cursor, signal);
   }
 
-  async createPairing(csrfToken: string): Promise<ApiResult<CreatedPairing>> {
-    return this.connectionApi().createPairing(csrfToken);
+  async createPairing(csrfToken: string, signal?: AbortSignal): Promise<ApiResult<CreatedPairing>> {
+    return this.connectionApi().createPairing(csrfToken, signal);
   }
 
   async decidePairing(
     pairingId: string,
     csrfToken: string,
     decision: PairingDecision,
+    signal?: AbortSignal,
   ): Promise<ApiResult<PairingOwnerStatus>> {
-    return this.connectionApi().decidePairing(pairingId, csrfToken, decision);
+    return this.connectionApi().decidePairing(pairingId, csrfToken, decision, signal);
   }
 
-  async cancelPairing(pairingId: string, csrfToken: string): Promise<ApiResult<null>> {
-    return this.connectionApi().cancelPairing(pairingId, csrfToken);
+  async cancelPairing(
+    pairingId: string,
+    csrfToken: string,
+    signal?: AbortSignal,
+  ): Promise<ApiResult<null>> {
+    return this.connectionApi().cancelPairing(pairingId, csrfToken, signal);
   }
 
-  async revokeGrant(grantId: string, csrfToken: string): Promise<ApiResult<null>> {
-    return this.connectionApi().revokeGrant(grantId, csrfToken);
+  async revokeGrant(
+    grantId: string,
+    csrfToken: string,
+    signal?: AbortSignal,
+  ): Promise<ApiResult<null>> {
+    return this.connectionApi().revokeGrant(grantId, csrfToken, signal);
   }
 
   async rotateGrant(
     grantId: string,
     csrfToken: string,
+    signal?: AbortSignal,
   ): Promise<ApiResult<RotatedGrantCredential>> {
-    return this.connectionApi().rotateGrant(grantId, csrfToken);
+    return this.connectionApi().rotateGrant(grantId, csrfToken, signal);
   }
 }
 

@@ -7,6 +7,7 @@
     "D5-BOARD-LIST",
     "D5-BOARD-CREATE",
     "D5-BOARD-GET",
+    "D5-BOARD-CAPABILITIES",
     "D5-BOARD-ARCHIVE",
     "D5-BOARD-RENAME",
     "D5-HISTORY-LIST",
@@ -44,6 +45,16 @@
       "signature": "async getBoard(boardId: string, signal?: AbortSignal): Promise<ApiResult<BoardGetResult>>",
       "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=getBoard]",
       "contractId": "D5-BOARD-GET"
+    },
+    {
+      "projectionId": "D5-BOARD-CAPABILITIES-SELECTOR",
+      "exportName": "BoardApiClient",
+      "exportKind": "class",
+      "memberName": "getCapabilities",
+      "memberKind": "method",
+      "signature": "async getCapabilities( boardId: string, signal?: AbortSignal, ): Promise<ApiResult<BoardCapabilitiesResult>>",
+      "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=getCapabilities]",
+      "contractId": "D5-BOARD-CAPABILITIES"
     },
     {
       "projectionId": "D5-BOARD-ARCHIVE-SELECTOR",
@@ -106,5 +117,5 @@
       "contractId": "D5-DOCUMENT-TRANSFORM"
     }
   ],
-  "tupleListSha256": "1d9ac1a9ad2b5e30a45bce163a77e57ca5195e13f1b532cf2bfd474646d7c0d1"
+  "tupleListSha256": "fd1276c047c5e9337e52ca540601f28ad75b64762dff0809481bea376d82fce6"
 }

@@ -234,9 +234,13 @@ export type {
   BoardCapabilities,
   BoardCapabilitiesV1,
   BoardCapabilitiesV2,
+  BoardSessionAccessV1,
 } from './capabilities.js';
 export { DEFAULT_BOARD_CAPABILITIES_V1, DEFAULT_BOARD_CAPABILITIES_V2 } from './capabilities.js';
-export { BoardAuthorizationCapabilitySchemaV1 } from './capabilities.js';
+export {
+  BoardAuthorizationCapabilitySchemaV1,
+  BoardSessionAccessSchemaV1,
+} from './capabilities.js';
 export type {
   BoardMutationCommandV1,
   BoardMutationCommandV2,
@@ -291,6 +295,7 @@ export {
   BoardCapabilitiesParserV1,
   BoardCapabilitiesParserV2,
   BoardCapabilitiesParser,
+  BoardSessionAccessParserV1,
   BoardAuthorizationCapabilityParserV1,
   BoardAuthorizationPrincipalParserV1,
   BoardMembershipParserV1,

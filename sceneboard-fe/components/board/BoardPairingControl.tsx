@@ -1,11 +1,16 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import type { BoardSummaryV1, ClientGrantCapabilityV1 } from '@sceneboard/board-schema';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type {
+  BoardSessionAccessV1,
+  BoardSummaryV1,
+  ClientGrantCapabilityV1,
+} from '@sceneboard/board-schema';
 
 import type {
   BoardApiClient,
   CreatedPairing,
+  GrantSummary,
   PairingBoardDestination,
   PairingOwnerStatus,
 } from '../../lib/api/board-api';
@@ -16,8 +21,8 @@ import {
   writeCreatedPairingSession,
 } from '../../lib/ai-connections/created-pairing-session';
 import { HEADER_GRANTS_CHANGED_EVENT } from '../../lib/ai-connections/header-connection-state';
-import { hasVisibleGrantForBoard } from '../../lib/ai-connections/visible-approved-grants';
 import { PairingRequestModal } from '../ai-connections/PairingRequestModal';
+import { ConfirmationDialog } from '../app/ConfirmationDialog';
 import { useI18n } from '../i18n/I18nProvider';
 
 interface PairingBoardOption {
@@ -29,10 +34,16 @@ export function BoardPairingControl({
   api,
   boardId,
   boardTitle,
+  enabled,
+  capabilityEpoch,
+  connectionGrantCeiling,
 }: {
   api: BoardApiClient;
   boardId: string;
   boardTitle: string;
+  enabled: boolean;
+  capabilityEpoch: number;
+  connectionGrantCeiling: BoardSessionAccessV1['connectionGrantCeiling'];
 }) {
   const { t } = useI18n();
   const [created, setCreated] = useState<CreatedPairing | null>(null);
@@ -42,13 +53,87 @@ export function BoardPairingControl({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isGrantCheckComplete, setIsGrantCheckComplete] = useState(false);
-  const [hasBoardConnection, setHasBoardConnection] = useState(false);
+  const [boardGrant, setBoardGrant] = useState<GrantSummary | null>(null);
+  const [rotatedCredential, setRotatedCredential] = useState<string | null>(null);
+  const [confirmRevoke, setConfirmRevoke] = useState(false);
   const previousState = useRef<PairingOwnerStatus['state'] | null>(null);
+  const requestAborts = useRef(new Map<string, AbortController>());
+  const requestEpochs = useRef(new Map<string, number>());
+  const currentCapabilityEpoch = useRef(capabilityEpoch);
+
+  const beginAction = useCallback(
+    (action: string) => {
+      requestAborts.current.get(action)?.abort();
+      const controller = new AbortController();
+      const epoch = (requestEpochs.current.get(action) ?? 0) + 1;
+      requestAborts.current.set(action, controller);
+      requestEpochs.current.set(action, epoch);
+      return {
+        action,
+        boardId,
+        capabilityEpoch: currentCapabilityEpoch.current,
+        controller,
+        epoch,
+      };
+    },
+    [boardId],
+  );
+
+  const actionIsCurrent = useCallback(
+    (request: ReturnType<typeof beginAction>) =>
+      !request.controller.signal.aborted &&
+      request.boardId === boardId &&
+      request.capabilityEpoch === currentCapabilityEpoch.current &&
+      requestAborts.current.get(request.action) === request.controller &&
+      requestEpochs.current.get(request.action) === request.epoch,
+    [boardId],
+  );
+
+  const clearForbiddenState = useCallback(() => {
+    for (const controller of requestAborts.current.values()) controller.abort();
+    requestAborts.current.clear();
+    for (const [action, epoch] of requestEpochs.current)
+      requestEpochs.current.set(action, epoch + 1);
+    clearCreatedPairingSession(window.sessionStorage);
+    previousState.current = null;
+    setCreated(null);
+    setOwnerStatus(null);
+    setBoardGrant(null);
+    setRotatedCredential(null);
+    setConfirmRevoke(false);
+    setIsOpen(false);
+    setBusy(false);
+    setError(null);
+  }, []);
 
   useEffect(() => {
+    if (!enabled) return;
     const restored = readCreatedPairingSession(window.sessionStorage);
     setCreated(restored);
-  }, []);
+  }, [enabled]);
+
+  const ceilingIdentity = `${connectionGrantCeiling.scopes.join(',')}|${connectionGrantCeiling.lifecyclePermissions.join(',')}`;
+  const previousAccess = useRef<{
+    enabled: boolean;
+    capabilityEpoch: number;
+    ceilingIdentity: string;
+  } | null>(null);
+
+  useEffect(() => {
+    const previous = previousAccess.current;
+    currentCapabilityEpoch.current = capabilityEpoch;
+    previousAccess.current = { enabled, capabilityEpoch, ceilingIdentity };
+    if (
+      !enabled ||
+      (previous !== null &&
+        (previous.enabled !== enabled ||
+          previous.capabilityEpoch !== capabilityEpoch ||
+          previous.ceilingIdentity !== ceilingIdentity))
+    )
+      clearForbiddenState();
+  }, [capabilityEpoch, ceilingIdentity, clearForbiddenState, enabled]);
+
+  useEffect(() => clearForbiddenState, [boardId, clearForbiddenState]);
 
   useEffect(() => {
     setBoards((current) => {
@@ -58,6 +143,7 @@ export function BoardPairingControl({
   }, [boardId, boardTitle]);
 
   useEffect(() => {
+    if (!enabled) return;
     const controller = new AbortController();
     const refreshGrant = async () => {
       let cursor: string | null = null;
@@ -65,18 +151,24 @@ export function BoardPairingControl({
         const result = await api.listGrants(cursor, controller.signal);
         if (controller.signal.aborted) return;
         if (result.kind !== 'ok') {
-          setHasBoardConnection(false);
+          setBoardGrant(null);
           setIsGrantCheckComplete(true);
           return;
         }
-        if (hasVisibleGrantForBoard(result.value.grants, boardId)) {
-          setHasBoardConnection(true);
+        const matching =
+          result.value.grants.find(
+            (grant) =>
+              ['pending_redemption', 'active'].includes(grant.status) &&
+              grant.boardIds.includes(boardId),
+          ) ?? null;
+        if (matching !== null) {
+          setBoardGrant(matching);
           setIsGrantCheckComplete(true);
           return;
         }
         cursor = result.value.nextCursor;
       } while (cursor !== null);
-      setHasBoardConnection(false);
+      setBoardGrant(null);
       setIsGrantCheckComplete(true);
     };
     const onGrantsChanged = () => void refreshGrant();
@@ -87,7 +179,7 @@ export function BoardPairingControl({
       controller.abort();
       window.removeEventListener(HEADER_GRANTS_CHANGED_EVENT, onGrantsChanged);
     };
-  }, [api, boardId]);
+  }, [api, boardId, capabilityEpoch, enabled]);
 
   useEffect(() => {
     if (created === null) return;
@@ -151,7 +243,9 @@ export function BoardPairingControl({
   const csrf = () => authSessionClient().snapshot()?.csrfToken ?? null;
 
   async function loadBoards() {
-    const result = await api.listBoards();
+    const request = beginAction('connection.boards.list');
+    const result = await api.listBoards(null, request.controller.signal);
+    if (!actionIsCurrent(request)) return;
     if (result.kind !== 'ok') {
       setError(t('ai.connectionRefreshFailed'));
       return;
@@ -177,7 +271,9 @@ export function BoardPairingControl({
       return;
     }
     setBusy(true);
-    const result = await api.createPairing(token);
+    const request = beginAction('connection.create');
+    const result = await api.createPairing(token, request.controller.signal);
+    if (!actionIsCurrent(request)) return;
     setBusy(false);
     if (result.kind !== 'ok') {
       setIsOpen(false);
@@ -207,10 +303,25 @@ export function BoardPairingControl({
     if (token === null || created === null || ownerStatus?.state !== 'pending') return;
     setBusy(true);
     setError(null);
-    const result = await api.decidePairing(ownerStatus.pairingId, token, {
-      decision: 'approve',
-      ...decision,
-    });
+    const approvedScopes = decision.approvedScopes.filter((scope) =>
+      connectionGrantCeiling.scopes.includes(scope),
+    );
+    const approvedLifecyclePermissions = decision.approvedLifecyclePermissions.filter(
+      (permission) => connectionGrantCeiling.lifecyclePermissions.includes(permission),
+    );
+    const request = beginAction('connection.update');
+    const result = await api.decidePairing(
+      ownerStatus.pairingId,
+      token,
+      {
+        decision: 'approve',
+        ...decision,
+        approvedScopes,
+        approvedLifecyclePermissions,
+      },
+      request.controller.signal,
+    );
+    if (!actionIsCurrent(request)) return;
     setBusy(false);
     if (result.kind === 'ok') {
       const destinationBoardId =
@@ -226,7 +337,14 @@ export function BoardPairingControl({
     if (token === null || ownerStatus?.state !== 'pending') return;
     setBusy(true);
     setError(null);
-    const result = await api.decidePairing(ownerStatus.pairingId, token, { decision: 'deny' });
+    const request = beginAction('connection.update');
+    const result = await api.decidePairing(
+      ownerStatus.pairingId,
+      token,
+      { decision: 'deny' },
+      request.controller.signal,
+    );
+    if (!actionIsCurrent(request)) return;
     setBusy(false);
     if (result.kind === 'ok') clearPairing();
     else setError(t('ai.connectionRefreshFailed'));
@@ -237,15 +355,101 @@ export function BoardPairingControl({
     if (token === null || created === null) return;
     setBusy(true);
     setError(null);
-    const result = await api.cancelPairing(created.pairingId, token);
+    const request = beginAction('connection.revoke');
+    const result = await api.cancelPairing(created.pairingId, token, request.controller.signal);
+    if (!actionIsCurrent(request)) return;
     setBusy(false);
     if (result.kind === 'ok') clearPairing();
     else setError(t('ai.connectionRefreshFailed'));
   }
 
+  async function rotateGrant() {
+    const token = csrf();
+    if (token === null || boardGrant === null) return;
+    const request = beginAction('connection.update');
+    setBusy(true);
+    setError(null);
+    setRotatedCredential(null);
+    const result = await api.rotateGrant(boardGrant.grantId, token, request.controller.signal);
+    if (!actionIsCurrent(request)) return;
+    setBusy(false);
+    if (result.kind === 'ok') {
+      setBoardGrant(result.value.grant);
+      setRotatedCredential(result.value.accessToken);
+      return;
+    }
+    setError(t('ai.connectionRefreshFailed'));
+  }
+
+  async function revokeGrant() {
+    const token = csrf();
+    if (token === null || boardGrant === null) return;
+    const request = beginAction('connection.revoke');
+    setBusy(true);
+    setError(null);
+    const result = await api.revokeGrant(boardGrant.grantId, token, request.controller.signal);
+    if (!actionIsCurrent(request)) return;
+    setBusy(false);
+    setConfirmRevoke(false);
+    if (result.kind === 'ok') {
+      setBoardGrant(null);
+      setRotatedCredential(null);
+      return;
+    }
+    setError(t('ai.disconnectFailed'));
+  }
+
   const displayPairing = ownerStatus ?? created;
 
-  if (!isGrantCheckComplete || hasBoardConnection) return null;
+  if (!enabled || !isGrantCheckComplete) return null;
+
+  if (boardGrant !== null)
+    return (
+      <div className="board-pairing-control">
+        <span>
+          {boardGrant.client.clientName} · {boardGrant.status}
+        </span>
+        <button
+          type="button"
+          className="button secondary"
+          disabled={busy}
+          onClick={() => void rotateGrant()}
+        >
+          {t('ai.rotate')}
+        </button>
+        <button
+          type="button"
+          className="button danger"
+          disabled={busy}
+          onClick={() => setConfirmRevoke(true)}
+        >
+          {t('ai.revoke')}
+        </button>
+        {rotatedCredential !== null && (
+          <section aria-live="polite">
+            <strong>{t('ai.newCredential')}</strong>
+            <p>{t('ai.newCredentialDescription')}</p>
+            <textarea readOnly value={rotatedCredential} aria-label={t('ai.newCredential')} />
+          </section>
+        )}
+        {error && (
+          <span className="board-pairing-error" role="alert">
+            {error}
+          </span>
+        )}
+        <ConfirmationDialog
+          isOpen={confirmRevoke}
+          title={t('ai.disconnectTitle')}
+          description={t('ai.disconnectDescription', { client: boardGrant.client.clientName })}
+          confirmLabel={t('ai.disconnectConfirm')}
+          cancelLabel={t('common.cancel')}
+          busy={busy}
+          error={null}
+          onConfirm={() => void revokeGrant()}
+          onDismiss={() => setConfirmRevoke(false)}
+        />
+      </div>
+    );
 
   return (
     <div className="board-pairing-control">
@@ -271,6 +475,7 @@ export function BoardPairingControl({
           boards={boards}
           busy={busy}
           error={error}
+          connectionGrantCeiling={connectionGrantCeiling}
           onDismiss={() => setIsOpen(false)}
           onApprove={(decision) => void approve(decision)}
           onDeny={() => void deny()}

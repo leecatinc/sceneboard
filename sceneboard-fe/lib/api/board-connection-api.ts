@@ -56,12 +56,13 @@ export class BoardConnectionApi extends BoardApiTransport {
     };
   }
 
-  async createPairing(csrfToken: string): Promise<ApiResult<CreatedPairing>> {
+  async createPairing(csrfToken: string, signal?: AbortSignal): Promise<ApiResult<CreatedPairing>> {
     const result = await this.coordinator.dispatchShared({
       path: '/api/v1/pairings',
       method: 'POST',
       body: {},
       csrfToken,
+      ...(signal === undefined ? {} : { signal }),
     });
     if (result.kind !== 'ok') return result;
     if (result.value.response.status !== 201)
@@ -73,12 +74,14 @@ export class BoardConnectionApi extends BoardApiTransport {
     pairingId: string,
     csrfToken: string,
     decision: PairingDecision,
+    signal?: AbortSignal,
   ): Promise<ApiResult<PairingOwnerStatus>> {
     const result = await this.coordinator.dispatchShared({
       path: `/api/v1/pairings/${encodeURIComponent(pairingId)}/decision`,
       method: 'POST',
       body: decision,
       csrfToken,
+      ...(signal === undefined ? {} : { signal }),
     });
     if (result.kind !== 'ok') return result;
     if (!result.value.response.ok)
@@ -86,27 +89,43 @@ export class BoardConnectionApi extends BoardApiTransport {
     return { kind: 'ok', value: parsePairingOwnerStatus(result.value.body) };
   }
 
-  async cancelPairing(pairingId: string, csrfToken: string): Promise<ApiResult<null>> {
+  async cancelPairing(
+    pairingId: string,
+    csrfToken: string,
+    signal?: AbortSignal,
+  ): Promise<ApiResult<null>> {
     return this.emptyMutation(
       `/api/v1/pairings/${encodeURIComponent(pairingId)}`,
       'DELETE',
       csrfToken,
+      signal,
     );
   }
 
-  async revokeGrant(grantId: string, csrfToken: string): Promise<ApiResult<null>> {
-    return this.emptyMutation(`/api/v1/grants/${encodeURIComponent(grantId)}`, 'DELETE', csrfToken);
+  async revokeGrant(
+    grantId: string,
+    csrfToken: string,
+    signal?: AbortSignal,
+  ): Promise<ApiResult<null>> {
+    return this.emptyMutation(
+      `/api/v1/grants/${encodeURIComponent(grantId)}`,
+      'DELETE',
+      csrfToken,
+      signal,
+    );
   }
 
   async rotateGrant(
     grantId: string,
     csrfToken: string,
+    signal?: AbortSignal,
   ): Promise<ApiResult<RotatedGrantCredential>> {
     const result = await this.coordinator.dispatchShared({
       path: `/api/v1/grants/${encodeURIComponent(grantId)}/rotate`,
       method: 'POST',
       body: {},
       csrfToken,
+      ...(signal === undefined ? {} : { signal }),
     });
     if (result.kind !== 'ok') return result;
     const body = result.value.body;

@@ -39,3 +39,21 @@ test('the landing hero scales long localized headlines without changing their co
   assert.match(landingStyles, /data-locale='ru'/);
   assert.match(landingStyles, /\.valueSection \.sectionHeading\s*\{[^}]*max-width: 1100px/s);
 });
+
+test('capability-change announcements stay localized and non-enumerating', () => {
+  for (const locale of ['ko', 'en', 'ja', 'zh-CN', 'zh-TW', 'es', 'fr', 'de', 'pt-BR', 'ru']) {
+    const message = formatMessage(
+      locale as Parameters<typeof formatMessage>[0],
+      'board.capabilitiesChanged',
+    );
+    assert.ok(message.length > 0);
+    assert.doesNotMatch(
+      message,
+      /owner|editor|viewer|소유자|편집자|뷰어|policy|정책|board_[a-z0-9]/iu,
+    );
+  }
+  const client = source('app/boards/[boardId]/board-client.tsx');
+  assert.match(client, /role="status"/u);
+  assert.match(client, /aria-live="polite"/u);
+  assert.match(client, /board\.capabilitiesChanged/u);
+});

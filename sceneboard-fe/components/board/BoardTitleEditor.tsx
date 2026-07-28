@@ -7,9 +7,11 @@ import { useI18n } from '../i18n/I18nProvider';
 export function BoardTitleEditor({
   title,
   onRename,
+  enabled,
 }: {
   title: string;
   onRename: (title: string) => Promise<boolean>;
+  enabled: boolean;
 }) {
   const { t } = useI18n();
   const [editing, setEditing] = useState(false);
@@ -20,6 +22,14 @@ export function BoardTitleEditor({
   useEffect(() => {
     if (editing) input.current?.focus();
   }, [editing]);
+
+  useEffect(() => {
+    if (!enabled) {
+      setEditing(false);
+      setSaving(false);
+      setError(false);
+    }
+  }, [enabled]);
 
   const cancel = () => {
     setEditing(false);
@@ -49,15 +59,17 @@ export function BoardTitleEditor({
     return (
       <div className="board-title-row">
         <h2 tabIndex={-1}>{title}</h2>
-        <button
-          type="button"
-          className="board-title-edit"
-          aria-label={t('board.rename')}
-          title={t('board.rename')}
-          onClick={() => setEditing(true)}
-        >
-          ✎
-        </button>
+        {enabled && (
+          <button
+            type="button"
+            className="board-title-edit"
+            aria-label={t('board.rename')}
+            title={t('board.rename')}
+            onClick={() => setEditing(true)}
+          >
+            ✎
+          </button>
+        )}
       </div>
     );
   }

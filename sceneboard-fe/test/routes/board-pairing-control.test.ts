@@ -10,7 +10,7 @@ test('board owns an in-place pairing action without replacing live and history c
   const chromeSlots = source('components/board/BoardChromeSlots.tsx');
   assert.match(
     boardClient,
-    /<BoardPairingControl api=\{api\} boardId=\{boardId\} boardTitle=\{session\.title\} \/>/,
+    /<BoardPairingControl[\s\S]*api=\{api\}[\s\S]*boardId=\{boardId\}[\s\S]*connectionGrantCeiling=/,
   );
   assert.match(chromeSlots, /pairingControl/);
   assert.match(chromeSlots, /<ConnectionBanner/);
@@ -18,7 +18,7 @@ test('board owns an in-place pairing action without replacing live and history c
   assert.doesNotMatch(boardClient, /window\.location|router\.push|settings\/ai-connections/);
   assert.match(
     source('components/board/BoardPairingControl.tsx'),
-    /hasVisibleGrantForBoard\(result\.value\.grants, boardId\)/,
+    /grant\.boardIds\.includes\(boardId\)/,
   );
 });
 
@@ -31,17 +31,30 @@ test('board pairing keeps one bounded same-tab code and polls only in a visible 
   assert.match(control, /matching\?\.state === 'pending'.*setIsOpen\(true\)/s);
   assert.match(control, /onDismiss=\{\(\) => setIsOpen\(false\)\}/);
   assert.match(control, /aria-haspopup="dialog"\s+aria-expanded=\{isOpen\}/);
-  assert.match(control, /api\.cancelPairing\(created\.pairingId, token\)/);
+  assert.match(
+    control,
+    /api\.cancelPairing\(created\.pairingId, token, request\.controller\.signal\)/,
+  );
+  assert.match(
+    control,
+    /api\.rotateGrant\(boardGrant\.grantId, token, request\.controller\.signal\)/,
+  );
+  assert.match(
+    control,
+    /api\.revokeGrant\(boardGrant\.grantId, token, request\.controller\.signal\)/,
+  );
 });
 
 test('board pairing approval defaults to an approval-time new board and remains matching-code gated', () => {
   const control = source('components/board/BoardPairingControl.tsx');
   const modal = source('components/ai-connections/PairingRequestModal.tsx');
-  assert.match(control, /api\.listBoards\(\)/);
+  assert.match(control, /api\.listBoards\(null, request\.controller\.signal\)/);
   assert.match(modal, /useState<'create' \| 'existing'>\('create'\)/);
   assert.match(modal, /destination: PairingBoardDestination/);
   assert.match(modal, /matchingCode === null/);
   assert.match(modal, /approvedScopes\.includes\('board\.write'\)/);
+  assert.match(modal, /connectionGrantCeiling\.scopes\.includes\(scope\)/);
+  assert.match(modal, /connectionGrantCeiling\.lifecyclePermissions\.includes\(permission\)/);
   assert.match(modal, /approvedLifecyclePermissions\.includes\('board\.create'\)/);
   assert.match(modal, /destinationMode === 'create'.*!canCreateBoard/s);
   assert.match(modal, /t\('ai\.cancelCode'\)/);

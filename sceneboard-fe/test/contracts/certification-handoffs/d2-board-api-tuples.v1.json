@@ -39,7 +39,7 @@
       "exportKind": "class",
       "memberName": "createPairing",
       "memberKind": "method",
-      "signature": "async createPairing(csrfToken: string): Promise<ApiResult<CreatedPairing>>",
+      "signature": "async createPairing(csrfToken: string, signal?: AbortSignal): Promise<ApiResult<CreatedPairing>>",
       "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=createPairing]",
       "contractId": "D2-PAIRING-CREATE"
     },
@@ -49,7 +49,7 @@
       "exportKind": "class",
       "memberName": "decidePairing",
       "memberKind": "method",
-      "signature": "async decidePairing( pairingId: string, csrfToken: string, decision: PairingDecision, ): Promise<ApiResult<PairingOwnerStatus>>",
+      "signature": "async decidePairing( pairingId: string, csrfToken: string, decision: PairingDecision, signal?: AbortSignal, ): Promise<ApiResult<PairingOwnerStatus>>",
       "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=decidePairing]",
       "contractId": "D2-PAIRING-DECIDE"
     },
@@ -59,7 +59,7 @@
       "exportKind": "class",
       "memberName": "cancelPairing",
       "memberKind": "method",
-      "signature": "async cancelPairing(pairingId: string, csrfToken: string): Promise<ApiResult<null>>",
+      "signature": "async cancelPairing( pairingId: string, csrfToken: string, signal?: AbortSignal, ): Promise<ApiResult<null>>",
       "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=cancelPairing]",
       "contractId": "D2-PAIRING-CANCEL"
     },
@@ -69,7 +69,7 @@
       "exportKind": "class",
       "memberName": "revokeGrant",
       "memberKind": "method",
-      "signature": "async revokeGrant(grantId: string, csrfToken: string): Promise<ApiResult<null>>",
+      "signature": "async revokeGrant( grantId: string, csrfToken: string, signal?: AbortSignal, ): Promise<ApiResult<null>>",
       "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=revokeGrant]",
       "contractId": "D2-GRANT-REVOKE"
     },
@@ -79,10 +79,10 @@
       "exportKind": "class",
       "memberName": "rotateGrant",
       "memberKind": "method",
-      "signature": "async rotateGrant( grantId: string, csrfToken: string, ): Promise<ApiResult<RotatedGrantCredential>>",
+      "signature": "async rotateGrant( grantId: string, csrfToken: string, signal?: AbortSignal, ): Promise<ApiResult<RotatedGrantCredential>>",
       "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=rotateGrant]",
       "contractId": "D2-GRANT-ROTATE"
     }
   ],
-  "tupleListSha256": "5882e0dcdd9687082072ee76387ec6355a025d36b0e343c4d5e66fc3db048eff"
+  "tupleListSha256": "1b67306bf78e29d984d66c2b6fa0f1cd692b5c82332fe666aeb8655eb356876c"
 }

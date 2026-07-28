@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { createBoardRequestIdentity, type BoardApiClient } from '../../lib/api/board-api';
 import { useI18n } from '../i18n/I18nProvider';
@@ -11,23 +11,43 @@ export function BoardArchiveControl({
   boardId,
   boardTitle,
   onArchived,
+  forcedCloseEpoch,
 }: {
   api: BoardApiClient;
   boardId: string;
   boardTitle: string;
   onArchived: () => void;
+  forcedCloseEpoch: number;
 }) {
   const { t } = useI18n();
   const [isOpen, setIsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestIdentity = useRef<ReturnType<typeof createBoardRequestIdentity> | null>(null);
+  const requestAbort = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    requestAbort.current?.abort();
+    requestAbort.current = null;
+    setIsOpen(false);
+    setBusy(false);
+    setError(null);
+  }, [forcedCloseEpoch]);
 
   async function archive() {
+    requestAbort.current?.abort();
+    const controller = new AbortController();
+    requestAbort.current = controller;
     setBusy(true);
     setError(null);
     requestIdentity.current ??= createBoardRequestIdentity();
-    const result = await api.archiveBoard({ boardId, ...requestIdentity.current });
+    const result = await api.archiveBoard({
+      boardId,
+      ...requestIdentity.current,
+      signal: controller.signal,
+    });
+    if (controller.signal.aborted || requestAbort.current !== controller) return;
+    requestAbort.current = null;
     if (result.kind === 'ok') {
       requestIdentity.current = null;
       onArchived();

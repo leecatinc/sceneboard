@@ -2,8 +2,8 @@
 
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
-import { memo, useCallback, useEffect, useReducer, useRef, useState } from 'react';
-import type { PageId } from '@sceneboard/board-schema';
+import { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import type { BoardSessionAccessV1, PageId } from '@sceneboard/board-schema';
 import {
   BoardRenderer,
   type DrawingViewStateV1,
@@ -15,9 +15,10 @@ import { HitlBlock, type HitlInteractionControllerV1 } from '@sceneboard/board-u
 
 import { BoardStatePanel } from '../../../components/board/BoardStatePanel';
 import { BoardPairingControl } from '../../../components/board/BoardPairingControl';
-import { BoardArchiveControl } from '../../../components/board/BoardArchiveControl';
-import { MemberManagementSheet } from '../../../components/board/MemberManagementSheet';
-import { ShareManagementSheet } from '../../../components/board/ShareManagementSheet';
+import {
+  OwnerAdminControls,
+  type OwnerAdminControlsHandle,
+} from '../../../components/board/OwnerAdminControls';
 import {
   BoardConnectionsSlot,
   BoardHistorySlot,
@@ -42,6 +43,12 @@ import { useHitlInteractionController } from '../../../lib/board/use-hitl-intera
 import { selectUnplacedOpenHitlV1 } from '../../../lib/board/unplaced-hitl';
 import { shouldPreferExpandedDecisionWorkspaceV1 } from '../../../lib/board/hitl-decision-workspace-policy';
 import { useI18n } from '../../../components/i18n/I18nProvider';
+import {
+  deriveBoardAffordancesV1,
+  EMPTY_BOARD_SESSION_ACCESS_V1,
+  lostBoardUiOperationsV1,
+  sameBoardSessionAccessV1,
+} from '../../../lib/board/board-capabilities';
 import {
   canResetArtifactViewV1,
   createArtifactViewRegistryV1,
@@ -209,7 +216,14 @@ export function BoardClient({ boardId }: { boardId: string }) {
     () => new InvitationApi(authSessionClient().sharedCoordinator()),
   );
   const [shareApi] = useState(() => new ShareApi(authSessionClient().sharedCoordinator()));
-  const [ownerManagementEnabled, setOwnerManagementEnabled] = useState(false);
+  const [renderedAccess, setRenderedAccess] = useState<{
+    boardId: string;
+    access: BoardSessionAccessV1;
+  }>({ boardId, access: EMPTY_BOARD_SESSION_ACCESS_V1 });
+  const [capabilityAnnouncement, setCapabilityAnnouncement] = useState<{
+    epoch: number;
+    message: string;
+  } | null>(null);
   const [artifactLoad] = useState<ArtifactLoadPortV1>(() => {
     return {
       async readMetadata(input) {
@@ -249,15 +263,56 @@ export function BoardClient({ boardId }: { boardId: string }) {
   const pageIdentityRef = useRef<string | null>(null);
   const captureSourcesRef = useRef(new Set<string>());
   const hitlSourcesRef = useRef(new Set<string>());
+  const ownerAdminRef = useRef<OwnerAdminControlsHandle>(null);
+  const capabilityAnnouncementEpochRef = useRef(0);
   const revisionId = session.visibleSnapshot?.revision.revisionId ?? null;
+  const accessForRender =
+    renderedAccess.boardId === boardId ? renderedAccess.access : EMPTY_BOARD_SESSION_ACCESS_V1;
+  const affordances = useMemo(() => deriveBoardAffordancesV1(accessForRender), [accessForRender]);
+  const { closeHistory, latest: loadLatestSnapshot, sessionAccess: latestSessionAccess } = session;
+
   useEffect(() => {
-    const controller = new AbortController();
-    setOwnerManagementEnabled(false);
-    void invitationApi.list(boardId, controller.signal).then((result) => {
-      if (!controller.signal.aborted) setOwnerManagementEnabled(result.kind === 'ok');
+    const previousAccess =
+      renderedAccess.boardId === boardId ? renderedAccess.access : EMPTY_BOARD_SESSION_ACCESS_V1;
+    const nextAccess = latestSessionAccess;
+    if (renderedAccess.boardId === boardId && sameBoardSessionAccessV1(previousAccess, nextAccess))
+      return;
+    const previousAffordances = deriveBoardAffordancesV1(previousAccess);
+    const nextAffordances = deriveBoardAffordancesV1(nextAccess);
+    const lost = lostBoardUiOperationsV1(previousAffordances, nextAffordances);
+    const activeElement =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    if (
+      lost.includes('membership.manage') ||
+      lost.includes('share.manage') ||
+      lost.includes('board.archive') ||
+      lost.includes('board.delete')
+    )
+      ownerAdminRef.current?.closeAndClearOwnerAdmin();
+    if (lost.includes('history.read')) {
+      closeHistory();
+      void loadLatestSnapshot(true);
+    }
+    setRenderedAccess({ boardId, access: nextAccess });
+    if (lost.length === 0) return;
+    capabilityAnnouncementEpochRef.current += 1;
+    setCapabilityAnnouncement({
+      epoch: capabilityAnnouncementEpochRef.current,
+      message: t('board.capabilitiesChanged'),
     });
-    return () => controller.abort();
-  }, [boardId, invitationApi]);
+    requestAnimationFrame(() => {
+      if (activeElement?.isConnected) {
+        activeElement.focus();
+        return;
+      }
+      const drawerTrigger = document.querySelector<HTMLElement>('.mobile-board-drawer-trigger');
+      if (drawerTrigger?.isConnected) {
+        drawerTrigger.focus();
+        return;
+      }
+      document.querySelector<HTMLElement>('[data-page-heading]')?.focus();
+    });
+  }, [boardId, closeHistory, latestSessionAccess, loadLatestSnapshot, renderedAccess, t]);
   const navigationDocument =
     session.visibleSnapshot === null ? null : documentForPageNavigationV1(session.visibleSnapshot);
   const resolvedPageId =
@@ -600,7 +655,7 @@ export function BoardClient({ boardId }: { boardId: string }) {
   const routeEpoch = `${boardId}:${visibleSnapshot.revision.revisionId}`;
   const artifactRouteEpoch = boardId;
   const hitlMode: HitlInteractionControllerV1['mode'] =
-    state.mode.kind === 'history' ? 'history' : 'live';
+    state.mode.kind === 'history' || !affordances['board.write'] ? 'history' : 'live';
   const unplacedOpenHitl =
     state.mode.kind === 'live' ? selectUnplacedOpenHitlV1(visibleSnapshot) : [];
   const renderArtifact: RendererComponentV1<'content.artifact'> = ({ node, context }) => {
@@ -690,41 +745,34 @@ export function BoardClient({ boardId }: { boardId: string }) {
       />
     </div>
   );
-  const canManageShares = ownerManagementEnabled;
-  const canManageMembers = ownerManagementEnabled;
-  const canAdministerBoard = ownerManagementEnabled;
+  const canManageShares = affordances['share.manage'];
+  const canManageMembers = affordances['membership.manage'];
+  const canAdministerBoard = affordances['board.archive'] && affordances['board.delete'];
   const ownerAdmin =
-    canManageShares || canManageMembers || canAdministerBoard ? (
-      <div className={styles.ownerAdmin}>
-        <ShareManagementSheet
-          api={shareApi}
-          boardId={boardId}
-          revisionId={visibleSnapshot.revision.revisionId}
-          enabled={canManageShares}
-          routeKey={routeEpoch}
-        />
-        <MemberManagementSheet
-          api={invitationApi}
-          boardId={boardId}
-          enabled={canManageMembers}
-          routeKey={routeEpoch}
-        />
-        {canAdministerBoard && (
-          <BoardArchiveControl
-            api={api}
-            boardId={boardId}
-            boardTitle={session.title}
-            onArchived={() => router.replace('/boards')}
-          />
-        )}
-      </div>
+    canManageShares && canManageMembers && canAdministerBoard ? (
+      <OwnerAdminControls
+        ref={ownerAdminRef}
+        api={api}
+        invitationApi={invitationApi}
+        shareApi={shareApi}
+        boardId={boardId}
+        boardTitle={session.title}
+        revisionId={visibleSnapshot.revision.revisionId}
+        routeKey={routeEpoch}
+        onArchived={() => router.replace('/boards')}
+      />
     ) : null;
   const chromeSlots: MobileBoardDrawerSlotsV1 = {
     boardIdentity: (
-      <BoardIdentitySlot title={session.title} state={state} onRename={session.rename} />
+      <BoardIdentitySlot
+        title={session.title}
+        state={state}
+        onRename={session.rename}
+        canRename={affordances['board.write']}
+      />
     ),
     pageDisplay: pageDisplayControls,
-    history: (
+    history: affordances['history.read'] ? (
       <BoardHistorySlot
         state={state}
         liveUpdated={session.liveUpdated}
@@ -741,7 +789,7 @@ export function BoardClient({ boardId }: { boardId: string }) {
         onSelectHistoryRevision={(revisionId) => void session.selectHistoryRevision(revisionId)}
         onSelectLatestHistory={() => void session.selectLatestHistory()}
       />
-    ),
+    ) : null,
     status: (
       <StatusRail
         snapshot={visibleSnapshot}
@@ -749,14 +797,21 @@ export function BoardClient({ boardId }: { boardId: string }) {
         onStopRendering={() => setArtifactStopSignal((value) => value + 1)}
       />
     ),
-    connections: (
+    connections: affordances['connection.create'] ? (
       <BoardConnectionsSlot
         state={state}
         pairingControl={
-          <BoardPairingControl api={api} boardId={boardId} boardTitle={session.title} />
+          <BoardPairingControl
+            api={api}
+            boardId={boardId}
+            boardTitle={session.title}
+            enabled={affordances['connection.create']}
+            capabilityEpoch={accessForRender.capabilityEpoch}
+            connectionGrantCeiling={accessForRender.connectionGrantCeiling}
+          />
         }
       />
-    ),
+    ) : null,
     ownerAdmin,
   };
   const navigationNotice = state.navigationError ? (
@@ -775,6 +830,16 @@ export function BoardClient({ boardId }: { boardId: string }) {
         notice={navigationNotice}
         surfaceClassName={styles.surface ?? ''}
       >
+        {capabilityAnnouncement !== null && (
+          <span
+            key={capabilityAnnouncement.epoch}
+            className="visually-hidden"
+            role="status"
+            aria-live="polite"
+          >
+            {capabilityAnnouncement.message}
+          </span>
+        )}
         <PresentationStage
           stageRef={bindPageStage}
           mode={pageDisplayMode}

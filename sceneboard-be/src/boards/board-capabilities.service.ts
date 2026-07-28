@@ -7,7 +7,10 @@ import {
 
 import { BoardPersistenceError } from '../common/errors/board-persistence.error.js';
 import type { BoardAccessPolicy, ResolvedBoardPrincipalV1 } from '../grants/board-access.policy.js';
-import { currentBoardCapabilitiesFromContext } from '../grants/current-board-capabilities.js';
+import {
+  currentBoardCapabilitiesFromContext,
+  currentBoardSessionAccessFromContext,
+} from '../grants/current-board-capabilities.js';
 
 export class BoardCapabilitiesService {
   constructor(private readonly accessPolicy: BoardAccessPolicy) {}
@@ -33,6 +36,7 @@ export class BoardCapabilitiesService {
           result: {
             type: 'capabilities.get',
             capabilities: currentBoardCapabilitiesFromContext(context),
+            sessionAccess: currentBoardSessionAccessFromContext(context),
           },
         });
         if (!parsed.ok) throw new BoardPersistenceError('row_integrity');

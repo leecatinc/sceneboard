@@ -26189,6 +26189,26 @@ var sortedSubset = (catalog) => z.array(z.enum(catalog)).superRefine((values, co
     }
 });
 var BoardAuthorizationCapabilitySchemaV1 = z.enum(BOARD_AUTHORIZATION_CAPABILITIES_V1);
+var ConnectionLifecyclePermissionSchemaV1 = z.enum(["board.archive", "board.create"]);
+var BoardSessionAccessSchemaV1 = z.object({
+  protocolVersion: z.literal(PROTOCOL_VERSION),
+  type: z.literal("board.session.access"),
+  capabilityEpoch: z.number().int().safe().min(0),
+  authorizationCapabilities: sortedSubset(BOARD_AUTHORIZATION_CAPABILITIES_V1),
+  connectionGrantCeiling: z.object({
+    scopes: sortedSubset(CLIENT_GRANT_CAPABILITIES_V1),
+    lifecyclePermissions: z.array(ConnectionLifecyclePermissionSchemaV1).superRefine((values, context) => {
+      for (let index = 1; index < values.length; index += 1)
+        if ((values[index - 1] ?? "") >= (values[index] ?? "")) {
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "lifecycle permissions must be sorted and unique"
+          });
+          break;
+        }
+    })
+  }).strict()
+}).strict();
 var BoardLimitsSchemaV1 = z.object(
   Object.fromEntries(
     Object.entries(BOARD_LIMITS_V1).map(([key, value]) => [key, z.literal(value)])
@@ -26967,7 +26987,11 @@ var results = [
     snapshot: BoardSnapshotSchema
   }).strict(),
   z.object({ type: z.literal("board.archive"), board: BoardSummarySchemaV1 }).strict(),
-  z.object({ type: z.literal("capabilities.get"), capabilities: BoardCapabilitiesSchema }).strict(),
+  z.object({
+    type: z.literal("capabilities.get"),
+    capabilities: BoardCapabilitiesSchema,
+    sessionAccess: BoardSessionAccessSchemaV1
+  }).strict(),
   z.object({
     type: z.literal("history.list"),
     entries: z.array(HistoryEntrySchemaV1).max(MAX_PAGE_SIZE),
@@ -28316,6 +28340,7 @@ var BoardOperationResultParserV1 = createParserV1(
 var BoardSnapshotParserV1 = createParserV1(BoardSnapshotSchemaV1, "scene");
 var BoardEventEnvelopeParserV1 = createParserV1(BoardEventEnvelopeSchemaV1, "event");
 var BoardCapabilitiesParserV1 = createParserV1(BoardCapabilitiesSchemaV1);
+var BoardSessionAccessParserV1 = createParserV1(BoardSessionAccessSchemaV1);
 var ArtifactReferenceParserV1 = createParserV1(ArtifactReferenceSchemaV1);
 var ArtifactResourceParserV1 = createParserV1(ArtifactResourceSchemaV1);
 var ArtifactManifestParserV1 = createParserV1(ArtifactManifestSchemaV1);

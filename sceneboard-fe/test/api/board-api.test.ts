@@ -98,6 +98,25 @@ test('listBoards sends the closed D5 GET selector and admits a strict D6 envelop
   assert.equal(request?.init?.body, undefined);
 });
 
+test('getCapabilities admits the exact role-aware browser session projection', async () => {
+  const value = setup('operation-result-capabilities-get.v1.json', 'capabilities.get');
+  assert.equal((await value.coordinator.reconcileSessionGeneration()).kind, 'ok');
+  const result = await value.api.getCapabilities('board_1');
+  assert.equal(result.kind, 'ok');
+  if (result.kind !== 'ok') return;
+  assert.equal(result.value.sessionAccess.capabilityEpoch, 3);
+  assert.deepEqual(result.value.sessionAccess.authorizationCapabilities, ['board.read']);
+  assert.deepEqual(result.value.sessionAccess.connectionGrantCeiling, {
+    scopes: [],
+    lifecyclePermissions: [],
+  });
+  const request = value.requests[1];
+  const url = new URL(request?.url ?? '');
+  assert.equal(url.pathname, '/api/v1/boards/board_1/capabilities');
+  assert.match(url.searchParams.get('requestId') ?? '', /^req_/u);
+  assert.equal(request?.init?.method, 'GET');
+});
+
 test('createBoard preserves caller-owned retry identity and CSRF in the sole browser adapter', async () => {
   const value = setup('operation-result-board-create.v1.json', 'board.create');
   await value.coordinator.reconcileSessionGeneration();

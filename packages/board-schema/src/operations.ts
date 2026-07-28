@@ -6,7 +6,7 @@ import {
   ArtifactReferenceSchemaV1,
   ArtifactRuntimeSummarySchemaV1,
 } from './artifacts.js';
-import { BoardCapabilitiesSchema } from './capabilities.js';
+import { BoardCapabilitiesSchema, BoardSessionAccessSchemaV1 } from './capabilities.js';
 import {
   BOARD_AUTHORIZATION_CAPABILITIES_V1,
   BOARD_AUTHORIZATION_OPERATION_TYPES_V1,
@@ -327,7 +327,13 @@ const results = [
     })
     .strict(),
   z.object({ type: z.literal('board.archive'), board: BoardSummarySchemaV1 }).strict(),
-  z.object({ type: z.literal('capabilities.get'), capabilities: BoardCapabilitiesSchema }).strict(),
+  z
+    .object({
+      type: z.literal('capabilities.get'),
+      capabilities: BoardCapabilitiesSchema,
+      sessionAccess: BoardSessionAccessSchemaV1,
+    })
+    .strict(),
   z
     .object({
       type: z.literal('history.list'),

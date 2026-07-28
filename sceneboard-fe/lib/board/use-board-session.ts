@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BoardIdParserV1,
+  type BoardSessionAccessV1,
   type BoardSnapshot,
   type PageCursorV1,
   type RevisionId,
@@ -40,6 +41,12 @@ import {
 
 import { BoardApiClient, type ApiResult } from '../api/board-api';
 import { authSessionClient } from '../auth/session-client';
+import {
+  capabilitySettlementIsCurrentV1,
+  EMPTY_BOARD_SESSION_ACCESS_V1,
+  sameBoardSessionAccessV1,
+  type BoardCapabilityRequestIdentityV1,
+} from './board-capabilities';
 import {
   historySettlementIsCurrentV1,
   mergeHistoryPageV1,
@@ -95,6 +102,11 @@ export function useBoardSession(boardIdValue: string) {
   const [state, setState] = useState<LiveBoardStateV1 | null>(null);
   const [title, setTitle] = useState('SceneBoard');
   const [error, setError] = useState<SafeBoardUiErrorV1 | null>(null);
+  const [sessionAccess, setSessionAccess] = useState<BoardSessionAccessV1>(
+    EMPTY_BOARD_SESSION_ACCESS_V1,
+  );
+  const [capabilityUiEpoch, setCapabilityUiEpoch] = useState(0);
+  const sessionAccessRef = useRef<BoardSessionAccessV1>(EMPTY_BOARD_SESSION_ACCESS_V1);
   const api = useMemo(() => new BoardApiClient(authSessionClient().sharedCoordinator()), []);
   const routeEpoch = useRef(new RequestEpochV1());
   const navigationEpoch = useRef(new RequestEpochV1());
@@ -105,9 +117,63 @@ export function useBoardSession(boardIdValue: string) {
   const historyPage = useRef<HistoryPageStateV1 | null>(null);
   const stream = useRef<BoardStreamClientV1 | null>(null);
   const initialAbort = useRef<AbortController | null>(null);
+  const capabilityUiEpochRef = useRef(0);
+  const capabilityRequest = useRef<{
+    identity: BoardCapabilityRequestIdentityV1;
+    controller: AbortController;
+  } | null>(null);
+  const writeAbort = useRef<AbortController | null>(null);
+  const writeIdentity = useRef<BoardCapabilityRequestIdentityV1 | null>(null);
   const [historyDropdown, setHistoryDropdown] =
     useState<RetainedHistoryDropdownV1>(EMPTY_HISTORY_DROPDOWN);
   const apiOrigin = process.env.NEXT_PUBLIC_BOARD_API_URL;
+
+  const refreshCapabilities = useCallback(async (): Promise<boolean> => {
+    capabilityRequest.current?.controller.abort();
+    const controller = new AbortController();
+    const identity: BoardCapabilityRequestIdentityV1 = {
+      uiEpoch: capabilityUiEpochRef.current + 1,
+      boardId: boardIdValue,
+      action: 'capabilities.get',
+    };
+    capabilityUiEpochRef.current = identity.uiEpoch;
+    capabilityRequest.current = { identity, controller };
+    const result = await api.getCapabilities(boardIdValue, controller.signal);
+    if (
+      controller.signal.aborted ||
+      !capabilitySettlementIsCurrentV1(identity, capabilityRequest.current?.identity ?? null)
+    )
+      return false;
+    capabilityRequest.current = null;
+    setCapabilityUiEpoch(identity.uiEpoch);
+    if (result.kind === 'ok') {
+      const next = result.value.sessionAccess;
+      const current = sessionAccessRef.current;
+      if (next.capabilityEpoch >= current.capabilityEpoch) {
+        if (!sameBoardSessionAccessV1(current, next)) {
+          writeAbort.current?.abort();
+          writeIdentity.current = null;
+        }
+        sessionAccessRef.current = next;
+        setSessionAccess(next);
+      }
+      return true;
+    }
+    const notFound =
+      (result.kind === 'api_error' && result.status === 404) ||
+      (result.kind === 'board_error' && result.error.code === 'BOARD_NOT_FOUND');
+    if (notFound) {
+      writeAbort.current?.abort();
+      writeIdentity.current = null;
+      const next = {
+        ...EMPTY_BOARD_SESSION_ACCESS_V1,
+        capabilityEpoch: sessionAccessRef.current.capabilityEpoch + 1,
+      };
+      sessionAccessRef.current = next;
+      setSessionAccess(next);
+    }
+    return false;
+  }, [api, boardIdValue]);
 
   const startStream = useCallback(
     async (snapshot: BoardSnapshot) => {
@@ -191,9 +257,16 @@ export function useBoardSession(boardIdValue: string) {
       return;
     }
     initialAbort.current?.abort();
+    capabilityRequest.current?.controller.abort();
+    capabilityRequest.current = null;
     const controller = new AbortController();
     initialAbort.current = controller;
     setPhase('loading');
+    writeAbort.current?.abort();
+    writeAbort.current = null;
+    writeIdentity.current = null;
+    sessionAccessRef.current = EMPTY_BOARD_SESSION_ACCESS_V1;
+    setSessionAccess(EMPTY_BOARD_SESSION_ACCESS_V1);
     const result = await api.getBoard(parsed.data.value, controller.signal);
     if (controller.signal.aborted) return;
     if (result.kind !== 'ok') {
@@ -206,13 +279,20 @@ export function useBoardSession(boardIdValue: string) {
     setState(next);
     setError(null);
     setPhase('ready');
+    void refreshCapabilities();
     await startStream(result.value.snapshot);
-  }, [api, boardIdValue, startStream]);
+  }, [api, boardIdValue, refreshCapabilities, startStream]);
 
   useEffect(() => {
     void load();
     return () => {
       initialAbort.current?.abort();
+      capabilityRequest.current?.controller.abort();
+      capabilityRequest.current = null;
+      writeAbort.current?.abort();
+      writeAbort.current = null;
+      writeIdentity.current = null;
+      capabilityUiEpochRef.current += 1;
       listRequest.current?.controller.abort();
       listRequest.current = null;
       navigationAbort.current?.abort();
@@ -225,6 +305,19 @@ export function useBoardSession(boardIdValue: string) {
       if (stream.current !== null) void stream.current.stop('route_abort');
     };
   }, [load]);
+
+  useEffect(() => {
+    if (phase !== 'ready') return;
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void refreshCapabilities();
+    };
+    const interval = window.setInterval(refreshWhenVisible, 2_000);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
+  }, [phase, refreshCapabilities]);
 
   const loadHistoryPage = useCallback(
     async (cursor: PageCursorV1 | null) => {
@@ -485,8 +578,28 @@ export function useBoardSession(boardIdValue: string) {
 
   const rename = useCallback(
     async (nextTitle: string): Promise<boolean> => {
-      const result = await api.renameBoard(boardIdValue, nextTitle);
-      if (result.kind !== 'ok') return false;
+      if (!sessionAccessRef.current.authorizationCapabilities.includes('board.write')) return false;
+      writeAbort.current?.abort();
+      const controller = new AbortController();
+      writeAbort.current = controller;
+      const expected: BoardCapabilityRequestIdentityV1 = {
+        uiEpoch: (writeIdentity.current?.uiEpoch ?? 0) + 1,
+        boardId: boardIdValue,
+        action: 'board.rename',
+      };
+      const expectedCapabilityEpoch = sessionAccessRef.current.capabilityEpoch;
+      writeIdentity.current = expected;
+      const result = await api.renameBoard(boardIdValue, nextTitle, controller.signal);
+      if (
+        controller.signal.aborted ||
+        writeAbort.current !== controller ||
+        !capabilitySettlementIsCurrentV1(expected, writeIdentity.current) ||
+        expectedCapabilityEpoch !== sessionAccessRef.current.capabilityEpoch ||
+        result.kind !== 'ok'
+      )
+        return false;
+      writeAbort.current = null;
+      writeIdentity.current = null;
       setTitle(result.value.title);
       return true;
     },
@@ -512,5 +625,8 @@ export function useBoardSession(boardIdValue: string) {
     selectHistoryRevision,
     selectLatestHistory,
     rename,
+    sessionAccess,
+    capabilityUiEpoch,
+    refreshCapabilities,
   };
 }

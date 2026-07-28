@@ -1,7 +1,7 @@
 'use client';
 
 import { type FormEvent, useEffect, useId, useMemo, useRef, useState } from 'react';
-import type { ClientGrantCapabilityV1 } from '@sceneboard/board-schema';
+import type { BoardSessionAccessV1, ClientGrantCapabilityV1 } from '@sceneboard/board-schema';
 
 import type {
   CreatedPairing,
@@ -18,6 +18,19 @@ interface PairingBoardOption {
 }
 type PairingRequest = CreatedPairing | PairingOwnerStatus;
 
+const DEFAULT_CONNECTION_GRANT_CEILING: BoardSessionAccessV1['connectionGrantCeiling'] = {
+  scopes: [
+    'artifact.control',
+    'artifact.publish',
+    'board.history.read',
+    'board.hitl.request',
+    'board.hitl.respond',
+    'board.read',
+    'board.write',
+  ],
+  lifecyclePermissions: ['board.archive', 'board.create'],
+};
+
 const isOwnerStatus = (pairing: PairingRequest): pairing is PairingOwnerStatus =>
   'requestedScopes' in pairing;
 
@@ -27,6 +40,7 @@ export function PairingRequestModal({
   boards,
   busy,
   error = null,
+  connectionGrantCeiling = DEFAULT_CONNECTION_GRANT_CEILING,
   onDismiss,
   onApprove,
   onDeny,
@@ -37,6 +51,7 @@ export function PairingRequestModal({
   boards: PairingBoardOption[];
   busy: boolean;
   error?: string | null;
+  connectionGrantCeiling?: BoardSessionAccessV1['connectionGrantCeiling'];
   onDismiss: () => void;
   onApprove: (decision: {
     approvedScopes: ClientGrantCapabilityV1[];
@@ -59,8 +74,14 @@ export function PairingRequestModal({
   const [boardSearch, setBoardSearch] = useState('');
   const [pickerOpen, setPickerOpen] = useState(false);
   const ownerStatus = isOwnerStatus(pairing) ? pairing : null;
-  const boardCreationRequested =
-    ownerStatus?.requestedLifecyclePermissions.includes('board.create') !== false;
+  const allowedScopes =
+    ownerStatus?.requestedScopes.filter((scope) => connectionGrantCeiling.scopes.includes(scope)) ??
+    [];
+  const allowedLifecyclePermissions =
+    ownerStatus?.requestedLifecyclePermissions.filter((permission) =>
+      connectionGrantCeiling.lifecyclePermissions.includes(permission),
+    ) ?? [];
+  const boardCreationRequested = allowedLifecyclePermissions.includes('board.create');
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -100,11 +121,9 @@ export function PairingRequestModal({
     event.preventDefault();
     if (ownerStatus === null) return;
     const data = new FormData(event.currentTarget);
-    const approvedScopes = ownerStatus.requestedScopes.filter((scope) =>
-      data.getAll('scope').includes(scope),
-    );
-    const approvedLifecyclePermissions = ownerStatus.requestedLifecyclePermissions.filter(
-      (permission) => data.getAll('lifecycle').includes(permission),
+    const approvedScopes = allowedScopes.filter((scope) => data.getAll('scope').includes(scope));
+    const approvedLifecyclePermissions = allowedLifecyclePermissions.filter((permission) =>
+      data.getAll('lifecycle').includes(permission),
     );
     const lifetime = data.get('lifetime') === 'persistent' ? 'persistent' : 'session';
     if (matchingCode === null) {
@@ -189,12 +208,12 @@ export function PairingRequestModal({
           )}
           {ownerStatus !== null && (
             <div className="meta">
-              {ownerStatus.requestedScopes.map((scope) => (
+              {allowedScopes.map((scope) => (
                 <span className="pill" key={scope}>
                   {scope}
                 </span>
               ))}
-              {ownerStatus.requestedLifecyclePermissions.map((permission) => (
+              {allowedLifecyclePermissions.map((permission) => (
                 <span className="pill" key={permission}>
                   {permission}
                 </span>
@@ -208,16 +227,16 @@ export function PairingRequestModal({
               )}
               <fieldset>
                 <legend>{t('ai.approvedScopes')}</legend>
-                {ownerStatus.requestedScopes.map((scope) => (
+                {allowedScopes.map((scope) => (
                   <label key={scope}>
                     <input type="checkbox" name="scope" value={scope} defaultChecked /> {scope}
                   </label>
                 ))}
               </fieldset>
-              {ownerStatus.requestedLifecyclePermissions.length > 0 && (
+              {allowedLifecyclePermissions.length > 0 && (
                 <fieldset>
                   <legend>{t('ai.lifecyclePermissions')}</legend>
-                  {ownerStatus.requestedLifecyclePermissions.map((permission) => (
+                  {allowedLifecyclePermissions.map((permission) => (
                     <label key={permission}>
                       <input type="checkbox" name="lifecycle" value={permission} defaultChecked />{' '}
                       {permission}

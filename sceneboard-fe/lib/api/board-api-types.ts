@@ -121,6 +121,7 @@ export type BoardListResult = OperationData<'board.list'>;
 export type BoardCreateResult = OperationData<'board.create'>;
 export type BoardArchiveResult = OperationData<'board.archive'>;
 export type BoardGetResult = OperationData<'board.get'>;
+export type BoardCapabilitiesResult = OperationData<'capabilities.get'>;
 export type BoardRenameResult = { boardId: BoardId; title: string; updatedAt: TimestampV1 };
 export type HistoryListResult = OperationData<'history.list'> & {
   metadata: HistoryHttpMetadataV1;

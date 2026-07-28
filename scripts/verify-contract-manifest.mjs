@@ -83,7 +83,7 @@ const expectedGroups = new Map([
   ['D3-BOARD-SEAMS', 24],
   ['D4-SEAMS', 10],
   ['D2-D5-D7-D8-BROWSER-PUBLISHERS', 9],
-  ['D5-BROWSER-API-SEAMS', 26],
+  ['D5-BROWSER-API-SEAMS', 27],
   ['D5-UI-ROUTES', 11],
   ['D6-MCP-SDK', 10],
   ['D6-INSTALLED-SKILL', 42],
@@ -530,7 +530,7 @@ const validatePublishers = async (observedById) => {
     publisherValues.push(publisher.value);
   }
   const browser = publishers.filter(({ owner }) => owner !== 'D3');
-  if (browser.reduce((count, publisher) => count + publisher.selectorCount, 0) !== 24)
+  if (browser.reduce((count, publisher) => count + publisher.selectorCount, 0) !== 25)
     fail('CONTRACT_OWNER_PUBLISHER_STALE');
   const browserNames = (
     await Promise.all(
@@ -550,6 +550,7 @@ const validatePublishers = async (observedById) => {
       'listBoards',
       'createBoard',
       'getBoard',
+      'getCapabilities',
       'archiveBoard',
       'renameBoard',
       'listHistory',

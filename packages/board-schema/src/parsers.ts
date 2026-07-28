@@ -12,6 +12,7 @@ import {
   BoardCapabilitiesSchema,
   BoardCapabilitiesSchemaV1,
   BoardCapabilitiesSchemaV2,
+  BoardSessionAccessSchemaV1,
 } from './capabilities.js';
 import { CLIENT_GRANT_CAPABILITIES_V1, NODE_TYPES_V1 } from './catalogs.js';
 import {
@@ -754,6 +755,7 @@ export const BoardOperationResultParserV1 = createParserV1(
 export const BoardSnapshotParserV1 = createParserV1(BoardSnapshotSchemaV1, 'scene');
 export const BoardEventEnvelopeParserV1 = createParserV1(BoardEventEnvelopeSchemaV1, 'event');
 export const BoardCapabilitiesParserV1 = createParserV1(BoardCapabilitiesSchemaV1);
+export const BoardSessionAccessParserV1 = createParserV1(BoardSessionAccessSchemaV1);
 export const ArtifactReferenceParserV1 = createParserV1(ArtifactReferenceSchemaV1);
 export const ArtifactResourceParserV1 = createParserV1(ArtifactResourceSchemaV1);
 export const ArtifactManifestParserV1 = createParserV1(ArtifactManifestSchemaV1);

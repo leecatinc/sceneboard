@@ -1,5 +1,6 @@
 import {
   ARTIFACT_REQUEST_CAPABILITIES_V1,
+  BOARD_AUTHORIZATION_CAPABILITIES_V1,
   BOARD_DOCUMENT_LIMITS_V2,
   BOARD_EVENT_TYPES_V1,
   BOARD_LIMITS_V1,
@@ -9,12 +10,15 @@ import {
   BOARD_OPERATION_TYPES_V1,
   BoardCapabilitiesParserV1,
   BoardCapabilitiesParserV2,
+  BoardSessionAccessParserV1,
+  CLIENT_GRANT_CAPABILITIES_V1,
   HITL_KINDS_V1,
   NODE_TYPES_V1,
   PROTOCOL_SEMVER,
   type BoardCapabilities,
   type BoardCapabilitiesV1,
   type BoardCapabilitiesV2,
+  type BoardSessionAccessV1,
 } from '@sceneboard/board-schema';
 
 import { BoardPersistenceError } from '../common/errors/board-persistence.error.js';
@@ -31,6 +35,38 @@ const effectiveGrantCapabilities = (
     ),
   );
   return context.actor.scopes.filter((capability) => allowed.has(capability));
+};
+
+export const currentBoardSessionAccessFromContext = (
+  context: Pick<AuthorizedBoardContextV1, 'actor' | 'membership'>,
+): BoardSessionAccessV1 => {
+  const role = context.membership?.membershipRole;
+  const isBrowserMember = context.actor.principalKind === 'user' && role !== undefined;
+  const admitted = new Set(
+    isBrowserMember
+      ? BOARD_OPERATION_AUTHORIZATION_MATRIX_V1.filter(
+          (row) => row.surfaces.includes('browser') && row.roles[role],
+        ).flatMap((row) => row.requiredCapabilities)
+      : [],
+  );
+  const authorizationCapabilities = BOARD_AUTHORIZATION_CAPABILITIES_V1.filter((capability) =>
+    admitted.has(capability),
+  );
+  const canManageConnection = admitted.has('connection.manage.own');
+  const parsed = BoardSessionAccessParserV1.parse({
+    protocolVersion: 1,
+    type: 'board.session.access',
+    capabilityEpoch: context.membership?.capabilityEpoch ?? 0,
+    authorizationCapabilities,
+    connectionGrantCeiling: {
+      scopes: canManageConnection
+        ? CLIENT_GRANT_CAPABILITIES_V1.filter((capability) => admitted.has(capability))
+        : [],
+      lifecyclePermissions: role === 'owner' ? ['board.archive', 'board.create'] : [],
+    },
+  });
+  if (!parsed.ok) throw new BoardPersistenceError('row_integrity');
+  return parsed.data.value;
 };
 
 export function currentBoardCapabilitiesFromContext(

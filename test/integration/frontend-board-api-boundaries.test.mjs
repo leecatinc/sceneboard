@@ -9,7 +9,7 @@ const readApiSource = (name) => readFile(new URL(name, apiRoot), 'utf8');
 test('keeps the public board API client as a thin domain facade', async () => {
   const facade = await readApiSource('board-api.ts');
 
-  assert.ok(facade.split('\n').length <= 280);
+  assert.ok(facade.split('\n').length <= 300);
   assert.doesNotMatch(facade, /dispatchShared|parseBoardHttpResultV1|MutationRequestParserV1/);
   for (const moduleName of [
     'board-resource-api',

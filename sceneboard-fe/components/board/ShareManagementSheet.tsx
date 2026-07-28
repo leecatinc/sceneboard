@@ -20,6 +20,7 @@ import {
 } from '../../lib/board/share-secret-state';
 import { useI18n } from '../i18n/I18nProvider';
 import { ConfirmationDialog } from '../app/ConfirmationDialog';
+import type { OwnerAdminCloseRegistration } from './OwnerAdminControls';
 import styles from './ShareManagementSheet.module.css';
 
 type SecretResult = SharePublishResultV1 | ShareRotateResultV1 | SharePasswordResultV1;
@@ -30,12 +31,16 @@ export function ShareManagementSheet({
   revisionId,
   enabled,
   routeKey,
+  forcedCloseEpoch,
+  registerClose,
 }: {
   api: ShareApi;
   boardId: string;
   revisionId: string;
   enabled: boolean;
   routeKey: string;
+  forcedCloseEpoch: number;
+  registerClose: OwnerAdminCloseRegistration;
 }) {
   const { t, formatDateTime } = useI18n();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -105,6 +110,12 @@ export function ShareManagementSheet({
   }, [close, enabled, open]);
 
   useEffect(() => close, [close, routeKey]);
+
+  useEffect(() => registerClose(close), [close, registerClose]);
+
+  useEffect(() => {
+    close();
+  }, [close, forcedCloseEpoch]);
 
   const runSecretLifecycle = useCallback(
     async (

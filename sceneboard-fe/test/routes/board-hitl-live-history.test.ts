@@ -88,7 +88,10 @@ test('route integration binds D8 only through the renderer seam and preserves hi
   const boardClient = readFileSync(new URL('app/boards/[boardId]/board-client.tsx', root), 'utf8');
   const hook = readFileSync(new URL('lib/board/use-hitl-interaction-controller.ts', root), 'utf8');
   assert.match(boardClient, /renderHitl=\{renderHitl\}/u);
-  assert.match(boardClient, /state\.mode\.kind === 'history' \? 'history' : 'live'/u);
+  assert.match(
+    boardClient,
+    /state\.mode\.kind === 'history' \|\| !affordances\['board\.write'\]\s+\? 'history'\s+: 'live'/u,
+  );
   assert.match(hook, /same|idempotencyKey/u);
   assert.doesNotMatch(hook, /localStorage|sessionStorage/u);
 });

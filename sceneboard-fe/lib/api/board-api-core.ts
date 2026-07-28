@@ -45,8 +45,14 @@ export class BoardApiTransport {
     path: string,
     method: 'DELETE',
     csrfToken: string,
+    signal?: AbortSignal,
   ): Promise<ApiResult<null>> {
-    const result = await this.coordinator.dispatchShared({ path, method, csrfToken });
+    const result = await this.coordinator.dispatchShared({
+      path,
+      method,
+      csrfToken,
+      ...(signal === undefined ? {} : { signal }),
+    });
     if (result.kind !== 'ok') return result;
     return result.value.response.status === 204
       ? { kind: 'ok', value: null }
@@ -57,6 +63,7 @@ export class BoardApiTransport {
     K extends
       | 'board.list'
       | 'board.get'
+      | 'capabilities.get'
       | 'history.list'
       | 'history.get'
       | 'artifact.get'
@@ -180,6 +187,7 @@ export class BoardApiTransport {
       | 'board.get'
       | 'board.create'
       | 'board.archive'
+      | 'capabilities.get'
       | 'history.list'
       | 'history.get'
       | 'artifact.get'

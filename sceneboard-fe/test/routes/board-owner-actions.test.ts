@@ -42,10 +42,15 @@ test('board deletion is a confirmed archive and redirects only after success', (
   const control = source('components/board/BoardArchiveControl.tsx');
   const client = source('app/boards/[boardId]/board-client.tsx');
   assert.match(control, /requestIdentity\.current \?\?= createBoardRequestIdentity\(\)/u);
-  assert.match(control, /api\.archiveBoard\(\{ boardId, \.\.\.requestIdentity\.current \}\)/u);
+  assert.match(
+    control,
+    /api\.archiveBoard\(\{[\s\S]*\.\.\.requestIdentity\.current,[\s\S]*signal/u,
+  );
+  assert.match(control, /controller\.signal\.aborted/u);
   assert.match(control, /<ConfirmationDialog/u);
   assert.match(control, /onArchived\(\)/u);
   assert.match(client, /onArchived=\{\(\) => router\.replace\('\/boards'\)\}/u);
+  assert.match(client, /closeAndClearOwnerAdmin/u);
 });
 
 test('client disconnect requires confirmation and removes the successful grant immediately', () => {

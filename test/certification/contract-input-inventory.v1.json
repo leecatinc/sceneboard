@@ -2824,6 +2824,15 @@
           "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=getBoard]"
         },
         {
+          "resourceId": "D5-BOARD-CAPABILITIES-SELECTOR",
+          "owner": "D5",
+          "path": "sceneboard-fe/lib/api/board-api.ts",
+          "exportName": "BoardApiClient",
+          "exportKind": "class",
+          "projectionId": "D5-BOARD-CAPABILITIES-SELECTOR",
+          "selector": "ClassDeclaration[name=BoardApiClient]/MethodDeclaration[name=getCapabilities]"
+        },
+        {
           "resourceId": "D5-BOARD-ARCHIVE-SELECTOR",
           "owner": "D5",
           "path": "sceneboard-fe/lib/api/board-api.ts",
@@ -2968,7 +2977,7 @@
           "selector": "whole-file"
         }
       ],
-      "expectedCardinality": 26,
+      "expectedCardinality": 27,
       "canonicalization": "typescript-ast",
       "materializationPredecessor": "D2-D5-D7-D8-BROWSER-PUBLISHERS",
       "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"

@@ -16,10 +16,12 @@ export function BoardIdentitySlot({
   title,
   state,
   onRename,
+  canRename,
 }: {
   title: string;
   state: LiveBoardStateV1;
   onRename: (title: string) => Promise<boolean>;
+  canRename: boolean;
 }) {
   const { t } = useI18n();
   const snapshot = state.mode.kind === 'history' ? state.mode.snapshot : state.liveSnapshot;
@@ -28,7 +30,7 @@ export function BoardIdentitySlot({
       <p className="eyebrow">
         {state.mode.kind === 'history' ? t('board.historicalView') : t('board.liveScene')}
       </p>
-      <BoardTitleEditor title={title} onRename={onRename} />
+      <BoardTitleEditor title={title} onRename={onRename} enabled={canRename} />
       <p>{t('boards.revision', { number: snapshot.revision.revisionNumber })}</p>
     </>
   );

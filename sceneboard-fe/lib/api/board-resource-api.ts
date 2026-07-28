@@ -19,6 +19,7 @@ import type {
   ApiResult,
   ArchiveBoardInput,
   BoardArchiveResult,
+  BoardCapabilitiesResult,
   BoardCreateResult,
   BoardGetResult,
   BoardListResult,
@@ -72,6 +73,25 @@ export class BoardResourceApi extends BoardApiTransport {
     const query = new URLSearchParams({ requestId: request.requestId });
     return this.readOperation(
       `/api/v1/boards/${encodeURIComponent(boardId)}?${query.toString()}`,
+      request,
+      signal,
+    );
+  }
+
+  async getCapabilities(
+    boardIdValue: string,
+    signal?: AbortSignal,
+  ): Promise<ApiResult<BoardCapabilitiesResult>> {
+    const boardId = parseBoardId(boardIdValue);
+    const request = operationRequest<'capabilities.get'>({
+      protocolVersion: 1,
+      requestId: createPublicId('req'),
+      type: 'capabilities.get',
+      boardId,
+    });
+    const query = new URLSearchParams({ requestId: request.requestId });
+    return this.readOperation(
+      `/api/v1/boards/${encodeURIComponent(boardId)}/capabilities?${query.toString()}`,
       request,
       signal,
     );
