@@ -109,11 +109,18 @@
 }
 html {
   min-width: 320px;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 body {
   margin: 0;
   min-height: 100vh;
+  max-width: 100%;
+  overflow-x: hidden;
   background: var(--background);
+}
+.mobile-board-drawer-open [data-page-scroll-owner='PAGE'] {
+  overflow-y: hidden !important;
 }
 a {
   color: inherit;
@@ -612,11 +619,38 @@ button:disabled {
 .board-topbar {
   display: grid;
   grid-template-columns: minmax(180px, 1fr) auto auto;
+  grid-template-areas:
+    'identity page connections'
+    'identity history admin';
   align-items: center;
   gap: 20px;
   padding: 12px 20px;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
+}
+.board-topbar-identity {
+  grid-area: identity;
+}
+.board-topbar-page-display {
+  grid-area: page;
+}
+.board-topbar-connections {
+  grid-area: connections;
+}
+.board-topbar-history {
+  grid-area: history;
+}
+.board-topbar-owner-admin {
+  grid-area: admin;
+  justify-self: end;
+}
+.board-page-display-actions {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
 }
 .board-topbar h2 {
   margin: 0;
@@ -1655,6 +1689,10 @@ button:disabled {
 @media (max-width: 1180px) {
   .board-topbar {
     grid-template-columns: 1fr auto;
+    grid-template-areas:
+      'identity connections'
+      'page admin'
+      'history history';
   }
   .history-controls {
     grid-column: 1 / -1;
@@ -1693,10 +1731,9 @@ button:disabled {
   .create-board > div {
     grid-template-columns: 1fr;
   }
-  .board-topbar {
-    grid-template-columns: 1fr;
-  }
-  .board-connection-actions {
+  .board-connection-actions,
+  .board-page-display-actions,
+  .board-navigation-actions {
     justify-content: flex-start;
     flex-wrap: wrap;
   }
@@ -1705,6 +1742,13 @@ button:disabled {
   }
   .status-rail dl {
     grid-template-columns: 1fr 1fr;
+  }
+  .page-navigation {
+    margin-bottom: 0;
+  }
+  .page-navigation-button {
+    width: 44px;
+    height: 44px;
   }
   .board-hitl-overlay {
     inset: 0;

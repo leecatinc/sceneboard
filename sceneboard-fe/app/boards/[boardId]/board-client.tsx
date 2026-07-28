@@ -15,15 +15,22 @@ import { HitlBlock, type HitlInteractionControllerV1 } from '@sceneboard/board-u
 
 import { BoardStatePanel } from '../../../components/board/BoardStatePanel';
 import { BoardPairingControl } from '../../../components/board/BoardPairingControl';
-import { BoardTopBar } from '../../../components/board/BoardTopBar';
 import { BoardArchiveControl } from '../../../components/board/BoardArchiveControl';
+import {
+  BoardConnectionsSlot,
+  BoardHistorySlot,
+  BoardIdentitySlot,
+} from '../../../components/board/BoardChromeSlots';
 import { PageNavigationControls } from '../../../components/board/PageNavigationControls';
 import { PageDisplayModeControls } from '../../../components/board/PageDisplayModeControls';
+import { PageMoveModeControls } from '../../../components/board/PageMoveModeControls';
 import { PresentationStage } from '../../../components/board/PresentationStage';
 import { PresentationModeControls } from '../../../components/board/PresentationModeControls';
 import { PresentationControlOverlay } from '../../../components/board/PresentationControlOverlay';
 import { HitlDecisionWorkspace } from '../../../components/board/HitlDecisionWorkspace';
 import { StatusRail } from '../../../components/board/StatusRail';
+import { ResponsiveBoardChrome } from '../../../components/board/ResponsiveBoardChrome';
+import type { MobileBoardDrawerSlotsV1 } from '../../../components/board/MobileBoardDrawer';
 import { useBoardSession } from '../../../lib/board/use-board-session';
 import { BoardApiClient } from '../../../lib/api/board-api';
 import { authSessionClient } from '../../../lib/auth/session-client';
@@ -219,6 +226,9 @@ export function BoardClient({ boardId }: { boardId: string }) {
   const [presentationActivitySignal, setPresentationActivitySignal] = useState(0);
   const [artifactCaptureActive, setArtifactCaptureActive] = useState(false);
   const [hitlInteractionActive, setHitlInteractionActive] = useState(false);
+  const [moveAvailable, setMoveAvailable] = useState(false);
+  const [moveToggle, setMoveToggle] = useState(false);
+  const [moveCaptureActive, setMoveCaptureActive] = useState(false);
   const pageScrollRef = useRef<HTMLDivElement | null>(null);
   const pageElementEpochRef = useRef(0);
   const presentationRequestEpochRef = useRef(0);
@@ -241,7 +251,6 @@ export function BoardClient({ boardId }: { boardId: string }) {
     navigationDocument === null || resolvedPageId === null
       ? -1
       : navigationDocument.pages.findIndex((page) => page.pageId === resolvedPageId);
-  const moveCaptureActive = false;
   const pageDisplayMode = resolvePageDisplayModeV1({
     routeBoardId: boardId,
     viewportClass,
@@ -383,6 +392,7 @@ export function BoardClient({ boardId }: { boardId: string }) {
       const nextPageId = navigatePageIdV1(navigationDocument, resolvedPageId, command);
       if (nextPageId === resolvedPageId) return false;
       pageIdentityRef.current = `${boardId}:${session.visibleSnapshot.revision.revisionId}:${nextPageId}`;
+      setMoveToggle(false);
       setSelectedPageId(nextPageId);
       announceAndResetPage(nextPageId);
       return true;
@@ -405,6 +415,9 @@ export function BoardClient({ boardId }: { boardId: string }) {
     hitlSourcesRef.current.clear();
     setArtifactCaptureActive(false);
     setHitlInteractionActive(false);
+    setMoveAvailable(false);
+    setMoveToggle(false);
+    setMoveCaptureActive(false);
   }, [boardId]);
   useEffect(() => {
     if (resolvedPageId === null || session.visibleSnapshot === null) return;
@@ -412,6 +425,7 @@ export function BoardClient({ boardId }: { boardId: string }) {
     const identity = `${boardId}:${session.visibleSnapshot.revision.revisionId}:${resolvedPageId}`;
     if (pageIdentityRef.current === identity) return;
     pageIdentityRef.current = identity;
+    setMoveToggle(false);
     announceAndResetPage(resolvedPageId);
   }, [announceAndResetPage, boardId, resolvedPageId, session.visibleSnapshot]);
   useEffect(() => {
@@ -638,70 +652,106 @@ export function BoardClient({ boardId }: { boardId: string }) {
     dispatchArtifactView({ type: 'reset' });
     setDrawingResetSignal((value) => value + 1);
   };
-  return (
-    <section
-      className={`board-workspace ${styles.workspace} ${presentationActive ? styles.presenting : ''} ${state.mode.kind === 'history' ? 'is-history' : ''}`}
-    >
-      <BoardTopBar
-        title={session.title}
+  const selectPageDisplayMode = (mode: PageDisplayModeV1) => {
+    setPageDisplaySelection({ routeBoardId: boardId, mode });
+    setMoveToggle(false);
+  };
+  const pageDisplayControls = (
+    <div className="board-page-display-actions">
+      <PageDisplayModeControls value={pageDisplayMode} onChange={selectPageDisplayMode} />
+      <PageMoveModeControls
+        available={moveAvailable}
+        active={moveToggle && moveAvailable}
+        onChange={setMoveToggle}
+      />
+      <PresentationModeControls
+        active={presentationActive}
+        disabled={presentationState.mode === 'requesting'}
+        buttonRef={presentationButtonRef}
+        onEnter={enterPresentation}
+        onExit={exitPresentation}
+      />
+    </div>
+  );
+  const chromeSlots: MobileBoardDrawerSlotsV1 = {
+    boardIdentity: (
+      <BoardIdentitySlot title={session.title} state={state} onRename={session.rename} />
+    ),
+    pageDisplay: pageDisplayControls,
+    history: (
+      <BoardHistorySlot
         state={state}
         liveUpdated={session.liveUpdated}
-        pairingControl={
-          <BoardPairingControl api={api} boardId={boardId} boardTitle={session.title} />
-        }
-        archiveControl={
-          <BoardArchiveControl
-            api={api}
-            boardId={boardId}
-            boardTitle={session.title}
-            onArchived={() => router.replace('/boards')}
-          />
-        }
         viewMode={artifactViewMode}
         onViewModeChange={setArtifactViewMode}
         artifactZoom={selectedZoom}
         canResetArtifactView={canResetView}
         onResetArtifactView={resetView}
-        onRename={session.rename}
         onPrevious={session.previous}
         onNext={session.next}
         onLatest={() => void session.latest()}
       />
-      {state.navigationError && (
-        <div className="notice notice-error" role="alert">
-          {state.navigationError.message}
-        </div>
-      )}
-      <div className={`board-surface ${styles.surface}`}>
+    ),
+    status: (
+      <StatusRail
+        snapshot={visibleSnapshot}
+        presence={state.presence}
+        onStopRendering={() => setArtifactStopSignal((value) => value + 1)}
+      />
+    ),
+    connections: (
+      <BoardConnectionsSlot
+        state={state}
+        pairingControl={
+          <BoardPairingControl api={api} boardId={boardId} boardTitle={session.title} />
+        }
+      />
+    ),
+    ownerAdmin: (
+      <BoardArchiveControl
+        api={api}
+        boardId={boardId}
+        boardTitle={session.title}
+        onArchived={() => router.replace('/boards')}
+      />
+    ),
+  };
+  const navigationNotice = state.navigationError ? (
+    <div className="notice notice-error" role="alert">
+      {state.navigationError.message}
+    </div>
+  ) : null;
+  return (
+    <section
+      className={`board-workspace ${styles.workspace} ${presentationActive ? styles.presenting : ''} ${state.mode.kind === 'history' ? 'is-history' : ''}`}
+    >
+      <ResponsiveBoardChrome
+        slots={chromeSlots}
+        routeKey={`${boardId}:${visibleSnapshot.revision.revisionId}`}
+        presentationActive={presentationActive}
+        notice={navigationNotice}
+        surfaceClassName={styles.surface ?? ''}
+      >
         <PresentationStage
           stageRef={bindPageStage}
           mode={pageDisplayMode}
           canvasSize={rootCanvas}
           presentationActive={presentationActive}
+          moveToggle={moveToggle}
+          moveIdentity={`${boardId}:${visibleSnapshot.revision.revisionId}:${resolvedPageId}`}
+          onMoveAvailabilityChange={setMoveAvailable}
+          onMoveCaptureActiveChange={setMoveCaptureActive}
           label={t('board.sceneCanvas')}
           toolbar={
-            <>
-              <PageNavigationControls
-                current={resolvedPageIndex + 1}
-                total={navigationDocument.pages.length}
-                previousLabel={t('presentation.previousPage')}
-                nextLabel={t('presentation.nextPage')}
-                statusLabel={t('presentation.pageNavigation')}
-                onPrevious={() => selectPage('previous')}
-                onNext={() => selectPage('next')}
-              />
-              <PageDisplayModeControls
-                value={pageDisplayMode}
-                onChange={(mode) => setPageDisplaySelection({ routeBoardId: boardId, mode })}
-              />
-              <PresentationModeControls
-                active={presentationActive}
-                disabled={presentationState.mode === 'requesting'}
-                buttonRef={presentationButtonRef}
-                onEnter={enterPresentation}
-                onExit={exitPresentation}
-              />
-            </>
+            <PageNavigationControls
+              current={resolvedPageIndex + 1}
+              total={navigationDocument.pages.length}
+              previousLabel={t('presentation.previousPage')}
+              nextLabel={t('presentation.nextPage')}
+              statusLabel={t('presentation.pageNavigation')}
+              onPrevious={() => selectPage('previous')}
+              onNext={() => selectPage('next')}
+            />
           }
           overlay={
             <PresentationControlOverlay
@@ -714,10 +764,17 @@ export function BoardClient({ boardId }: { boardId: string }) {
               artifactCaptureActive={artifactCaptureActive}
               moveCaptureActive={moveCaptureActive}
               additionalControls={
-                <PageDisplayModeControls
-                  value={pageDisplayMode}
-                  onChange={(mode) => setPageDisplaySelection({ routeBoardId: boardId, mode })}
-                />
+                <>
+                  <PageDisplayModeControls
+                    value={pageDisplayMode}
+                    onChange={selectPageDisplayMode}
+                  />
+                  <PageMoveModeControls
+                    available={moveAvailable}
+                    active={moveToggle && moveAvailable}
+                    onChange={setMoveToggle}
+                  />
+                </>
               }
               onPrevious={() => {
                 if (selectPage('previous')) setPresentationActivitySignal((value) => value + 1);
@@ -773,12 +830,7 @@ export function BoardClient({ boardId }: { boardId: string }) {
             </HitlDecisionWorkspace>
           )}
         </PresentationStage>
-        <StatusRail
-          snapshot={visibleSnapshot}
-          presence={state.presence}
-          onStopRendering={() => setArtifactStopSignal((value) => value + 1)}
-        />
-      </div>
+      </ResponsiveBoardChrome>
     </section>
   );
 }

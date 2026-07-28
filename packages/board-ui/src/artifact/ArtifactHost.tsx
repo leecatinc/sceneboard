@@ -394,7 +394,11 @@ function AdmittedArtifactHost(input: ArtifactHostInputV1) {
   useEffect(() => () => resetCanvasState(), [input.incarnationKey, resetCanvasState]);
 
   return (
-    <section className={`artifact-host artifact-${bridge.phase}`} aria-label="Isolated artifact">
+    <section
+      className={`artifact-host artifact-${bridge.phase}`}
+      aria-label="Isolated artifact"
+      data-artifact-capture
+    >
       <div
         ref={bridge.containerRef}
         className="artifact-frame-container"
@@ -432,7 +436,11 @@ export function ArtifactHost(input: ArtifactHostInputV1) {
     NodeIdParserV1.parse(input.hostInstanceId).ok && input.incarnationKey === expectedIncarnation;
   if (!hasValidIdentity) {
     return (
-      <section className="artifact-host artifact-failed" aria-label="Isolated artifact">
+      <section
+        className="artifact-host artifact-failed"
+        aria-label="Isolated artifact"
+        data-artifact-capture
+      >
         <div className="artifact-frame-container" aria-hidden="true" />
         <ArtifactFallback phase="failed" correlationId={null} />
       </section>

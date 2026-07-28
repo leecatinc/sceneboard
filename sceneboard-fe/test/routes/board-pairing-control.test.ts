@@ -7,14 +7,14 @@ const source = (path: string) => readFileSync(new URL(path, root), 'utf8');
 
 test('board owns an in-place pairing action without replacing live and history controls', () => {
   const boardClient = source('app/boards/[boardId]/board-client.tsx');
-  const topBar = source('components/board/BoardTopBar.tsx');
+  const chromeSlots = source('components/board/BoardChromeSlots.tsx');
   assert.match(
     boardClient,
     /<BoardPairingControl api=\{api\} boardId=\{boardId\} boardTitle=\{session\.title\} \/>/,
   );
-  assert.match(topBar, /pairingControl/);
-  assert.match(topBar, /<ConnectionBanner/);
-  assert.match(topBar, /<HistoryControls/);
+  assert.match(chromeSlots, /pairingControl/);
+  assert.match(chromeSlots, /<ConnectionBanner/);
+  assert.match(chromeSlots, /<HistoryControls/);
   assert.doesNotMatch(boardClient, /window\.location|router\.push|settings\/ai-connections/);
   assert.match(
     source('components/board/BoardPairingControl.tsx'),

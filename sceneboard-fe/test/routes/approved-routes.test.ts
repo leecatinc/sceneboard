@@ -180,6 +180,10 @@ test('AI connection presentation preserves a bounded tab code and gates approval
 
 test('board top bar preserves live connection and history controls before pairing integration', () => {
   const topBar = readFileSync(resolve(workspace, 'components/board/BoardTopBar.tsx'), 'utf8');
+  const chromeSlots = readFileSync(
+    resolve(workspace, 'components/board/BoardChromeSlots.tsx'),
+    'utf8',
+  );
   const viewModes = readFileSync(
     resolve(workspace, 'components/board/BoardViewModeControls.tsx'),
     'utf8',
@@ -189,13 +193,13 @@ test('board top bar preserves live connection and history controls before pairin
     resolve(workspace, 'app/boards/[boardId]/board-client.tsx'),
     'utf8',
   );
-  assert.match(topBar, /<ConnectionBanner connection=\{state\.connection\} \/>/);
-  assert.match(topBar, /<HistoryControls/);
-  assert.match(topBar, /onPrevious=\{onPrevious\}/);
-  assert.match(topBar, /onNext=\{onNext\}/);
-  assert.match(topBar, /onLatest=\{onLatest\}/);
+  assert.match(chromeSlots, /<ConnectionBanner connection=\{state\.connection\} \/>/);
+  assert.match(chromeSlots, /<HistoryControls/);
+  assert.match(chromeSlots, /onPrevious=\{onPrevious\}/);
+  assert.match(chromeSlots, /onNext=\{onNext\}/);
+  assert.match(chromeSlots, /onLatest=\{onLatest\}/);
   assert.match(
-    topBar,
+    chromeSlots,
     /<BoardViewModeControls\s+value=\{viewMode\}\s+zoom=\{artifactZoom\}\s+canReset=\{canResetArtifactView\}/,
   );
   assert.match(viewModes, /'fit-height', 'fit-width', 'actual'/);
@@ -216,7 +220,8 @@ test('board top bar preserves live connection and history controls before pairin
   assert.match(boardClient, /<BoardRenderer[\s\S]*?emptyLabel=""/);
   assert.match(boardClient, /return\s*\(\s*<BoardStatePanel\s+error=/);
   assert.match(viewModes, /onClick=\{onReset\}/);
-  assert.match(topBar, /artifactZoom/);
+  assert.match(chromeSlots, /artifactZoom/);
+  assert.match(topBar, /board-topbar-history/);
   assert.match(statusRail, /artifact-stop-sidebar/);
   assert.match(statusRail, /onStopRendering/);
 });

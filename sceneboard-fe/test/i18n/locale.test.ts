@@ -60,6 +60,10 @@ test('presentation messages are isolated from the frozen catalog baseline', () =
   assert.deepEqual(
     messageKeys().filter((key) => key.startsWith('presentation.')),
     [
+      'presentation.boardControls',
+      'presentation.closeBoardControls',
+      'presentation.movePage',
+      'presentation.stopMoving',
       'presentation.enterPresentation',
       'presentation.exitPresentation',
       'presentation.presentationControls',

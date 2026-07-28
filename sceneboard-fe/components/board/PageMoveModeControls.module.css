@@ -1,0 +1,16 @@
+.button {
+  min-height: 30px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.button[aria-pressed='true'] {
+  border-color: var(--secondary);
+  background: var(--secondary-wash);
+  color: var(--secondary-active);
+}

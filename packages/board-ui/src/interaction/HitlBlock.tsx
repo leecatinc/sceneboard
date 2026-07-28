@@ -71,6 +71,7 @@ export function HitlBlock({
       ref={root}
       className="scene-block scene-attention hitl-block"
       aria-labelledby={`${idPrefix}-heading`}
+      data-hitl-capture
     >
       {interaction.state === 'open' ? (
         <>

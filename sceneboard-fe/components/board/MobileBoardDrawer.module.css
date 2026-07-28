@@ -1,0 +1,77 @@
+.trigger {
+  min-width: 44px;
+  min-height: 44px;
+  margin: 6px 10px;
+  justify-self: end;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-strong);
+  padding: 8px 14px;
+  font-weight: 750;
+}
+
+.backdrop {
+  position: fixed;
+  z-index: 30;
+  inset: 0;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(17, 36, 33, 0.44);
+}
+
+.drawer {
+  width: min(92vw, 380px);
+  height: 100dvh;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  background: var(--surface);
+  box-shadow: -16px 0 36px rgba(17, 36, 33, 0.18);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+  padding: 12px 14px;
+}
+
+.header button {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--surface-muted);
+  color: var(--text-strong);
+  font-size: 24px;
+}
+
+.body {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 14px 14px max(14px, env(safe-area-inset-bottom));
+}
+
+.slot {
+  min-width: 0;
+  border-bottom: 1px solid var(--border);
+  padding: 12px 0;
+}
+
+.slot:last-child {
+  border-bottom: 0;
+}
+
+.slot :global(.status-rail) {
+  padding: 0;
+}
+
+.slot :global(.board-connection-actions),
+.slot :global(.board-navigation-actions) {
+  justify-content: flex-start;
+}

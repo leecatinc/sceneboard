@@ -20,7 +20,7 @@ export function PageNavigationControls({
   onNext: () => void;
 }) {
   return (
-    <nav className="page-navigation" aria-label={statusLabel}>
+    <nav className="page-navigation" aria-label={statusLabel} data-page-bottom-navigation>
       {total > 1 && (
         <button
           type="button"

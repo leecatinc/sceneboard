@@ -19,7 +19,8 @@
 
 .presenting :global(.board-topbar),
 .presenting :global(.status-rail),
-.presenting :global(.notice) {
+.presenting :global(.notice),
+.presenting :global(.mobile-board-drawer-trigger) {
   display: none;
 }
 
@@ -43,5 +44,30 @@
   .surface {
     grid-template-columns: 1fr;
     grid-template-rows: minmax(0, 1fr) auto;
+  }
+}
+
+@media (max-width: 760px) {
+  .workspace {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .workspace :global(.mobile-board-background) {
+    min-width: 0;
+    min-height: 0;
+    grid-row: 2;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: clip;
+  }
+
+  .presenting :global(.mobile-board-background) {
+    grid-row: 1 / -1;
+  }
+
+  .surface {
+    grid-row: auto;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
   }
 }

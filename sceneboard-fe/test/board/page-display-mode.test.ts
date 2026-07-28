@@ -165,7 +165,7 @@ test('route state keeps page and artifact display controllers independent', () =
   );
   assert.match(
     route,
-    /onChange=\{\(mode\) => setPageDisplaySelection\(\{ routeBoardId: boardId, mode \}\)\}/u,
+    /const selectPageDisplayMode = \(mode: PageDisplayModeV1\) => \{\s*setPageDisplaySelection\(\{ routeBoardId: boardId, mode \}\);\s*setMoveToggle\(false\);/u,
   );
   assert.match(route, /viewMode=\{artifactViewMode\}/u);
   assert.doesNotMatch(route, /setArtifactViewMode\(pageDisplayMode\)/u);
