@@ -142,6 +142,7 @@ test('targeted status composes board summary, capabilities, and post-commit pres
   assert.equal(result.selectedBoard?.board.boardId, 'board_1');
   assert.equal(result.selectedBoard?.board.headRevision.revisionNumber, 3);
   assert.equal(result.selectedBoard?.capabilities.grantedCapabilities.includes('board.read'), true);
+  assert.equal(result.selectedBoard?.capabilityEpoch, 0);
   assert.equal(result.selectedBoard?.browserPresence, 'online');
   assert.equal(getStatusAfterCommit, true);
 });

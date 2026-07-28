@@ -77,6 +77,7 @@ interface BoardAuthorizationRow extends RowDataPacket {
   boardPk: string;
   ownerUserPk: string;
   archivedAt: string | null;
+  capabilityEpoch?: string;
 }
 
 interface PolicyEpochRow extends RowDataPacket {
@@ -615,6 +616,7 @@ export class MysqlBoardAccessPolicy implements BoardAccessPolicy {
     boardPk: bigint;
     ownerUserPk: bigint;
     archivedAt: string | null;
+    capabilityEpoch: number;
     membership: MembershipAuthorizationContextV1 | null;
   } | null> {
     if (boardId === null) return null;
@@ -625,6 +627,7 @@ export class MysqlBoardAccessPolicy implements BoardAccessPolicy {
         CAST(b.board_pk AS CHAR) AS boardPk,
         CAST(b.owner_user_id AS CHAR) AS ownerUserPk,
         b.archived_at AS archivedAt
+        , CAST(b.capability_epoch AS CHAR) AS capabilityEpoch
       FROM boards b
       WHERE b.public_id = ?
       LIMIT 1
@@ -640,6 +643,9 @@ export class MysqlBoardAccessPolicy implements BoardAccessPolicy {
     }
     const boardPk = parseDatabasePk(board.boardPk);
     const canonicalOwnerUserPk = parseDatabasePk(board.ownerUserPk);
+    const capabilityEpoch = board.capabilityEpoch === undefined ? 0 : Number(board.capabilityEpoch);
+    if (!Number.isSafeInteger(capabilityEpoch) || capabilityEpoch < 0)
+      throw boardFailure('INTERNAL_ERROR');
     let membership: MembershipAuthorizationContextV1 | null = null;
     if (this.membershipAuthorization === null) {
       if (canonicalOwnerUserPk !== ownerUserPk) throw boardFailure('FORBIDDEN');
@@ -649,6 +655,7 @@ export class MysqlBoardAccessPolicy implements BoardAccessPolicy {
           boardPk,
           canonicalOwnerAccountPk: canonicalOwnerUserPk,
           accountPk: ownerUserPk,
+          ...(board.capabilityEpoch === undefined ? {} : { capabilityEpoch }),
           operation: input.operation,
           surface: input.principal.kind === 'mcp' ? 'mcp' : 'browser',
           write,
@@ -669,6 +676,7 @@ export class MysqlBoardAccessPolicy implements BoardAccessPolicy {
       boardPk,
       ownerUserPk: canonicalOwnerUserPk,
       archivedAt: board.archivedAt,
+      capabilityEpoch,
       membership,
     };
   }

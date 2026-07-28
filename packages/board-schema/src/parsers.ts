@@ -42,6 +42,14 @@ import {
   HitlRequestDefinitionSchemaV1,
   HitlResponseSchemaV1,
 } from './hitl.js';
+import {
+  BoardInvitationEnvelopeSchemaV1,
+  BoardInvitationSchemaV1,
+  InvitationAcceptanceSchemaV1,
+  ManagedMembershipEnvelopeSchemaV1,
+  MemberCandidateListSchemaV1,
+  MemberCandidateSchemaV1,
+} from './invitations.js';
 import { RetainedHistoryMetadataSchemaV1 } from './history.js';
 import { BoardAuthorizationPrincipalSchemaV1, BoardMembershipSchemaV1 } from './memberships.js';
 import type { JsonValue } from './json.js';
@@ -722,6 +730,12 @@ export const HitlResponseParserV1 = createParserV1(HitlResponseSchemaV1, 'hitl-r
 export const HitlInteractionParserV1 = createParserV1(HitlInteractionSchemaV1);
 export const RetainedHistoryMetadataParserV1 = createParserV1(RetainedHistoryMetadataSchemaV1);
 export const BoardMembershipParserV1 = createParserV1(BoardMembershipSchemaV1);
+export const MemberCandidateParserV1 = createParserV1(MemberCandidateSchemaV1);
+export const MemberCandidateListParserV1 = createParserV1(MemberCandidateListSchemaV1);
+export const BoardInvitationParserV1 = createParserV1(BoardInvitationSchemaV1);
+export const BoardInvitationEnvelopeParserV1 = createParserV1(BoardInvitationEnvelopeSchemaV1);
+export const InvitationAcceptanceParserV1 = createParserV1(InvitationAcceptanceSchemaV1);
+export const ManagedMembershipEnvelopeParserV1 = createParserV1(ManagedMembershipEnvelopeSchemaV1);
 export const BoardAuthorizationPrincipalParserV1 = createParserV1(
   BoardAuthorizationPrincipalSchemaV1,
 );

@@ -10,6 +10,8 @@ export type MembershipAuthorizationContextV1 = Readonly<{
   membershipPk: bigint;
   membershipRole: BoardMembershipRoleV1;
   membershipVersion: number;
+  capabilityEpoch: number;
+  capabilityEpochEnforced: boolean;
   operation: BoardAuthorizationOperationTypeV1;
   surface: BoardAuthorizationSurfaceV1;
   write: boolean;

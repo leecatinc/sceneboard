@@ -42,6 +42,12 @@ export const AuditEventCatalog = {
   'artifact.usage.drift': 39,
   'artifact.integrity.failed': 40,
   password_change: 41,
+  'invitation.issued': 42,
+  'invitation.resent': 43,
+  'invitation.revoked': 44,
+  'invitation.accepted': 45,
+  'membership.role.updated': 46,
+  'membership.removed': 47,
 } as const;
 
 export type AuditEventName = keyof typeof AuditEventCatalog;
@@ -237,6 +243,12 @@ const MetadataAllowlists: Readonly<Record<AuditEventName, ReadonlySet<string>>> 
     'drift',
   ]),
   password_change: new Set(['otherSessionFamiliesRevoked']),
+  'invitation.issued': new Set(['boardPk', 'invitationPk', 'role']),
+  'invitation.resent': new Set(['boardPk', 'invitationPk', 'role']),
+  'invitation.revoked': new Set(['boardPk', 'invitationPk']),
+  'invitation.accepted': new Set(['boardPk', 'invitationPk', 'role', 'replayed']),
+  'membership.role.updated': new Set(['boardPk', 'membershipPk', 'role', 'capabilityEpoch']),
+  'membership.removed': new Set(['boardPk', 'membershipPk', 'capabilityEpoch']),
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

@@ -18,6 +18,7 @@ export const SECURITY_PURPOSES = [
   'audit-installation/v1',
   'email-verification-code/v1',
   'email-verification-ticket/v1',
+  'board-invitation-token/v1',
   'rate-limit-ip/v1',
   'rate-limit-email/v1',
   'rate-limit-user/v1',

@@ -30,6 +30,7 @@ import { CorsPolicyMiddleware } from './common/http/cors-policy.middleware.js';
 import { PresenceModule } from './presence/presence.module.js';
 import { McpModule } from './mcp/mcp.module.js';
 import { PersistenceCertificationModule } from './bootstrap/persistence-certification.module.js';
+import { InvitationModule } from './invitations/invitation.module.js';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { PersistenceCertificationModule } from './bootstrap/persistence-certific
     PresenceModule,
     McpModule,
     SseModule,
+    InvitationModule,
   ],
   providers: [
     StrictJsonBodyMiddleware,

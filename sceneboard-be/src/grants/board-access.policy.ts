@@ -29,12 +29,21 @@ export const AUTHORIZED_BOARD_OPERATIONS_V1 = [
 ] as const;
 
 export type AuthorizedBoardOperationV1 = (typeof AUTHORIZED_BOARD_OPERATIONS_V1)[number];
-export type BrowserBoardOperationV1 = 'board.rename';
+export type BrowserBoardOperationV1 =
+  | 'board.rename'
+  | 'membership.list'
+  | 'membership.invite'
+  | 'membership.role.update'
+  | 'membership.remove';
 export type BoardAccessOperationV1 = AuthorizedBoardOperationV1 | BrowserBoardOperationV1;
 
 const BOARD_ACCESS_OPERATIONS_V1: readonly BoardAccessOperationV1[] = [
   ...AUTHORIZED_BOARD_OPERATIONS_V1,
   'board.rename',
+  'membership.list',
+  'membership.invite',
+  'membership.role.update',
+  'membership.remove',
 ];
 
 export type D3BoardOperationV1 = Extract<
@@ -165,6 +174,10 @@ const AUTHORIZATION_RULES: Readonly<Record<BoardAccessOperationV1, Authorization
   'board.list': { ...read(['board.read'], 'D3'), target: 'null' },
   'board.get': read(['board.read'], 'D3'),
   'board.rename': write(['board.write'], 'D3'),
+  'membership.list': read([], 'D3'),
+  'membership.invite': write([], 'D3'),
+  'membership.role.update': write([], 'D3'),
+  'membership.remove': write([], 'D3'),
   'capabilities.get': read(['board.read'], 'D6'),
   'board.create': {
     ...write(['board.write'], 'D3'),

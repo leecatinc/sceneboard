@@ -23,6 +23,7 @@ const purposeKeyOwner = (purpose: SecurityPurpose): keyof SecurityKeyMaterial =>
   if (purpose.startsWith('csrf-') || purpose === 'auth-generation/v1') return 'csrf';
   if (purpose.startsWith('pairing-')) return 'pairingCodePepper';
   if (purpose.startsWith('email-verification-')) return 'auditHmac';
+  if (purpose === 'board-invitation-token/v1') return 'auditHmac';
   if (purpose.startsWith('audit-')) return 'auditHmac';
   return 'rateLimitHmac';
 };

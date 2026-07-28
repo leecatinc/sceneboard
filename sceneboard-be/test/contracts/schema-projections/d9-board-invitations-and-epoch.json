@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "migration": "017_d9_board_invitations",
+  "reversible": false,
+  "boardCapabilityEpoch": {
+    "columnType": "bigint unsigned",
+    "isNullable": "NO",
+    "default": "0"
+  },
+  "invitationIndexes": [
+    "uq_board_invitations_public_id",
+    "uq_board_invitations_token_locator",
+    "uq_board_invitations_token_digest",
+    "uq_board_invitations_active_email",
+    "ix_board_invitations_board_state",
+    "ix_board_invitations_email_state",
+    "ix_board_invitations_accepted_account"
+  ],
+  "activeIdentityColumns": [
+    "board_pk",
+    "active_email_normalized"
+  ],
+  "digestColumns": [
+    "token_locator",
+    "token_digest"
+  ]
+}

@@ -238,9 +238,18 @@
           "exportKind": null,
           "projectionId": null,
           "selector": "whole-file"
+        },
+        {
+          "resourceId": "D1-SCHEMA-27",
+          "owner": "D1",
+          "path": "packages/board-schema/src/invitations.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
         }
       ],
-      "expectedCardinality": 26,
+      "expectedCardinality": 27,
       "canonicalization": "utf8-lf",
       "materializationPredecessor": null,
       "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
@@ -3800,9 +3809,18 @@
           "exportKind": null,
           "projectionId": null,
           "selector": "whole-file"
+        },
+        {
+          "resourceId": "MIGRATION-ASSET-23",
+          "owner": "D9",
+          "path": "sceneboard-be/src/database/migrations/sql/017_d9_board_invitations.up.sql",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
         }
       ],
-      "expectedCardinality": 23,
+      "expectedCardinality": 24,
       "canonicalization": "utf8-lf",
       "materializationPredecessor": null,
       "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"

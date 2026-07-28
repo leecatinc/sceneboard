@@ -635,6 +635,10 @@ export class MigrationRunner {
       await this.verifyRevisionRetentionExpand(connection);
       return;
     }
+    if (postcondition === 'd9_board_invitations_v1') {
+      await this.verifyInvitationSchema(connection);
+      return;
+    }
     const postconditions: Readonly<Record<string, readonly string[]>> = {
       d2_identity_sessions_audit_v1: ['users', 'auth_sessions', 'security_audit_events'],
       d3_boards_v1: ['boards'],
@@ -669,6 +673,7 @@ export class MigrationRunner {
         'retention_restore_drill_attempts',
       ],
       d9_board_memberships_v1: ['board_memberships'],
+      d9_board_invitations_v1: ['board_invitations'],
     };
     const expectedTables = postconditions[postcondition] ?? null;
     if (expectedTables === null)
@@ -728,6 +733,64 @@ export class MigrationRunner {
          )`,
     );
     assessV2CheckpointCapacity(columnRows, constraintRows);
+  }
+
+  private async verifyInvitationSchema(connection: PoolConnection): Promise<void> {
+    const [columns] = await connection.query<
+      Array<
+        RowDataPacket & {
+          columnType: string;
+          isNullable: string;
+          columnDefault: string | null;
+        }
+      >
+    >(
+      `SELECT column_type AS columnType, is_nullable AS isNullable,
+              column_default AS columnDefault
+       FROM information_schema.columns
+       WHERE table_schema = DATABASE()
+         AND table_name = 'boards'
+         AND column_name = 'capability_epoch'`,
+    );
+    const epoch = columns[0];
+    if (
+      columns.length !== 1 ||
+      epoch === undefined ||
+      epoch.columnType.toLowerCase() !== 'bigint unsigned' ||
+      epoch.isNullable !== 'NO' ||
+      String(epoch.columnDefault) !== '0'
+    ) {
+      throw new MigrationStateError('board capability epoch projection mismatch');
+    }
+    const [indexes] = await connection.query<
+      Array<RowDataPacket & { indexName: string; nonUnique: number; columns: string }>
+    >(
+      `SELECT index_name AS indexName, non_unique AS nonUnique,
+              GROUP_CONCAT(column_name ORDER BY seq_in_index SEPARATOR ',') AS columns
+       FROM information_schema.statistics
+       WHERE table_schema = DATABASE()
+         AND table_name = 'board_invitations'
+         AND index_name IN (
+           'uq_board_invitations_token_locator',
+           'uq_board_invitations_token_digest',
+           'uq_board_invitations_active_email'
+         )
+       GROUP BY index_name, non_unique`,
+    );
+    const actual = new Map(
+      indexes.map((index) => [index.indexName, `${index.nonUnique}:${index.columns}`]),
+    );
+    const expected = new Map([
+      ['uq_board_invitations_token_locator', '0:token_locator'],
+      ['uq_board_invitations_token_digest', '0:token_digest'],
+      ['uq_board_invitations_active_email', '0:board_pk,active_email_normalized'],
+    ]);
+    if (
+      actual.size !== expected.size ||
+      [...expected].some(([name, value]) => actual.get(name) !== value)
+    ) {
+      throw new MigrationStateError('board invitation index projection mismatch');
+    }
   }
 
   private async verifyRevisionRetentionExpand(connection: PoolConnection): Promise<void> {

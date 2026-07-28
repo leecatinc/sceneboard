@@ -140,6 +140,13 @@ export const MIGRATION_REGISTRY = [
     downAsset: null,
     postcondition: 'd9_board_memberships_v1',
   },
+  {
+    version: '017_d9_board_invitations',
+    upAsset: '017_d9_board_invitations.up.sql',
+    reversible: false,
+    downAsset: null,
+    postcondition: 'd9_board_invitations_v1',
+  },
 ] as const satisfies readonly MigrationRegistryEntry[];
 
 export const MIGRATION_REGISTRY_VERSION = MIGRATION_REGISTRY.at(-1)?.version ?? 'empty';

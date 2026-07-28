@@ -36,6 +36,18 @@ const boardInternalError = (): BoardErrorV1 => ({
 });
 
 const boardErrorFromAppError = (error: AppError): BoardErrorV1 => {
+  if (error.code === 'INVALID_PAYLOAD') {
+    return {
+      protocolVersion: 1,
+      type: 'board.error',
+      code: 'INVALID_PAYLOAD',
+      message: 'Invalid payload',
+      category: 'validation',
+      retryable: false,
+      httpStatusHint: 400,
+      details: { path: [], issue: 'invalid request' },
+    };
+  }
   if (
     error.code === 'UNAUTHENTICATED' ||
     error.code === 'AUTH_SESSION_EXPIRED' ||
@@ -135,6 +147,15 @@ export class HttpErrorFilter implements ExceptionFilter {
     }
 
     const error = exception instanceof AppError ? exception : new AppError('INTERNAL_ERROR');
+    if (
+      error.code === 'INVITATION_NOT_FOUND' ||
+      error.code === 'INVITATION_CONFLICT' ||
+      error.code === 'INVITATION_GONE' ||
+      error.code === 'MEMBERSHIP_CONFLICT'
+    ) {
+      response.status(error.status).json({ error: error.toPayload() });
+      return;
+    }
     if (/^\/api\/v1\/(?:boards|mcp)(?:\/|\?|$)/.test(request.url ?? '')) {
       const boardError = boardErrorFromAppError(error);
       const retryAfter = retryAfterSeconds(boardError);

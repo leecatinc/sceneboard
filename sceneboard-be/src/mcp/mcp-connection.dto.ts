@@ -18,6 +18,7 @@ export type SafeAuthorizedConnectionV1 = {
   selectedBoard: null | {
     board: BoardSummaryV1;
     capabilities: BoardCapabilitiesV1;
+    capabilityEpoch: number;
     browserPresence: 'online' | 'offline' | 'unknown';
   };
   versions: {

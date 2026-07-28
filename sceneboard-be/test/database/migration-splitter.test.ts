@@ -169,5 +169,12 @@ test('freezes the exact terminal D2/D3/D7/D8/D9 checkpoint order and reversibili
       downAsset: null,
       postcondition: 'd9_board_memberships_v1',
     },
+    {
+      version: '017_d9_board_invitations',
+      upAsset: '017_d9_board_invitations.up.sql',
+      reversible: false,
+      downAsset: null,
+      postcondition: 'd9_board_invitations_v1',
+    },
   ]);
 });

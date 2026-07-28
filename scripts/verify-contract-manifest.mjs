@@ -73,7 +73,7 @@ const resultKeys = [
   'fingerprintSha256',
 ];
 const expectedGroups = new Map([
-  ['D1-SCHEMA-ROOT', 26],
+  ['D1-SCHEMA-ROOT', 27],
   ['D1-FACADES', 3],
   ['D1-CORPUS', 184],
   ['D2-AUTHZ', 9],
@@ -89,7 +89,7 @@ const expectedGroups = new Map([
   ['D6-INSTALLED-SKILL', 42],
   ['D7-ARTIFACT-SEAM', 7],
   ['D8-HITL-SEAM', 6],
-  ['MIGRATION-REGISTRY-ASSETS', 23],
+  ['MIGRATION-REGISTRY-ASSETS', 24],
   ['D2-MIGRATION-RUNNER', 5],
   ['RUNTIME-TOPOLOGY', 3],
   ['DEPENDENCY-EVIDENCE', 11],
@@ -679,7 +679,7 @@ const observeMigrations = async (observedById) => {
   const versions = [...source.matchAll(/\bversion: '([^']+)'/gu)].map((match) => match[1]);
   const upAssets = [...source.matchAll(/\bupAsset: '([^']+)'/gu)].map((match) => match[1]);
   const downAssets = [...source.matchAll(/\bdownAsset: '([^']+)'/gu)].map((match) => match[1]);
-  if (versions.length !== 19 || upAssets.length !== 19 || downAssets.length !== 3)
+  if (versions.length !== 20 || upAssets.length !== 20 || downAssets.length !== 3)
     fail('MIGRATION_REGISTRY_DRIFT');
   const assets = [...observedById.values()].filter(({ resourceId }) =>
     resourceId.startsWith('MIGRATION-ASSET-'),

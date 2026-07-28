@@ -100,3 +100,35 @@ test('first membership lock wins: writer-first completes, role-change-first deni
   }, MembershipAuthorizationDeniedError);
   assert.deepEqual(deniedEffects, []);
 });
+
+test('capability epoch drift denies a precommit authorization without revoking the account session', async () => {
+  const repository = {
+    findActive: async () => ({
+      membershipPk: 7n,
+      boardPk: 11n,
+      accountPk: 13n,
+      role: 'editor' as const,
+      version: 4,
+    }),
+    adoptCanonicalOwner: async () => undefined,
+    createOwner: async () => undefined,
+  } as unknown as MembershipRepository;
+  const epochConnection = {
+    execute: async () => [[{ capabilityEpoch: '8' }]],
+  } as unknown as PoolConnection;
+  const service = new BoardMembershipAuthorizationService(repository);
+  const context = await service.authorize(epochConnection, {
+    boardPk: 11n,
+    canonicalOwnerAccountPk: 17n,
+    accountPk: 13n,
+    capabilityEpoch: 7,
+    operation: 'scene.replace',
+    surface: 'mcp',
+    write: true,
+  });
+  await assert.rejects(
+    () => service.recheck(epochConnection, context),
+    MembershipAuthorizationDeniedError,
+  );
+  assert.equal(context.accountPk, 13n);
+});

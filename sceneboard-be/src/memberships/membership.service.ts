@@ -2,7 +2,7 @@ import type {
   BoardAuthorizationOperationTypeV1,
   BoardAuthorizationSurfaceV1,
 } from '@sceneboard/board-schema';
-import type { PoolConnection } from 'mysql2/promise';
+import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 
 import { membershipPolicyFor } from './membership-capability.matrix.js';
 import type { MembershipAuthorizationContextV1 } from './membership-authorization.context.js';
@@ -42,6 +42,7 @@ export class BoardMembershipAuthorizationService {
       boardPk: bigint;
       canonicalOwnerAccountPk: bigint;
       accountPk: bigint;
+      capabilityEpoch?: number;
       operation: string;
       surface: BoardAuthorizationSurfaceV1;
       write: boolean;
@@ -80,6 +81,8 @@ export class BoardMembershipAuthorizationService {
       membershipPk: membership.membershipPk,
       membershipRole: membership.role,
       membershipVersion: membership.version,
+      capabilityEpoch: input.capabilityEpoch ?? 0,
+      capabilityEpochEnforced: input.capabilityEpoch !== undefined,
       operation: policy.operation as BoardAuthorizationOperationTypeV1,
       surface: input.surface,
       write: input.write,
@@ -104,13 +107,33 @@ export class BoardMembershipAuthorizationService {
       throw error;
     }
     const policy = membershipPolicyFor(context.operation, context.surface);
+    let epoch = context.capabilityEpoch;
+    if (context.capabilityEpochEnforced) {
+      const [epochRows] = await connection.execute<
+        Array<RowDataPacket & { capabilityEpoch: string }>
+      >(
+        `SELECT CAST(capability_epoch AS CHAR) AS capabilityEpoch
+         FROM boards
+         WHERE board_pk = ?
+         ${context.write ? 'FOR UPDATE' : ''}`,
+        [context.boardPk.toString()],
+      );
+      epoch = Number(epochRows[0]?.capabilityEpoch);
+    }
+    const epochMatches =
+      epoch === context.capabilityEpoch ||
+      ((context.operation === 'membership.role.update' ||
+        context.operation === 'membership.remove') &&
+        epoch === context.capabilityEpoch + 1);
     if (
       membership === null ||
       policy === null ||
       policy.roles[membership.role] !== true ||
       membership.membershipPk !== context.membershipPk ||
       membership.version !== context.membershipVersion ||
-      membership.role !== context.membershipRole
+      membership.role !== context.membershipRole ||
+      !Number.isSafeInteger(epoch) ||
+      !epochMatches
     ) {
       throw new MembershipAuthorizationDeniedError();
     }

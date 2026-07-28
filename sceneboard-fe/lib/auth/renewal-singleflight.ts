@@ -68,7 +68,7 @@ export type CoordinatorResult<Value> =
 
 export interface SharedCookieRequest {
   path: string;
-  method: 'GET' | 'POST' | 'DELETE';
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   body?: unknown;
   csrfToken?: string;
   signal?: AbortSignal;

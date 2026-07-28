@@ -38,6 +38,30 @@ export type { JsonValue } from './json.js';
 export type { BoardAuthorizationPrincipalV1, BoardMembershipV1 } from './memberships.js';
 export { BoardAuthorizationPrincipalSchemaV1, BoardMembershipSchemaV1 } from './memberships.js';
 export type {
+  BoardInvitationEnvelopeV1,
+  BoardInvitationV1,
+  InvitationAcceptanceV1,
+  InvitationMembershipV1,
+  InvitationRoleV1,
+  InvitationStateV1,
+  ManagedMembershipEnvelopeV1,
+  ManagedMembershipV1,
+  MemberCandidateListV1,
+  MemberCandidateV1,
+} from './invitations.js';
+export {
+  BoardInvitationEnvelopeSchemaV1,
+  BoardInvitationSchemaV1,
+  InvitationAcceptanceSchemaV1,
+  InvitationMembershipSchemaV1,
+  InvitationRoleSchemaV1,
+  InvitationStateSchemaV1,
+  ManagedMembershipEnvelopeSchemaV1,
+  ManagedMembershipSchemaV1,
+  MemberCandidateListSchemaV1,
+  MemberCandidateSchemaV1,
+} from './invitations.js';
+export type {
   ArtifactId,
   ArtifactVersionId,
   BoardId,
@@ -174,6 +198,8 @@ export {
   BoardAuthorizationCapabilityParserV1,
   BoardAuthorizationPrincipalParserV1,
   BoardMembershipParserV1,
+  BoardInvitationEnvelopeParserV1,
+  BoardInvitationParserV1,
   BoardOperationAuthorizationMatrixParserV1,
   BoardOperationAuthorizationPolicyParserV1,
   BoardDocumentParserV2,
@@ -193,6 +219,7 @@ export {
   HitlInteractionParserV1,
   HitlRequestDefinitionParserV1,
   HitlResponseParserV1,
+  InvitationAcceptanceParserV1,
   GlobalIdStringParserV1,
   GrantIdParserV1,
   MutationEnvelopeParserV1,
@@ -201,6 +228,9 @@ export {
   MutationRequestParserV2,
   MutationResultParserV1,
   MutationResultParserV2,
+  ManagedMembershipEnvelopeParserV1,
+  MemberCandidateListParserV1,
+  MemberCandidateParserV1,
   NodeIdParserV1,
   PageIdParserV1,
   PrincipalIdParserV1,

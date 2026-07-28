@@ -39,6 +39,12 @@ const duplicateConstraint = (error: unknown): string | null => {
   return 'message' in error && typeof error.message === 'string' ? error.message : '';
 };
 
+const defaultDisplayName = (emailNormalized: string): string => {
+  const local = emailNormalized.slice(0, emailNormalized.lastIndexOf('@')).normalize('NFKC');
+  if (local.length === 0) throw new TypeError('verified email must have a local part');
+  return [...local].slice(0, 100).join('');
+};
+
 @Injectable()
 export class UsersRepository implements UserWriterPort {
   constructor(@Inject(MysqlService) private readonly mysql: MysqlService) {}
@@ -51,14 +57,17 @@ export class UsersRepository implements UserWriterPort {
       const [result] = await connectionOf(transaction).execute<ResultSetHeader>(
         `
         INSERT INTO users (
-          public_id, email_normalized, email, password_hash, status,
+          public_id, email_normalized, email, display_name, email_verified_at,
+          password_hash, status,
           password_updated_at, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, 1, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
       `,
         [
           input.userPublicId,
           input.emailNormalized,
           input.email,
+          defaultDisplayName(input.emailNormalized),
+          new Date(input.now),
           input.passwordHash,
           new Date(input.now),
           new Date(input.now),

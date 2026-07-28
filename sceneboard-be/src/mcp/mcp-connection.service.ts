@@ -114,7 +114,11 @@ export class McpConnectionService {
       async (connection, context) => {
         const board = await this.readBoardSummary(connection, input.requestId, input.boardId!);
         subject = this.presence.captureAuthorizedSubject(context, input.boardId!);
-        return { board, capabilities: currentBoardCapabilitiesFromContext(context) };
+        return {
+          board,
+          capabilities: currentBoardCapabilitiesFromContext(context),
+          capabilityEpoch: context.membership?.capabilityEpoch ?? 0,
+        };
       },
     );
     const browserPresence =
