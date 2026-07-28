@@ -7,6 +7,7 @@ import {
   ArtifactResourceParserV1,
   ArtifactRuntimeSummaryParserV1,
   BoardCapabilitiesParserV1,
+  BoardDocumentParserV2,
   BoardIdParserV1,
   BoardErrorParserV1,
   BoardEventEnvelopeParserV1,
@@ -51,6 +52,7 @@ const parsers: Record<FixtureParserName, BoardContractParserV1<unknown>> = {
   ArtifactResourceParserV1,
   ArtifactRuntimeSummaryParserV1,
   BoardCapabilitiesParserV1,
+  BoardDocumentParserV2,
   BoardErrorParserV1,
   BoardEventEnvelopeParserV1,
   BoardNodeParserV1,
@@ -96,15 +98,15 @@ test('keeps local node identifiers distinct from global identifiers', () => {
 });
 
 test('registers every exact fixture once with complete metadata', async () => {
-  assert.equal(FIXTURE_CATALOG.length, 181);
-  assert.equal(new Set(FIXTURE_CATALOG.map((entry) => entry.path)).size, 181);
+  assert.equal(FIXTURE_CATALOG.length, 186);
+  assert.equal(new Set(FIXTURE_CATALOG.map((entry) => entry.path)).size, 186);
   assert.deepEqual(
     [
       FIXTURE_CATALOG.filter((entry) => entry.kind === 'valid').length,
       FIXTURE_CATALOG.filter((entry) => entry.kind === 'scenario').length,
       FIXTURE_CATALOG.filter((entry) => entry.kind === 'invalid').length,
     ],
-    [105, 24, 52],
+    [106, 24, 56],
   );
   assert.deepEqual(await listFixturePaths(), FIXTURE_CATALOG.map((entry) => entry.path).sort());
   for (const entry of FIXTURE_CATALOG) await loadFixture(entry.path);

@@ -2,8 +2,10 @@ export { PROTOCOL_SEMVER, PROTOCOL_VERSION } from './protocol-version.js';
 export {
   ARTIFACT_REQUEST_CAPABILITIES_V1,
   BOARD_ERROR_CODES_V1,
+  BOARD_ERROR_CODES_V2,
   BOARD_EVENT_TYPES_V1,
   BOARD_MUTATION_COMMAND_TYPES_V1,
+  BOARD_MUTATION_COMMAND_TYPES_V2,
   BOARD_OPERATION_TYPES_V1,
   CLIENT_GRANT_CAPABILITIES_V1,
   HITL_KINDS_V1,
@@ -12,14 +14,16 @@ export {
 export type {
   ArtifactRequestCapabilityV1,
   BoardErrorCodeV1,
+  BoardErrorCodeV2,
   BoardEventTypeV1,
   BoardMutationCommandTypeV1,
+  BoardMutationCommandTypeV2,
   BoardOperationTypeV1,
   ClientGrantCapabilityV1,
   NodeTypeV1,
 } from './catalogs.js';
-export { BOARD_LIMITS_V1 } from './limits.js';
-export type { BoardLimitKeyV1 } from './limits.js';
+export { BOARD_DOCUMENT_LIMITS_V2, BOARD_LIMITS_V1 } from './limits.js';
+export type { BoardLimitKeyV1, BoardLimitKeyV2 } from './limits.js';
 export type { JsonValue } from './json.js';
 export type {
   ArtifactId,
@@ -32,6 +36,7 @@ export type {
   IdempotencyKey,
   LocalFieldId,
   NodeId,
+  PageId,
   PrincipalId,
   RequestId,
   RevisionId,
@@ -41,6 +46,19 @@ export type {
   TabId,
   TimestampV1,
 } from './identifiers.js';
+export type {
+  BoardDocumentV2,
+  BoardPageV2,
+  DocumentSceneTraversalItemV2,
+  PageDisplayModeV1,
+  SnapshotArtifactReferenceV2,
+} from './documents.js';
+export {
+  adaptLegacySceneToDocumentV2,
+  collectArtifactReferencesAcrossSnapshotV2,
+  collectDocumentNodesV2,
+  deriveLegacyPageIdV2,
+} from './documents.js';
 export type { ActorContextV1, ActorReferenceV1 } from './actors.js';
 export type {
   ArtifactManifestV1,
@@ -80,7 +98,12 @@ export type {
   TableNodeV1,
   TabsNodeV1,
 } from './scene.js';
-export type { BoardCapabilitiesV1 } from './capabilities.js';
+export type {
+  BoardCapabilities,
+  BoardCapabilitiesV1,
+  BoardCapabilitiesV2,
+} from './capabilities.js';
+export { DEFAULT_BOARD_CAPABILITIES_V1, DEFAULT_BOARD_CAPABILITIES_V2 } from './capabilities.js';
 export type {
   BoardMutationCommandV1,
   BoardMutationResultDataV1,
@@ -100,10 +123,11 @@ export type {
   HistoryEntryV1,
   PageCursorV1,
 } from './operations.js';
-export type { BoardSnapshotV1 } from './snapshots.js';
+export type { BoardSnapshot, BoardSnapshotV1, BoardSnapshotV2 } from './snapshots.js';
 export type { BoardEventDataV1, BoardEventEnvelopeV1, PresenceSummaryV1 } from './events.js';
 export type {
   BoardErrorV1,
+  BoardError,
   IdempotencyKeyReusedDetailsV1,
   RevisionConflictErrorV1,
 } from './errors.js';
@@ -113,23 +137,35 @@ export {
   ArtifactResourceParserV1,
   ArtifactRuntimeSummaryParserV1,
   BoardCapabilitiesParserV1,
+  BoardCapabilitiesParserV2,
+  BoardCapabilitiesParser,
+  BoardDocumentParserV2,
   BoardIdParserV1,
   BoardErrorParserV1,
+  BoardErrorParser,
   BoardEventEnvelopeParserV1,
+  BoardEventEnvelopeParserV2,
   BoardNodeParserV1,
   BoardOperationEnvelopeParserV1,
   BoardOperationRequestParserV1,
   BoardOperationResultParserV1,
+  BoardOperationResultParserV2,
   BoardSnapshotParserV1,
+  BoardSnapshotParserV2,
+  BoardSnapshotParser,
   HitlInteractionParserV1,
   HitlRequestDefinitionParserV1,
   HitlResponseParserV1,
   GlobalIdStringParserV1,
   GrantIdParserV1,
   MutationEnvelopeParserV1,
+  MutationEnvelopeParserV2,
   MutationRequestParserV1,
+  MutationRequestParserV2,
   MutationResultParserV1,
+  MutationResultParserV2,
   NodeIdParserV1,
+  PageIdParserV1,
   PrincipalIdParserV1,
   ShortTextParserV1,
   SceneParserV1,

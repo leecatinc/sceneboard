@@ -20,6 +20,7 @@ export const EventIdSchemaV1 = globalId('EventId');
 export const ArtifactIdSchemaV1 = globalId('ArtifactId');
 export const ArtifactVersionIdSchemaV1 = globalId('ArtifactVersionId');
 export const HitlRequestIdSchemaV1 = globalId('HitlRequestId');
+export const PageIdSchemaV1 = globalId('PageId');
 export const NodeIdSchemaV1 = z.string().regex(LOCAL_ID_PATTERN).brand<'NodeId'>();
 export const TabIdSchemaV1 = z.string().regex(LOCAL_ID_PATTERN).brand<'TabId'>();
 export const LocalFieldIdSchemaV1 = z.string().regex(LOCAL_ID_PATTERN).brand<'LocalFieldId'>();
@@ -68,6 +69,7 @@ export const RevisionOriginTypeSchemaV1 = z.enum([
   'scene.replace',
   'scene.clear',
   'scene.restore',
+  'document.replace',
 ]);
 
 export const RevisionSummarySchemaV1 = z
@@ -87,6 +89,7 @@ export type EventId = z.infer<typeof EventIdSchemaV1>;
 export type ArtifactId = z.infer<typeof ArtifactIdSchemaV1>;
 export type ArtifactVersionId = z.infer<typeof ArtifactVersionIdSchemaV1>;
 export type HitlRequestId = z.infer<typeof HitlRequestIdSchemaV1>;
+export type PageId = z.infer<typeof PageIdSchemaV1>;
 export type NodeId = z.infer<typeof NodeIdSchemaV1>;
 export type TabId = z.infer<typeof TabIdSchemaV1>;
 export type LocalFieldId = z.infer<typeof LocalFieldIdSchemaV1>;

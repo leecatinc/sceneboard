@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { ActorReferenceSchemaV1 } from './actors.js';
 import { ArtifactRuntimeSummarySchemaV1 } from './artifacts.js';
-import { BoardErrorSchemaV1 } from './errors.js';
+import { BoardErrorSchema } from './errors.js';
 import {
   BoardIdSchemaV1,
   EventIdSchemaV1,
@@ -12,7 +12,7 @@ import {
   TimestampSchemaV1,
 } from './identifiers.js';
 import { HitlInteractionSchemaV1 } from './hitl.js';
-import { BoardSnapshotSchemaV1 } from './snapshots.js';
+import { BoardSnapshotSchema } from './snapshots.js';
 
 export const PresenceSummarySchemaV1 = z
   .object({
@@ -23,7 +23,7 @@ export const PresenceSummarySchemaV1 = z
   .strict();
 
 const BoardEventDataSchemaV1 = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('board.snapshot'), snapshot: BoardSnapshotSchemaV1 }).strict(),
+  z.object({ type: z.literal('board.snapshot'), snapshot: BoardSnapshotSchema }).strict(),
   z
     .object({
       type: z.literal('board.revision.created'),
@@ -51,7 +51,7 @@ const BoardEventDataSchemaV1 = z.discriminatedUnion('type', [
     })
     .strict(),
   z.object({ type: z.literal('stream.heartbeat'), sentAt: TimestampSchemaV1 }).strict(),
-  z.object({ type: z.literal('stream.error'), error: BoardErrorSchemaV1 }).strict(),
+  z.object({ type: z.literal('stream.error'), error: BoardErrorSchema }).strict(),
 ]);
 
 export const BoardEventEnvelopeSchemaV1 = z

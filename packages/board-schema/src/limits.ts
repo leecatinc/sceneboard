@@ -36,6 +36,11 @@ export const MAX_HITL_RESPONSE_BYTES = 65_536;
 export const MAX_PAGE_SIZE = 100;
 export const MAX_PAGE_CURSOR_CHARS = 512;
 export const MAX_HITL_WAIT_MS = 30_000;
+export const MAX_DOCUMENT_PAGES = 100;
+export const MAX_DOCUMENT_BYTES = 20_971_520;
+export const MAX_DOCUMENT_PAGE_BYTES = 1_048_576;
+export const MAX_DOCUMENT_NODES = 5_000;
+export const MAX_DOCUMENT_ENVELOPE_BYTES = 33_554_432;
 
 export const BOARD_LIMITS_V1 = {
   maxEnvelopeBytes: MAX_ENVELOPE_BYTES,
@@ -79,3 +84,14 @@ export const BOARD_LIMITS_V1 = {
 } as const;
 
 export type BoardLimitKeyV1 = keyof typeof BOARD_LIMITS_V1;
+
+export const BOARD_DOCUMENT_LIMITS_V2 = {
+  ...BOARD_LIMITS_V1,
+  maxDocumentPages: MAX_DOCUMENT_PAGES,
+  maxDocumentBytes: MAX_DOCUMENT_BYTES,
+  maxDocumentPageBytes: MAX_DOCUMENT_PAGE_BYTES,
+  maxDocumentNodes: MAX_DOCUMENT_NODES,
+  maxDocumentEnvelopeBytes: MAX_DOCUMENT_ENVELOPE_BYTES,
+} as const;
+
+export type BoardLimitKeyV2 = keyof typeof BOARD_DOCUMENT_LIMITS_V2;

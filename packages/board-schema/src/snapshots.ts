@@ -2,7 +2,8 @@ import { z } from 'zod';
 
 import { ActorReferenceSchemaV1 } from './actors.js';
 import { ArtifactRuntimeSummarySchemaV1 } from './artifacts.js';
-import { BoardCapabilitiesSchemaV1 } from './capabilities.js';
+import { BoardCapabilitiesSchemaV1, BoardCapabilitiesSchemaV2 } from './capabilities.js';
+import { BoardDocumentSchemaV2, collectDocumentNodesV2 } from './documents.js';
 import {
   BoardIdSchemaV1,
   RevisionIdSchemaV1,
@@ -110,3 +111,114 @@ export const BoardSnapshotSchemaV1 = z
   });
 
 export type BoardSnapshotV1 = z.infer<typeof BoardSnapshotSchemaV1>;
+
+export const BoardSnapshotSchemaV2 = z
+  .object({
+    protocolVersion: z.literal(1),
+    type: z.literal('board.snapshot'),
+    boardId: BoardIdSchemaV1,
+    revision: SnapshotRevisionSchemaV1,
+    document: BoardDocumentSchemaV2,
+    hitl: z.array(HitlInteractionSchemaV1),
+    artifacts: z.array(ArtifactRuntimeSummarySchemaV1),
+    capabilities: BoardCapabilitiesSchemaV2,
+    lastEventSequence: z.number().int().safe().min(0),
+  })
+  .strict()
+  .superRefine((snapshot, context) => {
+    if (snapshot.revision.revisionNumber === 1) {
+      if (
+        snapshot.revision.previousRevisionId !== null ||
+        snapshot.revision.originType !== 'board.create' ||
+        snapshot.revision.sourceRevisionId !== null
+      )
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['revision'],
+          message: '[INVALID_LAYOUT] initial revision metadata is invalid',
+        });
+    } else if (
+      snapshot.revision.previousRevisionId === null ||
+      snapshot.revision.originType === 'board.create' ||
+      (snapshot.revision.originType === 'scene.restore') !==
+        (snapshot.revision.sourceRevisionId !== null)
+    )
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['revision'],
+        message: '[INVALID_LAYOUT] revision lineage is invalid',
+      });
+
+    const hitlIds = new Set<string>();
+    snapshot.hitl.forEach((interaction, index) => {
+      if (hitlIds.has(interaction.hitlRequestId))
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['hitl', index, 'hitlRequestId'],
+          message: '[INVALID_LAYOUT] duplicate HITL interaction',
+        });
+      hitlIds.add(interaction.hitlRequestId);
+    });
+    const artifactKeys = new Set<string>();
+    snapshot.artifacts.forEach((runtime, index) => {
+      const key = artifactKey(runtime.artifact);
+      if (artifactKeys.has(key))
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['artifacts', index, 'artifact'],
+          message: '[INVALID_LAYOUT] duplicate artifact runtime summary',
+        });
+      artifactKeys.add(key);
+    });
+    for (const item of collectDocumentNodesV2(snapshot.document)) {
+      if (item.node.type === 'content.hitl' && !hitlIds.has(item.node.hitlRequestId as string))
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [...item.path, 'hitlRequestId'],
+          message: '[INVALID_DOCUMENT:unresolved_reference] unresolved HITL reference',
+        });
+      const reference =
+        item.node.type === 'content.artifact'
+          ? item.node.artifact
+          : item.node.type === 'content.image'
+            ? item.node.source.artifact
+            : null;
+      if (reference && !artifactKeys.has(artifactKey(reference)))
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [
+            ...item.path,
+            ...(item.node.type === 'content.image' ? ['source', 'artifact'] : ['artifact']),
+          ],
+          message: '[INVALID_DOCUMENT:unresolved_reference] unresolved artifact reference',
+        });
+    }
+  });
+
+export type BoardSnapshotV2 = z.infer<typeof BoardSnapshotSchemaV2>;
+export type BoardSnapshot = BoardSnapshotV1 | BoardSnapshotV2;
+
+export const BoardSnapshotSchema: z.ZodType<BoardSnapshot> = z
+  .any()
+  .transform((value, context): BoardSnapshot => {
+    const record =
+      value !== null && typeof value === 'object' && !Array.isArray(value)
+        ? (value as Record<string, unknown>)
+        : null;
+    const hasScene = record ? Object.hasOwn(record, 'scene') : false;
+    const hasDocument = record ? Object.hasOwn(record, 'document') : false;
+    if (hasScene && hasDocument) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [],
+        message: 'snapshot must contain exactly one of scene or document',
+      });
+      return z.NEVER;
+    }
+    const parsed = (hasDocument ? BoardSnapshotSchemaV2 : BoardSnapshotSchemaV1).safeParse(value);
+    if (!parsed.success) {
+      parsed.error.issues.forEach((issue) => context.addIssue(issue));
+      return z.NEVER;
+    }
+    return parsed.data;
+  });

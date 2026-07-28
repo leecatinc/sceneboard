@@ -179,6 +179,9 @@ export const BoardErrorSchemaV1 = z.discriminatedUnion('code', [
           'hitl.response',
           'artifact.resource',
           'artifact.total',
+          'document',
+          'document.page',
+          'document.envelope',
         ]),
         actualBytes: z.number().int().safe().min(0),
         maximumBytes: z.number().int().safe().positive(),
@@ -285,3 +288,42 @@ export const BoardErrorSchemaV1 = z.discriminatedUnion('code', [
 export type BoardErrorV1 = z.infer<typeof BoardErrorSchemaV1>;
 export type RevisionConflictErrorV1 = Extract<BoardErrorV1, { code: 'REVISION_CONFLICT' }>;
 export type IdempotencyKeyReusedDetailsV1 = z.infer<typeof MutationReuseDetailsSchemaV1>;
+
+const BoardErrorSchemaV2Only = z.discriminatedUnion('code', [
+  branch(
+    'DOCUMENT_VERSION_MISMATCH',
+    'conflict',
+    false,
+    409,
+    z
+      .object({
+        headSchemaVersion: z.union([z.literal(1), z.literal(2)]),
+        commandSchemaVersion: z.union([z.literal(1), z.literal(2)]),
+        commandType: z.enum(['scene.replace', 'scene.clear', 'scene.restore', 'document.replace']),
+      })
+      .strict(),
+  ),
+  branch(
+    'INVALID_DOCUMENT',
+    'validation',
+    false,
+    422,
+    z
+      .object({
+        path: PathSchemaV1,
+        reason: z.enum([
+          'page_count',
+          'duplicate_page_id',
+          'default_page_missing',
+          'invalid_display_mode',
+          'duplicate_node_id',
+          'unresolved_reference',
+          'limit',
+        ]),
+      })
+      .strict(),
+  ),
+]);
+
+export const BoardErrorSchema = z.union([BoardErrorSchemaV1, BoardErrorSchemaV2Only]);
+export type BoardError = z.infer<typeof BoardErrorSchema>;

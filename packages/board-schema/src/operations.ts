@@ -6,7 +6,7 @@ import {
   ArtifactReferenceSchemaV1,
   ArtifactRuntimeSummarySchemaV1,
 } from './artifacts.js';
-import { BoardCapabilitiesSchemaV1 } from './capabilities.js';
+import { BoardCapabilitiesSchema } from './capabilities.js';
 import {
   BoardIdSchemaV1,
   HitlRequestIdSchemaV1,
@@ -20,7 +20,7 @@ import {
 } from './identifiers.js';
 import { HitlInteractionSchemaV1 } from './hitl.js';
 import { MAX_HITL_WAIT_MS, MAX_PAGE_CURSOR_CHARS, MAX_PAGE_SIZE } from './limits.js';
-import { BoardSnapshotSchemaV1 } from './snapshots.js';
+import { BoardSnapshotSchema } from './snapshots.js';
 
 export const PageCursorSchemaV1 = z
   .string()
@@ -164,20 +164,18 @@ const results = [
     .object({
       type: z.literal('board.get'),
       board: BoardSummarySchemaV1,
-      snapshot: BoardSnapshotSchemaV1,
+      snapshot: BoardSnapshotSchema,
     })
     .strict(),
   z
     .object({
       type: z.literal('board.create'),
       board: BoardSummarySchemaV1,
-      snapshot: BoardSnapshotSchemaV1,
+      snapshot: BoardSnapshotSchema,
     })
     .strict(),
   z.object({ type: z.literal('board.archive'), board: BoardSummarySchemaV1 }).strict(),
-  z
-    .object({ type: z.literal('capabilities.get'), capabilities: BoardCapabilitiesSchemaV1 })
-    .strict(),
+  z.object({ type: z.literal('capabilities.get'), capabilities: BoardCapabilitiesSchema }).strict(),
   z
     .object({
       type: z.literal('history.list'),
@@ -189,7 +187,7 @@ const results = [
     .object({
       type: z.literal('history.get'),
       entry: HistoryEntrySchemaV1,
-      snapshot: BoardSnapshotSchemaV1,
+      snapshot: BoardSnapshotSchema,
     })
     .strict(),
   z
@@ -236,7 +234,12 @@ export const BoardOperationResultSchemaV1 = z
         });
       if (
         result.type === 'board.create' &&
-        (result.snapshot.revision.revisionNumber !== 1 || result.snapshot.scene.root !== null)
+        (result.snapshot.revision.revisionNumber !== 1 ||
+          ('scene' in result.snapshot
+            ? result.snapshot.scene.root !== null
+            : result.snapshot.document.pages.some(
+                (page: { scene: { root: unknown } }) => page.scene.root !== null,
+              )))
       )
         context.addIssue({
           code: z.ZodIssueCode.custom,

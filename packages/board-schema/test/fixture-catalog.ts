@@ -1,4 +1,4 @@
-import type { BoardErrorCodeV1 } from '../src/index.js';
+import type { BoardErrorCodeV2 } from '../src/index.js';
 
 export type FixtureParserName =
   | 'ArtifactManifestParserV1'
@@ -6,6 +6,7 @@ export type FixtureParserName =
   | 'ArtifactResourceParserV1'
   | 'ArtifactRuntimeSummaryParserV1'
   | 'BoardCapabilitiesParserV1'
+  | 'BoardDocumentParserV2'
   | 'BoardErrorParserV1'
   | 'BoardEventEnvelopeParserV1'
   | 'BoardNodeParserV1'
@@ -29,7 +30,7 @@ export type FixtureCatalogEntry =
       kind: 'invalid';
       path: string;
       schema: FixtureParserName;
-      expectedErrorCode: BoardErrorCodeV1;
+      expectedErrorCode: BoardErrorCodeV2;
       expectedPath: Array<string | number> | null;
       expectedDetails: unknown;
     };
@@ -428,6 +429,7 @@ export const FIXTURE_CATALOG = [
   { kind: 'valid', path: 'valid/scene-recursive-layout.v1.json', schema: 'SceneParserV1' },
   { kind: 'valid', path: 'valid/scene-renderer-families.v1.json', schema: 'SceneParserV1' },
   { kind: 'valid', path: 'valid/snapshot-board.v1.json', schema: 'BoardSnapshotParserV1' },
+  { kind: 'valid', path: 'valid/document-basic.v2.json', schema: 'BoardDocumentParserV2' },
   {
     kind: 'scenario',
     path: 'scenarios/board-archive-idempotency-replay.v1.json',
@@ -621,6 +623,46 @@ export const FIXTURE_CATALOG = [
     expectedErrorCode: 'UNKNOWN_COMMAND_TYPE',
     expectedPath: ['command', 'type'],
     expectedDetails: { path: ['command', 'type'], receivedType: 'scene.unknown' },
+  },
+  {
+    kind: 'invalid',
+    path: 'invalid/document-default-missing.v2.json',
+    schema: 'BoardDocumentParserV2',
+    expectedErrorCode: 'INVALID_DOCUMENT',
+    expectedPath: ['defaultPageId'],
+    expectedDetails: { path: ['defaultPageId'], reason: 'default_page_missing' },
+  },
+  {
+    kind: 'invalid',
+    path: 'invalid/document-duplicate-page-id.v2.json',
+    schema: 'BoardDocumentParserV2',
+    expectedErrorCode: 'INVALID_DOCUMENT',
+    expectedPath: ['pages', 1, 'pageId'],
+    expectedDetails: { path: ['pages', 1, 'pageId'], reason: 'duplicate_page_id' },
+  },
+  {
+    kind: 'invalid',
+    path: 'invalid/document-invalid-display-mode.v2.json',
+    schema: 'BoardDocumentParserV2',
+    expectedErrorCode: 'INVALID_DOCUMENT',
+    expectedPath: ['pages', 0, 'displayMode'],
+    expectedDetails: {
+      path: ['pages', 0, 'displayMode'],
+      reason: 'invalid_display_mode',
+    },
+  },
+  {
+    kind: 'invalid',
+    path: 'invalid/document-unknown-version.v3.json',
+    schema: 'BoardDocumentParserV2',
+    expectedErrorCode: 'PROTOCOL_VERSION_MISMATCH',
+    expectedPath: null,
+    expectedDetails: {
+      reason: 'schema_revision',
+      supportedMajor: 1,
+      receivedMajor: 1,
+      field: 'document.schemaVersion',
+    },
   },
   {
     kind: 'invalid',

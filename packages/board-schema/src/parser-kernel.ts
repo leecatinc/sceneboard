@@ -7,7 +7,12 @@ import {
   serializeJsonStringV1,
   type JsonValue,
 } from './json.js';
-import { MAX_ENVELOPE_BYTES, MAX_JSON_CONTAINER_ENTRIES, MAX_JSON_DEPTH } from './limits.js';
+import {
+  MAX_DOCUMENT_ENVELOPE_BYTES,
+  MAX_ENVELOPE_BYTES,
+  MAX_JSON_CONTAINER_ENTRIES,
+  MAX_JSON_DEPTH,
+} from './limits.js';
 
 export type KernelPathV1 = Array<string | number>;
 export type KernelIssueKindV1 =
@@ -247,16 +252,20 @@ const hasDuplicateObjectKeysV1 = (source: string): boolean => {
 
 export const runDecodedKernelV1 = validateJsonValueV1;
 
-export const runBytesKernelV1 = (bytes: Uint8Array): KernelResultV1<JsonValue> => {
-  if (bytes.byteLength > MAX_ENVELOPE_BYTES) {
+const runBytesKernel = (
+  bytes: Uint8Array,
+  maximumBytes: number,
+  message: string,
+): KernelResultV1<JsonValue> => {
+  if (bytes.byteLength > maximumBytes) {
     return {
       ok: false,
       issue: {
         kind: 'payload_too_large',
         path: [],
-        message: 'envelope byte limit exceeded',
+        message,
         actual: bytes.byteLength,
-        maximum: MAX_ENVELOPE_BYTES,
+        maximum: maximumBytes,
       },
     };
   }
@@ -280,6 +289,12 @@ export const runBytesKernelV1 = (bytes: Uint8Array): KernelResultV1<JsonValue> =
   }
   return validateJsonValueV1(input);
 };
+
+export const runBytesKernelV1 = (bytes: Uint8Array): KernelResultV1<JsonValue> =>
+  runBytesKernel(bytes, MAX_ENVELOPE_BYTES, 'envelope byte limit exceeded');
+
+export const runDocumentBytesKernelV2 = (bytes: Uint8Array): KernelResultV1<JsonValue> =>
+  runBytesKernel(bytes, MAX_DOCUMENT_ENVELOPE_BYTES, 'document envelope byte limit exceeded');
 
 export const applySchemaV1 = <Schema extends z.ZodTypeAny>(
   schema: Schema,

@@ -15,6 +15,7 @@ import type {
   ArtifactRuntimeSummaryV1,
   ArtifactVersionId,
   BoardCapabilitiesV1,
+  BoardCapabilitiesV2,
   BoardContractParserV1,
   BoardErrorCodeV1,
   BoardErrorV1,
@@ -22,6 +23,7 @@ import type {
   BoardEventEnvelopeV1,
   BoardEventTypeV1,
   BoardId,
+  BoardDocumentV2,
   BoardLifecycleIdempotencyEnvelopeV1,
   BoardLimitKeyV1,
   BoardMutationCommandTypeV1,
@@ -36,6 +38,7 @@ import type {
   BoardOperationTypeV1,
   BoardParseResultV1,
   BoardSnapshotV1,
+  BoardSnapshotV2,
   BoardSummaryV1,
   CanonicalContractValueV1,
   CanvasNodeV1,
@@ -74,6 +77,8 @@ import type {
   NodeId,
   NodeTypeV1,
   PageCursorV1,
+  PageDisplayModeV1,
+  PageId,
   PointV1,
   PresenceSummaryV1,
   PrincipalId,
@@ -108,6 +113,7 @@ type PublicTypeSurfaceV1 = [
   ArtifactRuntimeSummaryV1,
   ArtifactVersionId,
   BoardCapabilitiesV1,
+  BoardCapabilitiesV2,
   BoardContractParserV1<SceneV1>,
   BoardErrorCodeV1,
   BoardErrorV1,
@@ -115,6 +121,7 @@ type PublicTypeSurfaceV1 = [
   BoardEventEnvelopeV1,
   BoardEventTypeV1,
   BoardId,
+  BoardDocumentV2,
   BoardLifecycleIdempotencyEnvelopeV1,
   BoardLimitKeyV1,
   BoardMutationCommandTypeV1,
@@ -129,6 +136,7 @@ type PublicTypeSurfaceV1 = [
   BoardOperationTypeV1,
   BoardParseResultV1<SceneV1>,
   BoardSnapshotV1,
+  BoardSnapshotV2,
   BoardSummaryV1,
   CanonicalContractValueV1<SceneV1>,
   CanvasNodeV1,
@@ -167,6 +175,8 @@ type PublicTypeSurfaceV1 = [
   NodeId,
   NodeTypeV1,
   PageCursorV1,
+  PageDisplayModeV1,
+  PageId,
   PointV1,
   PresenceSummaryV1,
   PrincipalId,
@@ -206,6 +216,9 @@ test('exports the guarded scalar parser values required by application adapters'
   assert.equal(typeof schema.GrantIdParserV1.parse, 'function');
   assert.equal(typeof schema.PrincipalIdParserV1.parse, 'function');
   assert.equal(typeof schema.NodeIdParserV1.parse, 'function');
+  assert.equal(typeof schema.PageIdParserV1.parse, 'function');
+  assert.equal(typeof schema.BoardDocumentParserV2.parse, 'function');
+  assert.equal(typeof schema.BoardSnapshotParserV2.parse, 'function');
   assert.equal('BoardIdSchemaV1' in schema, false);
   assert.equal('GlobalIdStringSchemaV1' in schema, false);
 });

@@ -7,7 +7,11 @@ import {
   ArtifactResourceSchemaV1,
   ArtifactRuntimeSummarySchemaV1,
 } from './artifacts.js';
-import { BoardCapabilitiesSchemaV1 } from './capabilities.js';
+import {
+  BoardCapabilitiesSchema,
+  BoardCapabilitiesSchemaV1,
+  BoardCapabilitiesSchemaV2,
+} from './capabilities.js';
 import { CLIENT_GRANT_CAPABILITIES_V1, NODE_TYPES_V1 } from './catalogs.js';
 import {
   MutationEnvelopeSchemaV1,
@@ -16,14 +20,16 @@ import {
   type MutationEnvelopeV1,
   type MutationFingerprintInputV1,
 } from './commands.js';
+import { BoardDocumentSchemaV2 } from './documents.js';
 import { BoardEventEnvelopeSchemaV1 } from './events.js';
-import type { BoardErrorV1 } from './errors.js';
-import { BoardErrorSchemaV1 } from './errors.js';
+import type { BoardError } from './errors.js';
+import { BoardErrorSchema, BoardErrorSchemaV1 } from './errors.js';
 import {
   BoardIdSchemaV1,
   GlobalIdStringSchemaV1,
   GrantIdSchemaV1,
   NodeIdSchemaV1,
+  PageIdSchemaV1,
   PrincipalIdSchemaV1,
   ShortTextSchemaV1,
 } from './identifiers.js';
@@ -36,6 +42,10 @@ import type { JsonValue } from './json.js';
 import { scalarLengthV1 } from './json.js';
 import {
   BOARD_LIMITS_V1,
+  BOARD_DOCUMENT_LIMITS_V2,
+  MAX_DOCUMENT_BYTES,
+  MAX_DOCUMENT_ENVELOPE_BYTES,
+  MAX_DOCUMENT_PAGE_BYTES,
   MAX_HITL_RESPONSE_BYTES,
   MAX_SCENE_BYTES,
   type BoardLimitKeyV1,
@@ -49,18 +59,19 @@ import {
 } from './operations.js';
 import {
   applySchemaV1,
+  runDocumentBytesKernelV2,
   runBytesKernelV1,
   runDecodedKernelV1,
   type KernelIssueV1,
   type KernelResultV1,
 } from './parser-kernel.js';
 import { BoardNodeSchemaV1, SceneSchemaV1 } from './scene.js';
-import { BoardSnapshotSchemaV1 } from './snapshots.js';
+import { BoardSnapshotSchema, BoardSnapshotSchemaV1, BoardSnapshotSchemaV2 } from './snapshots.js';
 
 export type CanonicalContractValueV1<T> = { value: T; canonicalBytes: Uint8Array };
 export type BoardParseResultV1<T> =
   | { ok: true; data: CanonicalContractValueV1<T> }
-  | { ok: false; error: BoardErrorV1 };
+  | { ok: false; error: BoardError };
 export type BoardContractParserV1<T> = {
   parse(input: unknown): BoardParseResultV1<T>;
   parseBytes(bytes: Uint8Array): BoardParseResultV1<T>;
@@ -68,6 +79,7 @@ export type BoardContractParserV1<T> = {
 
 type ParserKind =
   | 'generic'
+  | 'document'
   | 'scene'
   | 'node'
   | 'mutation'
@@ -75,7 +87,7 @@ type ParserKind =
   | 'event'
   | 'hitl-response';
 
-const invalidPayload = (path: Array<string | number>, issue: string): BoardErrorV1 => ({
+const invalidPayload = (path: Array<string | number>, issue: string): BoardError => ({
   protocolVersion: 1,
   type: 'board.error',
   code: 'INVALID_PAYLOAD',
@@ -85,7 +97,11 @@ const invalidPayload = (path: Array<string | number>, issue: string): BoardError
   httpStatusHint: 400,
   details: { path, issue: issue.slice(0, 200) || 'invalid payload' },
 });
-const protocolMismatch = (receivedMajor: number | null): BoardErrorV1 => ({
+const protocolMismatch = (
+  receivedMajor: number | null,
+  reason: 'major' | 'schema_revision' = 'major',
+  field = 'protocolVersion',
+): BoardError => ({
   protocolVersion: 1,
   type: 'board.error',
   code: 'PROTOCOL_VERSION_MISMATCH',
@@ -93,13 +109,21 @@ const protocolMismatch = (receivedMajor: number | null): BoardErrorV1 => ({
   category: 'protocol',
   retryable: false,
   httpStatusHint: 409,
-  details: { reason: 'major', supportedMajor: 1, receivedMajor, field: 'protocolVersion' },
+  details: { reason, supportedMajor: 1, receivedMajor, field },
 });
 const payloadTooLarge = (
-  scope: 'envelope' | 'scene' | 'hitl.response' | 'artifact.resource' | 'artifact.total',
+  scope:
+    | 'envelope'
+    | 'scene'
+    | 'hitl.response'
+    | 'artifact.resource'
+    | 'artifact.total'
+    | 'document'
+    | 'document.page'
+    | 'document.envelope',
   actualBytes: number,
   maximumBytes: number,
-): BoardErrorV1 => ({
+): BoardError => ({
   protocolVersion: 1,
   type: 'board.error',
   code: 'PAYLOAD_TOO_LARGE',
@@ -113,7 +137,7 @@ const limitExceeded = (
   limit: BoardLimitKeyV1,
   actual: number,
   path: Array<string | number>,
-): BoardErrorV1 => ({
+): BoardError => ({
   protocolVersion: 1,
   type: 'board.error',
   code: 'LIMIT_EXCEEDED',
@@ -126,7 +150,7 @@ const limitExceeded = (
 const invalidLayout = (
   path: Array<string | number>,
   reason: 'bounds' | 'overlap' | 'reference' | 'geometry',
-): BoardErrorV1 => ({
+): BoardError => ({
   protocolVersion: 1,
   type: 'board.error',
   code: 'INVALID_LAYOUT',
@@ -137,12 +161,13 @@ const invalidLayout = (
   details: { path, reason },
 });
 
-const kernelError = (issue: KernelIssueV1): BoardErrorV1 => {
+const kernelError = (issue: KernelIssueV1, documentProfile = false): BoardError => {
   if (issue.kind === 'payload_too_large')
     return payloadTooLarge(
-      'envelope',
+      documentProfile ? 'document.envelope' : 'envelope',
       issue.actual ?? 0,
-      issue.maximum ?? BOARD_LIMITS_V1.maxEnvelopeBytes,
+      issue.maximum ??
+        (documentProfile ? MAX_DOCUMENT_ENVELOPE_BYTES : BOARD_LIMITS_V1.maxEnvelopeBytes),
     );
   if (issue.kind === 'json_depth')
     return limitExceeded(
@@ -239,7 +264,52 @@ const inferLimitKey = (
   return null;
 };
 
-const mapSchemaIssue = (input: unknown, issue: KernelIssueV1, kind: ParserKind): BoardErrorV1 => {
+const invalidDocument = (
+  path: Array<string | number>,
+  reason:
+    | 'page_count'
+    | 'duplicate_page_id'
+    | 'default_page_missing'
+    | 'invalid_display_mode'
+    | 'duplicate_node_id'
+    | 'unresolved_reference'
+    | 'limit',
+): BoardError => ({
+  protocolVersion: 1,
+  type: 'board.error',
+  code: 'INVALID_DOCUMENT',
+  message: 'Invalid document',
+  category: 'validation',
+  retryable: false,
+  httpStatusHint: 422,
+  details: { path, reason },
+});
+
+const mapSchemaIssue = (input: unknown, issue: KernelIssueV1, kind: ParserKind): BoardError => {
+  const documentMatch = /^\[INVALID_DOCUMENT:([^\]]+)\]/u.exec(issue.message);
+  if (documentMatch)
+    return invalidDocument(
+      issue.path,
+      documentMatch[1] as
+        | 'page_count'
+        | 'duplicate_page_id'
+        | 'default_page_missing'
+        | 'invalid_display_mode'
+        | 'duplicate_node_id'
+        | 'unresolved_reference'
+        | 'limit',
+    );
+  const knownDocument =
+    kind === 'document' || findDocumentValues(input).some(({ value }) => value.schemaVersion === 2);
+  if (knownDocument) {
+    if (issue.path.at(-1) === 'displayMode')
+      return invalidDocument(issue.path, 'invalid_display_mode');
+    if (issue.message.startsWith('[DUPLICATE_NODE_ID:'))
+      return invalidDocument(issue.path, 'duplicate_node_id');
+    if (issue.message.includes('reference') || issue.message.includes('missing'))
+      return invalidDocument(issue.path, 'unresolved_reference');
+    return invalidDocument(issue.path, 'limit');
+  }
   const limitMatch = /^\[LIMIT:([^\]]+)\]/.exec(issue.message);
   if (limitMatch) {
     const key = limitMatch[1] as BoardLimitKeyV1;
@@ -357,7 +427,7 @@ const findSceneValues = (
   return scenes;
 };
 
-const guardSceneLimits = (input: unknown, kind: ParserKind): BoardErrorV1 | null => {
+const guardSceneLimits = (input: unknown, kind: ParserKind): BoardError | null => {
   const scenes = findSceneValues(input);
   if (kind === 'scene' && scenes.length === 0 && isRecord(input))
     scenes.push({ value: input, path: [] });
@@ -448,7 +518,81 @@ const guardSceneLimits = (input: unknown, kind: ParserKind): BoardErrorV1 | null
   return null;
 };
 
-const guardHitlResponseBytes = (input: unknown, kind: ParserKind): BoardErrorV1 | null => {
+const findDocumentValues = (
+  input: unknown,
+): Array<{ value: Record<string, unknown>; path: Array<string | number> }> => {
+  const documents: Array<{ value: Record<string, unknown>; path: Array<string | number> }> = [];
+  const stack: Array<{ value: unknown; path: Array<string | number> }> = [
+    { value: input, path: [] },
+  ];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current) break;
+    if (
+      isRecord(current.value) &&
+      Object.hasOwn(current.value, 'schemaVersion') &&
+      Object.hasOwn(current.value, 'pages') &&
+      Object.hasOwn(current.value, 'defaultPageId')
+    )
+      documents.push({ value: current.value, path: current.path });
+    if (Array.isArray(current.value))
+      current.value.forEach((value, index) =>
+        stack.push({ value, path: [...current.path, index] }),
+      );
+    else if (isRecord(current.value))
+      Object.entries(current.value).forEach(([key, value]) =>
+        stack.push({ value, path: [...current.path, key] }),
+      );
+  }
+  return documents;
+};
+
+const guardDocumentLimits = (input: unknown, kind: ParserKind): BoardError | null => {
+  const documents = findDocumentValues(input);
+  if (kind === 'document' && documents.length === 0 && isRecord(input))
+    documents.push({ value: input, path: [] });
+  for (const document of documents) {
+    if (document.value.schemaVersion !== 2)
+      return protocolMismatch(1, 'schema_revision', 'document.schemaVersion');
+    const canonical = runDecodedKernelV1(document.value);
+    if (canonical.ok && canonical.canonicalBytes.byteLength > MAX_DOCUMENT_BYTES)
+      return payloadTooLarge('document', canonical.canonicalBytes.byteLength, MAX_DOCUMENT_BYTES);
+    const pages = document.value.pages;
+    if (!Array.isArray(pages)) continue;
+    if (pages.length < 1 || pages.length > BOARD_DOCUMENT_LIMITS_V2.maxDocumentPages)
+      return invalidDocument([...document.path, 'pages'], 'page_count');
+    let nodeCount = 0;
+    for (let pageIndex = 0; pageIndex < pages.length; pageIndex += 1) {
+      const page = pages[pageIndex];
+      const pageCanonical = runDecodedKernelV1(page);
+      if (pageCanonical.ok && pageCanonical.canonicalBytes.byteLength > MAX_DOCUMENT_PAGE_BYTES)
+        return payloadTooLarge(
+          'document.page',
+          pageCanonical.canonicalBytes.byteLength,
+          MAX_DOCUMENT_PAGE_BYTES,
+        );
+      if (!isRecord(page) || !isRecord(page.scene)) continue;
+      const root = page.scene.root;
+      if (root === null || !isRecord(root)) continue;
+      const stack: Record<string, unknown>[] = [root];
+      while (stack.length > 0) {
+        const node = stack.pop();
+        if (!node) break;
+        nodeCount += 1;
+        const children = node.type === 'layout.tabs' ? node.tabs : node.children;
+        if (Array.isArray(children))
+          children.forEach((item) => {
+            if (isRecord(item) && isRecord(item.node)) stack.push(item.node);
+          });
+      }
+    }
+    if (nodeCount > BOARD_DOCUMENT_LIMITS_V2.maxDocumentNodes)
+      return invalidDocument([...document.path, 'pages'], 'limit');
+  }
+  return null;
+};
+
+const guardHitlResponseBytes = (input: unknown, kind: ParserKind): BoardError | null => {
   const candidates: unknown[] = kind === 'hitl-response' ? [input] : [];
   const stack: unknown[] = [input];
   while (stack.length > 0) {
@@ -478,8 +622,9 @@ const processKernel = <Schema extends z.ZodTypeAny>(
   schema: Schema,
   kernel: KernelResultV1<JsonValue>,
   kind: ParserKind,
+  documentProfile = false,
 ): BoardParseResultV1<z.output<Schema>> => {
-  if (!kernel.ok) return { ok: false, error: kernelError(kernel.issue) };
+  if (!kernel.ok) return { ok: false, error: kernelError(kernel.issue, documentProfile) };
   const input = kernel.value;
   if (isRecord(input) && Object.hasOwn(input, 'protocolVersion') && input.protocolVersion !== 1)
     return {
@@ -494,6 +639,8 @@ const processKernel = <Schema extends z.ZodTypeAny>(
     };
   const sceneIssue = guardSceneLimits(input, kind);
   if (sceneIssue) return { ok: false, error: sceneIssue };
+  const documentIssue = guardDocumentLimits(input, kind);
+  if (documentIssue) return { ok: false, error: documentIssue };
   const hitlByteIssue = guardHitlResponseBytes(input, kind);
   if (hitlByteIssue) return { ok: false, error: hitlByteIssue };
   const result = applySchemaV1(schema, kernel);
@@ -504,9 +651,16 @@ const processKernel = <Schema extends z.ZodTypeAny>(
 const createParser = <Schema extends z.ZodTypeAny>(
   schema: Schema,
   kind: ParserKind = 'generic',
+  documentProfile = false,
 ): BoardContractParserV1<z.output<Schema>> => ({
-  parse: (input) => processKernel(schema, runDecodedKernelV1(input), kind),
-  parseBytes: (bytes) => processKernel(schema, runBytesKernelV1(bytes), kind),
+  parse: (input) => processKernel(schema, runDecodedKernelV1(input), kind, documentProfile),
+  parseBytes: (bytes) =>
+    processKernel(
+      schema,
+      documentProfile ? runDocumentBytesKernelV2(bytes) : runBytesKernelV1(bytes),
+      kind,
+      documentProfile,
+    ),
 });
 
 export const GlobalIdStringParserV1 = createParser(GlobalIdStringSchemaV1);
@@ -514,6 +668,7 @@ export const BoardIdParserV1 = createParser(BoardIdSchemaV1);
 export const GrantIdParserV1 = createParser(GrantIdSchemaV1);
 export const PrincipalIdParserV1 = createParser(PrincipalIdSchemaV1);
 export const NodeIdParserV1 = createParser(NodeIdSchemaV1);
+export const PageIdParserV1 = createParser(PageIdSchemaV1);
 export const ShortTextParserV1 = createParser(ShortTextSchemaV1);
 
 export const SceneParserV1 = createParser(SceneSchemaV1, 'scene');
@@ -541,6 +696,22 @@ export const HitlRequestDefinitionParserV1 = createParser(HitlRequestDefinitionS
 export const HitlResponseParserV1 = createParser(HitlResponseSchemaV1, 'hitl-response');
 export const HitlInteractionParserV1 = createParser(HitlInteractionSchemaV1);
 export const BoardErrorParserV1 = createParser(BoardErrorSchemaV1);
+
+export const BoardDocumentParserV2 = createParser(BoardDocumentSchemaV2, 'document', true);
+export const MutationRequestParserV2 = createParser(MutationRequestSchemaV1, 'mutation', true);
+export const MutationEnvelopeParserV2 = createParser(MutationEnvelopeSchemaV1, 'mutation', true);
+export const MutationResultParserV2 = createParser(MutationResultSchemaV1, 'mutation', true);
+export const BoardOperationResultParserV2 = createParser(
+  BoardOperationResultSchemaV1,
+  'operation',
+  true,
+);
+export const BoardSnapshotParserV2 = createParser(BoardSnapshotSchemaV2, 'document', true);
+export const BoardSnapshotParser = createParser(BoardSnapshotSchema, 'document', true);
+export const BoardEventEnvelopeParserV2 = createParser(BoardEventEnvelopeSchemaV1, 'event', true);
+export const BoardCapabilitiesParserV2 = createParser(BoardCapabilitiesSchemaV2);
+export const BoardCapabilitiesParser = createParser(BoardCapabilitiesSchema);
+export const BoardErrorParser = createParser(BoardErrorSchema);
 
 export const canonicalizeJsonV1 = (input: unknown): BoardParseResultV1<JsonValue> => {
   const result = runDecodedKernelV1(input);

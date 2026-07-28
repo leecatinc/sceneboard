@@ -6,6 +6,7 @@ import {
   ArtifactReferenceSchemaV1,
   ArtifactRuntimeSummarySchemaV1,
 } from './artifacts.js';
+import { BoardDocumentSchemaV2 } from './documents.js';
 import {
   EventIdSchemaV1,
   HitlRequestIdSchemaV1,
@@ -64,6 +65,7 @@ export const BoardMutationCommandSchemaV1 = z.discriminatedUnion('type', [
   HitlRespondCommandSchemaV1,
   ArtifactPublishCommandSchemaV1,
   ArtifactStopCommandSchemaV1,
+  z.object({ type: z.literal('document.replace'), document: BoardDocumentSchemaV2 }).strict(),
 ]);
 
 const MutationRequestShapeV1 = {
@@ -88,6 +90,15 @@ const MutationResultDataSchemaV1 = z.discriminatedUnion('type', [
       type: z.literal('scene.restore'),
       sourceRevisionId: RevisionIdSchemaV1,
       revision: RevisionSummarySchemaV1,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('document.replace'),
+      revision: RevisionSummarySchemaV1,
+      originType: z.literal('document.replace'),
+      sourceRevisionId: z.null(),
+      document: BoardDocumentSchemaV2,
     })
     .strict(),
   z.object({ type: z.literal('hitl.request'), hitl: HitlRequestSuccessSchemaV1 }).strict(),

@@ -28,6 +28,12 @@ export const BOARD_MUTATION_COMMAND_TYPES_V1 = [
 ] as const;
 export type BoardMutationCommandTypeV1 = (typeof BOARD_MUTATION_COMMAND_TYPES_V1)[number];
 
+export const BOARD_MUTATION_COMMAND_TYPES_V2 = [
+  ...BOARD_MUTATION_COMMAND_TYPES_V1,
+  'document.replace',
+] as const;
+export type BoardMutationCommandTypeV2 = (typeof BOARD_MUTATION_COMMAND_TYPES_V2)[number];
+
 export const BOARD_OPERATION_TYPES_V1 = [
   'board.list',
   'board.get',
@@ -102,3 +108,10 @@ export const BOARD_ERROR_CODES_V1 = [
   'INTERNAL_ERROR',
 ] as const;
 export type BoardErrorCodeV1 = (typeof BOARD_ERROR_CODES_V1)[number];
+
+export const BOARD_ERROR_CODES_V2 = [
+  ...BOARD_ERROR_CODES_V1,
+  'DOCUMENT_VERSION_MISMATCH',
+  'INVALID_DOCUMENT',
+] as const;
+export type BoardErrorCodeV2 = (typeof BOARD_ERROR_CODES_V2)[number];
