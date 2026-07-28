@@ -71,3 +71,9 @@
     grid-template-rows: minmax(0, 1fr);
   }
 }
+.ownerAdmin {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}

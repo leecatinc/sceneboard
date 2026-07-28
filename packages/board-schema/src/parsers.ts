@@ -44,6 +44,7 @@ import {
   HitlResponseSchemaV1,
 } from './hitl.js';
 import {
+  AccessManagementListSchemaV1,
   BoardInvitationEnvelopeSchemaV1,
   BoardInvitationSchemaV1,
   InvitationAcceptanceSchemaV1,
@@ -768,6 +769,7 @@ export const BoardInvitationParserV1 = createParserV1(BoardInvitationSchemaV1);
 export const BoardInvitationEnvelopeParserV1 = createParserV1(BoardInvitationEnvelopeSchemaV1);
 export const InvitationAcceptanceParserV1 = createParserV1(InvitationAcceptanceSchemaV1);
 export const ManagedMembershipEnvelopeParserV1 = createParserV1(ManagedMembershipEnvelopeSchemaV1);
+export const AccessManagementListParserV1 = createParserV1(AccessManagementListSchemaV1);
 export const ShareManagementViewParserV1 = createParserV1(ShareManagementViewSchemaV1);
 export const ShareListResultParserV1 = createParserV1(ShareListResultSchemaV1);
 export const SharePublishRequestParserV1 = createParserV1(SharePublishRequestSchemaV1);

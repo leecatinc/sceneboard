@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  AccessManagementListParserV1,
   BoardErrorParserV1,
   BoardIdParserV1,
   BoardInvitationEnvelopeParserV1,
@@ -10,6 +11,7 @@ import {
   MemberCandidateListParserV1,
   PrincipalIdParserV1,
   type BoardInvitationEnvelopeV1,
+  type AccessManagementListV1,
   type InvitationAcceptanceV1,
   type InvitationRoleV1,
   type ManagedMembershipEnvelopeV1,
@@ -26,6 +28,21 @@ type Parser<Value> = {
 
 export class InvitationApi {
   constructor(private readonly coordinator: SessionRequestCoordinator) {}
+
+  async list(
+    boardIdValue: string,
+    signal?: AbortSignal,
+  ): Promise<ApiResult<AccessManagementListV1>> {
+    const boardId = parse(BoardIdParserV1, boardIdValue);
+    return this.dispatch(
+      `/api/v1/boards/${encodeURIComponent(boardId)}/members`,
+      'GET',
+      undefined,
+      AccessManagementListParserV1,
+      200,
+      signal,
+    );
+  }
 
   async search(
     boardIdValue: string,

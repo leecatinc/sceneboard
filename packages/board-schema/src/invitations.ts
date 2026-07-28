@@ -84,6 +84,31 @@ export const ManagedMembershipEnvelopeSchemaV1 = z
   })
   .strict();
 
+export const ManagedMemberSummarySchemaV1 = z
+  .object({
+    memberId: GlobalIdStringSchemaV1,
+    accountId: PrincipalIdSchemaV1,
+    role: InvitationRoleSchemaV1,
+    version: z.number().int().safe().positive(),
+  })
+  .strict();
+
+export const PendingInvitationSummarySchemaV1 = z
+  .object({
+    inviteId: GlobalIdStringSchemaV1,
+    role: InvitationRoleSchemaV1,
+    expiresAt: TimestampSchemaV1,
+    state: z.literal('pending'),
+  })
+  .strict();
+
+export const AccessManagementListSchemaV1 = z
+  .object({
+    members: z.array(ManagedMemberSummarySchemaV1).max(500),
+    invitations: z.array(PendingInvitationSummarySchemaV1).max(500),
+  })
+  .strict();
+
 export type InvitationRoleV1 = z.infer<typeof InvitationRoleSchemaV1>;
 export type InvitationStateV1 = z.infer<typeof InvitationStateSchemaV1>;
 export type MemberCandidateV1 = z.infer<typeof MemberCandidateSchemaV1>;
@@ -94,3 +119,6 @@ export type InvitationMembershipV1 = z.infer<typeof InvitationMembershipSchemaV1
 export type InvitationAcceptanceV1 = z.infer<typeof InvitationAcceptanceSchemaV1>;
 export type ManagedMembershipV1 = z.infer<typeof ManagedMembershipSchemaV1>;
 export type ManagedMembershipEnvelopeV1 = z.infer<typeof ManagedMembershipEnvelopeSchemaV1>;
+export type ManagedMemberSummaryV1 = z.infer<typeof ManagedMemberSummarySchemaV1>;
+export type PendingInvitationSummaryV1 = z.infer<typeof PendingInvitationSummarySchemaV1>;
+export type AccessManagementListV1 = z.infer<typeof AccessManagementListSchemaV1>;

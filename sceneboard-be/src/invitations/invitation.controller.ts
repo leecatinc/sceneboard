@@ -121,6 +121,16 @@ export class BoardInvitationController {
     @Inject(APP_ENVIRONMENT) private readonly environment: AppEnvironment,
   ) {}
 
+  @Get(':boardId/members')
+  async listManagedAccess(
+    @Req() request: InvitationRequest,
+    @Param('boardId') boardId: string,
+    @Query() queryValue: unknown,
+  ) {
+    exactKeys(record(queryValue), []);
+    return this.invitations.listManagedAccess(ownerContext(request, boardId, this.environment));
+  }
+
   @Get(':boardId/member-candidates')
   async search(
     @Req() request: InvitationRequest,

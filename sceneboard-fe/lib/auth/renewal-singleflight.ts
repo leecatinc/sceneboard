@@ -71,6 +71,7 @@ export interface SharedCookieRequest {
   method: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   body?: unknown;
   csrfToken?: string;
+  idempotencyKey?: string;
   signal?: AbortSignal;
   responseKind?: 'json' | 'document-json' | 'artifact-package' | 'artifact-network';
   contentType?: 'application/vnd.sceneboard.document+json;version=2';
@@ -222,6 +223,8 @@ export class SessionRequestCoordinator implements BoardStreamDispatchPortV1 {
       if (request.body !== undefined)
         headers.set('Content-Type', request.contentType ?? 'application/json');
       if (request.csrfToken !== undefined) headers.set('X-CSRF-Token', request.csrfToken);
+      if (request.idempotencyKey !== undefined)
+        headers.set('Idempotency-Key', request.idempotencyKey);
       const response = await this.dependencies.fetcher(`${this.apiOrigin}${request.path}`, {
         method: request.method,
         credentials: 'include',

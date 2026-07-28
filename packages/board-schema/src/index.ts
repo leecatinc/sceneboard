@@ -53,6 +53,7 @@ export type { JsonValue } from './json.js';
 export type { BoardAuthorizationPrincipalV1, BoardMembershipV1 } from './memberships.js';
 export { BoardAuthorizationPrincipalSchemaV1, BoardMembershipSchemaV1 } from './memberships.js';
 export type {
+  AccessManagementListV1,
   BoardInvitationEnvelopeV1,
   BoardInvitationV1,
   InvitationAcceptanceV1,
@@ -60,9 +61,11 @@ export type {
   InvitationRoleV1,
   InvitationStateV1,
   ManagedMembershipEnvelopeV1,
+  ManagedMemberSummaryV1,
   ManagedMembershipV1,
   MemberCandidateListV1,
   MemberCandidateV1,
+  PendingInvitationSummaryV1,
 } from './invitations.js';
 export {
   ShareAccessPolicySchemaV1,
@@ -128,6 +131,7 @@ export type {
   ShareVersionRequestV1,
 } from './shares.js';
 export {
+  AccessManagementListSchemaV1,
   BoardInvitationEnvelopeSchemaV1,
   BoardInvitationSchemaV1,
   InvitationAcceptanceSchemaV1,
@@ -135,9 +139,11 @@ export {
   InvitationRoleSchemaV1,
   InvitationStateSchemaV1,
   ManagedMembershipEnvelopeSchemaV1,
+  ManagedMemberSummarySchemaV1,
   ManagedMembershipSchemaV1,
   MemberCandidateListSchemaV1,
   MemberCandidateSchemaV1,
+  PendingInvitationSummarySchemaV1,
 } from './invitations.js';
 export type {
   ArtifactId,
@@ -278,6 +284,7 @@ export type {
 } from './errors.js';
 export {
   ArtifactManifestParserV1,
+  AccessManagementListParserV1,
   ArtifactReferenceParserV1,
   ArtifactResourceParserV1,
   ArtifactRuntimeSummaryParserV1,

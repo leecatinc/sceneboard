@@ -2,11 +2,35 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
+  AccessManagementListParserV1,
   BoardInvitationEnvelopeParserV1,
   InvitationAcceptanceParserV1,
   ManagedMembershipEnvelopeParserV1,
   MemberCandidateListParserV1,
 } from '../src/index.js';
+
+test('owner access list is strict, bounded, and excludes owner rows', () => {
+  const value = {
+    members: [{ memberId: 'member_1', accountId: 'account_1', role: 'editor', version: 2 }],
+    invitations: [
+      {
+        inviteId: 'invite_1',
+        role: 'viewer',
+        expiresAt: '2026-08-04T00:00:00.000Z',
+        state: 'pending',
+      },
+    ],
+  };
+  assert.equal(AccessManagementListParserV1.parse(value).ok, true);
+  assert.equal(
+    AccessManagementListParserV1.parse({
+      ...value,
+      members: [{ ...value.members[0], role: 'owner' }],
+    }).ok,
+    false,
+  );
+  assert.equal(AccessManagementListParserV1.parse({ ...value, unexpected: true }).ok, false);
+});
 
 test('candidate contract permits only bounded account and email shapes', () => {
   assert.equal(

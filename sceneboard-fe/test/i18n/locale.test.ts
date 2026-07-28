@@ -13,6 +13,7 @@ import { CODEX_CATALOG } from '../../lib/i18n/catalogs/codex';
 import { COMMON_CATALOG } from '../../lib/i18n/catalogs/common';
 import { PRESENTATION_CATALOG } from '../../lib/i18n/catalogs/presentation';
 import { SETTINGS_CATALOG } from '../../lib/i18n/catalogs/settings';
+import { SHARING_CATALOG } from '../../lib/i18n/catalogs/sharing';
 import {
   formatMessage,
   localeFromAcceptLanguage,
@@ -33,7 +34,9 @@ const catalogBaseline = JSON.parse(
 const digest = (value: unknown) => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 
 test('catalog baseline freezes ordered locale values and the AI topic partition', () => {
-  const keys = messageKeys().filter((key) => !key.startsWith('presentation.'));
+  const keys = messageKeys().filter(
+    (key) => !key.startsWith('presentation.') && !key.startsWith('sharing.'),
+  );
   assert.equal(keys.length, catalogBaseline.keyCount);
   assert.equal(digest(keys), catalogBaseline.keyOrderSha256);
   for (const locale of SUPPORTED_LOCALES)
@@ -91,6 +94,7 @@ test('topic catalogs have one owner per key and stay below the physical line cap
     ['ai-connections', AI_CONNECTIONS_CATALOG],
     ['codex', CODEX_CATALOG],
     ['presentation', PRESENTATION_CATALOG],
+    ['sharing', SHARING_CATALOG],
   ] as const;
   const ownedKeys = modules.flatMap(([, rows]) => rows.map((row) => row[0]));
   assert.equal(new Set(ownedKeys).size, ownedKeys.length);

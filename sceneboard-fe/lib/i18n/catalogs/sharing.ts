@@ -1,0 +1,88 @@
+const sharingMessage = <Key extends string>(key: Key, en: string, ko: string) =>
+  [key, en, ko, en, en, en, en, en, en, en, en] as const;
+
+export const SHARING_CATALOG = [
+  sharingMessage('sharing.manageShares', 'Manage sharing', '공유 관리'),
+  sharingMessage('sharing.manageMembers', 'Manage members', '멤버 관리'),
+  sharingMessage('sharing.close', 'Close', '닫기'),
+  sharingMessage(
+    'sharing.loadFailed',
+    'Management data could not be loaded.',
+    '관리 정보를 불러오지 못했습니다.',
+  ),
+  sharingMessage(
+    'sharing.actionFailed',
+    'The action could not be completed.',
+    '작업을 완료하지 못했습니다.',
+  ),
+  sharingMessage('sharing.noShare', 'This board is not shared.', '이 보드는 공유되지 않았습니다.'),
+  sharingMessage('sharing.publish', 'Publish current revision', '현재 리비전 게시'),
+  sharingMessage('sharing.shareStatus', 'Share status', '공유 상태'),
+  sharingMessage('sharing.updatedAt', 'Updated', '업데이트'),
+  sharingMessage(
+    'sharing.updateRevision',
+    'Update to current revision',
+    '현재 리비전으로 업데이트',
+  ),
+  sharingMessage('sharing.rotateLink', 'Rotate link token', '링크 토큰 교체'),
+  sharingMessage('sharing.enablePassword', 'Enable password', '비밀번호 사용'),
+  sharingMessage('sharing.regeneratePassword', 'Regenerate password', '비밀번호 재생성'),
+  sharingMessage('sharing.disablePassword', 'Disable password', '비밀번호 해제'),
+  sharingMessage('sharing.revokeShare', 'Revoke share', '공유 해제'),
+  sharingMessage(
+    'sharing.revokeShareConfirm',
+    'This immediately disables the public share.',
+    '공개 공유가 즉시 비활성화됩니다.',
+  ),
+  sharingMessage('sharing.oneTimeSecret', 'One-time secret', '일회성 비밀값'),
+  sharingMessage(
+    'sharing.secretWarning',
+    'Save this value now. It cannot be shown again.',
+    '지금 저장하세요. 다시 표시할 수 없습니다.',
+  ),
+  sharingMessage('sharing.copy', 'Copy', '복사'),
+  sharingMessage(
+    'sharing.copied',
+    'Copied. The manual fallback remains visible.',
+    '복사했습니다. 수동 복사용 값은 계속 표시됩니다.',
+  ),
+  sharingMessage(
+    'sharing.copyFailed',
+    'Copy failed. Select and copy the value manually.',
+    '복사하지 못했습니다. 값을 직접 선택해 복사하세요.',
+  ),
+  sharingMessage(
+    'sharing.rotateRequired',
+    'The secret was already issued. Rotate the link to obtain a new one.',
+    '비밀값이 이미 발급되었습니다. 새 값을 받으려면 링크를 교체하세요.',
+  ),
+  sharingMessage(
+    'sharing.regenerateRequired',
+    'The password was already issued. Regenerate it to obtain a new one.',
+    '비밀번호가 이미 발급되었습니다. 새 값을 받으려면 재생성하세요.',
+  ),
+  sharingMessage('sharing.inviteMember', 'Invite member', '멤버 초대'),
+  sharingMessage('sharing.searchMembers', 'Search members', '멤버 검색'),
+  sharingMessage('sharing.searchHint', 'Enter at least 3 characters', '3자 이상 입력'),
+  sharingMessage('sharing.role', 'Role', '역할'),
+  sharingMessage('sharing.viewer', 'Viewer', '뷰어'),
+  sharingMessage('sharing.editor', 'Editor', '에디터'),
+  sharingMessage('sharing.noCandidates', 'No candidates found.', '검색 결과가 없습니다.'),
+  sharingMessage('sharing.invite', 'Invite', '초대'),
+  sharingMessage('sharing.activeMembers', 'Active members', '활성 멤버'),
+  sharingMessage(
+    'sharing.noMembers',
+    'No editor or viewer members.',
+    '에디터 또는 뷰어 멤버가 없습니다.',
+  ),
+  sharingMessage('sharing.remove', 'Remove', '제거'),
+  sharingMessage('sharing.pendingInvitations', 'Pending invitations', '대기 중인 초대'),
+  sharingMessage('sharing.noInvitations', 'No pending invitations.', '대기 중인 초대가 없습니다.'),
+  sharingMessage('sharing.resend', 'Resend', '재전송'),
+  sharingMessage('sharing.revokeInvitation', 'Revoke invitation', '초대 취소'),
+  sharingMessage(
+    'sharing.destructiveConfirm',
+    'This action takes effect immediately.',
+    '이 작업은 즉시 적용됩니다.',
+  ),
+] as const;

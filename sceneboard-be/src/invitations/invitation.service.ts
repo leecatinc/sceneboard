@@ -1,4 +1,5 @@
 import type {
+  AccessManagementListV1,
   BoardId,
   BoardInvitationEnvelopeV1,
   InvitationAcceptanceV1,
@@ -131,6 +132,19 @@ export class InvitationService {
           completeEmail: parseCompleteEmail(normalizedQuery),
         }),
       }),
+    );
+  }
+
+  async listManagedAccess(input: OwnerCommandContext): Promise<AccessManagementListV1> {
+    return this.accessPolicy.withAuthorizedBoardTransaction(
+      {
+        principal: input.principal,
+        operation: 'membership.list',
+        boardId: input.boardId,
+        isolation: 'REPEATABLE_READ_CUT',
+      },
+      async (connection, context) =>
+        this.invitations.listManagedAccess(connection, safeBoardPk(context)),
     );
   }
 

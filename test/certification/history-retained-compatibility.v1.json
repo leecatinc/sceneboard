@@ -3,7 +3,7 @@
   "type": "history-retained-compatibility",
   "assets": {
     "packages/board-schema/src/history.ts": "0b3d7b40f62a7d6ddac777df06d230cb3ea3955776f103c4d7428a23c4011eb4",
-    "packages/board-schema/src/parsers.ts": "f6efe504618308b554f96b36e1127f32bdaec4f7db22537b42dec1aba5a2d797",
+    "packages/board-schema/src/parsers.ts": "dc2fb920fd1087bdd3487374990fe42343e3474dcff094968c7d6b996a5001ec",
     "packages/board-schema/test/fixtures/valid/history-retained-metadata.v1.json": "24b3403be06d4c5c2e28fae815e3e9e868d924f1f8d5abd8a698c946ecf7362d",
     "packages/board-schema/test/fixtures/invalid/history-retained-metadata.v1.json": "e519f0074dfeabc34bdd04b8bd9c27ce306cf370d17a0807baf28aa8c023fa15",
     "packages/board-sdk/src/http/http-result.parser.ts": "6dfdb0741ae09211bc1b5cc66bceb9e00c51687d93d405423cb4f0c3bcdf3871",

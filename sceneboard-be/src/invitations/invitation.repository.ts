@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto';
 
 import {
+  AccessManagementListParserV1,
   BoardEventEnvelopeParserV1,
+  type AccessManagementListV1,
   type BoardEventEnvelopeV1,
   type InvitationRoleV1,
   type InvitationStateV1,
@@ -91,6 +93,19 @@ interface MembershipRow extends RowDataPacket {
   role: string;
   state: string;
   version: string;
+}
+
+interface ManagedMemberRow extends RowDataPacket {
+  memberId: string;
+  accountId: string;
+  role: string;
+  version: string;
+}
+
+interface PendingInvitationRow extends RowDataPacket {
+  inviteId: string;
+  role: string;
+  expiresAt: string;
 }
 
 export type LockedInvitationBoard = {
@@ -270,6 +285,46 @@ export class InvitationRepository {
           }
         : { kind: candidate.kind, email: candidate.email },
     );
+  }
+
+  async listManagedAccess(
+    connection: PoolConnection,
+    boardPk: bigint,
+  ): Promise<AccessManagementListV1> {
+    const [memberRows] = await connection.execute<ManagedMemberRow[]>(
+      `SELECT m.public_id AS memberId, u.public_id AS accountId,
+              m.role, CAST(m.version AS CHAR) AS version
+       FROM board_memberships m
+       JOIN users u ON u.id = m.account_pk
+       WHERE m.board_pk = ? AND m.state = 'active' AND m.role IN ('editor', 'viewer')
+       ORDER BY m.public_id
+       LIMIT 500`,
+      [boardPk.toString()],
+    );
+    const [invitationRows] = await connection.execute<PendingInvitationRow[]>(
+      `SELECT public_id AS inviteId, role, expires_at AS expiresAt
+       FROM board_invitations
+       WHERE board_pk = ? AND state = 'pending' AND expires_at > UTC_TIMESTAMP(3)
+       ORDER BY public_id
+       LIMIT 500`,
+      [boardPk.toString()],
+    );
+    const parsed = AccessManagementListParserV1.parse({
+      members: memberRows.map((row) => ({
+        memberId: row.memberId,
+        accountId: row.accountId,
+        role: invitationRole(row.role),
+        version: safeNumber(row.version),
+      })),
+      invitations: invitationRows.map((row) => ({
+        inviteId: row.inviteId,
+        role: invitationRole(row.role),
+        expiresAt: parseMysqlTimestampUtc(row.expiresAt).toISOString(),
+        state: 'pending',
+      })),
+    });
+    if (!parsed.ok) throw new InvitationPersistenceError();
+    return parsed.data.value;
   }
 
   async lockBoardByPk(

@@ -16,6 +16,8 @@ import { HitlBlock, type HitlInteractionControllerV1 } from '@sceneboard/board-u
 import { BoardStatePanel } from '../../../components/board/BoardStatePanel';
 import { BoardPairingControl } from '../../../components/board/BoardPairingControl';
 import { BoardArchiveControl } from '../../../components/board/BoardArchiveControl';
+import { MemberManagementSheet } from '../../../components/board/MemberManagementSheet';
+import { ShareManagementSheet } from '../../../components/board/ShareManagementSheet';
 import {
   BoardConnectionsSlot,
   BoardHistorySlot,
@@ -33,6 +35,8 @@ import { ResponsiveBoardChrome } from '../../../components/board/ResponsiveBoard
 import type { MobileBoardDrawerSlotsV1 } from '../../../components/board/MobileBoardDrawer';
 import { useBoardSession } from '../../../lib/board/use-board-session';
 import { BoardApiClient } from '../../../lib/api/board-api';
+import { InvitationApi } from '../../../lib/api/invitation-api';
+import { ShareApi } from '../../../lib/api/share-api';
 import { authSessionClient } from '../../../lib/auth/session-client';
 import { useHitlInteractionController } from '../../../lib/board/use-hitl-interaction-controller';
 import { selectUnplacedOpenHitlV1 } from '../../../lib/board/unplaced-hitl';
@@ -201,6 +205,11 @@ export function BoardClient({ boardId }: { boardId: string }) {
   });
   const [drawingResetSignal, setDrawingResetSignal] = useState(0);
   const [api] = useState(() => new BoardApiClient(authSessionClient().sharedCoordinator()));
+  const [invitationApi] = useState(
+    () => new InvitationApi(authSessionClient().sharedCoordinator()),
+  );
+  const [shareApi] = useState(() => new ShareApi(authSessionClient().sharedCoordinator()));
+  const [ownerManagementEnabled, setOwnerManagementEnabled] = useState(false);
   const [artifactLoad] = useState<ArtifactLoadPortV1>(() => {
     return {
       async readMetadata(input) {
@@ -241,6 +250,14 @@ export function BoardClient({ boardId }: { boardId: string }) {
   const captureSourcesRef = useRef(new Set<string>());
   const hitlSourcesRef = useRef(new Set<string>());
   const revisionId = session.visibleSnapshot?.revision.revisionId ?? null;
+  useEffect(() => {
+    const controller = new AbortController();
+    setOwnerManagementEnabled(false);
+    void invitationApi.list(boardId, controller.signal).then((result) => {
+      if (!controller.signal.aborted) setOwnerManagementEnabled(result.kind === 'ok');
+    });
+    return () => controller.abort();
+  }, [boardId, invitationApi]);
   const navigationDocument =
     session.visibleSnapshot === null ? null : documentForPageNavigationV1(session.visibleSnapshot);
   const resolvedPageId =
@@ -673,6 +690,35 @@ export function BoardClient({ boardId }: { boardId: string }) {
       />
     </div>
   );
+  const canManageShares = ownerManagementEnabled;
+  const canManageMembers = ownerManagementEnabled;
+  const canAdministerBoard = ownerManagementEnabled;
+  const ownerAdmin =
+    canManageShares || canManageMembers || canAdministerBoard ? (
+      <div className={styles.ownerAdmin}>
+        <ShareManagementSheet
+          api={shareApi}
+          boardId={boardId}
+          revisionId={visibleSnapshot.revision.revisionId}
+          enabled={canManageShares}
+          routeKey={routeEpoch}
+        />
+        <MemberManagementSheet
+          api={invitationApi}
+          boardId={boardId}
+          enabled={canManageMembers}
+          routeKey={routeEpoch}
+        />
+        {canAdministerBoard && (
+          <BoardArchiveControl
+            api={api}
+            boardId={boardId}
+            boardTitle={session.title}
+            onArchived={() => router.replace('/boards')}
+          />
+        )}
+      </div>
+    ) : null;
   const chromeSlots: MobileBoardDrawerSlotsV1 = {
     boardIdentity: (
       <BoardIdentitySlot title={session.title} state={state} onRename={session.rename} />
@@ -711,14 +757,7 @@ export function BoardClient({ boardId }: { boardId: string }) {
         }
       />
     ),
-    ownerAdmin: (
-      <BoardArchiveControl
-        api={api}
-        boardId={boardId}
-        boardTitle={session.title}
-        onArchived={() => router.replace('/boards')}
-      />
-    ),
+    ownerAdmin,
   };
   const navigationNotice = state.navigationError ? (
     <div className="notice notice-error" role="alert">

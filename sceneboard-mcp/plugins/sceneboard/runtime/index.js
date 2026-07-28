@@ -26153,6 +26153,22 @@ var ManagedMembershipEnvelopeSchemaV1 = z.object({
   membership: ManagedMembershipSchemaV1,
   capabilityEpoch: z.number().int().safe().min(0)
 }).strict();
+var ManagedMemberSummarySchemaV1 = z.object({
+  memberId: GlobalIdStringSchemaV1,
+  accountId: PrincipalIdSchemaV1,
+  role: InvitationRoleSchemaV1,
+  version: z.number().int().safe().positive()
+}).strict();
+var PendingInvitationSummarySchemaV1 = z.object({
+  inviteId: GlobalIdStringSchemaV1,
+  role: InvitationRoleSchemaV1,
+  expiresAt: TimestampSchemaV1,
+  state: z.literal("pending")
+}).strict();
+var AccessManagementListSchemaV1 = z.object({
+  members: z.array(ManagedMemberSummarySchemaV1).max(500),
+  invitations: z.array(PendingInvitationSummarySchemaV1).max(500)
+}).strict();
 
 // packages/board-schema/src/capabilities.ts
 var exactCatalog = (catalog) => z.array(z.enum(catalog)).length(catalog.length).superRefine((values, context) => {
@@ -28315,6 +28331,7 @@ var BoardInvitationParserV1 = createParserV1(BoardInvitationSchemaV1);
 var BoardInvitationEnvelopeParserV1 = createParserV1(BoardInvitationEnvelopeSchemaV1);
 var InvitationAcceptanceParserV1 = createParserV1(InvitationAcceptanceSchemaV1);
 var ManagedMembershipEnvelopeParserV1 = createParserV1(ManagedMembershipEnvelopeSchemaV1);
+var AccessManagementListParserV1 = createParserV1(AccessManagementListSchemaV1);
 var ShareManagementViewParserV1 = createParserV1(ShareManagementViewSchemaV1);
 var ShareListResultParserV1 = createParserV1(ShareListResultSchemaV1);
 var SharePublishRequestParserV1 = createParserV1(SharePublishRequestSchemaV1);

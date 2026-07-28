@@ -7,6 +7,7 @@ import { CODEX_CATALOG } from './catalogs/codex';
 import { COMMON_CATALOG } from './catalogs/common';
 import { PRESENTATION_CATALOG } from './catalogs/presentation';
 import { SETTINGS_CATALOG } from './catalogs/settings';
+import { SHARING_CATALOG } from './catalogs/sharing';
 import { INTERFACE_CATALOG } from './interface-catalog';
 
 export const SUPPORTED_LOCALES = [
@@ -304,7 +305,12 @@ const BASE_CATALOG = BASE_CATALOG_ORDER.map((key) => {
   return row;
 });
 
-const CATALOG = [...BASE_CATALOG, ...INTERFACE_CATALOG, ...PRESENTATION_CATALOG] as const;
+const CATALOG = [
+  ...BASE_CATALOG,
+  ...INTERFACE_CATALOG,
+  ...PRESENTATION_CATALOG,
+  ...SHARING_CATALOG,
+] as const;
 
 export type MessageKey = (typeof CATALOG)[number][0];
 type MessageDictionary = Readonly<Record<MessageKey, string>>;
