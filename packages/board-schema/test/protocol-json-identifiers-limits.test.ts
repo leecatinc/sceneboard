@@ -28,6 +28,7 @@ import {
   PrincipalIdParserV1,
   SceneParserV1,
   canonicalizeJsonV1,
+  type BoardContractParser,
   type BoardContractParserV1,
 } from '../src/index.js';
 import { FIXTURE_CATALOG, type FixtureParserName } from './fixture-catalog.js';
@@ -46,7 +47,7 @@ const canonicalParser: BoardContractParserV1<unknown> = {
   },
 };
 
-const parsers: Record<FixtureParserName, BoardContractParserV1<unknown>> = {
+const parsers: Record<FixtureParserName, BoardContractParser<unknown>> = {
   ArtifactManifestParserV1,
   ArtifactReferenceParserV1,
   ArtifactResourceParserV1,

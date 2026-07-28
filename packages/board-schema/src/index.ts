@@ -106,11 +106,17 @@ export type {
 export { DEFAULT_BOARD_CAPABILITIES_V1, DEFAULT_BOARD_CAPABILITIES_V2 } from './capabilities.js';
 export type {
   BoardMutationCommandV1,
+  BoardMutationCommandV2,
   BoardMutationResultDataV1,
+  BoardMutationResultDataV2,
   MutationEnvelopeV1,
+  MutationEnvelopeV2,
   MutationFingerprintInputV1,
+  MutationFingerprintInputV2,
   MutationRequestV1,
+  MutationRequestV2,
   MutationResultV1,
+  MutationResultV2,
 } from './commands.js';
 export type {
   BoardLifecycleIdempotencyEnvelopeV1,
@@ -124,7 +130,13 @@ export type {
   PageCursorV1,
 } from './operations.js';
 export type { BoardSnapshot, BoardSnapshotV1, BoardSnapshotV2 } from './snapshots.js';
-export type { BoardEventDataV1, BoardEventEnvelopeV1, PresenceSummaryV1 } from './events.js';
+export type {
+  BoardEventDataV1,
+  BoardEventDataV2,
+  BoardEventEnvelopeV1,
+  BoardEventEnvelopeV2,
+  PresenceSummaryV1,
+} from './events.js';
 export type {
   BoardErrorV1,
   BoardError,
@@ -175,7 +187,9 @@ export {
   normalizeActorContextV1,
 } from './parsers.js';
 export type {
+  BoardContractParser,
   BoardContractParserV1,
+  BoardParseResult,
   BoardParseResultV1,
   CanonicalContractValueV1,
 } from './parsers.js';

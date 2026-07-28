@@ -15,14 +15,17 @@ import {
 import { CLIENT_GRANT_CAPABILITIES_V1, NODE_TYPES_V1 } from './catalogs.js';
 import {
   MutationEnvelopeSchemaV1,
+  MutationEnvelopeSchemaV2,
   MutationRequestSchemaV1,
+  MutationRequestSchemaV2,
   MutationResultSchemaV1,
+  MutationResultSchemaV2,
   type MutationEnvelopeV1,
   type MutationFingerprintInputV1,
 } from './commands.js';
 import { BoardDocumentSchemaV2 } from './documents.js';
-import { BoardEventEnvelopeSchemaV1 } from './events.js';
-import type { BoardError } from './errors.js';
+import { BoardEventEnvelopeSchemaV1, BoardEventEnvelopeSchemaV2 } from './events.js';
+import type { BoardError, BoardErrorV1 } from './errors.js';
 import { BoardErrorSchema, BoardErrorSchemaV1 } from './errors.js';
 import {
   BoardIdSchemaV1,
@@ -71,10 +74,17 @@ import { BoardSnapshotSchema, BoardSnapshotSchemaV1, BoardSnapshotSchemaV2 } fro
 export type CanonicalContractValueV1<T> = { value: T; canonicalBytes: Uint8Array };
 export type BoardParseResultV1<T> =
   | { ok: true; data: CanonicalContractValueV1<T> }
+  | { ok: false; error: BoardErrorV1 };
+export type BoardParseResult<T> =
+  | { ok: true; data: CanonicalContractValueV1<T> }
   | { ok: false; error: BoardError };
 export type BoardContractParserV1<T> = {
   parse(input: unknown): BoardParseResultV1<T>;
   parseBytes(bytes: Uint8Array): BoardParseResultV1<T>;
+};
+export type BoardContractParser<T> = {
+  parse(input: unknown): BoardParseResult<T>;
+  parseBytes(bytes: Uint8Array): BoardParseResult<T>;
 };
 
 type ParserKind =
@@ -87,7 +97,7 @@ type ParserKind =
   | 'event'
   | 'hitl-response';
 
-const invalidPayload = (path: Array<string | number>, issue: string): BoardError => ({
+const invalidPayload = (path: Array<string | number>, issue: string): BoardErrorV1 => ({
   protocolVersion: 1,
   type: 'board.error',
   code: 'INVALID_PAYLOAD',
@@ -101,7 +111,7 @@ const protocolMismatch = (
   receivedMajor: number | null,
   reason: 'major' | 'schema_revision' = 'major',
   field = 'protocolVersion',
-): BoardError => ({
+): BoardErrorV1 => ({
   protocolVersion: 1,
   type: 'board.error',
   code: 'PROTOCOL_VERSION_MISMATCH',
@@ -123,7 +133,7 @@ const payloadTooLarge = (
     | 'document.envelope',
   actualBytes: number,
   maximumBytes: number,
-): BoardError => ({
+): BoardErrorV1 => ({
   protocolVersion: 1,
   type: 'board.error',
   code: 'PAYLOAD_TOO_LARGE',
@@ -137,7 +147,7 @@ const limitExceeded = (
   limit: BoardLimitKeyV1,
   actual: number,
   path: Array<string | number>,
-): BoardError => ({
+): BoardErrorV1 => ({
   protocolVersion: 1,
   type: 'board.error',
   code: 'LIMIT_EXCEEDED',
@@ -150,7 +160,7 @@ const limitExceeded = (
 const invalidLayout = (
   path: Array<string | number>,
   reason: 'bounds' | 'overlap' | 'reference' | 'geometry',
-): BoardError => ({
+): BoardErrorV1 => ({
   protocolVersion: 1,
   type: 'board.error',
   code: 'INVALID_LAYOUT',
@@ -183,6 +193,7 @@ const kernelError = (issue: KernelIssueV1, documentProfile = false): BoardError 
     );
   return invalidPayload(issue.path, issue.message);
 };
+const kernelErrorV1 = (issue: KernelIssueV1): BoardErrorV1 => kernelError(issue) as BoardErrorV1;
 
 const valueAtPath = (input: unknown, path: Array<string | number>): unknown =>
   path.reduce<unknown>(
@@ -623,7 +634,7 @@ const processKernel = <Schema extends z.ZodTypeAny>(
   kernel: KernelResultV1<JsonValue>,
   kind: ParserKind,
   documentProfile = false,
-): BoardParseResultV1<z.output<Schema>> => {
+): BoardParseResult<z.output<Schema>> => {
   if (!kernel.ok) return { ok: false, error: kernelError(kernel.issue, documentProfile) };
   const input = kernel.value;
   if (isRecord(input) && Object.hasOwn(input, 'protocolVersion') && input.protocolVersion !== 1)
@@ -652,7 +663,7 @@ const createParser = <Schema extends z.ZodTypeAny>(
   schema: Schema,
   kind: ParserKind = 'generic',
   documentProfile = false,
-): BoardContractParserV1<z.output<Schema>> => ({
+): BoardContractParser<z.output<Schema>> => ({
   parse: (input) => processKernel(schema, runDecodedKernelV1(input), kind, documentProfile),
   parseBytes: (bytes) =>
     processKernel(
@@ -663,44 +674,53 @@ const createParser = <Schema extends z.ZodTypeAny>(
     ),
 });
 
-export const GlobalIdStringParserV1 = createParser(GlobalIdStringSchemaV1);
-export const BoardIdParserV1 = createParser(BoardIdSchemaV1);
-export const GrantIdParserV1 = createParser(GrantIdSchemaV1);
-export const PrincipalIdParserV1 = createParser(PrincipalIdSchemaV1);
-export const NodeIdParserV1 = createParser(NodeIdSchemaV1);
-export const PageIdParserV1 = createParser(PageIdSchemaV1);
-export const ShortTextParserV1 = createParser(ShortTextSchemaV1);
+const createParserV1 = <Schema extends z.ZodTypeAny>(
+  schema: Schema,
+  kind: ParserKind = 'generic',
+): BoardContractParserV1<z.output<Schema>> =>
+  createParser(schema, kind) as BoardContractParserV1<z.output<Schema>>;
 
-export const SceneParserV1 = createParser(SceneSchemaV1, 'scene');
-export const BoardNodeParserV1 = createParser(BoardNodeSchemaV1, 'node');
-export const MutationRequestParserV1 = createParser(MutationRequestSchemaV1, 'mutation');
-export const MutationEnvelopeParserV1 = createParser(MutationEnvelopeSchemaV1, 'mutation');
-export const MutationResultParserV1 = createParser(MutationResultSchemaV1, 'mutation');
-export const BoardOperationRequestParserV1 = createParser(
+export const GlobalIdStringParserV1 = createParserV1(GlobalIdStringSchemaV1);
+export const BoardIdParserV1 = createParserV1(BoardIdSchemaV1);
+export const GrantIdParserV1 = createParserV1(GrantIdSchemaV1);
+export const PrincipalIdParserV1 = createParserV1(PrincipalIdSchemaV1);
+export const NodeIdParserV1 = createParserV1(NodeIdSchemaV1);
+export const PageIdParserV1 = createParserV1(PageIdSchemaV1);
+export const ShortTextParserV1 = createParserV1(ShortTextSchemaV1);
+
+export const SceneParserV1 = createParserV1(SceneSchemaV1, 'scene');
+export const BoardNodeParserV1 = createParserV1(BoardNodeSchemaV1, 'node');
+export const MutationRequestParserV1 = createParserV1(MutationRequestSchemaV1, 'mutation');
+export const MutationEnvelopeParserV1 = createParserV1(MutationEnvelopeSchemaV1, 'mutation');
+export const MutationResultParserV1 = createParserV1(MutationResultSchemaV1, 'mutation');
+export const BoardOperationRequestParserV1 = createParserV1(
   BoardOperationRequestSchemaV1,
   'operation',
 );
-export const BoardOperationEnvelopeParserV1 = createParser(
+export const BoardOperationEnvelopeParserV1 = createParserV1(
   BoardOperationEnvelopeSchemaV1,
   'operation',
 );
-export const BoardOperationResultParserV1 = createParser(BoardOperationResultSchemaV1, 'operation');
-export const BoardSnapshotParserV1 = createParser(BoardSnapshotSchemaV1, 'scene');
-export const BoardEventEnvelopeParserV1 = createParser(BoardEventEnvelopeSchemaV1, 'event');
-export const BoardCapabilitiesParserV1 = createParser(BoardCapabilitiesSchemaV1);
-export const ArtifactReferenceParserV1 = createParser(ArtifactReferenceSchemaV1);
-export const ArtifactResourceParserV1 = createParser(ArtifactResourceSchemaV1);
-export const ArtifactManifestParserV1 = createParser(ArtifactManifestSchemaV1);
-export const ArtifactRuntimeSummaryParserV1 = createParser(ArtifactRuntimeSummarySchemaV1);
-export const HitlRequestDefinitionParserV1 = createParser(HitlRequestDefinitionSchemaV1);
-export const HitlResponseParserV1 = createParser(HitlResponseSchemaV1, 'hitl-response');
-export const HitlInteractionParserV1 = createParser(HitlInteractionSchemaV1);
-export const BoardErrorParserV1 = createParser(BoardErrorSchemaV1);
+export const BoardOperationResultParserV1 = createParserV1(
+  BoardOperationResultSchemaV1,
+  'operation',
+);
+export const BoardSnapshotParserV1 = createParserV1(BoardSnapshotSchemaV1, 'scene');
+export const BoardEventEnvelopeParserV1 = createParserV1(BoardEventEnvelopeSchemaV1, 'event');
+export const BoardCapabilitiesParserV1 = createParserV1(BoardCapabilitiesSchemaV1);
+export const ArtifactReferenceParserV1 = createParserV1(ArtifactReferenceSchemaV1);
+export const ArtifactResourceParserV1 = createParserV1(ArtifactResourceSchemaV1);
+export const ArtifactManifestParserV1 = createParserV1(ArtifactManifestSchemaV1);
+export const ArtifactRuntimeSummaryParserV1 = createParserV1(ArtifactRuntimeSummarySchemaV1);
+export const HitlRequestDefinitionParserV1 = createParserV1(HitlRequestDefinitionSchemaV1);
+export const HitlResponseParserV1 = createParserV1(HitlResponseSchemaV1, 'hitl-response');
+export const HitlInteractionParserV1 = createParserV1(HitlInteractionSchemaV1);
+export const BoardErrorParserV1 = createParserV1(BoardErrorSchemaV1);
 
 export const BoardDocumentParserV2 = createParser(BoardDocumentSchemaV2, 'document', true);
-export const MutationRequestParserV2 = createParser(MutationRequestSchemaV1, 'mutation', true);
-export const MutationEnvelopeParserV2 = createParser(MutationEnvelopeSchemaV1, 'mutation', true);
-export const MutationResultParserV2 = createParser(MutationResultSchemaV1, 'mutation', true);
+export const MutationRequestParserV2 = createParser(MutationRequestSchemaV2, 'mutation', true);
+export const MutationEnvelopeParserV2 = createParser(MutationEnvelopeSchemaV2, 'mutation', true);
+export const MutationResultParserV2 = createParser(MutationResultSchemaV2, 'mutation', true);
 export const BoardOperationResultParserV2 = createParser(
   BoardOperationResultSchemaV1,
   'operation',
@@ -708,7 +728,7 @@ export const BoardOperationResultParserV2 = createParser(
 );
 export const BoardSnapshotParserV2 = createParser(BoardSnapshotSchemaV2, 'document', true);
 export const BoardSnapshotParser = createParser(BoardSnapshotSchema, 'document', true);
-export const BoardEventEnvelopeParserV2 = createParser(BoardEventEnvelopeSchemaV1, 'event', true);
+export const BoardEventEnvelopeParserV2 = createParser(BoardEventEnvelopeSchemaV2, 'event', true);
 export const BoardCapabilitiesParserV2 = createParser(BoardCapabilitiesSchemaV2);
 export const BoardCapabilitiesParser = createParser(BoardCapabilitiesSchema);
 export const BoardErrorParser = createParser(BoardErrorSchema);
@@ -717,7 +737,7 @@ export const canonicalizeJsonV1 = (input: unknown): BoardParseResultV1<JsonValue
   const result = runDecodedKernelV1(input);
   return result.ok
     ? { ok: true, data: { value: result.value, canonicalBytes: result.canonicalBytes } }
-    : { ok: false, error: kernelError(result.issue) };
+    : { ok: false, error: kernelErrorV1(result.issue) };
 };
 
 const ActorCandidateSchemaV1 = z
@@ -730,7 +750,7 @@ const ActorCandidateSchemaV1 = z
   .strict();
 export const normalizeActorContextV1 = (input: unknown): BoardParseResultV1<ActorContextV1> => {
   const kernel = runDecodedKernelV1(input);
-  if (!kernel.ok) return { ok: false, error: kernelError(kernel.issue) };
+  if (!kernel.ok) return { ok: false, error: kernelErrorV1(kernel.issue) };
   const parsed = ActorCandidateSchemaV1.safeParse(kernel.value);
   if (!parsed.success)
     return {
