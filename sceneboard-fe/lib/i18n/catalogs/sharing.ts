@@ -2,6 +2,25 @@ const sharingMessage = <Key extends string>(key: Key, en: string, ko: string) =>
   [key, en, ko, en, en, en, en, en, en, en, en] as const;
 
 export const SHARING_CATALOG = [
+  sharingMessage('sharing.passwordRequired', 'Password required', '비밀번호가 필요합니다'),
+  sharingMessage('sharing.passwordLabel', 'Share password', '공유 비밀번호'),
+  sharingMessage(
+    'sharing.passwordInvalid',
+    'The password could not be accepted.',
+    '비밀번호를 확인할 수 없습니다.',
+  ),
+  sharingMessage('sharing.openSharedBoard', 'Open shared board', '공유 보드 열기'),
+  sharingMessage(
+    'sharing.rateLimited',
+    'Please wait before trying again.',
+    '잠시 후 다시 시도해 주세요.',
+  ),
+  sharingMessage(
+    'sharing.unavailable',
+    'This shared board is unavailable.',
+    '이 공유 보드를 사용할 수 없습니다.',
+  ),
+  sharingMessage('sharing.readerLabel', 'Shared board reader', '공유 보드 리더'),
   sharingMessage('sharing.manageShares', 'Manage sharing', '공유 관리'),
   sharingMessage('sharing.manageMembers', 'Manage members', '멤버 관리'),
   sharingMessage('sharing.close', 'Close', '닫기'),

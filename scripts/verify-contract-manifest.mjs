@@ -84,7 +84,7 @@ const expectedGroups = new Map([
   ['D4-SEAMS', 10],
   ['D2-D5-D7-D8-BROWSER-PUBLISHERS', 9],
   ['D5-BROWSER-API-SEAMS', 27],
-  ['D5-UI-ROUTES', 11],
+  ['D5-UI-ROUTES', 22],
   ['D6-MCP-SDK', 10],
   ['D6-INSTALLED-SKILL', 42],
   ['D7-ARTIFACT-SEAM', 7],

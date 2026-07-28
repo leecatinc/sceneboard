@@ -77,7 +77,7 @@ const config: NextConfig = {
     });
     return [
       {
-        source: '/:path*',
+        source: '/((?!s(?:/|$)).*)',
         headers: [
           { key: 'Content-Security-Policy', value: contentSecurityPolicy },
           { key: 'Referrer-Policy', value: 'no-referrer' },

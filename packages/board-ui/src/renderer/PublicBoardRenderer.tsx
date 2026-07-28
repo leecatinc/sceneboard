@@ -1,32 +1,39 @@
 'use client';
 
 import { RenderSceneTree } from './RenderSceneTree.js';
-import type { BoardRendererPropsV2, RendererContextV2 } from './renderer-types.js';
+import type { PublicBoardRendererPropsV1, SceneRendererContextV1 } from './renderer-types.js';
 
-export function BoardRenderer({
+export function PublicBoardRenderer({
   page,
   context: inputContext,
   selectedTabs = {},
   onSelectTab,
   renderArtifact,
-  renderHitl,
   drawingView,
   emptyLabel = 'This scene is empty.',
-}: BoardRendererPropsV2) {
-  const sharedContext: RendererContextV2 = {
-    ...inputContext,
+}: PublicBoardRendererPropsV1) {
+  const sharedContext: SceneRendererContextV1 = {
+    boardId: inputContext.boardId,
+    selectedPageId: inputContext.selectedPageId,
+    artifacts: inputContext.artifacts.map((artifact) => ({
+      artifact: {
+        artifactId: artifact.artifactId,
+        versionId: artifact.versionId,
+      },
+      status: artifact.status,
+    })),
+    hitl: [],
     selectedTabs,
     ...(onSelectTab === undefined ? {} : { onSelectTab }),
     ...(renderArtifact === undefined ? {} : { renderArtifact }),
-    ...(renderHitl === undefined ? {} : { renderHitl }),
   };
-  const context: RendererContextV2 =
+  const rootContext: SceneRendererContextV1 =
     drawingView === undefined ? sharedContext : { ...sharedContext, drawingView };
   return (
     <RenderSceneTree
       page={page}
       context={sharedContext}
-      rootContext={context}
+      rootContext={rootContext}
       {...(drawingView === undefined ? {} : { drawingView })}
       emptyLabel={emptyLabel}
     />

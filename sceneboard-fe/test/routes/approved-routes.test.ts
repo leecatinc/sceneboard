@@ -11,6 +11,7 @@ const pages = [
   'app/integrations/codex/page.tsx',
   'app/boards/page.tsx',
   'app/boards/[boardId]/page.tsx',
+  'app/s/[shareToken]/page.tsx',
   'app/settings/ai-connections/page.tsx',
 ];
 

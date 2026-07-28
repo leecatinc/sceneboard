@@ -3084,9 +3084,108 @@
           "exportKind": null,
           "projectionId": null,
           "selector": "whole-file"
+        },
+        {
+          "resourceId": "D5-UI-12",
+          "owner": "D5",
+          "path": "packages/board-ui/src/renderer/RenderSceneTree.tsx",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D5-UI-13",
+          "owner": "D5",
+          "path": "packages/board-ui/src/renderer/PublicBoardRenderer.tsx",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D5-UI-14",
+          "owner": "D5",
+          "path": "packages/board-ui/src/renderer/renderer-types.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D5-UI-15",
+          "owner": "D5",
+          "path": "packages/board-ui/src/renderer/index.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D5-UI-16",
+          "owner": "D5",
+          "path": "sceneboard-fe/app/s/[shareToken]/page.tsx",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D5-UI-17",
+          "owner": "D5",
+          "path": "sceneboard-fe/app/s/[shareToken]/shared-board-actions.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D5-UI-18",
+          "owner": "D5",
+          "path": "sceneboard-fe/app/s/[shareToken]/shared-board-client.tsx",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D5-UI-19",
+          "owner": "D5",
+          "path": "sceneboard-fe/lib/board/public-share-viewer-state.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D5-UI-20",
+          "owner": "D5",
+          "path": "sceneboard-fe/lib/board/public-page-render-adapter.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D5-UI-21",
+          "owner": "D5",
+          "path": "sceneboard-fe/middleware.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D5-UI-22",
+          "owner": "D5",
+          "path": "sceneboard-fe/next.config.ts",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
         }
       ],
-      "expectedCardinality": 11,
+      "expectedCardinality": 22,
       "canonicalization": "utf8-lf",
       "materializationPredecessor": null,
       "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"

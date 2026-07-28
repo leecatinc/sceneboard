@@ -1,4 +1,5 @@
 export { BoardRenderer } from './BoardRenderer.js';
+export { PublicBoardRenderer } from './PublicBoardRenderer.js';
 export { RENDERER_REGISTRY_V1 } from './renderer-registry.js';
 export { inspectRenderBudgetV1 } from './render-budget.js';
 export { tokenizeSafeMarkdownV1 } from './blocks/safe-markdown.js';
@@ -9,6 +10,8 @@ export type {
   DrawingViewControllerV1,
   DrawingViewStateV1,
   PageRendererContextV2,
+  PublicBoardRendererPropsV1,
+  PublicPageRendererContextV1,
   RendererComponentV1,
   RendererContextV2,
 } from './renderer-types.js';
