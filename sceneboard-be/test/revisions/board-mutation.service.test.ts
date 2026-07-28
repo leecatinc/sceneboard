@@ -470,6 +470,7 @@ test('identical clear retry replays stored result while changed expected head is
     (error: unknown) =>
       error instanceof BoardContractError &&
       error.boardError.code === 'IDEMPOTENCY_KEY_REUSED' &&
+      'reason' in error.boardError.details &&
       error.boardError.details?.reason === 'expected_revision_changed',
   );
   assert.equal(value.revisionWrites(), 1);
@@ -566,6 +567,7 @@ test('rejects an oversized document before authorization transaction or any dura
     (error: unknown) =>
       error instanceof BoardContractError &&
       error.boardError.code === 'PAYLOAD_TOO_LARGE' &&
+      'scope' in error.boardError.details &&
       error.boardError.details.scope === 'document',
   );
   assert.equal(value.calls.length, 0);

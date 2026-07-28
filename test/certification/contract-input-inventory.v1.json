@@ -4061,9 +4061,18 @@
           "exportKind": null,
           "projectionId": null,
           "selector": "whole-file"
+        },
+        {
+          "resourceId": "MIGRATION-ASSET-27",
+          "owner": "D9",
+          "path": "sceneboard-be/src/database/migrations/sql/021_d9_media_store.up.sql",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
         }
       ],
-      "expectedCardinality": 27,
+      "expectedCardinality": 28,
       "canonicalization": "utf8-lf",
       "materializationPredecessor": null,
       "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"

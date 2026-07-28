@@ -12,14 +12,14 @@ const sql = async () =>
   );
 
 test('registers the forward-only password share migration after publication', async () => {
-  assert.deepEqual(MIGRATION_REGISTRY.at(-1), {
+  assert.deepEqual(MIGRATION_REGISTRY.at(-2), {
     version: '020_d9_share_password_auth',
     upAsset: '020_d9_share_password_auth.up.sql',
     reversible: false,
     downAsset: null,
     postcondition: 'd9_share_password_auth_v1',
   });
-  assert.equal(MIGRATION_REGISTRY.at(-2)?.version, '019_d9_board_shares');
+  assert.equal(MIGRATION_REGISTRY.at(-3)?.version, '019_d9_board_shares');
   assert.equal(splitSqlStatements(await sql()).length, 7);
 });
 

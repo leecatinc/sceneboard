@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 
 import {
   BOARD_LIMITS_V1,
@@ -14,6 +14,7 @@ import { ArtifactBrokerError } from '../errors/artifact-broker.error.js';
 import { AppError, BoardContractError } from '../errors/app-error.js';
 import { boardPayloadTooLarge, invalidBoardPayload } from '../errors/board-error.factory.js';
 import { parseStrictJsonBytes } from './strict-json.js';
+import { invalidMediaRequest, mediaPayloadTooLarge } from '../../media/media-errors.js';
 
 export type RawBodyProfileKind =
   | 'd2-rest-json-body'
@@ -23,7 +24,8 @@ export type RawBodyProfileKind =
   | 'd1-adapter-body'
   | 'd1-no-body'
   | 'd7-artifact-source-body'
-  | 'd7-artifact-network-body';
+  | 'd7-artifact-network-body'
+  | 'd9-media-binary-body';
 
 type HttpMethod = 'GET' | 'POST' | 'DELETE';
 
@@ -32,6 +34,7 @@ export interface RawBodyProfile {
   method: HttpMethod;
   pathTemplate: string;
   mediaType?: string;
+  maximumBytes?: number;
   d1Parser?: BoardContractParser<unknown> | BoardContractParserV1<unknown>;
 }
 
@@ -89,6 +92,8 @@ const d7ArtifactSourceRoutes = ['/api/v1/boards/:boardId/artifacts'] as const;
 const d7ArtifactNetworkRoutes = [
   '/api/v1/boards/:boardId/artifacts/:artifactId/versions/:versionId/capability-requests/network-fetch',
 ] as const;
+
+const d9MediaTypes = ['image/png', 'image/jpeg', 'image/webp'] as const;
 
 const d1NoBodyRoutes: ReadonlyArray<readonly [HttpMethod, string]> = [
   ['GET', '/api/v1/mcp/connection'],
@@ -155,6 +160,15 @@ export const RAW_BODY_PROFILES: readonly RawBodyProfile[] = [
       pathTemplate,
     }),
   ),
+  ...d9MediaTypes.map(
+    (mediaType): RawBodyProfile => ({
+      kind: 'd9-media-binary-body',
+      method: 'POST',
+      pathTemplate: '/api/v1/boards/:boardId/media',
+      mediaType,
+      maximumBytes: 10_485_760,
+    }),
+  ),
   ...d1NoBodyRoutes.map(
     ([method, pathTemplate]): RawBodyProfile => ({
       kind: 'd1-no-body',
@@ -198,6 +212,7 @@ export const matchRawBodyProfile = (
       (profile) => profile.mediaType !== undefined && profile.mediaType === contentType,
     ) ??
     candidates.find((profile) => profile.mediaType === undefined) ??
+    candidates.find((profile) => profile.kind === 'd9-media-binary-body') ??
     null
   );
 };
@@ -235,6 +250,7 @@ export type ProfiledBodyResult =
   | { kind: 'd1-adapter-body'; rawBody: Uint8Array; parsedBody: unknown }
   | { kind: 'd7-artifact-source-body'; rawBody: Uint8Array; parsedBody: unknown }
   | { kind: 'd7-artifact-network-body'; rawBody: Uint8Array; parsedBody: unknown }
+  | { kind: 'd9-media-binary-body'; rawBody: Uint8Array }
   | { kind: 'd1-contract-body'; rawBody: Uint8Array; parsedBody: unknown }
   | { kind: 'd1-document-contract-body'; rawBody: Uint8Array; parsedBody: unknown };
 
@@ -242,6 +258,8 @@ export interface ProfiledBodyInput {
   contentType?: string | undefined;
   contentLength?: string | undefined;
   contentEncoding?: string | undefined;
+  transferEncoding?: string | undefined;
+  contentDigest?: string | undefined;
   body: Uint8Array;
 }
 
@@ -260,6 +278,34 @@ export const parseProfiledBody = (
   profile: RawBodyProfile,
   input: ProfiledBodyInput,
 ): ProfiledBodyResult => {
+  if (profile.kind === 'd9-media-binary-body') {
+    if (input.transferEncoding !== undefined || input.contentEncoding !== undefined)
+      throw new BoardContractError(invalidMediaRequest('framing'));
+    if (input.contentType !== profile.mediaType)
+      throw new BoardContractError(invalidMediaRequest('content_type'));
+    let declaredLength: number | null;
+    try {
+      declaredLength = parseContentLength(input.contentLength);
+    } catch {
+      throw new BoardContractError(invalidMediaRequest('length'));
+    }
+    if (declaredLength === null || declaredLength === 0)
+      throw new BoardContractError(invalidMediaRequest('length'));
+    if (declaredLength > (profile.maximumBytes ?? 10_485_760))
+      throw new BoardContractError(mediaPayloadTooLarge());
+    if (declaredLength !== input.body.byteLength)
+      throw new BoardContractError(invalidMediaRequest('length'));
+    const digestMatch = /^sha-256=:([A-Za-z0-9+/]{43}=):$/u.exec(input.contentDigest ?? '');
+    if (digestMatch === null) throw new BoardContractError(invalidMediaRequest('digest'));
+    const expected = Buffer.from(digestMatch[1]!, 'base64');
+    if (
+      expected.byteLength !== 32 ||
+      expected.toString('base64') !== digestMatch[1] ||
+      !timingSafeEqual(createHash('sha256').update(input.body).digest(), expected)
+    )
+      throw new BoardContractError(invalidMediaRequest('digest'));
+    return { kind: profile.kind, rawBody: Uint8Array.from(input.body) };
+  }
   if (
     profile.kind === 'd1-document-contract-body' &&
     input.contentEncoding !== undefined &&
@@ -394,4 +440,9 @@ for (const profile of RAW_BODY_PROFILES) {
     !profile.d1Parser
   )
     throw new Error(`D1 profile ${routeKey(profile)} has no parser`);
+  if (
+    profile.kind === 'd9-media-binary-body' &&
+    (profile.maximumBytes !== 10_485_760 || !d9MediaTypes.includes(profile.mediaType as never))
+  )
+    throw new Error(`D9 media profile ${routeKey(profile)} is invalid`);
 }

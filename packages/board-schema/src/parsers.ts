@@ -39,6 +39,7 @@ import {
   PrincipalIdSchemaV1,
   ShortTextSchemaV1,
 } from './identifiers.js';
+import { MediaIngestResultSchemaV1 } from './media.js';
 import {
   HitlInteractionSchemaV1,
   HitlRequestDefinitionSchemaV1,
@@ -729,6 +730,7 @@ const createParserV1 = <Schema extends z.ZodTypeAny>(
 export const GlobalIdStringParserV1 = createParserV1(GlobalIdStringSchemaV1);
 export const BoardIdParserV1 = createParserV1(BoardIdSchemaV1);
 export const MediaIdParserV1 = createParserV1(MediaIdSchemaV1);
+export const MediaIngestResultParserV1 = createParserV1(MediaIngestResultSchemaV1);
 export const GrantIdParserV1 = createParserV1(GrantIdSchemaV1);
 export const PrincipalIdParserV1 = createParserV1(PrincipalIdSchemaV1);
 export const NodeIdParserV1 = createParserV1(NodeIdSchemaV1);

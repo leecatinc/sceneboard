@@ -47,13 +47,14 @@ test('issues two independent Crockford halves and persists only locator/verifier
   }
 });
 
-test('maps the seven D1 scopes and two lifecycle permissions without unknown bits', () => {
+test('maps the eight D1 scopes and two lifecycle permissions without unknown bits', () => {
   const scopes = ['board.read', 'board.write', 'artifact.control'] as const;
   assert.equal(scopeMaskFromValues(scopes), 67);
   assert.deepEqual(scopeValuesFromMask(67), scopes);
   assert.equal(lifecycleMaskFromValues(['board.create', 'board.archive']), 3);
   assert.deepEqual(lifecycleValuesFromMask(3), ['board.create', 'board.archive']);
-  assert.throws(() => scopeValuesFromMask(128));
+  assert.deepEqual(scopeValuesFromMask(128), ['board.media.write']);
+  assert.throws(() => scopeValuesFromMask(256));
   assert.throws(() => scopeMaskFromValues(['board.write', 'board.read']));
 });
 

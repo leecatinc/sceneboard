@@ -651,6 +651,10 @@ export class MigrationRunner {
       await this.verifySharePasswordSchema(connection);
       return;
     }
+    if (postcondition === 'd9_media_store_v1') {
+      await this.verifyMediaStoreSchema(connection);
+      return;
+    }
     const postconditions: Readonly<Record<string, readonly string[]>> = {
       d2_identity_sessions_audit_v1: ['users', 'auth_sessions', 'security_audit_events'],
       d3_boards_v1: ['boards'],
@@ -1004,6 +1008,194 @@ export class MigrationRunner {
     ) {
       throw new MigrationStateError('revision media refs foreign key projection mismatch');
     }
+  }
+
+  private async verifyMediaStoreSchema(connection: PoolConnection): Promise<void> {
+    const tableNames = [
+      'media_objects',
+      'board_media',
+      'board_media_quota',
+      'media_ingest_idempotency',
+    ] as const;
+    const placeholders = tableNames.map(() => '?').join(', ');
+    const [tables] = await connection.query<Array<RowDataPacket & { tableName: string }>>(
+      `SELECT table_name AS tableName
+       FROM information_schema.tables
+       WHERE table_schema = DATABASE() AND table_name IN (${placeholders})`,
+      tableNames,
+    );
+    if (
+      tables.length !== tableNames.length ||
+      new Set(tables.map(({ tableName }) => tableName)).size !== tableNames.length
+    )
+      throw new MigrationStateError('media store table projection mismatch');
+
+    const [columns] = await connection.query<
+      Array<
+        RowDataPacket & {
+          tableName: string;
+          columnName: string;
+          ordinalPosition: number;
+          columnType: string;
+          isNullable: string;
+        }
+      >
+    >(
+      `SELECT table_name AS tableName, column_name AS columnName,
+              ordinal_position AS ordinalPosition, column_type AS columnType,
+              is_nullable AS isNullable
+       FROM information_schema.columns
+       WHERE table_schema = DATABASE() AND table_name IN (${placeholders})
+       ORDER BY table_name, ordinal_position`,
+      tableNames,
+    );
+    const expectedColumns = [
+      ['board_media', 'board_media_pk', 1, 'bigint unsigned', 'NO'],
+      ['board_media', 'board_pk', 2, 'bigint unsigned', 'NO'],
+      ['board_media', 'media_pk', 3, 'bigint unsigned', 'NO'],
+      ['board_media', 'media_id', 4, 'varbinary(128)', 'NO'],
+      ['board_media', 'status', 5, "enum('active','quarantined','released')", 'NO'],
+      ['board_media', 'lease_expires_at', 6, 'datetime(3)', 'NO'],
+      ['board_media', 'version', 7, 'bigint unsigned', 'NO'],
+      ['board_media', 'created_at', 8, 'datetime(3)', 'NO'],
+      ['board_media', 'updated_at', 9, 'datetime(3)', 'NO'],
+      ['board_media_quota', 'board_pk', 1, 'bigint unsigned', 'NO'],
+      ['board_media_quota', 'used_bytes', 2, 'bigint unsigned', 'NO'],
+      ['board_media_quota', 'version', 3, 'bigint unsigned', 'NO'],
+      ['board_media_quota', 'updated_at', 4, 'datetime(3)', 'NO'],
+      ['media_ingest_idempotency', 'account_pk', 1, 'bigint unsigned', 'NO'],
+      ['media_ingest_idempotency', 'board_pk', 2, 'bigint unsigned', 'NO'],
+      ['media_ingest_idempotency', 'idempotency_key', 3, 'varbinary(128)', 'NO'],
+      ['media_ingest_idempotency', 'fingerprint_sha256', 4, 'binary(32)', 'NO'],
+      ['media_ingest_idempotency', 'result_kind', 5, "enum('active','expired')", 'NO'],
+      ['media_ingest_idempotency', 'result_json', 6, 'json', 'NO'],
+      ['media_ingest_idempotency', 'result_sha256', 7, 'binary(32)', 'NO'],
+      ['media_ingest_idempotency', 'board_media_pk', 8, 'bigint unsigned', 'YES'],
+      ['media_ingest_idempotency', 'recovery_id', 9, 'varbinary(128)', 'YES'],
+      ['media_ingest_idempotency', 'created_at', 10, 'datetime(3)', 'NO'],
+      ['media_ingest_idempotency', 'updated_at', 11, 'datetime(3)', 'NO'],
+      ['media_objects', 'media_pk', 1, 'bigint unsigned', 'NO'],
+      ['media_objects', 'sha256', 2, 'binary(32)', 'NO'],
+      ['media_objects', 'bytes', 3, 'longblob', 'NO'],
+      ['media_objects', 'mime', 4, "enum('image/png','image/jpeg','image/webp')", 'NO'],
+      ['media_objects', 'width', 5, 'int unsigned', 'NO'],
+      ['media_objects', 'height', 6, 'int unsigned', 'NO'],
+      ['media_objects', 'byte_length', 7, 'int unsigned', 'NO'],
+      ['media_objects', 'state', 8, "enum('active','quarantined')", 'NO'],
+      ['media_objects', 'version', 9, 'bigint unsigned', 'NO'],
+      ['media_objects', 'created_at', 10, 'datetime(3)', 'NO'],
+      ['media_objects', 'updated_at', 11, 'datetime(3)', 'NO'],
+    ] as const;
+    assertExactProjection(
+      'media store column',
+      expectedColumns,
+      columns.map((column) => [
+        column.tableName,
+        column.columnName,
+        Number(column.ordinalPosition),
+        column.columnType.toLowerCase(),
+        column.isNullable,
+      ]),
+    );
+
+    const [indexes] = await connection.query<
+      Array<
+        RowDataPacket & {
+          tableName: string;
+          indexName: string;
+          nonUnique: number;
+          columns: string;
+        }
+      >
+    >(
+      `SELECT table_name AS tableName, index_name AS indexName, non_unique AS nonUnique,
+              GROUP_CONCAT(column_name ORDER BY seq_in_index SEPARATOR ',') AS columns
+       FROM information_schema.statistics
+       WHERE table_schema = DATABASE() AND table_name IN (${placeholders})
+       GROUP BY table_name, index_name, non_unique`,
+      tableNames,
+    );
+    const actualIndexes = new Map(
+      indexes.map((index) => [
+        `${index.tableName}:${index.indexName}`,
+        `${index.nonUnique}:${index.columns}`,
+      ]),
+    );
+    const expectedIndexes = new Map([
+      ['media_objects:PRIMARY', '0:media_pk'],
+      ['media_objects:uq_media_objects_sha256', '0:sha256'],
+      ['board_media:PRIMARY', '0:board_media_pk'],
+      ['board_media:uq_board_media_public_id', '0:media_id'],
+      ['board_media:uq_board_media_object', '0:board_pk,media_pk'],
+      ['board_media:ix_board_media_lease', '1:board_pk,status,lease_expires_at'],
+      ['board_media:ix_board_media_object_status', '1:media_pk,status'],
+      ['board_media_quota:PRIMARY', '0:board_pk'],
+      ['media_ingest_idempotency:PRIMARY', '0:account_pk,board_pk,idempotency_key'],
+      ['media_ingest_idempotency:ix_media_ingest_ownership', '1:board_media_pk,result_kind'],
+    ]);
+    if ([...expectedIndexes].some(([name, value]) => actualIndexes.get(name) !== value))
+      throw new MigrationStateError('media store index projection mismatch');
+
+    const [foreignKeys] = await connection.query<
+      Array<
+        RowDataPacket & {
+          constraintName: string;
+          deleteRule: string;
+          updateRule: string;
+        }
+      >
+    >(
+      `SELECT rc.constraint_name AS constraintName, rc.delete_rule AS deleteRule,
+              rc.update_rule AS updateRule
+       FROM information_schema.referential_constraints rc
+       WHERE rc.constraint_schema = DATABASE()
+         AND rc.table_name IN (${placeholders})`,
+      tableNames,
+    );
+    const expectedForeignKeys = new Set([
+      'fk_board_media_board',
+      'fk_board_media_object',
+      'fk_board_media_quota_board',
+      'fk_media_ingest_account',
+      'fk_media_ingest_board',
+      'fk_media_ingest_ownership',
+    ]);
+    if (
+      foreignKeys.length !== expectedForeignKeys.size ||
+      foreignKeys.some(
+        (row) =>
+          !expectedForeignKeys.has(row.constraintName) ||
+          row.deleteRule !== 'RESTRICT' ||
+          row.updateRule !== 'RESTRICT',
+      )
+    )
+      throw new MigrationStateError('media store foreign-key projection mismatch');
+
+    const [checks] = await connection.query<Array<RowDataPacket & { constraintName: string }>>(
+      `SELECT tc.constraint_name AS constraintName
+       FROM information_schema.table_constraints tc
+       WHERE tc.table_schema = DATABASE()
+         AND tc.table_name IN (${placeholders})
+         AND tc.constraint_type = 'CHECK'`,
+      tableNames,
+    );
+    const expectedChecks = new Set([
+      'chk_media_objects_dimensions',
+      'chk_media_objects_byte_length',
+      'chk_media_objects_octets',
+      'chk_media_objects_version',
+      'chk_board_media_id',
+      'chk_board_media_version',
+      'chk_board_media_quota_used',
+      'chk_board_media_quota_version',
+      'chk_media_ingest_key',
+      'chk_media_ingest_recovery',
+    ]);
+    if (
+      checks.length !== expectedChecks.size ||
+      checks.some(({ constraintName }) => !expectedChecks.has(constraintName))
+    )
+      throw new MigrationStateError('media store check projection mismatch');
   }
 
   private async verifySharePasswordSchema(connection: PoolConnection): Promise<void> {

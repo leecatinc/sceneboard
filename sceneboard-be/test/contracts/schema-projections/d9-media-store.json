@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "migration": "021_d9_media_store",
+  "reversible": false,
+  "tables": {
+    "media_objects": {
+      "primaryKey": ["media_pk"],
+      "uniqueSha256": ["sha256"],
+      "bytes": "LONGBLOB",
+      "maximumBytes": 10485760
+    },
+    "board_media": {
+      "primaryKey": ["board_media_pk"],
+      "uniquePublicId": ["media_id"],
+      "uniqueBoardObject": ["board_pk", "media_pk"],
+      "leaseHours": 24
+    },
+    "board_media_quota": {
+      "primaryKey": ["board_pk"],
+      "maximumBytes": 536870912
+    },
+    "media_ingest_idempotency": {
+      "primaryKey": ["account_pk", "board_pk", "idempotency_key"],
+      "resultKinds": ["active", "expired"]
+    }
+  }
+}

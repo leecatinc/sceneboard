@@ -58,6 +58,7 @@ export const AuditEventCatalog = {
   'share.password.enabled': 55,
   'share.password.regenerated': 56,
   'share.password.disabled': 57,
+  'media.ingested': 58,
 } as const;
 
 export type AuditEventName = keyof typeof AuditEventCatalog;
@@ -329,6 +330,7 @@ const MetadataAllowlists: Readonly<Record<AuditEventName, ReadonlySet<string>>> 
     'credentialVersion',
     'recoveryId',
   ]),
+  'media.ingested': new Set(['boardPk', 'actorKind', 'mime', 'bytes', 'replayed', 'outcome']),
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

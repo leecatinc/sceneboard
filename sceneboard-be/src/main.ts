@@ -5,11 +5,15 @@ import { pathToFileURL } from 'node:url';
 import { NestFactory } from '@nestjs/core';
 
 import { AppModule } from './app.module.js';
+import { createMediaWriterCertification } from './bootstrap/mysql-persistence-certification.probes.js';
 import { APP_ENVIRONMENT, type AppEnvironment } from './config/env.schema.js';
 import { MigrationRunner } from './database/migrations/runner.js';
 import { authorizeHttpMcpBootstrap } from './bootstrap/persistence-certification.bootstrap.js';
 import { PersistenceCertificationService } from './bootstrap/persistence-certification.service.js';
 import { requiresHeavyPersistenceCertification } from './bootstrap/bootstrap-policy.js';
+import { MIGRATION_REGISTRY_VERSION } from './database/migrations/registry.js';
+import { loadMediaNativeCertificationEvidence } from './media/media-native-certification.js';
+import { MEDIA_WRITER_GATE, type MediaWriterGate } from './media/media-writer-gate.js';
 
 export const bootstrap = async (): Promise<void> => {
   const app = await NestFactory.create(AppModule, { bodyParser: false });
@@ -23,6 +27,24 @@ export const bootstrap = async (): Promise<void> => {
     );
     if (!authorized) throw new TypeError('persistence certification denied listener startup');
   }
+  const nativeEvidence = loadMediaNativeCertificationEvidence();
+  const currentSchema =
+    state.mode === 'restart' && state.registryVersion === MIGRATION_REGISTRY_VERSION;
+  app.get<MediaWriterGate>(MEDIA_WRITER_GATE).enable(
+    createMediaWriterCertification({
+      revisionMediaRefsReady: currentSchema,
+      mediaStoreProjectionReady: currentSchema,
+      mediaNativeDecoderReady: nativeEvidence?.ready === true,
+      artifactDigests:
+        nativeEvidence?.artifactDigests ??
+        Object.freeze({
+          migration: 'unavailable',
+          projection: 'unavailable',
+          nativeManifest: 'unavailable',
+        }),
+      checkedAt: new Date().toISOString(),
+    }),
+  );
   await app.listen(environment.port, '0.0.0.0');
 };
 

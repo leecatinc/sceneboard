@@ -314,6 +314,7 @@ test('classifies a changed create title without touching board state', async () 
     (error: unknown) =>
       error instanceof BoardContractError &&
       error.boardError.code === 'IDEMPOTENCY_KEY_REUSED' &&
+      'reason' in error.boardError.details &&
       error.boardError.details?.reason === 'title_changed',
   );
   assert.equal(value.calls.filter((call) => call.startsWith('INSERT INTO boards')).length, 1);

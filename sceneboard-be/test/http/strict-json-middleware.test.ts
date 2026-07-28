@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { Readable } from 'node:stream';
 import { test } from 'node:test';
 
 import {
   D1_PARSED_BODY,
   D1_RAW_BODY,
+  SCENEBOARD_RAW_BINARY_BODY,
   StrictJsonBodyMiddleware,
 } from '../../src/common/http/strict-json-body.middleware.js';
 
@@ -113,4 +115,129 @@ test('rejects unsupported V2 content encoding before consuming request bytes', a
   });
   assert.ok(nextValue instanceof Error);
   assert.equal(reads, 0);
+});
+
+test('is the sole media stream consumer and attaches only verified binary bytes', async () => {
+  const source = Buffer.from('89504e470d0a1a0a00000000', 'hex');
+  const digest = createHash('sha256').update(source).digest('base64');
+  const input = request(
+    'POST',
+    '/api/v1/boards/board_1/media?requestId=request_media_1',
+    source.toString('latin1'),
+    {
+      'content-type': 'image/png',
+      'content-length': String(source.byteLength),
+      'content-digest': `sha-256=:${digest}:`,
+    },
+  );
+  input.removeAllListeners();
+  const exact = Object.assign(Readable.from([source]), {
+    method: input.method,
+    url: input.url,
+    headers: input.headers,
+  });
+  assert.equal(await run(exact as ReturnType<typeof request>), undefined);
+  assert.deepEqual(
+    (exact as typeof exact & Record<symbol, unknown>)[SCENEBOARD_RAW_BINARY_BODY],
+    source,
+  );
+});
+
+test('rejects an unsupported media type before consuming binary bytes', async () => {
+  let reads = 0;
+  const source = Buffer.from('89504e470d0a1a0a', 'hex');
+  const input = {
+    method: 'POST',
+    url: '/api/v1/boards/board_1/media?requestId=request_media_1',
+    headers: {
+      'content-type': 'application/json',
+      'content-length': String(source.byteLength),
+      'content-digest': `sha-256=:${createHash('sha256').update(source).digest('base64')}:`,
+    },
+    async *[Symbol.asyncIterator]() {
+      reads += 1;
+      yield source;
+    },
+  };
+  let nextValue: unknown;
+  await new StrictJsonBodyMiddleware().use(input as never, {}, (value?: unknown) => {
+    nextValue = value;
+  });
+  assert.ok(nextValue instanceof Error);
+  assert.equal(reads, 0);
+});
+
+test('bounds advertised and lying media senders before closing their connection', async () => {
+  const digest = `sha-256=:${Buffer.alloc(32).toString('base64')}:`;
+  let advertisedReads = 0;
+  const advertisedHeaders: Record<string, string> = {};
+  const advertised = {
+    method: 'POST',
+    url: '/api/v1/boards/board_1/media?requestId=request_media_1',
+    headers: {
+      'content-type': 'image/png',
+      'content-length': '10485761',
+      'content-digest': digest,
+    },
+    async *[Symbol.asyncIterator]() {
+      advertisedReads += 1;
+      yield Buffer.alloc(1);
+    },
+  };
+  let advertisedError: unknown;
+  await new StrictJsonBodyMiddleware().use(
+    advertised as never,
+    {
+      setHeader(name: string, value: string) {
+        advertisedHeaders[name] = value;
+      },
+    },
+    (value?: unknown) => {
+      advertisedError = value;
+    },
+  );
+  assert.ok(advertisedError instanceof Error);
+  assert.equal(advertisedReads, 0);
+  assert.equal(advertisedHeaders.Connection, 'close');
+
+  let paused = false;
+  let destroyed = false;
+  const terminal: Array<() => void> = [];
+  const lying = {
+    method: 'POST',
+    url: '/api/v1/boards/board_1/media?requestId=request_media_1',
+    headers: {
+      'content-type': 'image/png',
+      'content-length': '10485760',
+      'content-digest': digest,
+    },
+    pause() {
+      paused = true;
+    },
+    destroy() {
+      destroyed = true;
+    },
+    async *[Symbol.asyncIterator]() {
+      yield Buffer.alloc(10_485_760);
+      yield Buffer.alloc(1);
+    },
+  };
+  let lyingError: unknown;
+  await new StrictJsonBodyMiddleware().use(
+    lying as never,
+    {
+      setHeader() {},
+      once(_event: 'finish' | 'close', callback: () => void) {
+        terminal.push(callback);
+      },
+    },
+    (value?: unknown) => {
+      lyingError = value;
+    },
+  );
+  assert.ok(lyingError instanceof Error);
+  assert.equal(paused, true);
+  assert.equal(destroyed, false);
+  terminal[0]?.();
+  assert.equal(destroyed, true);
 });

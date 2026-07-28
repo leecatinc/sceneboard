@@ -18,7 +18,7 @@ test('owns a stable unique numeric audit catalog and event-specific metadata all
   });
   assert.deepEqual(
     prepareAuditMetadata('hitl.request.created', {
-      boardPk: '1',
+      boardPk: 1n,
       actorKind: 'mcp_client',
       interactionKind: 'form',
       nextState: 'open',
@@ -66,6 +66,25 @@ test('owns a stable unique numeric audit catalog and event-specific metadata all
   assert.throws(() =>
     prepareAuditMetadata('artifact.publication.created', { source: '<script>secret</script>' }),
   );
+  assert.deepEqual(
+    prepareAuditMetadata('media.ingested', {
+      boardPk: '1',
+      actorKind: 'mcp_client',
+      mime: 'image/png',
+      bytes: 128,
+      replayed: false,
+      outcome: 'created',
+    }),
+    {
+      boardPk: '1',
+      actorKind: 'mcp_client',
+      mime: 'image/png',
+      bytes: 128,
+      replayed: false,
+      outcome: 'created',
+    },
+  );
+  assert.throws(() => prepareAuditMetadata('media.ingested', { mediaId: 'media_secret' }));
   assert.throws(() => prepareAuditMetadata('login_success', { email: 'must-not-persist' }));
 });
 

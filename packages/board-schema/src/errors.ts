@@ -292,23 +292,44 @@ export type IdempotencyKeyReusedDetailsV1 = z.infer<typeof MutationReuseDetailsS
 
 const BoardErrorSchemaV2Only = z.discriminatedUnion('code', [
   branch(
+    'INVALID_REQUEST',
+    'validation',
+    false,
+    400,
+    z
+      .object({
+        reason: z.enum([
+          'request_id',
+          'framing',
+          'content_type',
+          'length',
+          'digest',
+          'idempotency_key',
+        ]),
+      })
+      .strict(),
+  ),
+  branch(
     'IDEMPOTENCY_KEY_REUSED',
     'conflict',
     false,
     409,
-    z
-      .object({
-        scope: z.literal('board.mutation'),
-        boardId: BoardIdSchemaV1,
-        operationType: z.enum(BOARD_MUTATION_COMMAND_TYPES_V2),
-        reason: z.enum([
-          'grant_changed',
-          'scopes_changed',
-          'expected_revision_changed',
-          'payload_changed',
-        ]),
-      })
-      .strict(),
+    z.discriminatedUnion('scope', [
+      z
+        .object({
+          scope: z.literal('board.mutation'),
+          boardId: BoardIdSchemaV1,
+          operationType: z.enum(BOARD_MUTATION_COMMAND_TYPES_V2),
+          reason: z.enum([
+            'grant_changed',
+            'scopes_changed',
+            'expected_revision_changed',
+            'payload_changed',
+          ]),
+        })
+        .strict(),
+      z.object({ scope: z.literal('media.ingest') }).strict(),
+    ]),
   ),
   branch(
     'DOCUMENT_VERSION_MISMATCH',
@@ -349,6 +370,40 @@ const BoardErrorSchemaV2Only = z.discriminatedUnion('code', [
     false,
     400,
     z.object({ reason: z.literal('unavailable') }).strict(),
+  ),
+  branch(
+    'IDEMPOTENCY_RESULT_EXPIRED',
+    'conflict',
+    false,
+    409,
+    z.object({ scope: z.literal('media.ingest') }).strict(),
+  ),
+  branch(
+    'PAYLOAD_TOO_LARGE',
+    'validation',
+    false,
+    413,
+    z.object({ limitBytes: z.literal(10_485_760) }).strict(),
+  ),
+  branch(
+    'INVALID_MEDIA_UPLOAD',
+    'validation',
+    false,
+    422,
+    z
+      .object({
+        reason: z.enum([
+          'format',
+          'dimensions',
+          'pixels',
+          'ratio',
+          'animated',
+          'canonical_size',
+          'decode',
+          'quota',
+        ]),
+      })
+      .strict(),
   ),
 ]);
 

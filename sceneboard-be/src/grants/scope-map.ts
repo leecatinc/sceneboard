@@ -8,6 +8,7 @@ export const D2_SCOPE_CATALOG = [
   'board.hitl.respond',
   'artifact.publish',
   'artifact.control',
+  'board.media.write',
 ] as const satisfies readonly ClientGrantCapabilityV1[];
 
 export const LIFECYCLE_PERMISSIONS = ['board.create', 'board.archive'] as const;
@@ -21,6 +22,7 @@ const scopeBits: Readonly<Record<ClientGrantCapabilityV1, number>> = {
   'board.hitl.respond': 16,
   'artifact.publish': 32,
   'artifact.control': 64,
+  'board.media.write': 128,
 };
 
 const lifecycleBits: Readonly<Record<LifecyclePermission, number>> = {
@@ -47,7 +49,7 @@ export const scopeMaskFromValues = (values: readonly ClientGrantCapabilityV1[]):
 };
 
 export const scopeValuesFromMask = (mask: number): ClientGrantCapabilityV1[] => {
-  if (!Number.isInteger(mask) || mask < 0 || mask > 127)
+  if (!Number.isInteger(mask) || mask < 0 || mask > 255)
     throw new TypeError('scope mask contains unknown bits');
   return D2_SCOPE_CATALOG.filter((value) => (mask & scopeBits[value]) !== 0);
 };

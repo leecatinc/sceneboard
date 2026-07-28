@@ -19,7 +19,7 @@ The owner may approve no existing boards only when both `board.write` and lifecy
 
 Claim response loss is an unknown outcome and is not automatically retried. Recover by owner cancel/wait then create a new code. If the server reports redeemed but the sink commit cannot be proven, use owner rotation/revoke/re-pair recovery; never guess or expose the token.
 
-Exact grant scopes in catalog order are `board.read`, `board.write`, `board.history.read`, `board.hitl.request`, `board.hitl.respond`, `artifact.publish`, and `artifact.control`. Lifecycle permissions are `board.create` and `board.archive`.
+Exact grant scopes in catalog order are `board.read`, `board.write`, `board.history.read`, `board.hitl.request`, `board.hitl.respond`, `board.media.write`, `artifact.publish`, and `artifact.control`. Lifecycle permissions are `board.create` and `board.archive`.
 
 ## Codex plugin installation
 

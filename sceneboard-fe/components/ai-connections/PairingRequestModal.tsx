@@ -25,6 +25,7 @@ const DEFAULT_CONNECTION_GRANT_CEILING: BoardSessionAccessV1['connectionGrantCei
     'board.history.read',
     'board.hitl.request',
     'board.hitl.respond',
+    'board.media.write',
     'board.read',
     'board.write',
   ],

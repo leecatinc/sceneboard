@@ -6,12 +6,21 @@ import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import { formatPublicUuidV4 } from '../common/ids/public-uuid.storage.js';
 import { MysqlService } from '../database/mysql.service.js';
 import {
+  type MediaWriterCertificationV1,
   PersistenceProbeFailure,
   type PersistenceCertificationProbeV1,
   type PersistenceProbeBatchResultV1,
   type PersistenceProbeIdV1,
   type PersistenceProbeInputV1,
 } from './persistence-certification.types.js';
+
+export const createMediaWriterCertification = (
+  input: MediaWriterCertificationV1,
+): MediaWriterCertificationV1 =>
+  Object.freeze({
+    ...input,
+    artifactDigests: Object.freeze({ ...input.artifactDigests }),
+  });
 
 type ProbeRow = RowDataPacket & Record<string, unknown>;
 

@@ -169,13 +169,17 @@ export type {
 } from './identifiers.js';
 export { MediaIdSchemaV1 } from './identifiers.js';
 export {
+  MEDIA_MIME_TYPES_V1,
   MAX_MEDIA_ALT_CHARS,
   MAX_MEDIA_CAPTION_CHARS,
   MediaAltSchemaV1,
   MediaCaptionSchemaV1,
+  MediaIngestResultSchemaV1,
+  MediaMimeSchemaV1,
+  MediaSha256SchemaV1,
   MediaSourceSchemaV1,
 } from './media.js';
-export type { MediaSourceV1 } from './media.js';
+export type { MediaIngestResultV1, MediaMimeV1, MediaSourceV1 } from './media.js';
 export { ImageNodeSchemaV1 } from './nodes/content.js';
 export type {
   BoardDocumentV2,
@@ -306,6 +310,7 @@ export {
   BoardDocumentParserV2,
   BoardIdParserV1,
   MediaIdParserV1,
+  MediaIngestResultParserV1,
   BoardErrorParserV1,
   BoardErrorParser,
   BoardEventEnvelopeParserV1,

@@ -65,6 +65,7 @@ export const CLIENT_GRANT_CAPABILITIES_V1 = [
   'board.history.read',
   'board.hitl.request',
   'board.hitl.respond',
+  'board.media.write',
   'board.read',
   'board.write',
 ] as const;
@@ -219,7 +220,10 @@ export type BoardErrorCodeV1 = (typeof BOARD_ERROR_CODES_V1)[number];
 export const BOARD_ERROR_CODES_V2 = [
   ...BOARD_ERROR_CODES_V1,
   'DOCUMENT_VERSION_MISMATCH',
+  'IDEMPOTENCY_RESULT_EXPIRED',
   'INVALID_DOCUMENT',
+  'INVALID_MEDIA_UPLOAD',
   'INVALID_MEDIA_REFERENCE',
+  'INVALID_REQUEST',
 ] as const;
 export type BoardErrorCodeV2 = (typeof BOARD_ERROR_CODES_V2)[number];

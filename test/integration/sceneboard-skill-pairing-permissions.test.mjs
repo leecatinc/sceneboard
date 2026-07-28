@@ -14,6 +14,7 @@ const requestedScopes = [
   'board.history.read',
   'board.hitl.request',
   'board.hitl.respond',
+  'board.media.write',
   'artifact.publish',
   'artifact.control',
 ];

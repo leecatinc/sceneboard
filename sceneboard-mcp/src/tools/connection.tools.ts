@@ -17,6 +17,7 @@ const ScopeSchema = z.enum([
   'board.history.read',
   'board.hitl.request',
   'board.hitl.respond',
+  'board.media.write',
   'artifact.publish',
   'artifact.control',
 ]);
@@ -29,7 +30,7 @@ export const PairRequestInputSchemaV1 = z
   .object({
     code: z.string().regex(/^(?:SB-)?[0-9A-HJKMNP-TV-Z]{6}-[0-9A-HJKMNP-TV-Z]{6}$/i),
     clientName: ShortTextSchemaV1,
-    requestedScopes: z.array(ScopeSchema).min(1).max(7),
+    requestedScopes: z.array(ScopeSchema).min(1).max(8),
     requestedLifecyclePermissions: z.array(LifecycleSchema).max(2),
   })
   .strict();

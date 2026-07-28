@@ -12,6 +12,7 @@ const ScopeSchema = z.enum([
   'board.history.read',
   'board.hitl.request',
   'board.hitl.respond',
+  'board.media.write',
   'artifact.publish',
   'artifact.control',
 ]);
@@ -89,7 +90,7 @@ const GrantSchema = z
   .object({
     grantId: GlobalIdSchema,
     client: ClientSchema,
-    scopes: z.array(ScopeSchema).min(1).max(7),
+    scopes: z.array(ScopeSchema).min(1).max(8),
     lifecyclePermissions: z.array(LifecycleSchema).max(2),
     boardIds: z.array(GlobalIdSchema).max(50),
     lifetime: z.enum(['session', 'persistent']),

@@ -8,3 +8,5 @@ export abstract class MediaOwnershipPort {
     mediaIds: readonly MediaId[],
   ): Promise<void>;
 }
+
+export const MEDIA_OWNERSHIP_PORT = MediaOwnershipPort;

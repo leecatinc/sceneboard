@@ -12,8 +12,8 @@ import { HistoryListService } from '../history/history-list.service.js';
 import { InteractionsModule } from '../interactions/interactions.module.js';
 import { BoardMembershipAuthorizationService } from '../memberships/membership.service.js';
 import { MembershipsModule } from '../memberships/memberships.module.js';
-import { DenyAllMediaOwnershipProvider } from '../media/deny-all-media-ownership.provider.js';
 import { MediaOwnershipPort } from '../media/media-ownership.port.js';
+import { MediaModule } from '../media/media.module.js';
 import { RevisionMediaReferenceExtractor } from '../media/revision-media-reference.extractor.js';
 import { DocumentCheckpointCodec } from '../revisions/document-checkpoint.codec.js';
 import { BoardMutationService } from '../revisions/board-mutation.service.js';
@@ -32,15 +32,18 @@ import { BoardRenameService } from './board-rename.service.js';
 import { BoardController } from './board.controller.js';
 
 @Module({
-  imports: [GrantModule, MembershipsModule, ArtifactsModule, InteractionsModule, ShareModule],
+  imports: [
+    GrantModule,
+    MembershipsModule,
+    ArtifactsModule,
+    InteractionsModule,
+    ShareModule,
+    MediaModule,
+  ],
   controllers: [BoardController],
   providers: [
     DocumentCheckpointCodec,
     RevisionMediaReferenceExtractor,
-    {
-      provide: MediaOwnershipPort,
-      useClass: DenyAllMediaOwnershipProvider,
-    },
     MysqlCurrentBoardCapabilitiesPort,
     {
       provide: BoardListCursorCodec,
@@ -181,7 +184,6 @@ import { BoardController } from './board.controller.js';
     HistoryListService,
     HistoryGetService,
     SnapshotCompositionService,
-    MediaOwnershipPort,
     RevisionMediaReferenceExtractor,
     ArtifactsModule,
     InteractionsModule,

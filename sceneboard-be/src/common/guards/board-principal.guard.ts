@@ -9,8 +9,11 @@ import { AppError, BoardContractError } from '../errors/app-error.js';
 
 const BOARD_PRINCIPAL_REQUIRED = Symbol('BOARD_PRINCIPAL_REQUIRED');
 
-export const RequireBoardPrincipal = (): MethodDecorator & ClassDecorator =>
-  SetMetadata(BOARD_PRINCIPAL_REQUIRED, true);
+type BoardPrincipalMode = 'standard' | 'media-upload';
+
+export const RequireBoardPrincipal = (
+  mode: BoardPrincipalMode = 'standard',
+): MethodDecorator & ClassDecorator => SetMetadata(BOARD_PRINCIPAL_REQUIRED, mode);
 
 export interface BoardPrincipalRequest {
   headers: Record<string, string | string[] | undefined>;
@@ -29,32 +32,43 @@ export class BoardPrincipalGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const required = this.reflector.getAllAndOverride<boolean | undefined>(
+    const mode = this.reflector.getAllAndOverride<BoardPrincipalMode | undefined>(
       BOARD_PRINCIPAL_REQUIRED,
       [context.getHandler(), context.getClass()],
     );
-    if (required !== true) return true;
+    if (mode === undefined) return true;
     const request = context.switchToHttp().getRequest<BoardPrincipalRequest>();
     const sessionCredential = request.cookies?.[this.cookies.names.session];
     const authorizationValue = request.headers.authorization;
     const authorization = typeof authorizationValue === 'string' ? authorizationValue : undefined;
     try {
+      const mixed = sessionCredential !== undefined && authorizationValue !== undefined;
       if (
-        (sessionCredential !== undefined && authorizationValue !== undefined) ||
+        mixed ||
         (sessionCredential === undefined && authorizationValue === undefined) ||
         Array.isArray(authorizationValue)
       ) {
+        if (mixed && mode === 'media-upload') throw boardForbidden();
         throw new AppError('UNAUTHENTICATED');
       }
       if (sessionCredential !== undefined) {
+        if (mode === 'media-upload' && authorizationValue !== undefined) throw boardForbidden();
         const session = await this.sessions.resolveShared(sessionCredential, Date.now());
         request.authSession = session;
         request.boardPrincipal = this.actors.resolveUser(session);
         return true;
       }
+      if (
+        mode === 'media-upload' &&
+        (request.headers.cookie !== undefined ||
+          request.headers.origin !== undefined ||
+          request.headers['x-csrf-token'] !== undefined)
+      )
+        throw boardForbidden();
       request.boardPrincipal = await this.actors.resolveMcp(authorization, Date.now());
       return true;
     } catch (error) {
+      if (error instanceof BoardContractError) throw error;
       if (!(error instanceof AppError)) throw error;
       throw boardAuthFailure(
         error.code === 'SERVICE_UNAVAILABLE' ? 'SERVICE_UNAVAILABLE' : 'UNAUTHENTICATED',
@@ -62,6 +76,18 @@ export class BoardPrincipalGuard implements CanActivate {
     }
   }
 }
+
+const boardForbidden = (): BoardContractError =>
+  new BoardContractError({
+    protocolVersion: 1,
+    type: 'board.error',
+    code: 'FORBIDDEN',
+    message: 'Forbidden',
+    category: 'auth',
+    retryable: false,
+    httpStatusHint: 403,
+    details: null,
+  });
 
 const boardAuthFailure = (code: 'UNAUTHENTICATED' | 'SERVICE_UNAVAILABLE'): BoardContractError =>
   new BoardContractError(

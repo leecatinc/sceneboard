@@ -24903,6 +24903,7 @@ var CLIENT_GRANT_CAPABILITIES_V1 = [
   "board.history.read",
   "board.hitl.request",
   "board.hitl.respond",
+  "board.media.write",
   "board.read",
   "board.write"
 ];
@@ -25031,8 +25032,11 @@ var BOARD_ERROR_CODES_V1 = [
 var BOARD_ERROR_CODES_V2 = [
   ...BOARD_ERROR_CODES_V1,
   "DOCUMENT_VERSION_MISMATCH",
+  "IDEMPOTENCY_RESULT_EXPIRED",
   "INVALID_DOCUMENT",
-  "INVALID_MEDIA_REFERENCE"
+  "INVALID_MEDIA_UPLOAD",
+  "INVALID_MEDIA_REFERENCE",
+  "INVALID_REQUEST"
 ];
 
 // packages/board-schema/src/limits.ts
@@ -25337,6 +25341,23 @@ var MediaCaptionSchemaV1 = createScalarTextSchemaV1(1, MAX_MEDIA_CAPTION_CHARS);
 var MediaSourceSchemaV1 = z.object({
   type: z.literal("media"),
   mediaId: MediaIdSchemaV1
+}).strict();
+var MEDIA_MIME_TYPES_V1 = ["image/png", "image/jpeg", "image/webp"];
+var MediaMimeSchemaV1 = z.enum(MEDIA_MIME_TYPES_V1);
+var MediaSha256SchemaV1 = z.string().regex(/^[0-9a-f]{64}$/u);
+var MediaIngestResultSchemaV1 = z.object({
+  protocolVersion: z.literal(1),
+  type: z.literal("media.ingest.result"),
+  requestId: RequestIdSchemaV1,
+  status: z.enum(["created", "replayed"]),
+  media: z.object({
+    mediaId: MediaIdSchemaV1,
+    sha256: MediaSha256SchemaV1,
+    mime: MediaMimeSchemaV1,
+    width: z.number().int().positive().max(16384),
+    height: z.number().int().positive().max(16384),
+    bytes: z.number().int().positive().max(MAX_MEDIA_BYTES)
+  }).strict()
 }).strict();
 
 // packages/board-schema/src/nodes/base.ts
@@ -27387,21 +27408,40 @@ var BoardErrorSchemaV1 = z.discriminatedUnion("code", [
 ]);
 var BoardErrorSchemaV2Only = z.discriminatedUnion("code", [
   branch(
+    "INVALID_REQUEST",
+    "validation",
+    false,
+    400,
+    z.object({
+      reason: z.enum([
+        "request_id",
+        "framing",
+        "content_type",
+        "length",
+        "digest",
+        "idempotency_key"
+      ])
+    }).strict()
+  ),
+  branch(
     "IDEMPOTENCY_KEY_REUSED",
     "conflict",
     false,
     409,
-    z.object({
-      scope: z.literal("board.mutation"),
-      boardId: BoardIdSchemaV1,
-      operationType: z.enum(BOARD_MUTATION_COMMAND_TYPES_V2),
-      reason: z.enum([
-        "grant_changed",
-        "scopes_changed",
-        "expected_revision_changed",
-        "payload_changed"
-      ])
-    }).strict()
+    z.discriminatedUnion("scope", [
+      z.object({
+        scope: z.literal("board.mutation"),
+        boardId: BoardIdSchemaV1,
+        operationType: z.enum(BOARD_MUTATION_COMMAND_TYPES_V2),
+        reason: z.enum([
+          "grant_changed",
+          "scopes_changed",
+          "expected_revision_changed",
+          "payload_changed"
+        ])
+      }).strict(),
+      z.object({ scope: z.literal("media.ingest") }).strict()
+    ])
   ),
   branch(
     "DOCUMENT_VERSION_MISMATCH",
@@ -27438,6 +27478,38 @@ var BoardErrorSchemaV2Only = z.discriminatedUnion("code", [
     false,
     400,
     z.object({ reason: z.literal("unavailable") }).strict()
+  ),
+  branch(
+    "IDEMPOTENCY_RESULT_EXPIRED",
+    "conflict",
+    false,
+    409,
+    z.object({ scope: z.literal("media.ingest") }).strict()
+  ),
+  branch(
+    "PAYLOAD_TOO_LARGE",
+    "validation",
+    false,
+    413,
+    z.object({ limitBytes: z.literal(10485760) }).strict()
+  ),
+  branch(
+    "INVALID_MEDIA_UPLOAD",
+    "validation",
+    false,
+    422,
+    z.object({
+      reason: z.enum([
+        "format",
+        "dimensions",
+        "pixels",
+        "ratio",
+        "animated",
+        "canonical_size",
+        "decode",
+        "quota"
+      ])
+    }).strict()
   )
 ]);
 var BoardErrorSchema = z.union([BoardErrorSchemaV1, BoardErrorSchemaV2Only]);
@@ -28315,6 +28387,7 @@ var createParserV1 = (schema, kind = "generic") => createParser(schema, kind);
 var GlobalIdStringParserV1 = createParserV1(GlobalIdStringSchemaV1);
 var BoardIdParserV1 = createParserV1(BoardIdSchemaV1);
 var MediaIdParserV1 = createParserV1(MediaIdSchemaV1);
+var MediaIngestResultParserV1 = createParserV1(MediaIngestResultSchemaV1);
 var GrantIdParserV1 = createParserV1(GrantIdSchemaV1);
 var PrincipalIdParserV1 = createParserV1(PrincipalIdSchemaV1);
 var NodeIdParserV1 = createParserV1(NodeIdSchemaV1);
@@ -34343,6 +34416,7 @@ var ScopeSchema = external_exports.enum([
   "board.history.read",
   "board.hitl.request",
   "board.hitl.respond",
+  "board.media.write",
   "artifact.publish",
   "artifact.control"
 ]);
@@ -34403,7 +34477,7 @@ var StatusResponseSchema = external_exports.object({
 var GrantSchema = external_exports.object({
   grantId: GlobalIdSchema,
   client: ClientSchema,
-  scopes: external_exports.array(ScopeSchema).min(1).max(7),
+  scopes: external_exports.array(ScopeSchema).min(1).max(8),
   lifecyclePermissions: external_exports.array(LifecycleSchema).max(2),
   boardIds: external_exports.array(GlobalIdSchema).max(50),
   lifetime: external_exports.enum(["session", "persistent"]),
@@ -35839,6 +35913,7 @@ var ScopeSchema2 = external_exports.enum([
   "board.history.read",
   "board.hitl.request",
   "board.hitl.respond",
+  "board.media.write",
   "artifact.publish",
   "artifact.control"
 ]);
@@ -35847,7 +35922,7 @@ var ConnectionStatusInputSchemaV1 = external_exports.object({ boardId: GlobalIdS
 var PairRequestInputSchemaV1 = external_exports.object({
   code: external_exports.string().regex(/^(?:SB-)?[0-9A-HJKMNP-TV-Z]{6}-[0-9A-HJKMNP-TV-Z]{6}$/i),
   clientName: ShortTextSchemaV12,
-  requestedScopes: external_exports.array(ScopeSchema2).min(1).max(7),
+  requestedScopes: external_exports.array(ScopeSchema2).min(1).max(8),
   requestedLifecyclePermissions: external_exports.array(LifecycleSchema2).max(2)
 }).strict();
 var PairStatusInputSchemaV1 = external_exports.object({

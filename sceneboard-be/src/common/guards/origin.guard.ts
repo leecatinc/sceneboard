@@ -5,8 +5,10 @@ import { AppError } from '../errors/app-error.js';
 import { APP_ENVIRONMENT, type AppEnvironment } from '../../config/env.schema.js';
 
 const ORIGIN_REQUIRED = Symbol('ORIGIN_REQUIRED');
+type OriginMode = 'required' | 'browser-or-mcp';
 
-export const RequireOrigin = (): MethodDecorator => SetMetadata(ORIGIN_REQUIRED, true);
+export const RequireOrigin = (mode: OriginMode = 'required'): MethodDecorator =>
+  SetMetadata(ORIGIN_REQUIRED, mode);
 
 export const assertAllowedOrigin = (origin: string | undefined, allowedOrigin: string): void => {
   if (origin !== allowedOrigin) throw new AppError('CSRF_INVALID');
@@ -29,6 +31,7 @@ export const assertAllowedOriginOrSameOriginFetch = (input: {
 
 interface OriginRequest {
   headers: Record<string, string | string[] | undefined>;
+  boardPrincipal?: { kind: 'user' | 'mcp' } | undefined;
 }
 
 @Injectable()
@@ -39,12 +42,13 @@ export class OriginGuard implements CanActivate {
   ) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const required = this.reflector.getAllAndOverride<boolean | undefined>(ORIGIN_REQUIRED, [
+    const mode = this.reflector.getAllAndOverride<OriginMode | undefined>(ORIGIN_REQUIRED, [
       context.getHandler(),
       context.getClass(),
     ]);
-    if (required !== true) return true;
+    if (mode === undefined) return true;
     const request = context.switchToHttp().getRequest<OriginRequest>();
+    if (mode === 'browser-or-mcp' && request.boardPrincipal?.kind === 'mcp') return true;
     const origin = request.headers.origin;
     const fetchSite = request.headers['sec-fetch-site'];
     const fetchMode = request.headers['sec-fetch-mode'];

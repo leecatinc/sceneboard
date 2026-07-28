@@ -30,11 +30,11 @@
     "security:retention:run": "tsx scripts/run-security-retention.ts run"
   },
   "dependencies": {
-    "@sceneboard/board-schema": "0.0.0",
     "@nestjs/common": "11.1.27",
     "@nestjs/config": "4.0.4",
     "@nestjs/core": "11.1.27",
     "@nestjs/platform-express": "11.1.27",
+    "@sceneboard/board-schema": "0.0.0",
     "bcryptjs": "3.0.3",
     "cookie-parser": "1.4.7",
     "css-tree": "^3.2.1",
@@ -44,6 +44,7 @@
     "parse5": "^8.0.1",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
+    "sharp": "0.35.3",
     "zod": "3.23.8"
   },
   "devDependencies": {

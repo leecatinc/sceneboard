@@ -1,5 +1,17 @@
 import type { MigrationCertificationStateV1 } from '../database/migrations/certification-state.js';
 
+export type MediaWriterCertificationV1 = Readonly<{
+  revisionMediaRefsReady: boolean;
+  mediaStoreProjectionReady: boolean;
+  mediaNativeDecoderReady: boolean;
+  artifactDigests: Readonly<{
+    migration: string;
+    projection: string;
+    nativeManifest: string;
+  }>;
+  checkedAt: string;
+}>;
+
 export type CertificationModeV1 = 'FULL_OFFLINE' | 'BOUNDED_RESTART' | 'RESUMABLE_AUDIT';
 
 export type CertificationCallerV1 =

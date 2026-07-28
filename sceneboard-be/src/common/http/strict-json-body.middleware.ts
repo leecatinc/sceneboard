@@ -15,9 +15,11 @@ import {
   parseProfiledBody,
   type RawBodyProfile,
 } from './raw-body-profiles.js';
+import { invalidMediaRequest, mediaPayloadTooLarge } from '../../media/media-errors.js';
 
 export const D1_RAW_BODY = Symbol('D1_RAW_BODY');
 export const D1_PARSED_BODY = Symbol('D1_PARSED_BODY');
+export const SCENEBOARD_RAW_BINARY_BODY = Symbol('SCENEBOARD_RAW_BINARY_BODY');
 
 interface ProfiledRequest
   extends AsyncIterable<Uint8Array | string>, BoardRequestCorrelationCarrier {
@@ -26,8 +28,15 @@ interface ProfiledRequest
   headers: Record<string, string | string[] | undefined>;
   body?: unknown;
   destroy?(error?: Error): void;
+  pause?(): void;
   [D1_RAW_BODY]?: Buffer;
   [D1_PARSED_BODY]?: unknown;
+  [SCENEBOARD_RAW_BINARY_BODY]?: Buffer;
+}
+
+interface ProfiledResponse {
+  setHeader?(name: string, value: string): unknown;
+  once?(event: 'finish' | 'close', listener: () => void): unknown;
 }
 
 type Next = (error?: unknown) => void;
@@ -44,6 +53,7 @@ const maximumReadBytes = (profile: RawBodyProfile): number => {
   if (profile.kind === 'd1-document-contract-body') return 33_554_433;
   if (profile.kind === 'd1-contract-body' || profile.kind === 'd1-adapter-body') return 1_048_577;
   if (profile.kind === 'd2-rest-json-body') return 65_537;
+  if (profile.kind === 'd9-media-binary-body') return 10_485_761;
   return 1;
 };
 
@@ -74,9 +84,36 @@ const readBody = async (request: ProfiledRequest, maximumBytes: number): Promise
   return Buffer.concat(chunks, total);
 };
 
+const readMediaBody = async (
+  request: ProfiledRequest,
+  response: ProfiledResponse,
+): Promise<Buffer> => {
+  const chunks: Buffer[] = [];
+  let total = 0;
+  for await (const chunk of request) {
+    const bytes = typeof chunk === 'string' ? Buffer.from(chunk) : Buffer.from(chunk);
+    total += bytes.byteLength;
+    if (total > 10_485_760) {
+      response.setHeader?.('Connection', 'close');
+      request.pause?.();
+      let closed = false;
+      const close = () => {
+        if (closed) return;
+        closed = true;
+        request.destroy?.();
+      };
+      response.once?.('finish', close);
+      response.once?.('close', close);
+      throw new BoardContractError(mediaPayloadTooLarge());
+    }
+    chunks.push(bytes);
+  }
+  return Buffer.concat(chunks, total);
+};
+
 @Injectable()
 export class StrictJsonBodyMiddleware implements NestMiddleware {
-  async use(request: ProfiledRequest, _response: unknown, next: Next): Promise<void> {
+  async use(request: ProfiledRequest, response: ProfiledResponse, next: Next): Promise<void> {
     try {
       const method = request.method ?? '';
       const sourceUrl = request.url ?? '';
@@ -91,9 +128,22 @@ export class StrictJsonBodyMiddleware implements NestMiddleware {
         next();
         return;
       }
-      const contentType = oneHeader(request, 'content-type');
-      const contentLength = oneHeader(request, 'content-length');
-      const contentEncoding = oneHeader(request, 'content-encoding');
+      let contentType: string | undefined;
+      let contentLength: string | undefined;
+      let contentEncoding: string | undefined;
+      let transferEncoding: string | undefined;
+      let contentDigest: string | undefined;
+      try {
+        contentType = oneHeader(request, 'content-type');
+        contentLength = oneHeader(request, 'content-length');
+        contentEncoding = oneHeader(request, 'content-encoding');
+        transferEncoding = oneHeader(request, 'transfer-encoding');
+        contentDigest = oneHeader(request, 'content-digest');
+      } catch (error) {
+        if (profile.kind === 'd9-media-binary-body')
+          throw new BoardContractError(invalidMediaRequest('framing'));
+        throw error;
+      }
       if (
         profile.kind === 'd1-document-contract-body' &&
         contentEncoding !== undefined &&
@@ -114,16 +164,50 @@ export class StrictJsonBodyMiddleware implements NestMiddleware {
         });
       }
       const declaredLength =
-        contentLength !== undefined && /^(?:0|[1-9][0-9]*)$/.test(contentLength)
+        contentLength !== undefined &&
+        /^(?:0|[1-9][0-9]*)$/.test(contentLength) &&
+        Number.isSafeInteger(Number(contentLength))
           ? Number(contentLength)
           : null;
       const maximumBytes = maximumReadBytes(profile);
       let body: Buffer;
       try {
+        if (
+          profile.kind === 'd9-media-binary-body' &&
+          (declaredLength === null || declaredLength < 1)
+        )
+          throw new BoardContractError(invalidMediaRequest('length'));
+        if (
+          profile.kind === 'd9-media-binary-body' &&
+          (transferEncoding !== undefined || contentEncoding !== undefined)
+        )
+          throw new BoardContractError(invalidMediaRequest('framing'));
+        if (
+          profile.kind === 'd9-media-binary-body' &&
+          contentType !== 'image/png' &&
+          contentType !== 'image/jpeg' &&
+          contentType !== 'image/webp'
+        )
+          throw new BoardContractError(invalidMediaRequest('content_type'));
+        if (
+          profile.kind === 'd9-media-binary-body' &&
+          !/^sha-256=:[A-Za-z0-9+/]{43}=:$/.test(contentDigest ?? '')
+        )
+          throw new BoardContractError(invalidMediaRequest('digest'));
+        if (
+          profile.kind === 'd9-media-binary-body' &&
+          declaredLength !== null &&
+          declaredLength > 10_485_760
+        ) {
+          response.setHeader?.('Connection', 'close');
+          throw new BoardContractError(mediaPayloadTooLarge());
+        }
         body =
-          declaredLength !== null && declaredLength >= maximumBytes
-            ? Buffer.alloc(0)
-            : await readBody(request, maximumBytes);
+          profile.kind === 'd9-media-binary-body'
+            ? await readMediaBody(request, response)
+            : declaredLength !== null && declaredLength >= maximumBytes
+              ? Buffer.alloc(0)
+              : await readBody(request, maximumBytes);
       } catch (error) {
         if (
           profile.kind === 'd7-artifact-network-body' &&
@@ -152,6 +236,8 @@ export class StrictJsonBodyMiddleware implements NestMiddleware {
         contentType,
         contentLength,
         contentEncoding,
+        transferEncoding,
+        contentDigest,
         body,
       });
       if (parsed.kind === 'd2-rest-json-body') request.body = parsed.body;
@@ -168,6 +254,8 @@ export class StrictJsonBodyMiddleware implements NestMiddleware {
           const candidate = parsed.parsedBody as { requestId?: unknown };
           admitBoardRequestId(request, candidate.requestId);
         }
+      } else if (parsed.kind === 'd9-media-binary-body') {
+        request[SCENEBOARD_RAW_BINARY_BODY] = Buffer.from(parsed.rawBody);
       }
       next();
     } catch (error) {

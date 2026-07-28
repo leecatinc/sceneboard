@@ -12,7 +12,7 @@ test('binds every staged registry asset to non-empty deterministic SQL', async (
     assets.add(entry.upAsset);
     if (entry.downAsset !== null) assets.add(entry.downAsset);
   }
-  assert.equal(assets.size, 26);
+  assert.equal(assets.size, 27);
   for (const asset of assets) {
     const bytes = await readFile(new URL(asset, directory));
     const source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
@@ -48,8 +48,8 @@ test('interleaves the irreversible D3 board owner before D2 grant bindings', asy
   assert.doesNotMatch(source, /REGEXP_LIKE\s*\(\s*public_id/);
 });
 
-test('materializes the exact terminal twenty-three-entry and twenty-six-asset checkpoint', async () => {
-  assert.equal(MIGRATION_REGISTRY.length, 23);
+test('materializes the exact terminal twenty-four-entry and twenty-seven-asset checkpoint', async () => {
+  assert.equal(MIGRATION_REGISTRY.length, 24);
   assert.equal(MIGRATION_REGISTRY.filter((entry) => entry.reversible).length, 3);
   const directory = new URL('../../src/database/migrations/sql/', import.meta.url);
   const expectedTables = new Map([

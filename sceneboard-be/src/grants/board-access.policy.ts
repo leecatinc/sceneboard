@@ -26,6 +26,7 @@ export const AUTHORIZED_BOARD_OPERATIONS_V1 = [
   'artifact.get',
   'artifact.publish',
   'artifact.stop',
+  'media.upload',
 ] as const;
 
 export type AuthorizedBoardOperationV1 = (typeof AUTHORIZED_BOARD_OPERATIONS_V1)[number];
@@ -226,6 +227,7 @@ const AUTHORIZATION_RULES: Readonly<Record<BoardAccessOperationV1, Authorization
   'artifact.get': read(['board.read'], 'D7'),
   'artifact.publish': write(['artifact.publish'], 'D7'),
   'artifact.stop': write(['artifact.control'], 'D7'),
+  'media.upload': write(['board.media.write'], 'D3'),
 };
 
 export const isBoardAccessOperation = (operation: string): operation is BoardAccessOperationV1 =>
