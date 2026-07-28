@@ -1,7 +1,11 @@
 'use client';
 
-import type { PageId } from '@sceneboard/board-schema';
-import { PublicBoardRenderer } from '@sceneboard/board-ui/renderer';
+import type { PageId, ShareAnalyticsContextV1 } from '@sceneboard/board-schema';
+import {
+  PublicBoardRenderer,
+  publicRenderTreeIsReadyV1,
+  type PublicRenderReadyIdentityV1,
+} from '@sceneboard/board-ui/renderer';
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 
 import { PageNavigationControls } from '../../../components/board/PageNavigationControls';
@@ -20,6 +24,15 @@ import {
   publicShareViewerIdentityV1,
   samePublicShareViewerIdentityV1,
 } from '../../../lib/board/public-share-viewer-state';
+import {
+  createShareAnalyticsIntentKeyV1,
+  dispatchPublicShareAnalyticsEventV1,
+  issuePublicShareAnalyticsContextV1,
+} from '../../../lib/share-analytics/share-analytics-api';
+import {
+  elementIsActuallyVisibleV1,
+  scheduleVisibleShareSignalV1,
+} from '../../../lib/share-analytics/visible-signal';
 import type { SharedBoardActionState } from './shared-board-actions';
 import styles from './shared-board.module.css';
 
@@ -40,6 +53,15 @@ export function SharedBoardClient({
   const [selectedPageId, setSelectedPageId] = useState<PageId | null>(null);
   const [password, setPassword] = useState('');
   const [presentationActive, setPresentationActive] = useState(false);
+  const [analyticsBootstrapEpoch, setAnalyticsBootstrapEpoch] = useState(1);
+  const [pageActivationEpoch, setPageActivationEpoch] = useState(0);
+  const [renderReady, setRenderReady] = useState<PublicRenderReadyIdentityV1 | null>(null);
+  const [visibilityEpoch, setVisibilityEpoch] = useState(0);
+  const [analyticsContext, setAnalyticsContext] = useState<{
+    bootstrapEpoch: number;
+    tupleKey: string;
+    value: ShareAnalyticsContextV1;
+  } | null>(null);
   const [isPending, startTransition] = useTransition();
   const stateRef = useRef(accepted);
   const requestEpochRef = useRef(0);
@@ -49,7 +71,16 @@ export function SharedBoardClient({
   const pageRef = useRef<HTMLElement | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
   const presentationButtonRef = useRef<HTMLButtonElement | null>(null);
+  const analyticsContextRef = useRef(analyticsContext);
+  const currentRenderRef = useRef<{
+    tupleKey: string;
+    pageId: string;
+    renderEpoch: number;
+  } | null>(null);
+  const analyticsIntentRef = useRef(new Set<string>());
+  const analyticsFirstIntentRef = useRef(new Set<string>());
   stateRef.current = accepted;
+  analyticsContextRef.current = analyticsContext;
 
   const focusState = useCallback((selector: string) => {
     requestAnimationFrame(() => document.querySelector<HTMLElement>(selector)?.focus());
@@ -62,6 +93,10 @@ export function SharedBoardClient({
     if (retryTimerRef.current !== null) clearTimeout(retryTimerRef.current);
     retryTimerRef.current = null;
     setSelectedPageId(null);
+    setRenderReady(null);
+    setAnalyticsContext(null);
+    analyticsIntentRef.current.clear();
+    analyticsFirstIntentRef.current.clear();
     setPassword('');
     setPresentationActive(false);
     if (document.fullscreenElement !== null) void document.exitFullscreen().catch(() => undefined);
@@ -75,6 +110,12 @@ export function SharedBoardClient({
       requestAbortRef.current?.abort();
       requestAbortRef.current = null;
       setSelectedPageId(null);
+      setPageActivationEpoch(0);
+      setAnalyticsBootstrapEpoch((current) => current + 1);
+      setRenderReady(null);
+      setAnalyticsContext(null);
+      analyticsIntentRef.current.clear();
+      analyticsFirstIntentRef.current.clear();
       setAccepted({ state, requestStartedAt });
       if (state.state === 'ready') focusState('[data-page-heading]');
       else if (state.state === 'password-required' || state.state === 'password-invalid')
@@ -190,6 +231,18 @@ export function SharedBoardClient({
     return () => document.removeEventListener('fullscreenchange', changed);
   }, []);
 
+  useEffect(() => {
+    const changed = () => setVisibilityEpoch((current) => current + 1);
+    document.addEventListener('visibilitychange', changed);
+    window.addEventListener('focus', changed);
+    window.addEventListener('resize', changed);
+    return () => {
+      document.removeEventListener('visibilitychange', changed);
+      window.removeEventListener('focus', changed);
+      window.removeEventListener('resize', changed);
+    };
+  }, []);
+
   const ready = accepted.state.state === 'ready' ? accepted.state : null;
   const resolved = useMemo(
     () => (ready === null ? null : resolvePublicSharePageV1(ready.projection, selectedPageId)),
@@ -199,6 +252,176 @@ export function SharedBoardClient({
     () => (ready === null ? undefined : createPublicShareMediaResolverV1(ready)),
     [ready],
   );
+  const analyticsTupleKey =
+    ready === null
+      ? null
+      : [
+          ready.projection.shareId,
+          ready.projection.revisionId,
+          ready.projection.publicationGeneration,
+          ready.projection.accessGeneration,
+          ...ready.projection.document.pages.map((page) => page.pageId),
+        ].join('\u0000');
+  const renderEpoch = analyticsBootstrapEpoch * 1_000_000 + pageActivationEpoch;
+  currentRenderRef.current =
+    ready === null || resolved === null || analyticsTupleKey === null
+      ? null
+      : { tupleKey: analyticsTupleKey, pageId: resolved.pageId, renderEpoch };
+
+  useEffect(() => {
+    const currentState = stateRef.current.state;
+    if (currentState.state !== 'ready' || analyticsTupleKey === null) return;
+    const projection = currentState.projection;
+    const apiOrigin = process.env.NEXT_PUBLIC_BOARD_API_URL;
+    if (apiOrigin === undefined) return;
+    const expectedEpoch = analyticsBootstrapEpoch;
+    const expectedTuple = analyticsTupleKey;
+    const expectedPages = projection.document.pages.map((page) => page.pageId);
+    const controller = new AbortController();
+    void issuePublicShareAnalyticsContextV1({
+      apiOrigin,
+      shareId: projection.shareId,
+      signal: controller.signal,
+    }).then((result) => {
+      if (controller.signal.aborted || result.kind !== 'ok') return;
+      const current = currentRenderRef.current;
+      if (
+        current === null ||
+        current.tupleKey !== expectedTuple ||
+        expectedEpoch !== analyticsBootstrapEpoch ||
+        result.value.revisionId !== projection.revisionId ||
+        result.value.publicationGeneration !== projection.publicationGeneration ||
+        result.value.accessGeneration !== projection.accessGeneration ||
+        result.value.pageIds.length !== expectedPages.length ||
+        result.value.pageIds.some((pageId, index) => pageId !== expectedPages[index])
+      )
+        return;
+      setAnalyticsContext({
+        bootstrapEpoch: expectedEpoch,
+        tupleKey: expectedTuple,
+        value: result.value,
+      });
+    });
+    return () => controller.abort();
+  }, [analyticsBootstrapEpoch, analyticsTupleKey]);
+
+  useEffect(() => {
+    const boardId = ready?.projection.boardId ?? null;
+    const revisionId = ready?.projection.revisionId ?? null;
+    const pageId = resolved?.pageId ?? null;
+    const rendererRoot =
+      stageRef.current?.querySelector<HTMLElement>(`[data-public-render-epoch="${renderEpoch}"]`) ??
+      null;
+    if (
+      analyticsContext === null ||
+      renderReady === null ||
+      analyticsTupleKey === null ||
+      boardId === null ||
+      revisionId === null ||
+      pageId === null ||
+      stageRef.current === null ||
+      rendererRoot === null ||
+      analyticsContext.bootstrapEpoch !== analyticsBootstrapEpoch ||
+      analyticsContext.tupleKey !== analyticsTupleKey ||
+      renderReady.boardId !== boardId ||
+      renderReady.revisionId !== revisionId ||
+      renderReady.pageId !== pageId ||
+      renderReady.renderEpoch !== renderEpoch ||
+      !analyticsContext.value.pageIds.includes(pageId) ||
+      Date.now() >= Date.parse(analyticsContext.value.expiresAt) ||
+      !publicRenderTreeIsReadyV1(rendererRoot) ||
+      !elementIsActuallyVisibleV1(stageRef.current)
+    )
+      return;
+    const activationKey = `${analyticsContext.value.viewContextId}\u0000${renderEpoch}`;
+    const intents = analyticsIntentRef.current;
+    if (intents.has(activationKey)) return;
+    intents.add(activationKey);
+    const controller = new AbortController();
+    let dispatched = false;
+    const cancelVisible = scheduleVisibleShareSignalV1({
+      element: stageRef.current,
+      isCurrent: () => {
+        const current = currentRenderRef.current;
+        return (
+          !controller.signal.aborted &&
+          current?.tupleKey === analyticsTupleKey &&
+          current.pageId === pageId &&
+          current.renderEpoch === renderEpoch &&
+          analyticsContextRef.current === analyticsContext &&
+          publicRenderTreeIsReadyV1(rendererRoot)
+        );
+      },
+      onVisible: () => {
+        dispatched = true;
+        const firstIntents = analyticsFirstIntentRef.current;
+        const eventKind = firstIntents.has(analyticsContext.value.viewContextId)
+          ? 'page-visible'
+          : 'first-visible';
+        firstIntents.add(analyticsContext.value.viewContextId);
+        const apiOrigin = process.env.NEXT_PUBLIC_BOARD_API_URL;
+        if (apiOrigin === undefined) return;
+        void dispatchPublicShareAnalyticsEventV1({
+          apiOrigin,
+          context: analyticsContext.value,
+          eventKind,
+          pageId,
+          idempotencyKey: createShareAnalyticsIntentKeyV1(),
+          signal: controller.signal,
+          isCurrent: () => {
+            const current = currentRenderRef.current;
+            return (
+              current?.tupleKey === analyticsTupleKey &&
+              current.pageId === pageId &&
+              current.renderEpoch === renderEpoch &&
+              analyticsContextRef.current === analyticsContext &&
+              publicRenderTreeIsReadyV1(rendererRoot)
+            );
+          },
+        }).then((result) => {
+          if (
+            result.kind === 'context_evicted' &&
+            analyticsContextRef.current === analyticsContext
+          ) {
+            analyticsContextRef.current = null;
+            setAnalyticsContext(null);
+          }
+        });
+      },
+    });
+    return () => {
+      cancelVisible();
+      controller.abort();
+      if (!dispatched) intents.delete(activationKey);
+    };
+  }, [
+    analyticsBootstrapEpoch,
+    analyticsContext,
+    analyticsTupleKey,
+    ready?.projection.boardId,
+    ready?.projection.revisionId,
+    renderEpoch,
+    renderReady,
+    resolved?.pageId,
+    visibilityEpoch,
+  ]);
+
+  const selectSharedPage = useCallback((pageId: PageId) => {
+    if (stageRef.current !== null) stageRef.current.scrollTop = 0;
+    setRenderReady(null);
+    setPageActivationEpoch((current) => current + 1);
+    setSelectedPageId(pageId);
+  }, []);
+
+  const handleRenderReady = useCallback((identity: PublicRenderReadyIdentityV1) => {
+    const current = currentRenderRef.current;
+    if (
+      current !== null &&
+      identity.pageId === current.pageId &&
+      identity.renderEpoch === current.renderEpoch
+    )
+      setRenderReady(identity);
+  }, []);
 
   if (accepted.state.state === 'password-required' || accepted.state.state === 'password-invalid') {
     const csrfToken = accepted.state.csrfToken;
@@ -307,12 +530,12 @@ export function SharedBoardClient({
                 nextLabel={t('presentation.nextPage')}
                 statusLabel={t('presentation.pageNavigation')}
                 onPrevious={() =>
-                  setSelectedPageId(
+                  selectSharedPage(
                     navigatePageIdV1(ready.projection.document, resolved.pageId, 'previous'),
                   )
                 }
                 onNext={() =>
-                  setSelectedPageId(
+                  selectSharedPage(
                     navigatePageIdV1(ready.projection.document, resolved.pageId, 'next'),
                   )
                 }
@@ -328,6 +551,7 @@ export function SharedBoardClient({
           >
             <h1 className={styles.heading}>{resolved.page.title}</h1>
             <PublicBoardRenderer
+              key={`${analyticsTupleKey}:${resolved.pageId}:${renderEpoch}`}
               page={resolved.page}
               {...(mediaResolver === undefined ? {} : { mediaResolver })}
               context={{
@@ -340,6 +564,8 @@ export function SharedBoardClient({
                 media: ready.projection.media,
                 selectedPageId: resolved.pageId,
               }}
+              renderEpoch={renderEpoch}
+              onRenderReady={handleRenderReady}
             />
           </PresentationStage>
         </article>

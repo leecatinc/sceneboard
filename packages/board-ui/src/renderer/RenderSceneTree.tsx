@@ -1,6 +1,7 @@
 'use client';
 
 import type { BoardNodeV1, BoardPageV2 } from '@sceneboard/board-schema';
+import React from 'react';
 
 import { inspectRenderBudgetV1 } from './render-budget.js';
 import { RendererErrorBoundary } from './RendererErrorBoundary.js';
@@ -33,7 +34,7 @@ export function RenderSceneTree({
   const budget = inspectRenderBudgetV1(page.scene.root);
   if (!budget.ok)
     return (
-      <section className="scene-fallback" role="alert">
+      <section className="scene-fallback" role="alert" data-public-render-error="true">
         {sceneContext.selectedPageId}: The scene exceeds the safe render budget.
       </section>
     );

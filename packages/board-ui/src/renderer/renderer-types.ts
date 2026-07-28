@@ -121,4 +121,11 @@ export type PublicBoardRendererPropsV1 = {
   drawingView?: DrawingViewControllerV1;
   mediaResolver?: MediaResolverV1;
   emptyLabel?: string;
+  renderEpoch?: number;
+  onRenderReady?: (identity: {
+    boardId: BoardSnapshot['boardId'];
+    revisionId: RevisionId;
+    pageId: PageId;
+    renderEpoch: number;
+  }) => void;
 };

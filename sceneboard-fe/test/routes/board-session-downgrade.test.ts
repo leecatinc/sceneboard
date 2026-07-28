@@ -17,6 +17,7 @@ const owner: BoardSessionAccessV1 = {
   capabilityEpoch: 2,
   authorizationCapabilities: [
     'board.admin',
+    'board.analytics.read',
     'board.history.read',
     'board.members.manage',
     'board.read',
@@ -44,6 +45,7 @@ test('owner downgrade detects every newly forbidden surface before slot replacem
     'connection.revoke',
     'membership.manage',
     'share.manage',
+    'analytics.read',
     'board.archive',
     'board.delete',
   ]);

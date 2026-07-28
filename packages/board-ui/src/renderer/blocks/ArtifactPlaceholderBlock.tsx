@@ -1,4 +1,5 @@
 import type { RendererComponentV1 } from '../renderer-types.js';
+import React from 'react';
 
 export const ArtifactPlaceholderBlock: RendererComponentV1<'content.artifact'> = ({
   node,
@@ -13,7 +14,11 @@ export const ArtifactPlaceholderBlock: RendererComponentV1<'content.artifact'> =
     return context.renderArtifact({ node, context, renderNode: () => null });
   }
   return (
-    <section className="scene-block scene-placeholder" aria-labelledby={`artifact-${node.id}`}>
+    <section
+      className="scene-block scene-placeholder"
+      aria-labelledby={`artifact-${node.id}`}
+      data-public-render-terminal="true"
+    >
       <h3 id={`artifact-${node.id}`}>{node.title ?? 'Isolated artifact'}</h3>
       <p>{node.fallbackText}</p>
       <p>Status: {runtime?.status ?? 'unavailable'} · execution disabled</p>

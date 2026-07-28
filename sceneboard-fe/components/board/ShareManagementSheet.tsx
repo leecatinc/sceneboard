@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { ShareManagementViewV1 } from '@sceneboard/board-schema';
 
+import type { ShareAnalyticsApi } from '../../lib/share-analytics/share-analytics-api';
 import {
   createShareIdempotencyKeyV1,
   type ShareApi,
@@ -20,6 +21,7 @@ import {
 } from '../../lib/board/share-secret-state';
 import { useI18n } from '../i18n/I18nProvider';
 import { ConfirmationDialog } from '../app/ConfirmationDialog';
+import { ShareAnalyticsPanel } from './ShareAnalyticsPanel';
 import type { OwnerAdminCloseRegistration } from './OwnerAdminControls';
 import styles from './ShareManagementSheet.module.css';
 
@@ -27,17 +29,21 @@ type SecretResult = SharePublishResultV1 | ShareRotateResultV1 | SharePasswordRe
 
 export function ShareManagementSheet({
   api,
+  analyticsApi,
   boardId,
   revisionId,
   enabled,
+  analyticsEnabled,
   routeKey,
   forcedCloseEpoch,
   registerClose,
 }: {
   api: ShareApi;
+  analyticsApi: ShareAnalyticsApi;
   boardId: string;
   revisionId: string;
   enabled: boolean;
+  analyticsEnabled: boolean;
   routeKey: string;
   forcedCloseEpoch: number;
   registerClose: OwnerAdminCloseRegistration;
@@ -378,6 +384,11 @@ export function ShareManagementSheet({
                   {message}
                 </p>
               )}
+              <ShareAnalyticsPanel
+                api={analyticsApi}
+                boardId={boardId}
+                enabled={analyticsEnabled}
+              />
             </div>
           </section>
         </dialog>

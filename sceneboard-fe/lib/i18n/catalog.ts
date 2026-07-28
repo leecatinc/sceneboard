@@ -1,5 +1,6 @@
 import { AI_CONNECTIONS_CATALOG } from './catalogs/ai-connections';
 import { AI_PAIRING_CATALOG } from './catalogs/ai-pairing';
+import { ANALYTICS_CATALOG } from './catalogs/analytics';
 import { AUTH_CATALOG } from './catalogs/auth';
 import { BOARD_CATALOG } from './catalogs/board';
 import { BOARDS_CATALOG } from './catalogs/boards';
@@ -313,6 +314,7 @@ const CATALOG = [
   ...PRESENTATION_CATALOG,
   ...MEDIA_AUTHORING_CATALOG,
   ...SHARING_CATALOG,
+  ...ANALYTICS_CATALOG,
 ] as const;
 
 export type MessageKey = (typeof CATALOG)[number][0];

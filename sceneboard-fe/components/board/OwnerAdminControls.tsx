@@ -5,6 +5,7 @@ import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from '
 import type { BoardApiClient } from '../../lib/api/board-api';
 import type { InvitationApi } from '../../lib/api/invitation-api';
 import type { ShareApi } from '../../lib/api/share-api';
+import type { ShareAnalyticsApi } from '../../lib/share-analytics/share-analytics-api';
 import styles from '../../app/boards/[boardId]/board.module.css';
 import { BoardArchiveControl } from './BoardArchiveControl';
 import { MemberManagementSheet } from './MemberManagementSheet';
@@ -22,14 +23,27 @@ export const OwnerAdminControls = forwardRef<
     api: BoardApiClient;
     invitationApi: InvitationApi;
     shareApi: ShareApi;
+    analyticsApi: ShareAnalyticsApi;
     boardId: string;
     boardTitle: string;
     revisionId: string;
+    analyticsEnabled: boolean;
     routeKey: string;
     onArchived: () => void;
   }
 >(function OwnerAdminControls(
-  { api, invitationApi, shareApi, boardId, boardTitle, revisionId, routeKey, onArchived },
+  {
+    api,
+    invitationApi,
+    shareApi,
+    analyticsApi,
+    boardId,
+    boardTitle,
+    revisionId,
+    analyticsEnabled,
+    routeKey,
+    onArchived,
+  },
   ref,
 ) {
   const [forcedCloseEpoch, setForcedCloseEpoch] = useState(0);
@@ -56,9 +70,11 @@ export const OwnerAdminControls = forwardRef<
     <div className={styles.ownerAdmin}>
       <ShareManagementSheet
         api={shareApi}
+        analyticsApi={analyticsApi}
         boardId={boardId}
         revisionId={revisionId}
         enabled
+        analyticsEnabled={analyticsEnabled}
         routeKey={routeKey}
         forcedCloseEpoch={forcedCloseEpoch}
         registerClose={registerClose}

@@ -1,0 +1,86 @@
+.panel {
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 18px;
+}
+
+.panel h3,
+.panel p,
+.totals dd,
+.totals dt {
+  margin: 0;
+}
+
+.description,
+.denominator {
+  color: var(--muted);
+}
+
+.delayed {
+  border-radius: 8px;
+  background: var(--surface-muted);
+  padding: 10px;
+}
+
+.totals {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.totals div {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.totals dt {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.totals dd {
+  overflow-wrap: anywhere;
+  font-weight: 650;
+}
+
+.tableViewport {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.tableViewport:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.tableViewport table {
+  width: 100%;
+  min-width: 38rem;
+  border-collapse: collapse;
+}
+
+.tableViewport caption {
+  text-align: left;
+  font-weight: 650;
+  padding-block-end: 8px;
+}
+
+.tableViewport th,
+.tableViewport td {
+  border-bottom: 1px solid var(--border);
+  padding: 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+@media (max-width: 320px) {
+  .totals {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

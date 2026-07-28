@@ -6,6 +6,7 @@ import test from 'node:test';
 import { MESSAGES, SUPPORTED_LOCALES, messageKeys } from '../../lib/i18n/catalog';
 import { AI_CONNECTIONS_CATALOG } from '../../lib/i18n/catalogs/ai-connections';
 import { AI_PAIRING_CATALOG } from '../../lib/i18n/catalogs/ai-pairing';
+import { ANALYTICS_CATALOG } from '../../lib/i18n/catalogs/analytics';
 import { AUTH_CATALOG } from '../../lib/i18n/catalogs/auth';
 import { BOARD_CATALOG } from '../../lib/i18n/catalogs/board';
 import { BOARDS_CATALOG } from '../../lib/i18n/catalogs/boards';
@@ -39,6 +40,7 @@ test('catalog baseline freezes ordered locale values and the AI topic partition'
     (key) =>
       !key.startsWith('presentation.') &&
       !key.startsWith('sharing.') &&
+      !key.startsWith('analytics.') &&
       !key.startsWith('mediaAuthoring.'),
   );
   assert.equal(keys.length, catalogBaseline.keyCount);
@@ -111,6 +113,7 @@ test('topic catalogs have one owner per key and stay below the physical line cap
     ['presentation', PRESENTATION_CATALOG],
     ['media-authoring', MEDIA_AUTHORING_CATALOG],
     ['sharing', SHARING_CATALOG],
+    ['analytics', ANALYTICS_CATALOG],
   ] as const;
   const ownedKeys = modules.flatMap(([, rows]) => rows.map((row) => row[0]));
   assert.equal(new Set(ownedKeys).size, ownedKeys.length);

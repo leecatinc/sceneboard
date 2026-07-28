@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, type CSSProperties } from 'react';
+import React, { useRef, useState, type CSSProperties } from 'react';
 import { MAX_MEDIA_PIXELS } from '@sceneboard/board-schema';
 
 import type { RendererComponentV1 } from '../renderer-types.js';
@@ -15,6 +15,7 @@ type ImageStyleV1 = CSSProperties &
 const unavailable = (alt: string, decorative: boolean | undefined, caption?: string) => (
   <figure
     className="scene-block scene-image scene-image-unavailable"
+    data-public-render-terminal="true"
     aria-hidden={decorative === true ? true : undefined}
   >
     <div
@@ -82,6 +83,7 @@ export const ImageBlock: RendererComponentV1<'content.image'> = ({ node, context
     return (
       <figure
         className="scene-block scene-placeholder"
+        data-public-render-terminal="true"
         aria-hidden={node.decorative === true ? true : undefined}
       >
         <div className="scene-placeholder-icon" aria-hidden="true">
@@ -145,6 +147,7 @@ export const ImageBlock: RendererComponentV1<'content.image'> = ({ node, context
         }
       >
         <img
+          data-public-render-resource="image"
           key={requestKey}
           src={resolution.url}
           alt={node.decorative === true ? '' : node.alt}

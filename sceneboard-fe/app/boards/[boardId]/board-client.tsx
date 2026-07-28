@@ -39,6 +39,7 @@ import { useBoardSession } from '../../../lib/board/use-board-session';
 import { BoardApiClient } from '../../../lib/api/board-api';
 import { InvitationApi } from '../../../lib/api/invitation-api';
 import { ShareApi } from '../../../lib/api/share-api';
+import { ShareAnalyticsApi } from '../../../lib/share-analytics/share-analytics-api';
 import { createAccountMediaResolverV1 } from '../../../lib/api/board-media-api';
 import { authSessionClient } from '../../../lib/auth/session-client';
 import { useHitlInteractionController } from '../../../lib/board/use-hitl-interaction-controller';
@@ -220,6 +221,7 @@ export function BoardClient({ boardId }: { boardId: string }) {
   const [api] = useState(() => new BoardApiClient(coordinator));
   const [invitationApi] = useState(() => new InvitationApi(coordinator));
   const [shareApi] = useState(() => new ShareApi(coordinator));
+  const [shareAnalyticsApi] = useState(() => new ShareAnalyticsApi(coordinator));
   const [renderedAccess, setRenderedAccess] = useState<{
     boardId: string;
     access: BoardSessionAccessV1;
@@ -290,6 +292,7 @@ export function BoardClient({ boardId }: { boardId: string }) {
     if (
       lost.includes('membership.manage') ||
       lost.includes('share.manage') ||
+      lost.includes('analytics.read') ||
       lost.includes('board.archive') ||
       lost.includes('board.delete')
     )
@@ -764,17 +767,20 @@ export function BoardClient({ boardId }: { boardId: string }) {
   );
   const canManageShares = affordances['share.manage'];
   const canManageMembers = affordances['membership.manage'];
+  const canReadShareAnalytics = affordances['analytics.read'];
   const canAdministerBoard = affordances['board.archive'] && affordances['board.delete'];
   const ownerAdmin =
-    canManageShares && canManageMembers && canAdministerBoard ? (
+    canManageShares && canManageMembers && canReadShareAnalytics && canAdministerBoard ? (
       <OwnerAdminControls
         ref={ownerAdminRef}
         api={api}
         invitationApi={invitationApi}
         shareApi={shareApi}
+        analyticsApi={shareAnalyticsApi}
         boardId={boardId}
         boardTitle={session.title}
         revisionId={visibleSnapshot.revision.revisionId}
+        analyticsEnabled={canReadShareAnalytics}
         routeKey={routeEpoch}
         onArchived={() => router.replace('/boards')}
       />

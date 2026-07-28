@@ -78,6 +78,7 @@ test('literal server capabilities expose the exact viewer, editor, and owner out
     'connection.revoke': false,
     'membership.manage': false,
     'share.manage': false,
+    'analytics.read': false,
     'board.archive': false,
     'board.delete': false,
   });
@@ -92,6 +93,7 @@ test('literal server capabilities expose the exact viewer, editor, and owner out
     'connection.revoke': true,
     'membership.manage': false,
     'share.manage': false,
+    'analytics.read': false,
     'board.archive': false,
     'board.delete': false,
   });
@@ -106,6 +108,7 @@ test('literal server capabilities expose the exact viewer, editor, and owner out
     'connection.revoke': true,
     'membership.manage': true,
     'share.manage': true,
+    'analytics.read': true,
     'board.archive': true,
     'board.delete': true,
   });

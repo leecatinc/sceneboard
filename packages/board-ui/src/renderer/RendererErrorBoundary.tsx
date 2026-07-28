@@ -1,6 +1,6 @@
 'use client';
 
-import { Component, type ErrorInfo, type ReactNode } from 'react';
+import React, { Component, type ErrorInfo, type ReactNode } from 'react';
 
 export class RendererErrorBoundary extends Component<
   {
@@ -23,7 +23,7 @@ export class RendererErrorBoundary extends Component<
   render(): ReactNode {
     if (this.state.failed) {
       return (
-        <section className="scene-fallback" role="alert">
+        <section className="scene-fallback" role="alert" data-public-render-error="true">
           <strong>Block unavailable</strong>
           <span>
             {this.props.nodeType} · {this.props.nodeId}

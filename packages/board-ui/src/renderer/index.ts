@@ -5,6 +5,11 @@ export { inspectRenderBudgetV1 } from './render-budget.js';
 export { tokenizeSafeMarkdownV1 } from './blocks/safe-markdown.js';
 export { buildChartGeometryV1 } from './blocks/chart-geometry.js';
 export { projectMapPositionV1 } from './blocks/map-projection.js';
+export {
+  publicRenderTreeIsReadyV1,
+  waitForPublicRenderReadyV1,
+  type PublicRenderReadyIdentityV1,
+} from './render-readiness.js';
 export type {
   BoardRendererPropsV2,
   DrawingViewControllerV1,
