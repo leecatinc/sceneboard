@@ -13,6 +13,7 @@ import {
   TimestampSchemaV1,
 } from '../identifiers.js';
 import { scalarLengthV1 } from '../json.js';
+import { MediaCaptionSchemaV1, MediaSourceSchemaV1 } from '../media.js';
 import {
   MAX_CHART_POINTS,
   MAX_CHART_SERIES,
@@ -131,20 +132,23 @@ export const StatusNodeSchemaV1 = z
     detail: MarkdownTextSchemaV1.optional(),
   })
   .strict();
+const ArtifactImageSourceSchemaV1 = z
+  .object({
+    type: z.literal('artifact.resource'),
+    artifact: ArtifactReferenceSchemaV1,
+    path: ArtifactPathSchemaV1,
+    sha256: ArtifactDigestSchemaV1,
+  })
+  .strict();
+
 export const ImageNodeSchemaV1 = z
   .object({
     ...NodeBaseShapeV1,
     type: z.literal('content.image'),
-    source: z
-      .object({
-        type: z.literal('artifact.resource'),
-        artifact: ArtifactReferenceSchemaV1,
-        path: ArtifactPathSchemaV1,
-        sha256: ArtifactDigestSchemaV1,
-      })
-      .strict(),
+    source: z.union([ArtifactImageSourceSchemaV1, MediaSourceSchemaV1]),
+    decorative: z.boolean().optional(),
     alt: ImageAltSchemaV1,
-    caption: ShortTextSchemaV1.optional(),
+    caption: MediaCaptionSchemaV1.optional(),
     fit: z.enum(['contain', 'cover', 'fill', 'none']),
   })
   .strict();

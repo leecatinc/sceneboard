@@ -1,7 +1,9 @@
 import {
   adaptLegacySceneToDocumentV2,
+  MAX_MEDIA_REFERENCES,
   type BoardId,
   type MutationRequestV2,
+  type RevisionId,
 } from '@sceneboard/board-schema';
 import type { PoolConnection, ResultSetHeader } from 'mysql2/promise';
 
@@ -17,8 +19,17 @@ import {
 import type {
   RestorePreparedV1,
   RestoreSourceRow,
+  StoredMediaReferenceRow,
   StoredReferenceRow,
 } from './board-mutation.types.js';
+import {
+  decodeMediaIdFromStorage,
+  decodePageIdFromStorage,
+  encodeMediaIdForStorage,
+  encodePageIdForStorage,
+  type RevisionMediaReferenceRowV1,
+} from '../media/media-reference.types.js';
+import { RevisionMediaReferenceExtractor } from '../media/revision-media-reference.extractor.js';
 import {
   extractDocumentArtifactReferences,
   extractSceneArtifactReferences,
@@ -29,8 +40,28 @@ import {
   type EncodedBoardCheckpoint,
 } from './document-checkpoint.codec.js';
 
+const mediaReferenceRowsEqual = (
+  left: readonly RevisionMediaReferenceRowV1[],
+  right: readonly RevisionMediaReferenceRowV1[],
+): boolean =>
+  left.length === right.length &&
+  left.every((reference, index) => {
+    const expected = right[index];
+    return (
+      expected !== undefined &&
+      reference.boardId === expected.boardId &&
+      reference.revisionId === expected.revisionId &&
+      reference.firstPageId === expected.firstPageId &&
+      reference.mediaId === expected.mediaId &&
+      reference.ordinal === expected.ordinal
+    );
+  });
+
 export class BoardMutationRestoreRepository {
-  constructor(private readonly checkpoints: DocumentCheckpointCodec) {}
+  constructor(
+    private readonly checkpoints: DocumentCheckpointCodec,
+    private readonly mediaReferences = new RevisionMediaReferenceExtractor(),
+  ) {}
 
   async prepareRestore(
     connection: PoolConnection,
@@ -79,11 +110,29 @@ export class BoardMutationRestoreRepository {
       sha256: row.sceneSha256,
     });
     const references = await this.readReferences(connection, row.revisionPk);
+    const mediaReferences = await this.readMediaReferences(
+      connection,
+      row.revisionPk,
+      request.boardId,
+      request.command.sourceRevisionId,
+    );
+    const document =
+      decoded.kind === 'document'
+        ? decoded.document
+        : adaptLegacySceneToDocumentV2({ boardId: request.boardId, scene: decoded.scene });
     const expectedReferences =
       decoded.kind === 'scene'
         ? extractSceneArtifactReferences(decoded.scene)
         : extractDocumentArtifactReferences(decoded.document);
-    if (!referenceRowsEqual(references, expectedReferences)) {
+    const expectedMediaReferences = this.mediaReferences.extract({
+      boardId: request.boardId,
+      revisionId: request.command.sourceRevisionId,
+      document,
+    });
+    if (
+      !referenceRowsEqual(references, expectedReferences) ||
+      !mediaReferenceRowsEqual(mediaReferences, expectedMediaReferences)
+    ) {
       throw new BoardPersistenceError('row_integrity');
     }
     return {
@@ -99,6 +148,7 @@ export class BoardMutationRestoreRepository {
       },
       decoded,
       references,
+      mediaReferences,
     };
   }
 
@@ -108,9 +158,11 @@ export class BoardMutationRestoreRepository {
     prepared: RestorePreparedV1,
     headSchemaVersion: string,
     boardId: BoardId,
+    targetRevisionId: RevisionId,
   ): Promise<{
     checkpoint: EncodedBoardCheckpoint;
     references: readonly SceneArtifactReferenceRowV1[];
+    mediaReferences: readonly RevisionMediaReferenceRowV1[];
     sourceRevisionPk: string;
   }> {
     const [rows] = await connection.execute<RestoreSourceRow[]>(
@@ -150,7 +202,17 @@ export class BoardMutationRestoreRepository {
       throw new BoardPersistenceError('row_integrity');
     }
     const references = await this.readReferences(connection, row.revisionPk);
-    if (!referenceRowsEqual(references, prepared.references)) {
+    const sourceRevisionId = revisionIdFromBytes(row.revisionId) as RevisionId;
+    const mediaReferences = await this.readMediaReferences(
+      connection,
+      row.revisionPk,
+      boardId,
+      sourceRevisionId,
+    );
+    if (
+      !referenceRowsEqual(references, prepared.references) ||
+      !mediaReferenceRowsEqual(mediaReferences, prepared.mediaReferences)
+    ) {
       throw new BoardPersistenceError('row_integrity');
     }
     if (headSchemaVersion !== '1.0.0' && headSchemaVersion !== '2.0.0')
@@ -163,10 +225,23 @@ export class BoardMutationRestoreRepository {
       return {
         checkpoint: await this.checkpoints.encodeDocument(document),
         references: extractDocumentArtifactReferences(document),
+        mediaReferences: this.mediaReferences.extract({
+          boardId,
+          revisionId: targetRevisionId,
+          document,
+        }),
         sourceRevisionPk: row.revisionPk,
       };
     }
-    return { checkpoint: prepared.checkpoint, references, sourceRevisionPk: row.revisionPk };
+    return {
+      checkpoint: prepared.checkpoint,
+      references,
+      mediaReferences: mediaReferences.map((reference) => ({
+        ...reference,
+        revisionId: targetRevisionId,
+      })),
+      sourceRevisionPk: row.revisionPk,
+    };
   }
 
   async insertReferences(
@@ -192,6 +267,102 @@ export class BoardMutationRestoreRepository {
       binds,
     );
     if (insert.affectedRows !== references.length) throw internalFailure();
+  }
+
+  async insertMediaReferences(
+    connection: PoolConnection,
+    input: {
+      boardPk: bigint;
+      revisionPk: bigint;
+      references: readonly RevisionMediaReferenceRowV1[];
+    },
+  ): Promise<void> {
+    if (input.references.length === 0) return;
+    if (
+      input.references.length > MAX_MEDIA_REFERENCES ||
+      new Set(input.references.map((reference) => reference.mediaId)).size !==
+        input.references.length ||
+      input.references.some((reference, index) => reference.ordinal !== index + 1)
+    ) {
+      throw internalFailure();
+    }
+    const placeholders = input.references.map(() => '(?, ?, ?, ?, ?)').join(', ');
+    const binds = input.references.flatMap((reference) => [
+      input.boardPk.toString(),
+      input.revisionPk.toString(),
+      encodeMediaIdForStorage(reference.mediaId),
+      encodePageIdForStorage(reference.firstPageId),
+      reference.ordinal,
+    ]);
+    const [insert] = await connection.execute<ResultSetHeader>(
+      `
+      INSERT INTO board_revision_media_refs (
+        board_pk, revision_pk, media_id, first_page_id, ordinal
+      ) VALUES ${placeholders}
+    `,
+      binds,
+    );
+    if (insert.affectedRows !== input.references.length) throw internalFailure();
+  }
+
+  async assertReplayMediaIntegrity(
+    connection: PoolConnection,
+    boardId: BoardId,
+    revisionId: RevisionId,
+  ): Promise<{
+    boardPk: bigint;
+    mediaReferences: readonly RevisionMediaReferenceRowV1[];
+  }> {
+    const revisionBytes = uuidBytesOrNull(revisionId);
+    if (revisionBytes === null) throw new BoardPersistenceError('row_integrity');
+    const [rows] = await connection.execute<(RestoreSourceRow & { boardPk: string })[]>(
+      `
+      SELECT
+        CAST(r.board_pk AS CHAR) AS boardPk,
+        CAST(r.revision_pk AS CHAR) AS revisionPk,
+        r.revision_id AS revisionId,
+        CAST(r.revision_number AS CHAR) AS revisionNumber,
+        COALESCE(p.schema_version, r.scene_schema_version) AS sceneSchemaVersion,
+        COALESCE(p.codec, r.scene_codec) AS sceneCodec,
+        COALESCE(p.payload, r.scene_payload) AS scenePayload,
+        COALESCE(p.canonical_bytes, r.scene_canonical_bytes) AS sceneCanonicalBytes,
+        COALESCE(p.stored_bytes, r.scene_stored_bytes) AS sceneStoredBytes,
+        COALESCE(p.payload_sha256, r.scene_sha256) AS sceneSha256
+      FROM boards b
+      JOIN board_revision_catalog c ON c.board_pk = b.board_pk
+      JOIN board_revisions r ON r.board_pk = c.board_pk AND r.revision_pk = c.revision_pk
+      LEFT JOIN board_revision_payloads p ON p.revision_pk = r.revision_pk AND p.state = 'available'
+      WHERE b.public_id = ? AND r.revision_id = ?
+      LIMIT 1
+    `,
+      [boardId, revisionBytes],
+    );
+    const row = rows[0];
+    if (
+      rows.length !== 1 ||
+      row === undefined ||
+      revisionIdFromBytes(row.revisionId) !== revisionId
+    ) {
+      throw new BoardPersistenceError('row_integrity');
+    }
+    const decoded = await this.checkpoints.decode({
+      schemaVersion: row.sceneSchemaVersion,
+      codec: row.sceneCodec,
+      payload: row.scenePayload,
+      canonicalBytes: row.sceneCanonicalBytes,
+      storedBytes: row.sceneStoredBytes,
+      sha256: row.sceneSha256,
+    });
+    const document =
+      decoded.kind === 'document'
+        ? decoded.document
+        : adaptLegacySceneToDocumentV2({ boardId, scene: decoded.scene });
+    const stored = await this.readMediaReferences(connection, row.revisionPk, boardId, revisionId);
+    const expected = this.mediaReferences.extract({ boardId, revisionId, document });
+    if (!mediaReferenceRowsEqual(stored, expected)) {
+      throw new BoardPersistenceError('row_integrity');
+    }
+    return { boardPk: BigInt(row.boardPk), mediaReferences: stored };
   }
 
   private async readReferences(
@@ -223,6 +394,37 @@ export class BoardMutationRestoreRepository {
         referenceCode: row.referenceCode,
         occurrenceCount: row.occurrenceCount,
       };
+    });
+  }
+
+  private async readMediaReferences(
+    connection: PoolConnection,
+    revisionPk: string,
+    boardId: BoardId,
+    revisionId: RevisionId,
+  ): Promise<RevisionMediaReferenceRowV1[]> {
+    const [rows] = await connection.execute<StoredMediaReferenceRow[]>(
+      `
+      SELECT media_id AS mediaId, first_page_id AS firstPageId, ordinal
+      FROM board_revision_media_refs
+      WHERE revision_pk = ?
+      ORDER BY ordinal
+    `,
+      [revisionPk],
+    );
+    return rows.map((row, index) => {
+      if (row.ordinal !== index + 1) throw new BoardPersistenceError('row_integrity');
+      try {
+        return {
+          boardId,
+          revisionId,
+          mediaId: decodeMediaIdFromStorage(row.mediaId),
+          firstPageId: decodePageIdFromStorage(row.firstPageId),
+          ordinal: row.ordinal,
+        };
+      } catch (error) {
+        throw new BoardPersistenceError('row_integrity', error);
+      }
     });
   }
 }

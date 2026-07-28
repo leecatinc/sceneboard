@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "migration": "018_d9_board_revision_media_refs",
+  "reversible": false,
+  "table": "board_revision_media_refs",
+  "columns": {
+    "board_pk": "BIGINT UNSIGNED",
+    "revision_pk": "BIGINT UNSIGNED",
+    "media_id": "VARBINARY(128)",
+    "first_page_id": "VARBINARY(128)",
+    "ordinal": "INT UNSIGNED"
+  },
+  "primaryKey": ["revision_pk", "media_id"],
+  "uniqueOrderKey": ["revision_pk", "ordinal"],
+  "lookupIndex": ["board_pk", "media_id", "revision_pk"],
+  "revisionForeignKey": {
+    "columns": ["board_pk", "revision_pk"],
+    "references": ["board_revisions", "board_pk", "revision_pk"],
+    "deleteRule": "RESTRICT"
+  },
+  "mediaForeignKey": null
+}

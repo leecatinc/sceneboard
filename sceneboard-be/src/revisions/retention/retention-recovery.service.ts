@@ -165,6 +165,10 @@ export class RetentionRecoveryService {
     );
     if (holds.length > 0) throw new BoardPersistenceError('row_integrity');
     await connection.execute<ResultSetHeader>(
+      'DELETE FROM board_revision_media_refs WHERE revision_pk = ?',
+      [revisionPk],
+    );
+    await connection.execute<ResultSetHeader>(
       'DELETE FROM board_revision_artifact_refs WHERE revision_pk = ?',
       [revisionPk],
     );

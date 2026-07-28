@@ -343,6 +343,13 @@ const BoardErrorSchemaV2Only = z.discriminatedUnion('code', [
       })
       .strict(),
   ),
+  branch(
+    'INVALID_MEDIA_REFERENCE',
+    'validation',
+    false,
+    400,
+    z.object({ reason: z.literal('unavailable') }).strict(),
+  ),
 ]);
 
 export const BoardErrorSchema = z.union([BoardErrorSchemaV1, BoardErrorSchemaV2Only]);

@@ -26,14 +26,14 @@ const projection = async (): Promise<Projection> =>
   ) as Projection;
 
 test('registers the forward-only retention runtime after expand', async () => {
-  assert.deepEqual(MIGRATION_REGISTRY.at(-5), {
+  assert.deepEqual(MIGRATION_REGISTRY.at(-6), {
     version: '015_d9_revision_retention_runtime',
     upAsset: '015_d9_revision_retention_runtime.up.sql',
     reversible: false,
     downAsset: null,
     postcondition: 'd9_revision_retention_runtime_v1',
   });
-  assert.equal(MIGRATION_REGISTRY.at(-6)?.version, '014_d9_revision_retention_expand');
+  assert.equal(MIGRATION_REGISTRY.at(-7)?.version, '014_d9_revision_retention_expand');
   assert.deepEqual(
     { migration: (await projection()).migration, reversible: (await projection()).reversible },
     { migration: '015_d9_revision_retention_runtime', reversible: false },

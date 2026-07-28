@@ -1,4 +1,5 @@
 import {
+  adaptLegacySceneToDocumentV2,
   type EventId,
   type MutationRequestV2,
   type RevisionId,
@@ -16,6 +17,7 @@ import {
   extractDocumentArtifactReferences,
   extractSceneArtifactReferences,
 } from './scene-artifact-reference.extractor.js';
+import { RevisionMediaReferenceExtractor } from '../media/revision-media-reference.extractor.js';
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
 
@@ -25,6 +27,7 @@ export class BoardMutationPreparer {
   constructor(
     private readonly checkpoints: DocumentCheckpointCodec,
     runtime: Partial<MutationRuntime> = {},
+    private readonly mediaReferences = new RevisionMediaReferenceExtractor(),
   ) {
     this.runtime = {
       now: runtime.now ?? (() => new Date()),
@@ -71,6 +74,11 @@ export class BoardMutationPreparer {
         : document !== null
           ? await this.checkpoints.encodeDocument(document)
           : null;
+    const mediaDocument =
+      document ??
+      (scene === null
+        ? null
+        : adaptLegacySceneToDocumentV2({ boardId: input.request.boardId, scene }));
     return {
       revisionId: revisionUuid as RevisionId,
       revisionIdBytes: Buffer.from(parsePublicUuidV4(revisionUuid)),
@@ -93,6 +101,14 @@ export class BoardMutationPreparer {
           : document !== null
             ? extractDocumentArtifactReferences(document)
             : null,
+      mediaReferences:
+        mediaDocument === null
+          ? null
+          : this.mediaReferences.extract({
+              boardId: input.request.boardId,
+              revisionId: revisionUuid as RevisionId,
+              document: mediaDocument,
+            }),
     };
   }
 
@@ -100,7 +116,16 @@ export class BoardMutationPreparer {
     const uuid = this.runtime.generateUuid();
     const bytes = Buffer.from(parsePublicUuidV4(uuid));
     if (kind === 'revision') {
-      return { ...prepared, revisionId: uuid as RevisionId, revisionIdBytes: bytes };
+      return {
+        ...prepared,
+        revisionId: uuid as RevisionId,
+        revisionIdBytes: bytes,
+        mediaReferences:
+          prepared.mediaReferences?.map((reference) => ({
+            ...reference,
+            revisionId: uuid as RevisionId,
+          })) ?? null,
+      };
     }
     if (kind === 'event') {
       return { ...prepared, eventId: uuid as EventId, eventIdBytes: bytes };

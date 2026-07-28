@@ -25031,7 +25031,8 @@ var BOARD_ERROR_CODES_V1 = [
 var BOARD_ERROR_CODES_V2 = [
   ...BOARD_ERROR_CODES_V1,
   "DOCUMENT_VERSION_MISMATCH",
-  "INVALID_DOCUMENT"
+  "INVALID_DOCUMENT",
+  "INVALID_MEDIA_REFERENCE"
 ];
 
 // packages/board-schema/src/limits.ts
@@ -25078,6 +25079,10 @@ var MAX_DOCUMENT_BYTES = 20971520;
 var MAX_DOCUMENT_PAGE_BYTES = 1048576;
 var MAX_DOCUMENT_NODES = 5e3;
 var MAX_DOCUMENT_ENVELOPE_BYTES = 33554432;
+var MAX_MEDIA_BYTES = 10485760;
+var MAX_MEDIA_PIXELS = 4e7;
+var MAX_BOARD_MEDIA_BYTES = 536870912;
+var MAX_MEDIA_REFERENCES = 5e3;
 var BOARD_LIMITS_V1 = {
   maxEnvelopeBytes: MAX_ENVELOPE_BYTES,
   maxSceneBytes: MAX_SCENE_BYTES,
@@ -25124,7 +25129,11 @@ var BOARD_DOCUMENT_LIMITS_V2 = {
   maxDocumentBytes: MAX_DOCUMENT_BYTES,
   maxDocumentPageBytes: MAX_DOCUMENT_PAGE_BYTES,
   maxDocumentNodes: MAX_DOCUMENT_NODES,
-  maxDocumentEnvelopeBytes: MAX_DOCUMENT_ENVELOPE_BYTES
+  maxDocumentEnvelopeBytes: MAX_DOCUMENT_ENVELOPE_BYTES,
+  maxMediaBytes: MAX_MEDIA_BYTES,
+  maxMediaPixels: MAX_MEDIA_PIXELS,
+  maxBoardMediaBytes: MAX_BOARD_MEDIA_BYTES,
+  maxMediaReferences: MAX_MEDIA_REFERENCES
 };
 
 // packages/board-schema/src/json.ts
@@ -25169,6 +25178,7 @@ var GrantIdSchemaV1 = globalId("GrantId");
 var EventIdSchemaV1 = globalId("EventId");
 var ArtifactIdSchemaV1 = globalId("ArtifactId");
 var ArtifactVersionIdSchemaV1 = globalId("ArtifactVersionId");
+var MediaIdSchemaV1 = globalId("MediaId");
 var HitlRequestIdSchemaV1 = globalId("HitlRequestId");
 var PageIdSchemaV1 = globalId("PageId");
 var NodeIdSchemaV1 = z.string().regex(LOCAL_ID_PATTERN).brand();
@@ -25371,78 +25381,14 @@ var ManagedMembershipEnvelopeSchemaV1 = z.object({
   capabilityEpoch: z.number().int().safe().min(0)
 }).strict();
 
-// packages/board-schema/src/nodes/base.ts
-var NodeBaseShapeV1 = {
-  id: NodeIdSchemaV1,
-  title: ShortTextSchemaV1.optional()
-};
-var PointSchemaV1 = z.object({ x: z.number().finite(), y: z.number().finite() }).strict();
-
-// packages/board-schema/src/nodes/drawing.ts
-var color = z.string().regex(/^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$/);
-var DrawingStyleSchemaV1 = z.object({
-  stroke: color.optional(),
-  fill: color.optional(),
-  strokeWidth: z.number().finite().positive().optional(),
-  opacity: z.number().finite().min(0).max(1).optional()
-}).strict();
-var PathSchemaV1 = z.object({
-  id: LocalFieldIdSchemaV1,
-  type: z.literal("path"),
-  points: z.array(PointSchemaV1).min(2),
-  closed: z.boolean(),
-  style: DrawingStyleSchemaV1
-}).strict();
-var RectSchemaV1 = z.object({
-  id: LocalFieldIdSchemaV1,
-  type: z.literal("rect"),
-  x: z.number().finite(),
-  y: z.number().finite(),
-  width: z.number().finite().positive(),
-  height: z.number().finite().positive(),
-  style: DrawingStyleSchemaV1
-}).strict();
-var EllipseSchemaV1 = z.object({
-  id: LocalFieldIdSchemaV1,
-  type: z.literal("ellipse"),
-  cx: z.number().finite(),
-  cy: z.number().finite(),
-  rx: z.number().finite().positive(),
-  ry: z.number().finite().positive(),
-  style: DrawingStyleSchemaV1
-}).strict();
-var LineSchemaV1 = z.object({
-  id: LocalFieldIdSchemaV1,
-  type: z.literal("line"),
-  from: PointSchemaV1,
-  to: PointSchemaV1,
-  style: DrawingStyleSchemaV1
-}).strict();
-var TextSchemaV1 = z.object({
-  id: LocalFieldIdSchemaV1,
-  type: z.literal("text"),
-  x: z.number().finite(),
-  y: z.number().finite(),
-  text: ShortTextSchemaV1,
-  style: DrawingStyleSchemaV1
-}).strict();
-var DrawingElementSchemaV1 = z.discriminatedUnion("type", [
-  PathSchemaV1,
-  RectSchemaV1,
-  EllipseSchemaV1,
-  LineSchemaV1,
-  TextSchemaV1
-]);
-var DrawingNodeSchemaV1 = z.object({
-  ...NodeBaseShapeV1,
-  type: z.literal("content.drawing"),
-  viewBox: z.object({
-    x: z.number().finite(),
-    y: z.number().finite(),
-    width: z.number().finite().positive(),
-    height: z.number().finite().positive()
-  }).strict(),
-  elements: z.array(DrawingElementSchemaV1).max(MAX_DRAWING_ELEMENTS)
+// packages/board-schema/src/media.ts
+var MAX_MEDIA_ALT_CHARS = 500;
+var MAX_MEDIA_CAPTION_CHARS = 500;
+var MediaAltSchemaV1 = createScalarTextSchemaV1(1, MAX_MEDIA_ALT_CHARS);
+var MediaCaptionSchemaV1 = createScalarTextSchemaV1(1, MAX_MEDIA_CAPTION_CHARS);
+var MediaSourceSchemaV1 = z.object({
+  type: z.literal("media"),
+  mediaId: MediaIdSchemaV1
 }).strict();
 
 // packages/board-schema/src/artifacts.ts
@@ -25520,6 +25466,13 @@ var ArtifactRuntimeSummarySchemaV1 = z.object({
       message: "failure must match artifact status"
     });
 });
+
+// packages/board-schema/src/nodes/base.ts
+var NodeBaseShapeV1 = {
+  id: NodeIdSchemaV1,
+  title: ShortTextSchemaV1.optional()
+};
+var PointSchemaV1 = z.object({ x: z.number().finite(), y: z.number().finite() }).strict();
 
 // packages/board-schema/src/nodes/geojson.ts
 var PositionSchemaV1 = z.tuple([
@@ -25626,17 +25579,19 @@ var StatusNodeSchemaV1 = z.object({
   label: ShortTextSchemaV1,
   detail: MarkdownTextSchemaV1.optional()
 }).strict();
+var ArtifactImageSourceSchemaV1 = z.object({
+  type: z.literal("artifact.resource"),
+  artifact: ArtifactReferenceSchemaV1,
+  path: ArtifactPathSchemaV1,
+  sha256: ArtifactDigestSchemaV1
+}).strict();
 var ImageNodeSchemaV1 = z.object({
   ...NodeBaseShapeV1,
   type: z.literal("content.image"),
-  source: z.object({
-    type: z.literal("artifact.resource"),
-    artifact: ArtifactReferenceSchemaV1,
-    path: ArtifactPathSchemaV1,
-    sha256: ArtifactDigestSchemaV1
-  }).strict(),
+  source: z.union([ArtifactImageSourceSchemaV1, MediaSourceSchemaV1]),
+  decorative: z.boolean().optional(),
   alt: ImageAltSchemaV1,
-  caption: ShortTextSchemaV1.optional(),
+  caption: MediaCaptionSchemaV1.optional(),
   fit: z.enum(["contain", "cover", "fill", "none"])
 }).strict();
 var ProgressNodeSchemaV1 = z.object({
@@ -25659,6 +25614,73 @@ var ArtifactNodeSchemaV1 = z.object({
   fallbackText: ShortTextSchemaV1
 }).strict();
 var isTimestampCellV1 = (value) => TimestampSchemaV1.safeParse(value).success;
+
+// packages/board-schema/src/nodes/drawing.ts
+var color = z.string().regex(/^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$/);
+var DrawingStyleSchemaV1 = z.object({
+  stroke: color.optional(),
+  fill: color.optional(),
+  strokeWidth: z.number().finite().positive().optional(),
+  opacity: z.number().finite().min(0).max(1).optional()
+}).strict();
+var PathSchemaV1 = z.object({
+  id: LocalFieldIdSchemaV1,
+  type: z.literal("path"),
+  points: z.array(PointSchemaV1).min(2),
+  closed: z.boolean(),
+  style: DrawingStyleSchemaV1
+}).strict();
+var RectSchemaV1 = z.object({
+  id: LocalFieldIdSchemaV1,
+  type: z.literal("rect"),
+  x: z.number().finite(),
+  y: z.number().finite(),
+  width: z.number().finite().positive(),
+  height: z.number().finite().positive(),
+  style: DrawingStyleSchemaV1
+}).strict();
+var EllipseSchemaV1 = z.object({
+  id: LocalFieldIdSchemaV1,
+  type: z.literal("ellipse"),
+  cx: z.number().finite(),
+  cy: z.number().finite(),
+  rx: z.number().finite().positive(),
+  ry: z.number().finite().positive(),
+  style: DrawingStyleSchemaV1
+}).strict();
+var LineSchemaV1 = z.object({
+  id: LocalFieldIdSchemaV1,
+  type: z.literal("line"),
+  from: PointSchemaV1,
+  to: PointSchemaV1,
+  style: DrawingStyleSchemaV1
+}).strict();
+var TextSchemaV1 = z.object({
+  id: LocalFieldIdSchemaV1,
+  type: z.literal("text"),
+  x: z.number().finite(),
+  y: z.number().finite(),
+  text: ShortTextSchemaV1,
+  style: DrawingStyleSchemaV1
+}).strict();
+var DrawingElementSchemaV1 = z.discriminatedUnion("type", [
+  PathSchemaV1,
+  RectSchemaV1,
+  EllipseSchemaV1,
+  LineSchemaV1,
+  TextSchemaV1
+]);
+var DrawingNodeSchemaV1 = z.object({
+  ...NodeBaseShapeV1,
+  type: z.literal("content.drawing"),
+  viewBox: z.object({
+    x: z.number().finite(),
+    y: z.number().finite(),
+    width: z.number().finite().positive(),
+    height: z.number().finite().positive()
+  }).strict(),
+  elements: z.array(DrawingElementSchemaV1).max(MAX_DRAWING_ELEMENTS)
+}).strict();
 
 // packages/board-schema/src/nodes/layout.ts
 var createLayoutSchemasV1 = (node) => {
@@ -25852,6 +25874,21 @@ var validateNodeRelationsV1 = (root, context, prefix = []) => {
             );
         });
       });
+    } else if (item.node.type === "content.image") {
+      const image = item.node;
+      if (image.source.type === "artifact.resource") {
+        if (image.decorative !== void 0)
+          addLayoutIssue(context, [...path, "decorative"], "legacy image forbids decorative");
+        if (image.caption !== void 0 && !ShortTextSchemaV1.safeParse(image.caption).success)
+          addLayoutIssue(context, [...path, "caption"], "legacy image caption is invalid");
+      } else if (image.decorative === true) {
+        if (image.alt !== "")
+          addLayoutIssue(context, [...path, "alt"], "decorative media image requires empty alt");
+        if (image.caption !== void 0)
+          addLayoutIssue(context, [...path, "caption"], "decorative media image forbids caption");
+      } else if (!MediaAltSchemaV1.safeParse(image.alt).success) {
+        addLayoutIssue(context, [...path, "alt"], "media image alt is invalid");
+      }
     } else if (item.node.type === "content.chart") {
       const chart = item.node;
       if (chart.yAxis.min !== void 0 && chart.yAxis.max !== void 0 && chart.yAxis.min > chart.yAxis.max)
@@ -26541,7 +26578,7 @@ var BoardSnapshotSchemaV2 = z.object({
         path: [...item.path, "hitlRequestId"],
         message: "[INVALID_DOCUMENT:unresolved_reference] unresolved HITL reference"
       });
-    const reference = item.node.type === "content.artifact" ? item.node.artifact : item.node.type === "content.image" ? item.node.source.artifact : null;
+    const reference = item.node.type === "content.artifact" ? item.node.artifact : item.node.type === "content.image" && item.node.source.type === "artifact.resource" ? item.node.source.artifact : null;
     if (reference && !artifactKeys.has(artifactKey(reference)))
       context.addIssue({
         code: z.ZodIssueCode.custom,
@@ -27228,6 +27265,13 @@ var BoardErrorSchemaV2Only = z.discriminatedUnion("code", [
         "limit"
       ])
     }).strict()
+  ),
+  branch(
+    "INVALID_MEDIA_REFERENCE",
+    "validation",
+    false,
+    400,
+    z.object({ reason: z.literal("unavailable") }).strict()
   )
 ]);
 var BoardErrorSchema = z.union([BoardErrorSchemaV1, BoardErrorSchemaV2Only]);
@@ -28104,6 +28148,7 @@ var createParser = (schema, kind = "generic", documentProfile = false) => ({
 var createParserV1 = (schema, kind = "generic") => createParser(schema, kind);
 var GlobalIdStringParserV1 = createParserV1(GlobalIdStringSchemaV1);
 var BoardIdParserV1 = createParserV1(BoardIdSchemaV1);
+var MediaIdParserV1 = createParserV1(MediaIdSchemaV1);
 var GrantIdParserV1 = createParserV1(GrantIdSchemaV1);
 var PrincipalIdParserV1 = createParserV1(PrincipalIdSchemaV1);
 var NodeIdParserV1 = createParserV1(NodeIdSchemaV1);

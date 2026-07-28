@@ -180,7 +180,7 @@ export const BoardSnapshotSchemaV2 = z
       const reference =
         item.node.type === 'content.artifact'
           ? item.node.artifact
-          : item.node.type === 'content.image'
+          : item.node.type === 'content.image' && item.node.source.type === 'artifact.resource'
             ? item.node.source.artifact
             : null;
       if (reference && !artifactKeys.has(artifactKey(reference)))

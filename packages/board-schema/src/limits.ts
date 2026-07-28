@@ -41,6 +41,10 @@ export const MAX_DOCUMENT_BYTES = 20_971_520;
 export const MAX_DOCUMENT_PAGE_BYTES = 1_048_576;
 export const MAX_DOCUMENT_NODES = 5_000;
 export const MAX_DOCUMENT_ENVELOPE_BYTES = 33_554_432;
+export const MAX_MEDIA_BYTES = 10_485_760;
+export const MAX_MEDIA_PIXELS = 40_000_000;
+export const MAX_BOARD_MEDIA_BYTES = 536_870_912;
+export const MAX_MEDIA_REFERENCES = 5_000;
 
 export const BOARD_LIMITS_V1 = {
   maxEnvelopeBytes: MAX_ENVELOPE_BYTES,
@@ -92,6 +96,10 @@ export const BOARD_DOCUMENT_LIMITS_V2 = {
   maxDocumentPageBytes: MAX_DOCUMENT_PAGE_BYTES,
   maxDocumentNodes: MAX_DOCUMENT_NODES,
   maxDocumentEnvelopeBytes: MAX_DOCUMENT_ENVELOPE_BYTES,
+  maxMediaBytes: MAX_MEDIA_BYTES,
+  maxMediaPixels: MAX_MEDIA_PIXELS,
+  maxBoardMediaBytes: MAX_BOARD_MEDIA_BYTES,
+  maxMediaReferences: MAX_MEDIA_REFERENCES,
 } as const;
 
 export type BoardLimitKeyV2 = keyof typeof BOARD_DOCUMENT_LIMITS_V2;

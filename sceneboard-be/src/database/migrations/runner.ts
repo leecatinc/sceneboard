@@ -639,6 +639,10 @@ export class MigrationRunner {
       await this.verifyInvitationSchema(connection);
       return;
     }
+    if (postcondition === 'd9_board_revision_media_refs_v1') {
+      await this.verifyRevisionMediaRefsSchema(connection);
+      return;
+    }
     if (postcondition === 'd9_board_shares_v1') {
       await this.verifyShareSchema(connection);
       return;
@@ -899,6 +903,106 @@ export class MigrationRunner {
       [...expected].some(([name, value]) => actual.get(name) !== value)
     ) {
       throw new MigrationStateError('board share index projection mismatch');
+    }
+  }
+
+  private async verifyRevisionMediaRefsSchema(connection: PoolConnection): Promise<void> {
+    const [columns] = await connection.query<
+      Array<
+        RowDataPacket & {
+          columnName: string;
+          columnType: string;
+          isNullable: string;
+          ordinalPosition: number;
+        }
+      >
+    >(
+      `SELECT column_name AS columnName, column_type AS columnType,
+              is_nullable AS isNullable, ordinal_position AS ordinalPosition
+       FROM information_schema.columns
+       WHERE table_schema = DATABASE()
+         AND table_name = 'board_revision_media_refs'
+       ORDER BY ordinal_position`,
+    );
+    const expectedColumns = [
+      ['board_pk', 'bigint unsigned', 'NO', 1],
+      ['revision_pk', 'bigint unsigned', 'NO', 2],
+      ['media_id', 'varbinary(128)', 'NO', 3],
+      ['first_page_id', 'varbinary(128)', 'NO', 4],
+      ['ordinal', 'int unsigned', 'NO', 5],
+    ] as const;
+    assertExactProjection(
+      'revision media refs column',
+      expectedColumns,
+      columns.map((column) => [
+        column.columnName,
+        column.columnType.toLowerCase(),
+        column.isNullable,
+        Number(column.ordinalPosition),
+      ]),
+    );
+    const [indexes] = await connection.query<
+      Array<RowDataPacket & { indexName: string; nonUnique: number; columns: string }>
+    >(
+      `SELECT index_name AS indexName, non_unique AS nonUnique,
+              GROUP_CONCAT(column_name ORDER BY seq_in_index SEPARATOR ',') AS columns
+       FROM information_schema.statistics
+       WHERE table_schema = DATABASE()
+         AND table_name = 'board_revision_media_refs'
+       GROUP BY index_name, non_unique`,
+    );
+    const actualIndexes = new Map(
+      indexes.map((index) => [index.indexName, `${index.nonUnique}:${index.columns}`]),
+    );
+    const expectedIndexes = new Map([
+      ['PRIMARY', '0:revision_pk,media_id'],
+      ['uq_revision_media_ref_order', '0:revision_pk,ordinal'],
+      ['ix_revision_media_ref_lookup', '1:board_pk,media_id,revision_pk'],
+    ]);
+    if (
+      actualIndexes.size !== expectedIndexes.size ||
+      [...expectedIndexes].some(([name, value]) => actualIndexes.get(name) !== value)
+    ) {
+      throw new MigrationStateError('revision media refs index projection mismatch');
+    }
+    const [foreignKeys] = await connection.query<
+      Array<
+        RowDataPacket & {
+          constraintName: string;
+          columns: string;
+          referencedTableName: string;
+          referencedColumns: string;
+          deleteRule: string;
+        }
+      >
+    >(
+      `SELECT kcu.constraint_name AS constraintName,
+              GROUP_CONCAT(kcu.column_name ORDER BY kcu.ordinal_position SEPARATOR ',') AS columns,
+              kcu.referenced_table_name AS referencedTableName,
+              GROUP_CONCAT(
+                kcu.referenced_column_name ORDER BY kcu.ordinal_position SEPARATOR ','
+              ) AS referencedColumns,
+              MAX(rc.delete_rule) AS deleteRule
+       FROM information_schema.key_column_usage kcu
+       JOIN information_schema.referential_constraints rc
+         ON rc.constraint_schema = kcu.constraint_schema
+           AND rc.constraint_name = kcu.constraint_name
+       WHERE kcu.table_schema = DATABASE()
+         AND kcu.table_name = 'board_revision_media_refs'
+         AND kcu.referenced_table_name IS NOT NULL
+       GROUP BY kcu.constraint_name, kcu.referenced_table_name`,
+    );
+    const foreignKey = foreignKeys[0];
+    if (
+      foreignKeys.length !== 1 ||
+      foreignKey === undefined ||
+      foreignKey.constraintName !== 'fk_revision_media_refs_revision' ||
+      foreignKey.columns !== 'board_pk,revision_pk' ||
+      foreignKey.referencedTableName !== 'board_revisions' ||
+      foreignKey.referencedColumns !== 'board_pk,revision_pk' ||
+      foreignKey.deleteRule !== 'RESTRICT'
+    ) {
+      throw new MigrationStateError('revision media refs foreign key projection mismatch');
     }
   }
 

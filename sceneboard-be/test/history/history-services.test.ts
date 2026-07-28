@@ -234,6 +234,7 @@ test('history get composes an immutable selected v2 document with current respon
         ];
       }
       if (normalized.includes('FROM board_revision_artifact_refs')) return [[], []];
+      if (normalized.includes('FROM board_revision_media_refs')) return [[], []];
       if (normalized.includes('board_artifact_capability_policy_epochs')) {
         return [[{ policyEpoch: Buffer.alloc(16, 6), capability: null }], []];
       }
@@ -285,5 +286,5 @@ test('history get composes an immutable selected v2 document with current respon
       latestRevisionId: revisions[2],
     },
   });
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 4);
 });

@@ -148,6 +148,13 @@ export const MIGRATION_REGISTRY = [
     postcondition: 'd9_board_invitations_v1',
   },
   {
+    version: '018_d9_board_revision_media_refs',
+    upAsset: '018_d9_board_revision_media_refs.up.sql',
+    reversible: false,
+    downAsset: null,
+    postcondition: 'd9_board_revision_media_refs_v1',
+  },
+  {
     version: '019_d9_board_shares',
     upAsset: '019_d9_board_shares.up.sql',
     reversible: false,

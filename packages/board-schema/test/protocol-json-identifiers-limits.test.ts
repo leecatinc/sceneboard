@@ -101,15 +101,15 @@ test('keeps local node identifiers distinct from global identifiers', () => {
 });
 
 test('registers every exact fixture once with complete metadata', async () => {
-  assert.equal(FIXTURE_CATALOG.length, 188);
-  assert.equal(new Set(FIXTURE_CATALOG.map((entry) => entry.path)).size, 188);
+  assert.equal(FIXTURE_CATALOG.length, 190);
+  assert.equal(new Set(FIXTURE_CATALOG.map((entry) => entry.path)).size, 190);
   assert.deepEqual(
     [
       FIXTURE_CATALOG.filter((entry) => entry.kind === 'valid').length,
       FIXTURE_CATALOG.filter((entry) => entry.kind === 'scenario').length,
       FIXTURE_CATALOG.filter((entry) => entry.kind === 'invalid').length,
     ],
-    [107, 24, 57],
+    [108, 24, 58],
   );
   assert.deepEqual(await listFixturePaths(), FIXTURE_CATALOG.map((entry) => entry.path).sort());
   for (const entry of FIXTURE_CATALOG) await loadFixture(entry.path);

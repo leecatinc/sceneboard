@@ -1,8 +1,17 @@
 import { z } from 'zod';
 
 import type { ArtifactReferenceV1 } from './artifacts.js';
-import type { HitlRequestId, LocalFieldId, NodeId, ShortText, TabId } from './identifiers.js';
+import type {
+  HitlRequestId,
+  LocalFieldId,
+  MediaId,
+  NodeId,
+  ShortText,
+  TabId,
+} from './identifiers.js';
 import type { JsonValue } from './json.js';
+import { MediaAltSchemaV1 } from './media.js';
+import { ShortTextSchemaV1 } from './identifiers.js';
 import {
   MAX_CHART_POINTS,
   MAX_MAP_FEATURES,
@@ -161,14 +170,17 @@ export type BoardNodeV1 =
     })
   | (NodeBaseV1 & {
       type: 'content.image';
-      source: {
-        type: 'artifact.resource';
-        artifact: ArtifactReferenceV1;
-        path: string;
-        sha256: string;
-      };
+      source:
+        | {
+            type: 'artifact.resource';
+            artifact: ArtifactReferenceV1;
+            path: string;
+            sha256: string;
+          }
+        | { type: 'media'; mediaId: MediaId };
+      decorative?: boolean;
       alt: string;
-      caption?: ShortText;
+      caption?: string;
       fit: 'contain' | 'cover' | 'fill' | 'none';
     })
   | (NodeBaseV1 & {
@@ -388,6 +400,26 @@ const validateNodeRelationsV1 = (
             );
         });
       });
+    } else if (item.node.type === 'content.image') {
+      const image = item.node as UnknownNode & {
+        source: { type: 'artifact.resource' | 'media' };
+        decorative?: boolean;
+        alt: string;
+        caption?: string;
+      };
+      if (image.source.type === 'artifact.resource') {
+        if (image.decorative !== undefined)
+          addLayoutIssue(context, [...path, 'decorative'], 'legacy image forbids decorative');
+        if (image.caption !== undefined && !ShortTextSchemaV1.safeParse(image.caption).success)
+          addLayoutIssue(context, [...path, 'caption'], 'legacy image caption is invalid');
+      } else if (image.decorative === true) {
+        if (image.alt !== '')
+          addLayoutIssue(context, [...path, 'alt'], 'decorative media image requires empty alt');
+        if (image.caption !== undefined)
+          addLayoutIssue(context, [...path, 'caption'], 'decorative media image forbids caption');
+      } else if (!MediaAltSchemaV1.safeParse(image.alt).success) {
+        addLayoutIssue(context, [...path, 'alt'], 'media image alt is invalid');
+      }
     } else if (item.node.type === 'content.chart') {
       const chart = item.node as UnknownNode & {
         chartType: string;

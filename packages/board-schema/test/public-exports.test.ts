@@ -69,6 +69,8 @@ import type {
   LocalFieldId,
   MapNodeV1,
   MarkdownNodeV1,
+  MediaId,
+  MediaSourceV1,
   MutationEnvelopeV1,
   MutationFingerprintInputV1,
   MutationRequestV1,
@@ -167,6 +169,8 @@ type PublicTypeSurfaceV1 = [
   LocalFieldId,
   MapNodeV1,
   MarkdownNodeV1,
+  MediaId,
+  MediaSourceV1,
   MutationEnvelopeV1,
   MutationFingerprintInputV1,
   MutationRequestV1,
@@ -217,10 +221,19 @@ test('exports the guarded scalar parser values required by application adapters'
   assert.equal(typeof schema.PrincipalIdParserV1.parse, 'function');
   assert.equal(typeof schema.NodeIdParserV1.parse, 'function');
   assert.equal(typeof schema.PageIdParserV1.parse, 'function');
+  assert.equal(typeof schema.MediaIdParserV1.parse, 'function');
+  assert.equal(typeof schema.MediaSourceSchemaV1.parse, 'function');
+  assert.equal(typeof schema.ImageNodeSchemaV1.parse, 'function');
+  assert.equal(typeof schema.MediaAltSchemaV1.parse, 'function');
+  assert.equal(typeof schema.MediaCaptionSchemaV1.parse, 'function');
   assert.equal(typeof schema.BoardDocumentParserV2.parse, 'function');
   assert.equal(typeof schema.BoardSnapshotParserV2.parse, 'function');
   assert.equal('BoardIdSchemaV1' in schema, false);
   assert.equal('GlobalIdStringSchemaV1' in schema, false);
+  assert.equal(schema.MAX_MEDIA_BYTES, 10_485_760);
+  assert.equal(schema.MAX_MEDIA_PIXELS, 40_000_000);
+  assert.equal(schema.MAX_BOARD_MEDIA_BYTES, 536_870_912);
+  assert.equal(schema.MAX_MEDIA_REFERENCES, 5_000);
 });
 
 test('does not leak server-attested builders from public client facades', () => {

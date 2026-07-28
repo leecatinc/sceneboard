@@ -12,7 +12,7 @@ test('binds every staged registry asset to non-empty deterministic SQL', async (
     assets.add(entry.upAsset);
     if (entry.downAsset !== null) assets.add(entry.downAsset);
   }
-  assert.equal(assets.size, 25);
+  assert.equal(assets.size, 26);
   for (const asset of assets) {
     const bytes = await readFile(new URL(asset, directory));
     const source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
@@ -48,8 +48,8 @@ test('interleaves the irreversible D3 board owner before D2 grant bindings', asy
   assert.doesNotMatch(source, /REGEXP_LIKE\s*\(\s*public_id/);
 });
 
-test('materializes the exact terminal twenty-two-entry and twenty-five-asset checkpoint', async () => {
-  assert.equal(MIGRATION_REGISTRY.length, 22);
+test('materializes the exact terminal twenty-three-entry and twenty-six-asset checkpoint', async () => {
+  assert.equal(MIGRATION_REGISTRY.length, 23);
   assert.equal(MIGRATION_REGISTRY.filter((entry) => entry.reversible).length, 3);
   const directory = new URL('../../src/database/migrations/sql/', import.meta.url);
   const expectedTables = new Map([
@@ -72,6 +72,7 @@ test('materializes the exact terminal twenty-two-entry and twenty-five-asset che
     ['010_d7_artifact_runtime_states.up.sql', ['artifact_runtime_states']],
     ['011_d7_artifact_board_usage.up.sql', ['artifact_board_usage']],
     ['012_d8_board_hitl_interactions.up.sql', ['board_hitl_interactions']],
+    ['018_d9_board_revision_media_refs.up.sql', ['board_revision_media_refs']],
     [
       '014_d9_revision_retention_expand.up.sql',
       [

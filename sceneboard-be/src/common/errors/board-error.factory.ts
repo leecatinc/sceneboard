@@ -1,4 +1,4 @@
-import type { BoardErrorV1 } from '@sceneboard/board-schema';
+import type { BoardError, BoardErrorV1 } from '@sceneboard/board-schema';
 
 export const invalidBoardPayload = (issue: string): BoardErrorV1 => ({
   protocolVersion: 1,
@@ -20,4 +20,15 @@ export const boardPayloadTooLarge = (actualBytes: number, maximumBytes: number):
   retryable: false,
   httpStatusHint: 413,
   details: { scope: 'envelope', actualBytes, maximumBytes },
+});
+
+export const invalidMediaReference = (): BoardError => ({
+  protocolVersion: 1,
+  type: 'board.error',
+  code: 'INVALID_MEDIA_REFERENCE',
+  message: 'Invalid media reference',
+  category: 'validation',
+  retryable: false,
+  httpStatusHint: 400,
+  details: { reason: 'unavailable' },
 });

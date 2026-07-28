@@ -36,7 +36,7 @@ export const extractSceneArtifactReferences = (scene: SceneV1): SceneArtifactRef
     const reference =
       node.type === 'content.artifact'
         ? { ...node.artifact, referenceCode: 'A' as const }
-        : node.type === 'content.image'
+        : node.type === 'content.image' && node.source.type === 'artifact.resource'
           ? { ...node.source.artifact, referenceCode: 'I' as const }
           : null;
     if (reference === null) continue;
@@ -100,7 +100,7 @@ export const extractUniqueSceneArtifactPairs = (scene: SceneV1): SceneArtifactPa
     const reference =
       node.type === 'content.artifact'
         ? node.artifact
-        : node.type === 'content.image'
+        : node.type === 'content.image' && node.source.type === 'artifact.resource'
           ? node.source.artifact
           : null;
     if (reference === null) continue;

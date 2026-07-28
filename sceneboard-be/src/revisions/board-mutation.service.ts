@@ -41,6 +41,9 @@ import {
 } from './board-mutation.types.js';
 import { DocumentCheckpointCodec } from './document-checkpoint.codec.js';
 import { RevisionPayloadCatalogRepository } from './revision-payload-catalog.repository.js';
+import { DenyAllMediaOwnershipProvider } from '../media/deny-all-media-ownership.provider.js';
+import type { MediaOwnershipPort } from '../media/media-ownership.port.js';
+import { RevisionMediaReferenceExtractor } from '../media/revision-media-reference.extractor.js';
 
 const MAX_SAFE_SEQUENCE = Number.MAX_SAFE_INTEGER;
 
@@ -54,9 +57,11 @@ export class BoardMutationService {
     private readonly accessPolicy: BoardAccessPolicy,
     checkpoints: DocumentCheckpointCodec,
     runtime: Partial<MutationRuntime> = {},
+    private readonly mediaOwnership: MediaOwnershipPort = new DenyAllMediaOwnershipProvider(),
+    mediaReferences = new RevisionMediaReferenceExtractor(),
   ) {
-    this.preparer = new BoardMutationPreparer(checkpoints, runtime);
-    this.restoreRepository = new BoardMutationRestoreRepository(checkpoints);
+    this.preparer = new BoardMutationPreparer(checkpoints, runtime, mediaReferences);
+    this.restoreRepository = new BoardMutationRestoreRepository(checkpoints, mediaReferences);
   }
 
   async applySceneMutation(input: {
@@ -119,7 +124,20 @@ export class BoardMutationService {
       prepared,
       'return-null',
     );
-    if (replay !== null) return replay;
+    if (replay !== null) {
+      if (!('revision' in replay.result)) throw internalFailure();
+      const replayState = await this.restoreRepository.assertReplayMediaIntegrity(
+        connection,
+        request.boardId,
+        replay.result.revision.revisionId,
+      );
+      await this.mediaOwnership.assertOwnedByBoard(
+        connection,
+        replayState.boardPk,
+        replayState.mediaReferences.map((reference) => reference.mediaId),
+      );
+      return replay;
+    }
     const restore =
       operation === 'scene.restore'
         ? await this.restoreRepository.prepareRestore(connection, request)
@@ -145,6 +163,7 @@ export class BoardMutationService {
         ? {
             checkpoint: prepared.checkpoint,
             references: prepared.references,
+            mediaReferences: prepared.mediaReferences,
             sourceRevisionPk: null,
           }
         : await this.restoreRepository.revalidateRestore(
@@ -153,8 +172,19 @@ export class BoardMutationService {
             restore,
             head.sceneSchemaVersion,
             request.boardId,
+            prepared.revisionId,
           );
-    if (selected.checkpoint === null || selected.references === null) throw internalFailure();
+    if (
+      selected.checkpoint === null ||
+      selected.references === null ||
+      selected.mediaReferences === null
+    )
+      throw internalFailure();
+    await this.mediaOwnership.assertOwnedByBoard(
+      connection,
+      BigInt(head.boardPk),
+      selected.mediaReferences.map((reference) => reference.mediaId),
+    );
     const revisionNumber = headNumber + 1;
     const sequence = lastSequence + 1;
     const revision = {
@@ -241,6 +271,17 @@ export class BoardMutationService {
         prepared,
       );
       if (raced === null) throw internalFailure();
+      if (!('revision' in raced.result)) throw internalFailure();
+      const replayState = await this.restoreRepository.assertReplayMediaIntegrity(
+        connection,
+        request.boardId,
+        raced.result.revision.revisionId,
+      );
+      await this.mediaOwnership.assertOwnedByBoard(
+        connection,
+        replayState.boardPk,
+        replayState.mediaReferences.map((reference) => reference.mediaId),
+      );
       return raced;
     }
     const recordPk = insertedPk(pending);
@@ -322,6 +363,11 @@ export class BoardMutationService {
       checkpoint: selected.checkpoint,
     });
     await this.restoreRepository.insertReferences(connection, revisionPk, selected.references);
+    await this.restoreRepository.insertMediaReferences(connection, {
+      boardPk: BigInt(head.boardPk),
+      revisionPk,
+      references: selected.mediaReferences,
+    });
     const [headUpdate] = await connection.execute<ResultSetHeader>(
       `
       UPDATE board_heads

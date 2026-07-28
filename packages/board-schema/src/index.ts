@@ -40,7 +40,14 @@ export type {
   ShareManagementOperationTypeV1,
   ShareStatusV1,
 } from './catalogs.js';
-export { BOARD_DOCUMENT_LIMITS_V2, BOARD_LIMITS_V1 } from './limits.js';
+export {
+  BOARD_DOCUMENT_LIMITS_V2,
+  BOARD_LIMITS_V1,
+  MAX_BOARD_MEDIA_BYTES,
+  MAX_MEDIA_BYTES,
+  MAX_MEDIA_PIXELS,
+  MAX_MEDIA_REFERENCES,
+} from './limits.js';
 export type { BoardLimitKeyV1, BoardLimitKeyV2 } from './limits.js';
 export type { JsonValue } from './json.js';
 export type { BoardAuthorizationPrincipalV1, BoardMembershipV1 } from './memberships.js';
@@ -118,6 +125,7 @@ export type {
   HitlRequestId,
   IdempotencyKey,
   LocalFieldId,
+  MediaId,
   NodeId,
   PageId,
   PrincipalId,
@@ -129,6 +137,16 @@ export type {
   TabId,
   TimestampV1,
 } from './identifiers.js';
+export { MediaIdSchemaV1 } from './identifiers.js';
+export {
+  MAX_MEDIA_ALT_CHARS,
+  MAX_MEDIA_CAPTION_CHARS,
+  MediaAltSchemaV1,
+  MediaCaptionSchemaV1,
+  MediaSourceSchemaV1,
+} from './media.js';
+export type { MediaSourceV1 } from './media.js';
+export { ImageNodeSchemaV1 } from './nodes/content.js';
 export type {
   BoardDocumentV2,
   BoardPageV2,
@@ -251,6 +269,7 @@ export {
   BoardOperationAuthorizationPolicyParserV1,
   BoardDocumentParserV2,
   BoardIdParserV1,
+  MediaIdParserV1,
   BoardErrorParserV1,
   BoardErrorParser,
   BoardEventEnvelopeParserV1,

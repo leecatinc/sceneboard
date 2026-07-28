@@ -220,5 +220,6 @@ export const BOARD_ERROR_CODES_V2 = [
   ...BOARD_ERROR_CODES_V1,
   'DOCUMENT_VERSION_MISMATCH',
   'INVALID_DOCUMENT',
+  'INVALID_MEDIA_REFERENCE',
 ] as const;
 export type BoardErrorCodeV2 = (typeof BOARD_ERROR_CODES_V2)[number];

@@ -2,6 +2,7 @@ import type { EventId, RevisionId, TimestampV1 } from '@sceneboard/board-schema'
 import type { RowDataPacket } from 'mysql2/promise';
 
 import type { SceneArtifactReferenceRowV1 } from './scene-artifact-reference.extractor.js';
+import type { RevisionMediaReferenceRowV1 } from '../media/media-reference.types.js';
 import type {
   DecodedBoardCheckpoint,
   EncodedBoardCheckpoint,
@@ -35,6 +36,7 @@ export interface PreparedMutationV1 {
   idempotencyScopeSha256: Buffer;
   checkpoint: EncodedBoardCheckpoint | null;
   references: readonly SceneArtifactReferenceRowV1[] | null;
+  mediaReferences: readonly RevisionMediaReferenceRowV1[] | null;
 }
 
 export interface MutationIdempotencyRow extends RowDataPacket {
@@ -81,6 +83,12 @@ export interface StoredReferenceRow extends RowDataPacket {
   occurrenceCount: number;
 }
 
+export interface StoredMediaReferenceRow extends RowDataPacket {
+  mediaId: Buffer;
+  firstPageId: Buffer;
+  ordinal: number;
+}
+
 export interface ReplayRelationRow extends RowDataPacket {
   boardId: string;
   revisionId: Buffer;
@@ -92,6 +100,7 @@ export interface RestorePreparedV1 {
   checkpoint: EncodedBoardCheckpoint;
   decoded: DecodedBoardCheckpoint;
   references: readonly SceneArtifactReferenceRowV1[];
+  mediaReferences: readonly RevisionMediaReferenceRowV1[];
 }
 
 export type CollisionKind = 'revision' | 'event' | 'record';

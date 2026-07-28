@@ -73,7 +73,7 @@ const resultKeys = [
   'fingerprintSha256',
 ];
 const expectedGroups = new Map([
-  ['D1-SCHEMA-ROOT', 28],
+  ['D1-SCHEMA-ROOT', 29],
   ['D1-FACADES', 3],
   ['D1-CORPUS', 184],
   ['D2-AUTHZ', 9],
@@ -89,11 +89,11 @@ const expectedGroups = new Map([
   ['D6-INSTALLED-SKILL', 42],
   ['D7-ARTIFACT-SEAM', 7],
   ['D8-HITL-SEAM', 6],
-  ['MIGRATION-REGISTRY-ASSETS', 26],
+  ['MIGRATION-REGISTRY-ASSETS', 27],
   ['D2-MIGRATION-RUNNER', 5],
   ['RUNTIME-TOPOLOGY', 3],
   ['DEPENDENCY-EVIDENCE', 11],
-  ['SCHEMA-MODEL-EVIDENCE', 9],
+  ['SCHEMA-MODEL-EVIDENCE', 10],
 ]);
 const terminalToolNames = [
   'board_connection_status',
@@ -679,7 +679,7 @@ const observeMigrations = async (observedById) => {
   const versions = [...source.matchAll(/\bversion: '([^']+)'/gu)].map((match) => match[1]);
   const upAssets = [...source.matchAll(/\bupAsset: '([^']+)'/gu)].map((match) => match[1]);
   const downAssets = [...source.matchAll(/\bdownAsset: '([^']+)'/gu)].map((match) => match[1]);
-  if (versions.length !== 22 || upAssets.length !== 22 || downAssets.length !== 3)
+  if (versions.length !== 23 || upAssets.length !== 23 || downAssets.length !== 3)
     fail('MIGRATION_REGISTRY_DRIFT');
   const assets = [...observedById.values()].filter(({ resourceId }) =>
     resourceId.startsWith('MIGRATION-ASSET-'),

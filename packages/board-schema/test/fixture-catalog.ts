@@ -51,6 +51,7 @@ export const FIXTURE_CATALOG = [
     schema: 'ArtifactRuntimeSummaryParserV1',
   },
   { kind: 'valid', path: 'valid/board-node-markdown.v1.json', schema: 'BoardNodeParserV1' },
+  { kind: 'valid', path: 'valid/board-node-media-image.v1.json', schema: 'BoardNodeParserV1' },
   {
     kind: 'valid',
     path: 'valid/capabilities-default.v1.json',
@@ -582,6 +583,14 @@ export const FIXTURE_CATALOG = [
   },
   {
     kind: 'invalid',
+    path: 'invalid/board-node-media-decorative-caption.v1.json',
+    schema: 'BoardNodeParserV1',
+    expectedErrorCode: 'INVALID_LAYOUT',
+    expectedPath: ['root', 'caption'],
+    expectedDetails: { path: ['root', 'caption'], reason: 'bounds' },
+  },
+  {
+    kind: 'invalid',
     path: 'invalid/history-retained-metadata.v1.json',
     schema: 'RetainedHistoryMetadataParserV1',
     expectedErrorCode: 'INVALID_PAYLOAD',
@@ -1080,10 +1089,10 @@ export const FIXTURE_CATALOG = [
     path: 'invalid/scene-image-untrusted-source.v1.json',
     schema: 'SceneParserV1',
     expectedErrorCode: 'INVALID_PAYLOAD',
-    expectedPath: ['root', 'source', 'type'],
+    expectedPath: ['root', 'source'],
     expectedDetails: {
-      path: ['root', 'source', 'type'],
-      issue: 'Invalid literal value, expected "artifact.resource"',
+      path: ['root', 'source'],
+      issue: 'Invalid input',
     },
   },
   {

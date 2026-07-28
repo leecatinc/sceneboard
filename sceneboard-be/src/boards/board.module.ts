@@ -12,6 +12,9 @@ import { HistoryListService } from '../history/history-list.service.js';
 import { InteractionsModule } from '../interactions/interactions.module.js';
 import { BoardMembershipAuthorizationService } from '../memberships/membership.service.js';
 import { MembershipsModule } from '../memberships/memberships.module.js';
+import { DenyAllMediaOwnershipProvider } from '../media/deny-all-media-ownership.provider.js';
+import { MediaOwnershipPort } from '../media/media-ownership.port.js';
+import { RevisionMediaReferenceExtractor } from '../media/revision-media-reference.extractor.js';
 import { DocumentCheckpointCodec } from '../revisions/document-checkpoint.codec.js';
 import { BoardMutationService } from '../revisions/board-mutation.service.js';
 import { SnapshotCompositionService } from '../revisions/snapshot-composition.service.js';
@@ -33,6 +36,11 @@ import { BoardController } from './board.controller.js';
   controllers: [BoardController],
   providers: [
     DocumentCheckpointCodec,
+    RevisionMediaReferenceExtractor,
+    {
+      provide: MediaOwnershipPort,
+      useClass: DenyAllMediaOwnershipProvider,
+    },
     MysqlCurrentBoardCapabilitiesPort,
     {
       provide: BoardListCursorCodec,
@@ -107,11 +115,25 @@ import { BoardController } from './board.controller.js';
     },
     {
       provide: BoardMutationService,
-      inject: [MysqlBoardAccessPolicy, DocumentCheckpointCodec],
+      inject: [
+        MysqlBoardAccessPolicy,
+        DocumentCheckpointCodec,
+        MediaOwnershipPort,
+        RevisionMediaReferenceExtractor,
+      ],
       useFactory: (
         accessPolicy: MysqlBoardAccessPolicy,
         checkpointCodec: DocumentCheckpointCodec,
-      ) => new BoardMutationService(accessPolicy, checkpointCodec),
+        mediaOwnership: MediaOwnershipPort,
+        mediaReferences: RevisionMediaReferenceExtractor,
+      ) =>
+        new BoardMutationService(
+          accessPolicy,
+          checkpointCodec,
+          {},
+          mediaOwnership,
+          mediaReferences,
+        ),
     },
     {
       provide: HistoryListService,
@@ -130,18 +152,21 @@ import { BoardController } from './board.controller.js';
         DocumentCheckpointCodec,
         SnapshotCompositionService,
         APP_ENVIRONMENT,
+        RevisionMediaReferenceExtractor,
       ],
       useFactory: (
         accessPolicy: MysqlBoardAccessPolicy,
         checkpointCodec: DocumentCheckpointCodec,
         snapshots: SnapshotCompositionService,
         environment: AppEnvironment,
+        mediaReferences: RevisionMediaReferenceExtractor,
       ) =>
         new HistoryGetService(
           accessPolicy,
           checkpointCodec,
           snapshots,
           environment.historyRetainedEmissionEnabled,
+          mediaReferences,
         ),
     },
   ],
@@ -156,6 +181,8 @@ import { BoardController } from './board.controller.js';
     HistoryListService,
     HistoryGetService,
     SnapshotCompositionService,
+    MediaOwnershipPort,
+    RevisionMediaReferenceExtractor,
     ArtifactsModule,
     InteractionsModule,
   ],

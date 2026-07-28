@@ -1,4 +1,5 @@
 import {
+  adaptLegacySceneToDocumentV2,
   BoardOperationResultParserV1,
   PrincipalIdParserV1,
   type BoardId,
@@ -17,6 +18,11 @@ import { BoardPersistenceError } from '../common/errors/board-persistence.error.
 import { formatPublicUuidV4, parsePublicUuidV4 } from '../common/ids/public-uuid.storage.js';
 import { parseMysqlTimestampUtc } from '../common/time/mysql-timestamp.js';
 import type { BoardAccessPolicy, ResolvedBoardPrincipalV1 } from '../grants/board-access.policy.js';
+import {
+  decodeMediaIdFromStorage,
+  decodePageIdFromStorage,
+} from '../media/media-reference.types.js';
+import { RevisionMediaReferenceExtractor } from '../media/revision-media-reference.extractor.js';
 import { DocumentCheckpointCodec } from '../revisions/document-checkpoint.codec.js';
 import {
   extractDocumentArtifactReferences,
@@ -68,6 +74,12 @@ interface ReferenceRow extends RowDataPacket {
   artifactVersionId: string;
   referenceCode: string;
   occurrenceCount: number;
+}
+
+interface MediaReferenceRow extends RowDataPacket {
+  mediaId: Buffer;
+  firstPageId: Buffer;
+  ordinal: number;
 }
 
 const notFound = (): BoardContractError =>
@@ -124,6 +136,7 @@ export class HistoryGetService {
     private readonly checkpoints: DocumentCheckpointCodec,
     private readonly snapshots: SnapshotCompositionService,
     private readonly emitRetainedMetadata = false,
+    private readonly mediaReferences = new RevisionMediaReferenceExtractor(),
   ) {}
 
   async get(input: {
@@ -166,6 +179,13 @@ export class HistoryGetService {
           sha256: row.sceneSha256,
         });
         await this.assertReferences(connection, row.revisionPk, decoded);
+        await this.assertMediaReferences(
+          connection,
+          row.revisionPk,
+          input.request.boardId,
+          selectedRevisionId,
+          decoded,
+        );
         const revision = {
           revisionId: selectedRevisionId,
           revisionNumber,
@@ -377,6 +397,54 @@ export class HistoryGetService {
       checkpoint.kind === 'scene'
         ? extractSceneArtifactReferences(checkpoint.scene)
         : extractDocumentArtifactReferences(checkpoint.document);
+    if (JSON.stringify(stored) !== JSON.stringify(expected)) {
+      throw new BoardPersistenceError('row_integrity');
+    }
+  }
+
+  private async assertMediaReferences(
+    connection: PoolConnection,
+    revisionPk: string,
+    boardId: BoardId,
+    revisionId: RevisionId,
+    checkpoint: Awaited<ReturnType<DocumentCheckpointCodec['decode']>>,
+  ): Promise<void> {
+    const [rows] = await connection.execute<MediaReferenceRow[]>(
+      `
+      SELECT media_id AS mediaId, first_page_id AS firstPageId, ordinal
+      FROM board_revision_media_refs
+      WHERE revision_pk = ?
+      ORDER BY ordinal
+    `,
+      [revisionPk],
+    );
+    let stored: Array<{
+      boardId: BoardId;
+      revisionId: RevisionId;
+      mediaId: string;
+      firstPageId: string;
+      ordinal: number;
+    }>;
+    try {
+      stored = rows.map((row, index) => {
+        if (row.ordinal !== index + 1) throw new BoardPersistenceError('row_integrity');
+        return {
+          boardId,
+          revisionId,
+          mediaId: decodeMediaIdFromStorage(row.mediaId),
+          firstPageId: decodePageIdFromStorage(row.firstPageId),
+          ordinal: row.ordinal,
+        };
+      });
+    } catch (error) {
+      if (error instanceof BoardPersistenceError) throw error;
+      throw new BoardPersistenceError('row_integrity', error);
+    }
+    const document =
+      checkpoint.kind === 'document'
+        ? checkpoint.document
+        : adaptLegacySceneToDocumentV2({ boardId, scene: checkpoint.scene });
+    const expected = this.mediaReferences.extract({ boardId, revisionId, document });
     if (JSON.stringify(stored) !== JSON.stringify(expected)) {
       throw new BoardPersistenceError('row_integrity');
     }

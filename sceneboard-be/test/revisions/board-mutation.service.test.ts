@@ -97,6 +97,44 @@ const documentRequest = (requestId: string): MutationRequestV2 => {
   return parsed.data.value;
 };
 
+const mediaDocumentRequest = (requestId: string): MutationRequestV2 => {
+  const parsed = MutationRequestParserV2.parse({
+    protocolVersion: 1,
+    requestId,
+    idempotencyKey: 'mutation-key-media-0001',
+    boardId,
+    expectedRevisionId: headRevisionId,
+    command: {
+      type: 'document.replace',
+      document: {
+        schemaVersion: 2,
+        defaultPageId: 'page_1',
+        pages: [
+          {
+            pageId: 'page_1',
+            title: 'First',
+            displayMode: 'fit-page',
+            scene: {
+              protocolVersion: 1,
+              type: 'scene',
+              root: {
+                id: 'image_1',
+                type: 'content.image',
+                source: { type: 'media', mediaId: 'media_1' },
+                alt: 'Media',
+                fit: 'contain',
+              },
+            },
+          },
+        ],
+      },
+    },
+  });
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) throw new Error('invalid media document request fixture');
+  return parsed.data.value;
+};
+
 const oversizedDocumentRequest = (): MutationRequestV2 =>
   ({
     protocolVersion: 1,
@@ -202,18 +240,37 @@ const setup = async (
         normalized.includes('r.revision_id = ?')
       ) {
         sourceReads += 1;
+        const requestedRevision = Buffer.isBuffer(binds[1])
+          ? (binds[1] as Buffer).toString('hex')
+          : '';
+        const isReplayRevision = requestedRevision === newRevisionId.replaceAll('-', '');
+        const replayBinds = revisionInsertBinds;
         return [
           [
             {
-              revisionPk: '65',
-              revisionId: Buffer.from(sourceRevisionId.replaceAll('-', ''), 'hex'),
-              revisionNumber: '1',
-              sceneSchemaVersion: sourceCheckpoint.schemaVersion,
-              sceneCodec: sourceCheckpoint.codec,
-              scenePayload: sourceCheckpoint.payload,
-              sceneCanonicalBytes: sourceCheckpoint.canonicalBytes,
-              sceneStoredBytes: sourceCheckpoint.storedBytes,
-              sceneSha256: sourceCheckpoint.sha256,
+              boardPk: '50',
+              revisionPk: isReplayRevision ? '71' : '65',
+              revisionId: Buffer.from(
+                (isReplayRevision ? newRevisionId : sourceRevisionId).replaceAll('-', ''),
+                'hex',
+              ),
+              revisionNumber: isReplayRevision ? '3' : '1',
+              sceneSchemaVersion: isReplayRevision
+                ? String(replayBinds?.[7])
+                : sourceCheckpoint.schemaVersion,
+              sceneCodec: isReplayRevision ? String(replayBinds?.[8]) : sourceCheckpoint.codec,
+              scenePayload: isReplayRevision
+                ? (replayBinds?.[9] as Buffer)
+                : sourceCheckpoint.payload,
+              sceneCanonicalBytes: isReplayRevision
+                ? Number(replayBinds?.[10])
+                : sourceCheckpoint.canonicalBytes,
+              sceneStoredBytes: isReplayRevision
+                ? Number(replayBinds?.[11])
+                : sourceCheckpoint.storedBytes,
+              sceneSha256: isReplayRevision
+                ? (replayBinds?.[12] as Buffer)
+                : sourceCheckpoint.sha256,
             },
           ],
           [],
@@ -221,6 +278,9 @@ const setup = async (
       }
       if (normalized.includes('FROM board_revision_artifact_refs')) {
         referenceReads += 1;
+        return [[], []];
+      }
+      if (normalized.includes('FROM board_revision_media_refs')) {
         return [[], []];
       }
       if (
@@ -415,7 +475,7 @@ test('identical clear retry replays stored result while changed expected head is
   assert.equal(value.revisionWrites(), 1);
 });
 
-test('restore copies one verified immutable source and replay never reads or decompresses it again', async () => {
+test('restore copies one verified immutable source and replay revalidates media integrity', async () => {
   const value = await setup('scene.restore');
   const first = await value.service.applySceneMutation({
     principal: principal(),
@@ -429,7 +489,7 @@ test('restore copies one verified immutable source and replay never reads or dec
     request: request('scene.restore', 'request_restore_2'),
   });
   assert.equal(replay.replayed, true);
-  assert.equal(value.sourceReads(), 2);
+  assert.equal(value.sourceReads(), 3);
   assert.equal(value.referenceReads(), 2);
   assert.equal(value.revisionWrites(), 1);
 });
@@ -468,6 +528,32 @@ test('document.replace promotes a v1 head to one exact v2 checkpoint, event, and
   assert.equal(replay.replayed, true);
   assert.deepEqual(replay.result, result.result);
   assert.equal(value.revisionWrites(), 1);
+});
+
+test('deny-all media gate rejects before idempotency, revision, ref, head, or outbox writes', async () => {
+  const value = await setup('document.replace');
+  await assert.rejects(
+    value.service.applyDocumentMutation({
+      principal: principal(),
+      request: mediaDocumentRequest('request_document_media'),
+    }),
+    (error: unknown) =>
+      error instanceof BoardContractError &&
+      error.boardError.code === 'INVALID_MEDIA_REFERENCE' &&
+      error.boardError.httpStatusHint === 400 &&
+      JSON.stringify(error.boardError.details) === JSON.stringify({ reason: 'unavailable' }),
+  );
+  assert.equal(value.idempotencyInserts(), 0);
+  assert.equal(value.revisionWrites(), 0);
+  assert.equal(
+    value.calls.some(
+      (call) =>
+        call.startsWith('INSERT INTO board_revision_media_refs') ||
+        call.startsWith('UPDATE board_heads') ||
+        call.startsWith('INSERT INTO board_event_outbox'),
+    ),
+    false,
+  );
 });
 
 test('rejects an oversized document before authorization transaction or any durable side effect', async () => {

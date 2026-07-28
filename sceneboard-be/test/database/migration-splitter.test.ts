@@ -177,6 +177,13 @@ test('freezes the exact terminal D2/D3/D7/D8/D9 checkpoint order and reversibili
       postcondition: 'd9_board_invitations_v1',
     },
     {
+      version: '018_d9_board_revision_media_refs',
+      upAsset: '018_d9_board_revision_media_refs.up.sql',
+      reversible: false,
+      downAsset: null,
+      postcondition: 'd9_board_revision_media_refs_v1',
+    },
+    {
       version: '019_d9_board_shares',
       upAsset: '019_d9_board_shares.up.sql',
       reversible: false,

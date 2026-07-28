@@ -32,6 +32,7 @@ import {
   BoardIdSchemaV1,
   GlobalIdStringSchemaV1,
   GrantIdSchemaV1,
+  MediaIdSchemaV1,
   NodeIdSchemaV1,
   PageIdSchemaV1,
   PrincipalIdSchemaV1,
@@ -714,6 +715,7 @@ const createParserV1 = <Schema extends z.ZodTypeAny>(
 
 export const GlobalIdStringParserV1 = createParserV1(GlobalIdStringSchemaV1);
 export const BoardIdParserV1 = createParserV1(BoardIdSchemaV1);
+export const MediaIdParserV1 = createParserV1(MediaIdSchemaV1);
 export const GrantIdParserV1 = createParserV1(GrantIdSchemaV1);
 export const PrincipalIdParserV1 = createParserV1(PrincipalIdSchemaV1);
 export const NodeIdParserV1 = createParserV1(NodeIdSchemaV1);
