@@ -12,7 +12,7 @@ test('binds every staged registry asset to non-empty deterministic SQL', async (
     assets.add(entry.upAsset);
     if (entry.downAsset !== null) assets.add(entry.downAsset);
   }
-  assert.equal(assets.size, 20);
+  assert.equal(assets.size, 21);
   for (const asset of assets) {
     const bytes = await readFile(new URL(asset, directory));
     const source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
@@ -48,8 +48,8 @@ test('interleaves the irreversible D3 board owner before D2 grant bindings', asy
   assert.doesNotMatch(source, /REGEXP_LIKE\s*\(\s*public_id/);
 });
 
-test('materializes the exact terminal seventeen-entry and twenty-asset checkpoint', async () => {
-  assert.equal(MIGRATION_REGISTRY.length, 17);
+test('materializes the exact terminal eighteen-entry and twenty-one-asset checkpoint', async () => {
+  assert.equal(MIGRATION_REGISTRY.length, 18);
   assert.equal(MIGRATION_REGISTRY.filter((entry) => entry.reversible).length, 3);
   const directory = new URL('../../src/database/migrations/sql/', import.meta.url);
   const expectedTables = new Map([
@@ -107,6 +107,26 @@ test('materializes the exact terminal seventeen-entry and twenty-asset checkpoin
   assert.match(capacity, /MODIFY COLUMN scene_payload LONGBLOB NOT NULL/u);
   assert.match(capacity, /MODIFY COLUMN scene_canonical_bytes INT UNSIGNED NOT NULL/u);
   assert.match(capacity, /scene_schema_version = '2\.0\.0'/u);
+  const retentionRuntime = await readFile(
+    new URL('015_d9_revision_retention_runtime.up.sql', directory),
+    'utf8',
+  );
+  assert.equal(splitSqlStatements(retentionRuntime).length, 9);
+  for (const table of [
+    'board_retention_leases',
+    'board_retention_runs',
+    'board_retention_run_items',
+    'board_retention_audit',
+    'retention_restore_drill_attempts',
+  ]) {
+    assert.match(retentionRuntime, new RegExp(`CREATE TABLE IF NOT EXISTS ${table} \\(`, 'u'));
+  }
+  assert.match(retentionRuntime, /ADD COLUMN actor_account_pk BIGINT UNSIGNED NULL/u);
+  assert.match(
+    retentionRuntime,
+    /MODIFY COLUMN actor_class ENUM\('owner','editor','system'\) NOT NULL/u,
+  );
+  assert.match(retentionRuntime, /CONSTRAINT chk_revisions_retained_checkpoint/u);
 });
 
 test('the live runner verifies every terminal D7, D8, and D9 migration postcondition', async () => {
@@ -125,6 +145,7 @@ test('the live runner verifies every terminal D7, D8, and D9 migration postcondi
     assert.match(source, new RegExp(`${postcondition}:`));
   assert.match(source, /postcondition === 'd9_v2_checkpoint_capacity_v1'/u);
   assert.match(source, /postcondition === 'd9_revision_retention_expand_v1'/u);
+  assert.match(source, /d9_revision_retention_runtime_v1:/u);
 });
 
 test('binds D2 pairing and grant tables to the exact D3 public board key', async () => {

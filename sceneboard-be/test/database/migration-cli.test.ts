@@ -5,7 +5,7 @@ import { parseMigrationCliArguments, runMigrationCli } from '../../src/database/
 
 const state = {
   mode: 'restart',
-  registryVersion: '014_d9_revision_retention_expand',
+  registryVersion: '015_d9_revision_retention_runtime',
   connectionProfile: {
     databaseIdentitySha256: 'a'.repeat(64),
     serverVersion: '8.0.40',

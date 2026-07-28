@@ -16,7 +16,7 @@ import type {
   RevisionId,
   TimestampV1,
 } from '@sceneboard/board-schema';
-import type { HistoryAdapterMetadataV1 } from '@sceneboard/board-sdk/http';
+import type { HistoryHttpMetadataV1 } from '@sceneboard/board-sdk/http';
 
 import type { CoordinatorResult } from '../auth/renewal-singleflight';
 
@@ -119,10 +119,10 @@ export type BoardArchiveResult = OperationData<'board.archive'>;
 export type BoardGetResult = OperationData<'board.get'>;
 export type BoardRenameResult = { boardId: BoardId; title: string; updatedAt: TimestampV1 };
 export type HistoryListResult = OperationData<'history.list'> & {
-  metadata: HistoryAdapterMetadataV1;
+  metadata: HistoryHttpMetadataV1;
 };
 export type HistoryGetResult = OperationData<'history.get'> & {
-  metadata: HistoryAdapterMetadataV1;
+  metadata: HistoryHttpMetadataV1;
 };
 export type ArtifactGetResult = OperationData<'artifact.get'>;
 export type ArtifactPackageResult = { bytes: Uint8Array };

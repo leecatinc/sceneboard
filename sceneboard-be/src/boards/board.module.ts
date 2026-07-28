@@ -104,18 +104,34 @@ import { BoardController } from './board.controller.js';
     },
     {
       provide: HistoryListService,
-      inject: [MysqlBoardAccessPolicy, HistoryCursorCodec],
-      useFactory: (accessPolicy: MysqlBoardAccessPolicy, cursors: HistoryCursorCodec) =>
-        new HistoryListService(accessPolicy, cursors),
+      inject: [MysqlBoardAccessPolicy, HistoryCursorCodec, APP_ENVIRONMENT],
+      useFactory: (
+        accessPolicy: MysqlBoardAccessPolicy,
+        cursors: HistoryCursorCodec,
+        environment: AppEnvironment,
+      ) =>
+        new HistoryListService(accessPolicy, cursors, environment.historyRetainedEmissionEnabled),
     },
     {
       provide: HistoryGetService,
-      inject: [MysqlBoardAccessPolicy, DocumentCheckpointCodec, SnapshotCompositionService],
+      inject: [
+        MysqlBoardAccessPolicy,
+        DocumentCheckpointCodec,
+        SnapshotCompositionService,
+        APP_ENVIRONMENT,
+      ],
       useFactory: (
         accessPolicy: MysqlBoardAccessPolicy,
         checkpointCodec: DocumentCheckpointCodec,
         snapshots: SnapshotCompositionService,
-      ) => new HistoryGetService(accessPolicy, checkpointCodec, snapshots),
+        environment: AppEnvironment,
+      ) =>
+        new HistoryGetService(
+          accessPolicy,
+          checkpointCodec,
+          snapshots,
+          environment.historyRetainedEmissionEnabled,
+        ),
     },
   ],
   exports: [

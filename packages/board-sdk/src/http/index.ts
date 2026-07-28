@@ -24,4 +24,5 @@ export type {
   BoardDocumentHttpSuccessEnvelopeV2,
   BoardOperationHttpResultParseV2,
   HistoryAdapterMetadataV1,
+  HistoryHttpMetadataV1,
 } from './http-result.parser.js';

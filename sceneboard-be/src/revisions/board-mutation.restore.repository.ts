@@ -45,14 +45,16 @@ export class BoardMutationRestoreRepository {
         CAST(r.revision_pk AS CHAR) AS revisionPk,
         r.revision_id AS revisionId,
         CAST(r.revision_number AS CHAR) AS revisionNumber,
-        r.scene_schema_version AS sceneSchemaVersion,
-        r.scene_codec AS sceneCodec,
-        r.scene_payload AS scenePayload,
-        r.scene_canonical_bytes AS sceneCanonicalBytes,
-        r.scene_stored_bytes AS sceneStoredBytes,
-        r.scene_sha256 AS sceneSha256
+        COALESCE(p.schema_version, r.scene_schema_version) AS sceneSchemaVersion,
+        COALESCE(p.codec, r.scene_codec) AS sceneCodec,
+        COALESCE(p.payload, r.scene_payload) AS scenePayload,
+        COALESCE(p.canonical_bytes, r.scene_canonical_bytes) AS sceneCanonicalBytes,
+        COALESCE(p.stored_bytes, r.scene_stored_bytes) AS sceneStoredBytes,
+        COALESCE(p.payload_sha256, r.scene_sha256) AS sceneSha256
       FROM boards b
-      JOIN board_revisions r ON r.board_pk = b.board_pk
+      JOIN board_revision_catalog c ON c.board_pk = b.board_pk
+      JOIN board_revisions r ON r.board_pk = c.board_pk AND r.revision_pk = c.revision_pk
+      LEFT JOIN board_revision_payloads p ON p.revision_pk = r.revision_pk AND p.state = 'available'
       WHERE b.public_id = ? AND r.revision_id = ?
       LIMIT 1
     `,
@@ -114,17 +116,19 @@ export class BoardMutationRestoreRepository {
     const [rows] = await connection.execute<RestoreSourceRow[]>(
       `
       SELECT
-        CAST(revision_pk AS CHAR) AS revisionPk,
-        revision_id AS revisionId,
-        CAST(revision_number AS CHAR) AS revisionNumber,
-        scene_schema_version AS sceneSchemaVersion,
-        scene_codec AS sceneCodec,
-        scene_payload AS scenePayload,
-        scene_canonical_bytes AS sceneCanonicalBytes,
-        scene_stored_bytes AS sceneStoredBytes,
-        scene_sha256 AS sceneSha256
-      FROM board_revisions
-      WHERE board_pk = ? AND revision_pk = ?
+        CAST(r.revision_pk AS CHAR) AS revisionPk,
+        r.revision_id AS revisionId,
+        CAST(r.revision_number AS CHAR) AS revisionNumber,
+        COALESCE(p.schema_version, r.scene_schema_version) AS sceneSchemaVersion,
+        COALESCE(p.codec, r.scene_codec) AS sceneCodec,
+        COALESCE(p.payload, r.scene_payload) AS scenePayload,
+        COALESCE(p.canonical_bytes, r.scene_canonical_bytes) AS sceneCanonicalBytes,
+        COALESCE(p.stored_bytes, r.scene_stored_bytes) AS sceneStoredBytes,
+        COALESCE(p.payload_sha256, r.scene_sha256) AS sceneSha256
+      FROM board_revision_catalog c
+      JOIN board_revisions r ON r.board_pk = c.board_pk AND r.revision_pk = c.revision_pk
+      LEFT JOIN board_revision_payloads p ON p.revision_pk = r.revision_pk AND p.state = 'available'
+      WHERE r.board_pk = ? AND r.revision_pk = ?
       LIMIT 1
     `,
       [boardPk, prepared.row.revisionPk],

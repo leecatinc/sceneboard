@@ -7,19 +7,19 @@ import {
 } from '@sceneboard/board-schema';
 
 import { BoardPersistenceError } from '../common/errors/board-persistence.error.js';
-import type { HistoryAdapterMetadataV1 } from '../history/history-adapter-metadata.js';
+import type { HistoryHttpMetadataV1 } from '../history/history-adapter-metadata.js';
 
 export interface BoardHttpSuccessEnvelopeV1 {
   protocolVersion: 1;
   type: 'board.http.success';
   requestId: RequestId;
   result: BoardOperationResultV1 | MutationResultV1 | MutationResultV2;
-  metadata: { history: HistoryAdapterMetadataV1 | null };
+  metadata: { history: HistoryHttpMetadataV1 | null };
 }
 
 export const boardHttpSuccess = (
   result: BoardOperationResultV1 | MutationResultV1 | MutationResultV2,
-  history: HistoryAdapterMetadataV1 | null = null,
+  history: HistoryHttpMetadataV1 | null = null,
 ): BoardHttpSuccessEnvelopeV1 => {
   const resultType = result.result.type;
   const isHistory = resultType === 'history.list' || resultType === 'history.get';

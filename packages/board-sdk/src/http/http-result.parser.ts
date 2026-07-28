@@ -6,6 +6,7 @@ import {
   GlobalIdStringParserV1,
   MutationResultParserV1,
   MutationResultParserV2,
+  RetainedHistoryMetadataParserV1,
   canonicalizeJsonV1,
   type ArtifactReferenceV1,
   type BoardErrorV1,
@@ -17,6 +18,7 @@ import {
   type MutationResultV1,
   type MutationResultV2,
   type RequestId,
+  type RetainedHistoryMetadataV1,
   type RevisionId,
 } from '@sceneboard/board-schema';
 
@@ -34,7 +36,9 @@ export type HistoryAdapterMetadataV1 = {
   };
 };
 
-export type BoardHttpMetadataV1 = { history: HistoryAdapterMetadataV1 | null };
+export type HistoryHttpMetadataV1 = HistoryAdapterMetadataV1 | RetainedHistoryMetadataV1;
+
+export type BoardHttpMetadataV1 = { history: HistoryHttpMetadataV1 | null };
 
 export type BoardHttpSuccessEnvelopeV1 = {
   protocolVersion: 1;
@@ -117,7 +121,9 @@ const parseRevisionId = (value: unknown): RevisionId | null => {
   return parsed.ok ? (value as RevisionId) : null;
 };
 
-const parseHistory = (value: unknown): HistoryAdapterMetadataV1 | null => {
+const parseHistory = (value: unknown): HistoryHttpMetadataV1 | null => {
+  const retained = RetainedHistoryMetadataParserV1.parse(value);
+  if (retained.ok) return retained.data.value;
   if (
     !isRecord(value) ||
     !hasExactKeys(value, ['protocolVersion', 'type', 'entries', 'navigation']) ||
@@ -179,7 +185,7 @@ const parseHistory = (value: unknown): HistoryAdapterMetadataV1 | null => {
 
 const historyCorrelates = (
   result: BoardOperationResultV1 | MutationResultV1,
-  metadata: HistoryAdapterMetadataV1 | null,
+  metadata: HistoryHttpMetadataV1 | null,
 ): boolean => {
   if (result.result.type === 'history.list') {
     return (

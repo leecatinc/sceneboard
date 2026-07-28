@@ -40,6 +40,7 @@ import {
   type PreparedMutationV1,
 } from './board-mutation.types.js';
 import { DocumentCheckpointCodec } from './document-checkpoint.codec.js';
+import { RevisionPayloadCatalogRepository } from './revision-payload-catalog.repository.js';
 
 const MAX_SAFE_SEQUENCE = Number.MAX_SAFE_INTEGER;
 
@@ -47,6 +48,7 @@ export class BoardMutationService {
   private readonly preparer: BoardMutationPreparer;
   private readonly restoreRepository: BoardMutationRestoreRepository;
   private readonly replayRepository = new BoardMutationReplayRepository();
+  private readonly payloadCatalog = new RevisionPayloadCatalogRepository();
 
   constructor(
     private readonly accessPolicy: BoardAccessPolicy,
@@ -296,6 +298,23 @@ export class BoardMutationService {
       throw error;
     }
     const revisionPk = insertedPk(revisionInsert);
+    await this.payloadCatalog.persistRevisionBundle(connection, {
+      boardPk: head.boardPk,
+      revisionPk: revisionPk.toString(),
+      retainedOrder: revisionNumber,
+      createdAtSql: prepared.occurredAtSql,
+      actorAccountPk:
+        context.access.kind === 'owner' && context.actor.principalKind === 'user'
+          ? context.ownerUserPk.toString()
+          : null,
+      actorClass:
+        context.actor.principalKind === 'service'
+          ? 'system'
+          : context.access.kind === 'owner'
+            ? 'owner'
+            : 'editor',
+      checkpoint: selected.checkpoint,
+    });
     await this.restoreRepository.insertReferences(connection, revisionPk, selected.references);
     const [headUpdate] = await connection.execute<ResultSetHeader>(
       `

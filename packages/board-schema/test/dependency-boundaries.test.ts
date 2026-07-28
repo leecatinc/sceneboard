@@ -14,9 +14,9 @@ const collect = async (directory: URL): Promise<URL[]> => {
   return output;
 };
 
-test('keeps the exact twenty-five schema source owners', async () => {
+test('keeps the exact twenty-six schema source owners', async () => {
   const files = await collect(sourceRoot);
-  assert.equal(files.length, 25);
+  assert.equal(files.length, 26);
 });
 
 test('prevents reverse shared-package and application imports', async () => {

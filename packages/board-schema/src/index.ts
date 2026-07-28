@@ -60,6 +60,7 @@ export {
   deriveLegacyPageIdV2,
 } from './documents.js';
 export type { ActorContextV1, ActorReferenceV1 } from './actors.js';
+export type { RetainedHistoryActorLabelV1, RetainedHistoryMetadataV1 } from './history.js';
 export type {
   ArtifactManifestV1,
   ArtifactReferenceV1,
@@ -179,6 +180,7 @@ export {
   NodeIdParserV1,
   PageIdParserV1,
   PrincipalIdParserV1,
+  RetainedHistoryMetadataParserV1,
   ShortTextParserV1,
   SceneParserV1,
   buildBoardOperationFingerprintV1,

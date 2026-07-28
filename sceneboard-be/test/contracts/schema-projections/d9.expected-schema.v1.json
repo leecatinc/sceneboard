@@ -22,6 +22,16 @@
       "downSha256": null,
       "reversible": false,
       "predecessorIds": ["013_d9_v2_checkpoint_capacity"]
+    },
+    {
+      "order": 18,
+      "version": "015_d9_revision_retention_runtime",
+      "upAsset": "015_d9_revision_retention_runtime.up.sql",
+      "upSha256": "1dfcdce8bbbfefcdca98eb28493cebb236718836fe8bb5a9caa2b218bf27ef62",
+      "downAsset": null,
+      "downSha256": null,
+      "reversible": false,
+      "predecessorIds": ["014_d9_revision_retention_expand"]
     }
   ],
   "tables": [
@@ -44,6 +54,31 @@
       "name": "board_revision_recovery",
       "sourceAsset": "014_d9_revision_retention_expand.up.sql",
       "sourceSha256": "05ca42aaa44bce8a5feb421ea5c9d7991c62992dd95f4d72acb92204ee769981"
+    },
+    {
+      "name": "board_retention_leases",
+      "sourceAsset": "015_d9_revision_retention_runtime.up.sql",
+      "sourceSha256": "1dfcdce8bbbfefcdca98eb28493cebb236718836fe8bb5a9caa2b218bf27ef62"
+    },
+    {
+      "name": "board_retention_runs",
+      "sourceAsset": "015_d9_revision_retention_runtime.up.sql",
+      "sourceSha256": "1dfcdce8bbbfefcdca98eb28493cebb236718836fe8bb5a9caa2b218bf27ef62"
+    },
+    {
+      "name": "board_retention_run_items",
+      "sourceAsset": "015_d9_revision_retention_runtime.up.sql",
+      "sourceSha256": "1dfcdce8bbbfefcdca98eb28493cebb236718836fe8bb5a9caa2b218bf27ef62"
+    },
+    {
+      "name": "board_retention_audit",
+      "sourceAsset": "015_d9_revision_retention_runtime.up.sql",
+      "sourceSha256": "1dfcdce8bbbfefcdca98eb28493cebb236718836fe8bb5a9caa2b218bf27ef62"
+    },
+    {
+      "name": "retention_restore_drill_attempts",
+      "sourceAsset": "015_d9_revision_retention_runtime.up.sql",
+      "sourceSha256": "1dfcdce8bbbfefcdca98eb28493cebb236718836fe8bb5a9caa2b218bf27ef62"
     }
   ]
 }

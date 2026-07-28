@@ -26831,6 +26831,36 @@ var createBoardEventEnvelopeSchema = (dataSchema) => z.object({
 var BoardEventEnvelopeSchemaV1 = createBoardEventEnvelopeSchema(BoardEventDataSchemaV1);
 var BoardEventEnvelopeSchemaV2 = createBoardEventEnvelopeSchema(BoardEventDataSchemaV2);
 
+// packages/board-schema/src/history.ts
+var PrintableAscii160SchemaV1 = z.string().min(1).max(160).regex(/^[\x20-\x7e]+$/u);
+var RetainedHistoryActorLabelSchemaV1 = z.enum(["self", "owner", "editor", "system"]);
+var RetainedHistoryMetadataSchemaV1 = z.object({
+  protocolVersion: z.literal(1),
+  type: z.literal("history.retained-metadata"),
+  entries: z.array(
+    z.object({
+      revisionId: RevisionIdSchemaV1,
+      label: PrintableAscii160SchemaV1,
+      actorLabel: RetainedHistoryActorLabelSchemaV1,
+      summary: PrintableAscii160SchemaV1,
+      schemaVersion: z.enum(["1.0.0", "2.0.0"])
+    }).strict()
+  ).max(100),
+  boundary: z.object({
+    truncatedBefore: z.boolean(),
+    oldestRetainedRevisionId: RevisionIdSchemaV1
+  }).strict(),
+  navigation: z.object({
+    revisionId: RevisionIdSchemaV1,
+    previous: z.union([
+      z.object({ kind: z.literal("revision"), revisionId: RevisionIdSchemaV1 }).strict(),
+      z.object({ kind: z.literal("truncated") }).strict()
+    ]).nullable(),
+    nextRevisionId: RevisionIdSchemaV1.nullable(),
+    latestRevisionId: RevisionIdSchemaV1
+  }).strict().nullable()
+}).strict();
+
 // packages/board-schema/src/operations.ts
 var PageCursorSchemaV1 = z.string().min(1).max(MAX_PAGE_CURSOR_CHARS).regex(/^[A-Za-z0-9_-]+$/).brand();
 var BoardSummarySchemaV1 = z.object({
@@ -27746,6 +27776,7 @@ var ArtifactRuntimeSummaryParserV1 = createParserV1(ArtifactRuntimeSummarySchema
 var HitlRequestDefinitionParserV1 = createParserV1(HitlRequestDefinitionSchemaV1);
 var HitlResponseParserV1 = createParserV1(HitlResponseSchemaV1, "hitl-response");
 var HitlInteractionParserV1 = createParserV1(HitlInteractionSchemaV1);
+var RetainedHistoryMetadataParserV1 = createParserV1(RetainedHistoryMetadataSchemaV1);
 var BoardErrorParserV1 = createParserV1(BoardErrorSchemaV1);
 var BoardDocumentParserV2 = createParser(BoardDocumentSchemaV2, "document", true);
 var MutationRequestParserV2 = createParser(MutationRequestSchemaV2, "mutation", true);
@@ -27847,6 +27878,8 @@ var parseRevisionId = (value) => {
   return parsed.ok ? value : null;
 };
 var parseHistory = (value) => {
+  const retained = RetainedHistoryMetadataParserV1.parse(value);
+  if (retained.ok) return retained.data.value;
   if (!isRecord2(value) || !hasExactKeys(value, ["protocolVersion", "type", "entries", "navigation"]) || value.protocolVersion !== 1 || value.type !== "history.adapter-metadata" || !Array.isArray(value.entries) || value.entries.length > 100)
     return null;
   const entries = [];

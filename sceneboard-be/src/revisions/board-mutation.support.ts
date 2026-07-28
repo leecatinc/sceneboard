@@ -52,16 +52,16 @@ export const invalidMutation = (): BoardContractError =>
     details: { path: ['command', 'type'], issue: 'expected a checkpoint mutation' },
   });
 
-export const revisionNotFound = (revisionId: RevisionId): BoardContractError =>
+export const revisionNotFound = (_revisionId: RevisionId): BoardContractError =>
   new BoardContractError({
     protocolVersion: 1,
     type: 'board.error',
-    code: 'REVISION_NOT_FOUND',
-    message: 'Revision not found',
+    code: 'BOARD_NOT_FOUND',
+    message: 'Board not found',
     category: 'not_found',
     retryable: false,
     httpStatusHint: 404,
-    details: { revisionId },
+    details: null,
   });
 
 export const boardArchived = (request: MutationRequestV2, archivedAt: string): BoardContractError =>

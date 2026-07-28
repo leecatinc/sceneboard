@@ -131,7 +131,7 @@
       "exportKind": "class",
       "memberName": "listWithMetadata",
       "memberKind": "method",
-      "signature": "async listWithMetadata(input: { principal: ResolvedBoardPrincipalV1; request: HistoryListRequestV1; }): Promise<{ result: BoardOperationResultV1; metadata: HistoryAdapterMetadataV1 }>",
+      "signature": "async listWithMetadata(input: { principal: ResolvedBoardPrincipalV1; request: HistoryListRequestV1; }): Promise<{ result: BoardOperationResultV1; metadata: HistoryHttpMetadataV1 }>",
       "selector": "ClassDeclaration[name=HistoryListService]/MethodDeclaration[name=listWithMetadata]",
       "contractIds": [
         "history.list"
@@ -157,7 +157,7 @@
       "exportKind": "class",
       "memberName": "getWithMetadata",
       "memberKind": "method",
-      "signature": "async getWithMetadata(input: { principal: ResolvedBoardPrincipalV1; request: HistoryGetRequestV1; }): Promise<{ result: BoardOperationResultV1; metadata: HistoryAdapterMetadataV1 }>",
+      "signature": "async getWithMetadata(input: { principal: ResolvedBoardPrincipalV1; request: HistoryGetRequestV1; }): Promise<{ result: BoardOperationResultV1; metadata: HistoryHttpMetadataV1 }>",
       "selector": "ClassDeclaration[name=HistoryGetService]/MethodDeclaration[name=getWithMetadata]",
       "contractIds": [
         "history.get"
@@ -281,5 +281,5 @@
       ]
     }
   ],
-  "tupleListSha256": "99781616279b50e4f3fc073cade77b37dc3730756b51c9c42472a2949834352f"
+  "tupleListSha256": "03bfa774277f042db6adccf0153528c9e576d5c89b67bdea10b29d6b03fcb932"
 }

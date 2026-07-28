@@ -243,7 +243,10 @@ const setup = async (
           [],
         ];
       }
-      if (normalized.includes('FROM board_revisions') && normalized.includes('revision_pk = ?')) {
+      if (
+        normalized.includes('FROM board_revision_catalog c') &&
+        normalized.includes('r.revision_pk = ?')
+      ) {
         sourceReads += 1;
         return [
           [
@@ -266,6 +269,15 @@ const setup = async (
         revisionWrites += 1;
         revisionInsertBinds = [...binds];
         return [{ affectedRows: 1, insertId: 71 } as ResultSetHeader, []];
+      }
+      if (normalized.startsWith('INSERT INTO board_revision_payloads')) {
+        return [{ affectedRows: 1, insertId: 0 } as ResultSetHeader, []];
+      }
+      if (normalized.startsWith('UPDATE board_revision_catalog')) {
+        return [{ affectedRows: 1, insertId: 0 } as ResultSetHeader, []];
+      }
+      if (normalized.startsWith('INSERT INTO board_revision_catalog')) {
+        return [{ affectedRows: 1, insertId: 0 } as ResultSetHeader, []];
       }
       if (normalized.startsWith('UPDATE board_heads')) {
         return [{ affectedRows: 1, insertId: 0 } as ResultSetHeader, []];

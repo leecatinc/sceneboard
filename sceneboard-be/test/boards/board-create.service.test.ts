@@ -134,6 +134,15 @@ const setup = (options: SetupOptions = {}) => {
       if (normalized.startsWith('INSERT INTO board_revisions')) {
         return [{ affectedRows: 1, insertId: 70 } as ResultSetHeader, []];
       }
+      if (normalized.startsWith('INSERT INTO board_revision_payloads')) {
+        return [{ affectedRows: 1, insertId: 0 } as ResultSetHeader, []];
+      }
+      if (normalized.startsWith('UPDATE board_revision_catalog')) {
+        return [{ affectedRows: 0, insertId: 0 } as ResultSetHeader, []];
+      }
+      if (normalized.startsWith('INSERT INTO board_revision_catalog')) {
+        return [{ affectedRows: 1, insertId: 0 } as ResultSetHeader, []];
+      }
       if (normalized.startsWith('INSERT INTO board_heads')) {
         return [{ affectedRows: 1, insertId: 0 } as ResultSetHeader, []];
       }

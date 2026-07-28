@@ -29,6 +29,7 @@ import type {
   ResolvedBoardPrincipalV1,
 } from '../grants/board-access.policy.js';
 import { DocumentCheckpointCodec } from '../revisions/document-checkpoint.codec.js';
+import { RevisionPayloadCatalogRepository } from '../revisions/revision-payload-catalog.repository.js';
 import { currentBoardCapabilitiesFromContext } from '../grants/current-board-capabilities.js';
 
 export type BoardCreateRequestV1 = Extract<
@@ -174,6 +175,7 @@ const asRevisionId = (value: string): RevisionId => value as RevisionId;
 const asEventId = (value: string): EventId => value as EventId;
 
 export class BoardCreateService {
+  private readonly payloadCatalog = new RevisionPayloadCatalogRepository();
   private readonly runtime: BoardCreateRuntime;
 
   constructor(
@@ -394,6 +396,15 @@ export class BoardCreateService {
       throw error;
     }
     const revisionPk = insertedPk(revisionInsert);
+    await this.payloadCatalog.persistRevisionBundle(connection, {
+      boardPk: boardPk.toString(),
+      revisionPk: revisionPk.toString(),
+      retainedOrder: 1,
+      createdAtSql: prepared.occurredAtSql,
+      actorAccountPk: context.ownerUserPk.toString(),
+      actorClass: actorCode === 'S' ? 'system' : 'owner',
+      checkpoint: prepared.checkpoint,
+    });
 
     const [headInsert] = await connection.execute<ResultSetHeader>(
       `

@@ -56,4 +56,8 @@ test('history cursor is signed, canonical, board-bound, and safe-integer bounded
   assert.throws(() => codec.parse(cursor, boardB), invalidCursor);
   assert.throws(() => codec.issue(boardA, Number.MAX_SAFE_INTEGER + 1), invalidCursor);
   assert.throws(() => codec.parse('A'.repeat(513), boardA), invalidCursor);
+  assert.deepEqual(codec.parseAnchor(cursor, boardA), {
+    version: 2,
+    value: Number.MAX_SAFE_INTEGER,
+  });
 });

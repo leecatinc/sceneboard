@@ -41,6 +41,7 @@ import {
   HitlRequestDefinitionSchemaV1,
   HitlResponseSchemaV1,
 } from './hitl.js';
+import { RetainedHistoryMetadataSchemaV1 } from './history.js';
 import type { JsonValue } from './json.js';
 import { scalarLengthV1 } from './json.js';
 import {
@@ -715,6 +716,7 @@ export const ArtifactRuntimeSummaryParserV1 = createParserV1(ArtifactRuntimeSumm
 export const HitlRequestDefinitionParserV1 = createParserV1(HitlRequestDefinitionSchemaV1);
 export const HitlResponseParserV1 = createParserV1(HitlResponseSchemaV1, 'hitl-response');
 export const HitlInteractionParserV1 = createParserV1(HitlInteractionSchemaV1);
+export const RetainedHistoryMetadataParserV1 = createParserV1(RetainedHistoryMetadataSchemaV1);
 export const BoardErrorParserV1 = createParserV1(BoardErrorSchemaV1);
 
 export const BoardDocumentParserV2 = createParser(BoardDocumentSchemaV2, 'document', true);

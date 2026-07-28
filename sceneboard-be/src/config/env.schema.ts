@@ -53,6 +53,8 @@ export interface AppEnvironment {
   publicApiOrigin: string;
   trustedProxyCidrs: string[];
   revisionRetentionCount: number;
+  historyRetainedEmissionEnabled: boolean;
+  revisionReclamationEnabled: boolean;
 }
 
 export type PersistenceEnvironment = Pick<AppEnvironment, 'mysql' | 'redis'>;
@@ -126,6 +128,14 @@ const parseOptionalInteger = (
   maximum: number,
 ): number =>
   parseInteger({ ...input, [key]: input[key] ?? String(fallback) }, key, minimum, maximum);
+
+const parseOptionalBoolean = (input: EnvironmentInput, key: string, fallback: boolean): boolean => {
+  const value = input[key] ?? String(fallback);
+  if (value !== 'true' && value !== 'false') {
+    throw new EnvironmentValidationError(key, 'must be exactly true or false');
+  }
+  return value === 'true';
+};
 
 const parseBoundedText = (
   input: EnvironmentInput,
@@ -353,5 +363,11 @@ export const parseEnvironment = (input: EnvironmentInput): AppEnvironment => {
       REVISION_RETENTION_MINIMUM,
       REVISION_RETENTION_MAXIMUM,
     ),
+    historyRetainedEmissionEnabled: parseOptionalBoolean(
+      input,
+      'HISTORY_RETAINED_EMISSION_ENABLED',
+      false,
+    ),
+    revisionReclamationEnabled: parseOptionalBoolean(input, 'REVISION_RECLAMATION_ENABLED', false),
   };
 };

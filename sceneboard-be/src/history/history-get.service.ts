@@ -23,7 +23,11 @@ import {
   extractSceneArtifactReferences,
 } from '../revisions/scene-artifact-reference.extractor.js';
 import { SnapshotCompositionService } from '../revisions/snapshot-composition.service.js';
-import { historyGetMetadata, type HistoryAdapterMetadataV1 } from './history-adapter-metadata.js';
+import {
+  historyGetMetadata,
+  retainedHistoryGetMetadata,
+  type HistoryHttpMetadataV1,
+} from './history-adapter-metadata.js';
 
 export type HistoryGetRequestV1 = BoardOperationRequestV1 & {
   protocolVersion: 1;
@@ -53,6 +57,10 @@ interface HistoryGetRow extends RowDataPacket {
   sceneStoredBytes: number;
   sceneSha256: Buffer;
   lastEventSequence: string;
+  truncatedBefore: number;
+  oldestRetainedRevisionId: Buffer;
+  actorAccountPk: string | null;
+  actorClass: string;
 }
 
 interface ReferenceRow extends RowDataPacket {
@@ -62,16 +70,16 @@ interface ReferenceRow extends RowDataPacket {
   occurrenceCount: number;
 }
 
-const notFound = (revisionId: RevisionId): BoardContractError =>
+const notFound = (): BoardContractError =>
   new BoardContractError({
     protocolVersion: 1,
     type: 'board.error',
-    code: 'REVISION_NOT_FOUND',
-    message: 'Revision not found',
+    code: 'BOARD_NOT_FOUND',
+    message: 'Board not found',
     category: 'not_found',
     retryable: false,
     httpStatusHint: 404,
-    details: { revisionId },
+    details: null,
   });
 
 const storedRevisionId = (value: Uint8Array): RevisionId => formatPublicUuidV4(value) as RevisionId;
@@ -115,6 +123,7 @@ export class HistoryGetService {
     private readonly accessPolicy: BoardAccessPolicy,
     private readonly checkpoints: DocumentCheckpointCodec,
     private readonly snapshots: SnapshotCompositionService,
+    private readonly emitRetainedMetadata = false,
   ) {}
 
   async get(input: {
@@ -127,7 +136,7 @@ export class HistoryGetService {
   async getWithMetadata(input: {
     principal: ResolvedBoardPrincipalV1;
     request: HistoryGetRequestV1;
-  }): Promise<{ result: BoardOperationResultV1; metadata: HistoryAdapterMetadataV1 }> {
+  }): Promise<{ result: BoardOperationResultV1; metadata: HistoryHttpMetadataV1 }> {
     return this.accessPolicy.withAuthorizedBoardTransaction(
       {
         principal: input.principal,
@@ -140,7 +149,7 @@ export class HistoryGetService {
         try {
           revisionBytes = Buffer.from(parsePublicUuidV4(input.request.revisionId));
         } catch {
-          throw notFound(input.request.revisionId);
+          throw notFound();
         }
         const row = await this.readRevision(connection, input.request.boardId, revisionBytes);
         const selectedRevisionId = storedRevisionId(row.revisionId);
@@ -212,13 +221,47 @@ export class HistoryGetService {
         if (!parsed.ok) throw new BoardPersistenceError('row_integrity');
         return {
           result: parsed.data.value,
-          metadata: historyGetMetadata({
-            entry,
-            label: row.label,
-            nextRevisionId:
-              row.nextRevisionId === null ? null : storedRevisionId(row.nextRevisionId),
-            latestRevisionId: storedRevisionId(row.latestRevisionId),
-          }),
+          metadata: this.emitRetainedMetadata
+            ? retainedHistoryGetMetadata({
+                source: {
+                  entry,
+                  actorLabel:
+                    row.actorClass === 'system'
+                      ? 'system'
+                      : input.principal.kind === 'user' &&
+                          row.actorAccountPk === input.principal.userPk.toString()
+                        ? 'self'
+                        : row.actorClass === 'owner'
+                          ? 'owner'
+                          : 'editor',
+                  schemaVersion:
+                    row.sceneSchemaVersion === '1.0.0' || row.sceneSchemaVersion === '2.0.0'
+                      ? row.sceneSchemaVersion
+                      : (() => {
+                          throw new BoardPersistenceError('row_integrity');
+                        })(),
+                },
+                boundary: {
+                  truncatedBefore: row.truncatedBefore === 1,
+                  oldestRetainedRevisionId: storedRevisionId(row.oldestRetainedRevisionId),
+                },
+                previous:
+                  row.previousRevisionId === null
+                    ? row.truncatedBefore === 1
+                      ? { kind: 'truncated' }
+                      : null
+                    : { kind: 'revision', revisionId: storedRevisionId(row.previousRevisionId) },
+                nextRevisionId:
+                  row.nextRevisionId === null ? null : storedRevisionId(row.nextRevisionId),
+                latestRevisionId: storedRevisionId(row.latestRevisionId),
+              })
+            : historyGetMetadata({
+                entry,
+                label: row.label,
+                nextRevisionId:
+                  row.nextRevisionId === null ? null : storedRevisionId(row.nextRevisionId),
+                latestRevisionId: storedRevisionId(row.latestRevisionId),
+              }),
         };
       },
     );
@@ -242,14 +285,18 @@ export class HistoryGetService {
         r.actor_kind AS actorKind,
         r.actor_principal_id AS actorPrincipalId,
         r.label,
+        c.truncated_before AS truncatedBefore,
+        oldest_revision.revision_id AS oldestRetainedRevisionId,
+        CAST(c.actor_account_pk AS CHAR) AS actorAccountPk,
+        c.actor_class AS actorClass,
         next_revision.revision_id AS nextRevisionId,
         latest.revision_id AS latestRevisionId,
-        r.scene_schema_version AS sceneSchemaVersion,
-        r.scene_codec AS sceneCodec,
-        r.scene_payload AS scenePayload,
-        r.scene_canonical_bytes AS sceneCanonicalBytes,
-        r.scene_stored_bytes AS sceneStoredBytes,
-        r.scene_sha256 AS sceneSha256,
+        COALESCE(p.schema_version, r.scene_schema_version) AS sceneSchemaVersion,
+        COALESCE(p.codec, r.scene_codec) AS sceneCodec,
+        COALESCE(p.payload, r.scene_payload) AS scenePayload,
+        COALESCE(p.canonical_bytes, r.scene_canonical_bytes) AS sceneCanonicalBytes,
+        COALESCE(p.stored_bytes, r.scene_stored_bytes) AS sceneStoredBytes,
+        COALESCE(p.payload_sha256, r.scene_sha256) AS sceneSha256,
         CAST(h.last_event_sequence AS CHAR) AS lastEventSequence
       FROM boards b
       JOIN board_heads h ON h.board_pk = b.board_pk
@@ -257,22 +304,50 @@ export class HistoryGetService {
         ON latest.board_pk = h.board_pk
           AND latest.revision_pk = h.head_revision_pk
           AND latest.revision_number = h.head_revision_number
-      JOIN board_revisions r ON r.board_pk = b.board_pk AND r.revision_id = ?
+      JOIN board_revision_catalog latest_catalog
+        ON latest_catalog.board_pk = latest.board_pk
+       AND latest_catalog.revision_pk = latest.revision_pk
+      JOIN board_revision_catalog c ON c.board_pk = b.board_pk
+      JOIN board_revisions r
+        ON r.board_pk = c.board_pk AND r.revision_pk = c.revision_pk AND r.revision_id = ?
+      LEFT JOIN board_revision_payloads p ON p.revision_pk = r.revision_pk AND p.state = 'available'
+      JOIN board_revision_catalog oldest_catalog
+        ON oldest_catalog.board_pk = c.board_pk
+       AND oldest_catalog.retained_order = (
+         SELECT MIN(oc.retained_order) FROM board_revision_catalog oc WHERE oc.board_pk = c.board_pk
+       )
+      JOIN board_revisions oldest_revision
+        ON oldest_revision.board_pk = oldest_catalog.board_pk
+       AND oldest_revision.revision_pk = oldest_catalog.revision_pk
+      LEFT JOIN board_revision_catalog previous_catalog
+        ON previous_catalog.board_pk = c.board_pk
+       AND previous_catalog.retained_order = (
+         SELECT MAX(pc.retained_order)
+         FROM board_revision_catalog pc
+         WHERE pc.board_pk = c.board_pk AND pc.retained_order < c.retained_order
+       )
       LEFT JOIN board_revisions previous
-        ON previous.board_pk = r.board_pk AND previous.revision_pk = r.previous_revision_pk
+        ON previous.board_pk = previous_catalog.board_pk
+       AND previous.revision_pk = previous_catalog.revision_pk
       LEFT JOIN board_revisions source
         ON source.board_pk = r.board_pk AND source.revision_pk = r.source_revision_pk
+      LEFT JOIN board_revision_catalog next_catalog
+        ON next_catalog.board_pk = c.board_pk
+       AND next_catalog.retained_order = (
+         SELECT MIN(nc.retained_order)
+         FROM board_revision_catalog nc
+         WHERE nc.board_pk = c.board_pk AND nc.retained_order > c.retained_order
+       )
       LEFT JOIN board_revisions next_revision
-        ON next_revision.board_pk = r.board_pk
-          AND next_revision.revision_number = r.revision_number + 1
-          AND next_revision.revision_number <= h.head_revision_number
+        ON next_revision.board_pk = next_catalog.board_pk
+       AND next_revision.revision_pk = next_catalog.revision_pk
       WHERE b.public_id = ?
       LIMIT 1
     `,
       [revisionBytes, boardId],
     );
     const row = rows[0];
-    if (rows.length === 0) throw notFound(formatPublicUuidV4(revisionBytes) as RevisionId);
+    if (rows.length === 0) throw notFound();
     if (rows.length !== 1 || row === undefined) throw new BoardPersistenceError('row_integrity');
     return row;
   }

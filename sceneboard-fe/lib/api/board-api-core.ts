@@ -20,7 +20,7 @@ import {
   parseBoardDocumentHttpResultV2,
   parseBoardHttpResultV1,
   parseBoardOperationHttpResultV2,
-  type HistoryAdapterMetadataV1,
+  type HistoryHttpMetadataV1,
 } from '@sceneboard/board-sdk/http';
 
 import type { SessionRequestCoordinator } from '../auth/renewal-singleflight';
@@ -68,7 +68,7 @@ export class BoardApiTransport {
   ): Promise<
     ApiResult<
       K extends 'history.list' | 'history.get'
-        ? { result: OperationData<K>; metadata: HistoryAdapterMetadataV1 | null }
+        ? { result: OperationData<K>; metadata: HistoryHttpMetadataV1 | null }
         : OperationData<K>
     >
   > {
@@ -82,7 +82,7 @@ export class BoardApiTransport {
     });
     return this.decodeOperation(result, request) as ApiResult<
       K extends 'history.list' | 'history.get'
-        ? { result: OperationData<K>; metadata: HistoryAdapterMetadataV1 | null }
+        ? { result: OperationData<K>; metadata: HistoryHttpMetadataV1 | null }
         : OperationData<K>
     >;
   }
@@ -188,7 +188,7 @@ export class BoardApiTransport {
     result: Awaited<ReturnType<SessionRequestCoordinator['dispatchShared']>>,
     request: OperationRequest<K>,
   ): ApiResult<
-    OperationData<K> | { result: OperationData<K>; metadata: HistoryAdapterMetadataV1 | null }
+    OperationData<K> | { result: OperationData<K>; metadata: HistoryHttpMetadataV1 | null }
   > {
     if (result.kind !== 'ok') return result;
     const { response, bytes } = result.value;

@@ -1,20 +1,15 @@
-# SceneBoard isolated backup and restore certification
+# Retention backup and restore drill
 
-Backup/restore evidence is live-required and currently blocked until approved isolated MySQL 8.0 floor/ceiling environments are available.
+Run the drill with the restricted backup/restore operator. Create an isolated source backup,
+restore it into a newly generated quarantine schema, and run the registered schema projection plus
+anchor/payload/catalog/hold/reference integrity probes. Production schemas are never overwritten.
 
-## Safety contract
+Record both successful and failed attempts. The evidence JSON consumed by
+`scripts/sceneboard-retention-restore-drill.mjs` has the exact certificate fields documented by the
+runtime migration. `expiresAt` must equal `certifiedAt + 30 days`. The script is the sole producer:
+it signs canonical evidence with `RETENTION_CERTIFICATE_HMAC_KEY` and appends it to
+`retention_restore_drill_attempts`.
 
-- Use a new attempt-owned source schema and a separately named quarantine restore schema.
-- Record engine version, SQL mode, UTC, character set, collation, InnoDB/check enforcement, registry hash, owner token, and initial-state hash before state changes.
-- Back up only the isolated representative schema. Never target production or a shared schema.
-- Restore only into an empty quarantine schema. Never overwrite or promote the source schema in place.
-- Recollect metadata and run complete schema/projection/integrity certification after restore.
-- Promotion means selecting a passing quarantine identity for a later isolated certification phase; it is not production deployment.
-
-## Required scenarios
-
-Run fresh and exact-state adopt with `FULL_OFFLINE`, interrupted restart with `BOUNDED_RESTART`, `RESUMABLE_AUDIT`, and quarantine restore. Every scenario owns a distinct schema. A failed or partially migrated schema cannot be reused.
-
-D3/D7/D8 migrations are forward-only. Never run a down migration, drop, or truncate them. D2's three down assets are registry evidence, not blanket rollback authorization.
-
-If backup, restore, metadata comparison, checksum, cleanup, or owner verification fails, keep exposure stopped, retain sanitized first-failure evidence, and route correction to the owning D2-D8 contract.
+Enablement reads only the highest `attemptSeq` for the running `deploymentId`. It verifies the HMAC
+in constant time and requires an unexpired all-success result with exact registry and projection
+digests. A newer failed attempt overrides every older success.

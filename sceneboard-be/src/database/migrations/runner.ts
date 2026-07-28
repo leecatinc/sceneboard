@@ -661,6 +661,13 @@ export class MigrationRunner {
       d7_artifact_runtime_states_v1: ['artifact_runtime_states'],
       d7_artifact_board_usage_v1: ['artifact_board_usage'],
       d8_board_hitl_interactions_v1: ['board_hitl_interactions'],
+      d9_revision_retention_runtime_v1: [
+        'board_retention_leases',
+        'board_retention_runs',
+        'board_retention_run_items',
+        'board_retention_audit',
+        'retention_restore_drill_attempts',
+      ],
     };
     const expectedTables = postconditions[postcondition] ?? null;
     if (expectedTables === null)

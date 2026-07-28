@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "migration": "015_d9_revision_retention_runtime",
+  "reversible": false,
+  "catalogColumns": [
+    ["actor_account_pk", "bigint unsigned", "YES"],
+    ["actor_class", "enum('owner','editor','system')", "NO"]
+  ],
+  "tables": [
+    "board_retention_leases",
+    "board_retention_runs",
+    "board_retention_run_items",
+    "board_retention_audit",
+    "retention_restore_drill_attempts"
+  ],
+  "leaseSeconds": 60,
+  "renewSeconds": 20,
+  "batchRevisionMaximum": 100,
+  "batchStoredBytesMaximum": 33554432,
+  "inlinePayloadMembers": [
+    "scene_schema_version",
+    "scene_codec",
+    "scene_payload",
+    "scene_canonical_bytes",
+    "scene_stored_bytes",
+    "scene_sha256"
+  ]
+}

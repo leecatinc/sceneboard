@@ -54,6 +54,30 @@ test('parses the exact development environment and canonical same-host origins',
   assert.equal(environment.keys.sessionToken.byteLength, 32);
   assert.equal(environment.streamKeyMaterial.byteLength, 32);
   assert.equal(environment.revisionRetentionCount, 32);
+  assert.equal(environment.historyRetainedEmissionEnabled, false);
+  assert.equal(environment.revisionReclamationEnabled, false);
+});
+
+test('accepts only exact lowercase retention feature booleans', () => {
+  const enabled = parseEnvironment({
+    ...validEnvironment(),
+    HISTORY_RETAINED_EMISSION_ENABLED: 'true',
+    REVISION_RECLAMATION_ENABLED: 'true',
+  });
+  assert.equal(enabled.historyRetainedEmissionEnabled, true);
+  assert.equal(enabled.revisionReclamationEnabled, true);
+
+  for (const keyName of [
+    'HISTORY_RETAINED_EMISSION_ENABLED',
+    'REVISION_RECLAMATION_ENABLED',
+  ] as const) {
+    for (const source of ['TRUE', '1', 'yes', ' true', 'false ']) {
+      assert.throws(
+        () => parseEnvironment({ ...validEnvironment(), [keyName]: source }),
+        EnvironmentValidationError,
+      );
+    }
+  }
 });
 
 test('accepts only canonical retention counts from 1 through 256', () => {

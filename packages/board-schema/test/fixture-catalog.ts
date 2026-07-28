@@ -21,6 +21,7 @@ export type FixtureParserName =
   | 'MutationEnvelopeParserV1'
   | 'MutationRequestParserV1'
   | 'MutationResultParserV1'
+  | 'RetainedHistoryMetadataParserV1'
   | 'SceneParserV1';
 
 export type FixtureCatalogEntry =
@@ -36,6 +37,11 @@ export type FixtureCatalogEntry =
     };
 
 export const FIXTURE_CATALOG = [
+  {
+    kind: 'valid',
+    path: 'valid/history-retained-metadata.v1.json',
+    schema: 'RetainedHistoryMetadataParserV1',
+  },
   { kind: 'valid', path: 'valid/artifact-manifest.v1.json', schema: 'ArtifactManifestParserV1' },
   { kind: 'valid', path: 'valid/artifact-reference.v1.json', schema: 'ArtifactReferenceParserV1' },
   { kind: 'valid', path: 'valid/artifact-resource.v1.json', schema: 'ArtifactResourceParserV1' },
@@ -573,6 +579,14 @@ export const FIXTURE_CATALOG = [
     path: 'scenarios/snapshot-event-reconnect-watermark.v1.json',
     evaluator: 'snapshot-event-reconnect-watermark',
     expectedRelation: 'inclusive-watermark',
+  },
+  {
+    kind: 'invalid',
+    path: 'invalid/history-retained-metadata.v1.json',
+    schema: 'RetainedHistoryMetadataParserV1',
+    expectedErrorCode: 'INVALID_PAYLOAD',
+    expectedPath: ['entries', 0, 'label'],
+    expectedDetails: { path: ['entries', 0, 'label'], issue: 'Invalid' },
   },
   {
     kind: 'invalid',

@@ -13,12 +13,17 @@ import {
 } from '@sceneboard/board-schema';
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 
+import { BoardContractError } from '../common/errors/app-error.js';
 import { BoardPersistenceError } from '../common/errors/board-persistence.error.js';
 import { formatPublicUuidV4 } from '../common/ids/public-uuid.storage.js';
 import { parseMysqlTimestampUtc } from '../common/time/mysql-timestamp.js';
 import type { BoardAccessPolicy, ResolvedBoardPrincipalV1 } from '../grants/board-access.policy.js';
 import { HistoryCursorCodec } from './history-cursor.codec.js';
-import { historyListMetadata, type HistoryAdapterMetadataV1 } from './history-adapter-metadata.js';
+import {
+  historyListMetadata,
+  retainedHistoryListMetadata,
+  type HistoryHttpMetadataV1,
+} from './history-adapter-metadata.js';
 
 export type HistoryListRequestV1 = BoardOperationRequestV1 & {
   protocolVersion: 1;
@@ -39,7 +44,29 @@ interface HistoryListRow extends RowDataPacket {
   actorKind: string;
   actorPrincipalId: string;
   label: string;
+  retainedOrder: string;
+  truncatedBefore: number;
+  actorAccountPk: string | null;
+  actorClass: string;
+  sceneSchemaVersion: string;
 }
+
+interface HistoryBoundaryRow extends RowDataPacket {
+  oldestRetainedRevisionId: Buffer;
+  truncatedBefore: number;
+}
+
+const notFound = (): BoardContractError =>
+  new BoardContractError({
+    protocolVersion: 1,
+    type: 'board.error',
+    code: 'BOARD_NOT_FOUND',
+    message: 'Board not found',
+    category: 'not_found',
+    retryable: false,
+    httpStatusHint: 404,
+    details: null,
+  });
 
 const revisionId = (value: Uint8Array): RevisionId => formatPublicUuidV4(value) as RevisionId;
 const positive = (value: string): number => {
@@ -81,6 +108,7 @@ export class HistoryListService {
   constructor(
     private readonly accessPolicy: BoardAccessPolicy,
     private readonly cursors: HistoryCursorCodec,
+    private readonly emitRetainedMetadata = false,
   ) {}
 
   async list(input: {
@@ -93,7 +121,7 @@ export class HistoryListService {
   async listWithMetadata(input: {
     principal: ResolvedBoardPrincipalV1;
     request: HistoryListRequestV1;
-  }): Promise<{ result: BoardOperationResultV1; metadata: HistoryAdapterMetadataV1 }> {
+  }): Promise<{ result: BoardOperationResultV1; metadata: HistoryHttpMetadataV1 }> {
     return this.accessPolicy.withAuthorizedBoardTransaction(
       {
         principal: input.principal,
@@ -105,7 +133,10 @@ export class HistoryListService {
         const before =
           input.request.cursor === null
             ? null
-            : this.cursors.parse(input.request.cursor, input.request.boardId);
+            : this.cursors.parseAnchor(input.request.cursor, input.request.boardId);
+        if (before !== null) {
+          await this.assertCursorAnchor(connection, input.request.boardId, before);
+        }
         const rows = await this.readPage(
           connection,
           input.request.boardId,
@@ -132,7 +163,12 @@ export class HistoryListService {
         const last = entries.at(-1);
         const nextCursor =
           rows.length > input.request.limit && last !== undefined
-            ? this.cursors.issue(input.request.boardId, last.revision.revisionNumber)
+            ? this.emitRetainedMetadata
+              ? this.cursors.issueRetained(
+                  input.request.boardId,
+                  positive(page.at(-1)?.retainedOrder ?? ''),
+                )
+              : this.cursors.issue(input.request.boardId, last.revision.revisionNumber)
             : null;
         const parsed = BoardOperationResultParserV1.parse({
           protocolVersion: 1,
@@ -142,25 +178,122 @@ export class HistoryListService {
           result: { type: 'history.list', entries, nextCursor },
         });
         if (!parsed.ok) throw new BoardPersistenceError('row_integrity');
+        const retainedBoundary = this.emitRetainedMetadata
+          ? await this.readBoundary(connection, input.request.boardId)
+          : null;
         return {
           result: parsed.data.value,
-          metadata: historyListMetadata(
-            entries,
-            page.map((row) => row.label),
-          ),
+          metadata: this.emitRetainedMetadata
+            ? retainedHistoryListMetadata(
+                entries.map((entry, index) => {
+                  const row = page[index];
+                  if (row === undefined) throw new BoardPersistenceError('row_integrity');
+                  if (row.sceneSchemaVersion !== '1.0.0' && row.sceneSchemaVersion !== '2.0.0') {
+                    throw new BoardPersistenceError('row_integrity');
+                  }
+                  return {
+                    entry,
+                    actorLabel:
+                      row.actorClass === 'system'
+                        ? 'system'
+                        : input.principal.kind === 'user' &&
+                            row.actorAccountPk === input.principal.userPk.toString()
+                          ? 'self'
+                          : row.actorClass === 'owner'
+                            ? 'owner'
+                            : 'editor',
+                    schemaVersion: row.sceneSchemaVersion,
+                  };
+                }),
+                {
+                  truncatedBefore: retainedBoundary?.truncatedBefore === 1,
+                  oldestRetainedRevisionId: revisionId(
+                    retainedBoundary?.oldestRetainedRevisionId ??
+                      (() => {
+                        throw new BoardPersistenceError('row_integrity');
+                      })(),
+                  ),
+                },
+              )
+            : historyListMetadata(
+                entries,
+                page.map((row) => row.label),
+              ),
         };
       },
     );
   }
 
+  private async assertCursorAnchor(
+    connection: PoolConnection,
+    boardId: BoardId,
+    anchor: { version: 1 | 2; value: number },
+  ): Promise<void> {
+    const predicate = anchor.version === 1 ? 'r.revision_number = ?' : 'c.retained_order = ?';
+    const [rows] = await connection.execute<RowDataPacket[]>(
+      `
+      SELECT c.revision_pk
+      FROM boards b
+      JOIN board_revision_catalog c ON c.board_pk = b.board_pk
+      JOIN board_revisions r ON r.board_pk = c.board_pk AND r.revision_pk = c.revision_pk
+      WHERE b.public_id = ? AND ${predicate}
+      LIMIT 1
+    `,
+      [boardId, anchor.value],
+    );
+    if (rows.length !== 1) throw notFound();
+  }
+
+  private async readBoundary(
+    connection: PoolConnection,
+    boardId: BoardId,
+  ): Promise<HistoryBoundaryRow> {
+    const [rows] = await connection.execute<HistoryBoundaryRow[]>(
+      `
+      SELECT oldest.revision_id AS oldestRetainedRevisionId,
+             oldest_catalog.truncated_before AS truncatedBefore
+      FROM boards b
+      JOIN board_revision_catalog oldest_catalog
+        ON oldest_catalog.board_pk = b.board_pk
+       AND oldest_catalog.retained_order = (
+         SELECT MIN(c.retained_order)
+         FROM board_revision_catalog c
+         WHERE c.board_pk = b.board_pk
+       )
+      JOIN board_revisions oldest
+        ON oldest.board_pk = oldest_catalog.board_pk
+       AND oldest.revision_pk = oldest_catalog.revision_pk
+      WHERE b.public_id = ?
+      LIMIT 1
+    `,
+      [boardId],
+    );
+    const row = rows[0];
+    if (rows.length !== 1 || row === undefined) throw new BoardPersistenceError('row_integrity');
+    return row;
+  }
+
   private async readPage(
     connection: PoolConnection,
     boardId: HistoryListRequestV1['boardId'],
-    before: number | null,
+    before: { version: 1 | 2; value: number } | null,
     limit: number,
   ): Promise<HistoryListRow[]> {
     const boundary =
-      before === null ? 'r.revision_number <= h.head_revision_number' : 'r.revision_number < ?';
+      before === null
+        ? 'c.retained_order <= head_catalog.retained_order'
+        : before.version === 1
+          ? `r.revision_number < ?
+             AND EXISTS (
+               SELECT 1
+               FROM board_revision_catalog cursor_catalog
+               JOIN board_revisions cursor_revision
+                 ON cursor_revision.board_pk = cursor_catalog.board_pk
+                AND cursor_revision.revision_pk = cursor_catalog.revision_pk
+               WHERE cursor_catalog.board_pk = b.board_pk
+                 AND cursor_revision.revision_number = ?
+             )`
+          : 'c.retained_order < ?';
     const [rows] = await connection.execute<HistoryListRow[]>(
       `
       SELECT
@@ -172,19 +305,40 @@ export class HistoryListService {
         r.origin_code AS originCode,
         r.actor_kind AS actorKind,
         r.actor_principal_id AS actorPrincipalId,
-        r.label
+        r.label,
+        CAST(c.retained_order AS CHAR) AS retainedOrder,
+        c.truncated_before AS truncatedBefore,
+        CAST(c.actor_account_pk AS CHAR) AS actorAccountPk,
+        c.actor_class AS actorClass,
+        COALESCE(p.schema_version, r.scene_schema_version) AS sceneSchemaVersion
       FROM boards b
       JOIN board_heads h ON h.board_pk = b.board_pk
-      JOIN board_revisions r ON r.board_pk = b.board_pk
+      JOIN board_revision_catalog head_catalog
+        ON head_catalog.board_pk = h.board_pk AND head_catalog.revision_pk = h.head_revision_pk
+      JOIN board_revision_catalog c ON c.board_pk = b.board_pk
+      JOIN board_revisions r ON r.board_pk = c.board_pk AND r.revision_pk = c.revision_pk
+      LEFT JOIN board_revision_payloads p ON p.revision_pk = r.revision_pk
+      LEFT JOIN board_revision_catalog previous_catalog
+        ON previous_catalog.board_pk = c.board_pk
+       AND previous_catalog.retained_order = (
+         SELECT MAX(pc.retained_order)
+         FROM board_revision_catalog pc
+         WHERE pc.board_pk = c.board_pk AND pc.retained_order < c.retained_order
+       )
       LEFT JOIN board_revisions previous
-        ON previous.board_pk = r.board_pk AND previous.revision_pk = r.previous_revision_pk
+        ON previous.board_pk = previous_catalog.board_pk
+       AND previous.revision_pk = previous_catalog.revision_pk
       LEFT JOIN board_revisions source
         ON source.board_pk = r.board_pk AND source.revision_pk = r.source_revision_pk
       WHERE b.public_id = ? AND ${boundary}
-      ORDER BY r.revision_number DESC
+      ORDER BY c.retained_order DESC
       LIMIT ${limit}
     `,
-      before === null ? [boardId] : [boardId, before],
+      before === null
+        ? [boardId]
+        : before.version === 1
+          ? [boardId, before.value, before.value]
+          : [boardId, before.value],
     );
     return rows;
   }

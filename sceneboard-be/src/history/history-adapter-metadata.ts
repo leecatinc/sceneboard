@@ -1,4 +1,11 @@
-import { canonicalizeJsonV1, type HistoryEntryV1, type RevisionId } from '@sceneboard/board-schema';
+import {
+  RetainedHistoryMetadataParserV1,
+  canonicalizeJsonV1,
+  type HistoryEntryV1,
+  type RetainedHistoryActorLabelV1,
+  type RetainedHistoryMetadataV1,
+  type RevisionId,
+} from '@sceneboard/board-schema';
 
 import { BoardPersistenceError } from '../common/errors/board-persistence.error.js';
 
@@ -13,6 +20,8 @@ export interface HistoryAdapterMetadataV1 {
     latestRevisionId: RevisionId;
   };
 }
+
+export type HistoryHttpMetadataV1 = HistoryAdapterMetadataV1 | RetainedHistoryMetadataV1;
 
 const validLabel = (label: string): boolean => {
   const scalars = Array.from(label).length;
@@ -59,6 +68,70 @@ export const historyGetMetadata = (input: {
     navigation: {
       revisionId: input.entry.revision.revisionId,
       previousRevisionId: input.entry.previousRevisionId,
+      nextRevisionId: input.nextRevisionId,
+      latestRevisionId: input.latestRevisionId,
+    },
+  });
+
+export interface RetainedHistoryMetadataEntrySourceV1 {
+  entry: HistoryEntryV1;
+  actorLabel: RetainedHistoryActorLabelV1;
+  schemaVersion: '1.0.0' | '2.0.0';
+}
+
+const summaries = {
+  'board.create': 'Board created',
+  'scene.replace': 'Scene updated',
+  'scene.clear': 'Scene cleared',
+  'scene.restore': 'Revision restored',
+  'document.replace': 'Document updated',
+} as const;
+
+const retainedEntry = (
+  source: RetainedHistoryMetadataEntrySourceV1,
+): RetainedHistoryMetadataV1['entries'][number] => ({
+  revisionId: source.entry.revision.revisionId,
+  label: `Revision ${source.entry.revision.revisionNumber}`,
+  actorLabel: source.actorLabel,
+  summary: summaries[source.entry.originType],
+  schemaVersion: source.schemaVersion,
+});
+
+const assertRetained = (value: unknown): RetainedHistoryMetadataV1 => {
+  const parsed = RetainedHistoryMetadataParserV1.parse(value);
+  if (!parsed.ok || parsed.data.canonicalBytes.byteLength > 131_072) {
+    throw new BoardPersistenceError('row_integrity');
+  }
+  return parsed.data.value;
+};
+
+export const retainedHistoryListMetadata = (
+  sources: readonly RetainedHistoryMetadataEntrySourceV1[],
+  boundary: RetainedHistoryMetadataV1['boundary'],
+): RetainedHistoryMetadataV1 =>
+  assertRetained({
+    protocolVersion: 1,
+    type: 'history.retained-metadata',
+    entries: sources.map(retainedEntry),
+    boundary,
+    navigation: null,
+  });
+
+export const retainedHistoryGetMetadata = (input: {
+  source: RetainedHistoryMetadataEntrySourceV1;
+  boundary: RetainedHistoryMetadataV1['boundary'];
+  previous: NonNullable<RetainedHistoryMetadataV1['navigation']>['previous'];
+  nextRevisionId: RevisionId | null;
+  latestRevisionId: RevisionId;
+}): RetainedHistoryMetadataV1 =>
+  assertRetained({
+    protocolVersion: 1,
+    type: 'history.retained-metadata',
+    entries: [retainedEntry(input.source)],
+    boundary: input.boundary,
+    navigation: {
+      revisionId: input.source.entry.revision.revisionId,
+      previous: input.previous,
       nextRevisionId: input.nextRevisionId,
       latestRevisionId: input.latestRevisionId,
     },
