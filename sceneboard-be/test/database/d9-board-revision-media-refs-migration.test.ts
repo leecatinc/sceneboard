@@ -6,7 +6,7 @@ import { MIGRATION_REGISTRY } from '../../src/database/migrations/registry.js';
 import { splitSqlStatements } from '../../src/database/migrations/sql-splitter.js';
 
 test('registers the exact forward-only revision media reference migration', async () => {
-  assert.deepEqual(MIGRATION_REGISTRY.at(-5), {
+  assert.deepEqual(MIGRATION_REGISTRY.at(-6), {
     version: '018_d9_board_revision_media_refs',
     upAsset: '018_d9_board_revision_media_refs.up.sql',
     reversible: false,

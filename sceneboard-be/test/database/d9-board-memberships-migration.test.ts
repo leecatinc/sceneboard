@@ -12,14 +12,14 @@ const source = async (): Promise<string> =>
   );
 
 test('registers the forward-additive membership migration after retention runtime', () => {
-  assert.deepEqual(MIGRATION_REGISTRY.at(-7), {
+  assert.deepEqual(MIGRATION_REGISTRY.at(-8), {
     version: '016_d9_board_memberships',
     upAsset: '016_d9_board_memberships.up.sql',
     reversible: false,
     downAsset: null,
     postcondition: 'd9_board_memberships_v1',
   });
-  assert.equal(MIGRATION_REGISTRY.at(-8)?.version, '015_d9_revision_retention_runtime');
+  assert.equal(MIGRATION_REGISTRY.at(-9)?.version, '015_d9_revision_retention_runtime');
 });
 
 test('pins unique membership, active lookup, version, and owner projection constraints', async () => {

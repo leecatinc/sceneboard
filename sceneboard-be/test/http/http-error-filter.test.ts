@@ -6,6 +6,7 @@ import type { ArgumentsHost } from '@nestjs/common';
 import { AppError, BoardContractError } from '../../src/common/errors/app-error.js';
 import { invalidBoardPayload } from '../../src/common/errors/board-error.factory.js';
 import { HttpErrorFilter } from '../../src/common/filters/http-error.filter.js';
+import { ShareAnalyticsError } from '../../src/common/errors/share-analytics.error.js';
 import { BOARD_REQUEST_ID } from '../../src/common/http/board-request-correlation.js';
 import { CryptoService } from '../../src/common/security/crypto.service.js';
 
@@ -148,4 +149,33 @@ test('does not attempt a JSON error after an SSE response is committed or closed
     assert.equal(response.body, undefined);
     assert.equal(response.headers.size, 0);
   }
+});
+
+test('keeps analytics errors in the closed non-enumerating envelope', () => {
+  const unavailable = capture(new ShareAnalyticsError('SHARE_VIEW_UNAVAILABLE'), {
+    url: '/api/v1/public/share-view-events',
+  });
+  assert.equal(unavailable.status, 404);
+  assert.deepEqual(unavailable.body, {
+    error: {
+      code: 'SHARE_VIEW_UNAVAILABLE',
+      message: 'Share view unavailable',
+      requestId: unavailable.headers.get('X-Request-Id'),
+    },
+  });
+  const unauthenticated = capture(
+    new BoardContractError({
+      protocolVersion: 1,
+      type: 'board.error',
+      code: 'UNAUTHENTICATED',
+      message: 'Authentication is required',
+      category: 'auth',
+      retryable: false,
+      httpStatusHint: 401,
+      details: null,
+    }),
+    { url: '/api/v1/boards/board_1/share-analytics?from=2026-07-01&to=2026-07-31' },
+  );
+  assert.equal(unauthenticated.status, 401);
+  assert.equal((unauthenticated.body as { error: { code: string } }).error.code, 'UNAUTHENTICATED');
 });

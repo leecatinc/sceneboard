@@ -1,5 +1,6 @@
 import {
   BoardIdParserV1,
+  GlobalIdStringParserV1,
   PublicShareTokenParserV1,
   ShortTextParserV1,
   type BoardId,
@@ -144,6 +145,38 @@ export class PublicShareResolver {
           now.valueOf() >= parseMysqlTimestampUtc(input.context.familyExpiresAt).valueOf()
         )
           throw new PublicShareHttpError(404);
+        if (share.accessPolicy === 'P') {
+          if (share.credential === null) throw new PublicShareHttpError(503);
+          const state = await this.resolvePasswordGrant(
+            connection,
+            share,
+            input.shareFamily,
+            nowSql,
+            now,
+          );
+          if (state !== 'current') throw new PublicShareHttpError(404);
+        } else if (share.credential !== null) {
+          throw new PublicShareHttpError(503);
+        }
+        return input.operation({ connection, share, ...board, nowSql, now });
+      }),
+    );
+  }
+
+  async withPublicShareId<Value>(input: {
+    shareId: string;
+    shareFamily: ShareFamilyCookieInspection;
+    operation: (resolved: ResolvedPublicShare) => Promise<Value>;
+  }): Promise<Value> {
+    const parsedShareId = GlobalIdStringParserV1.parse(input.shareId);
+    if (!parsedShareId.ok) throw new PublicShareHttpError(404);
+    return this.withStore((connection) =>
+      withTransaction(connection, 'READ COMMITTED', async () => {
+        const share = await this.shares.lockShareById(connection, parsedShareId.data.value);
+        if (share === null || share.status !== 'active') throw new PublicShareHttpError(404);
+        const board = await this.lockBoard(connection, share.boardPk);
+        const nowSql = await passwordDatabaseNow(connection);
+        const now = parseMysqlTimestampUtc(nowSql);
         if (share.accessPolicy === 'P') {
           if (share.credential === null) throw new PublicShareHttpError(503);
           const state = await this.resolvePasswordGrant(

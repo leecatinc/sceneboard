@@ -32,6 +32,7 @@ import { McpModule } from './mcp/mcp.module.js';
 import { PersistenceCertificationModule } from './bootstrap/persistence-certification.module.js';
 import { InvitationModule } from './invitations/invitation.module.js';
 import { ShareModule } from './shares/share.module.js';
+import { ShareAnalyticsModule } from './share-analytics/share-analytics.module.js';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { ShareModule } from './shares/share.module.js';
     SseModule,
     InvitationModule,
     ShareModule,
+    ShareAnalyticsModule,
   ],
   providers: [
     StrictJsonBodyMiddleware,

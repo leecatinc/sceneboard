@@ -312,6 +312,8 @@ import { PublicArtifactController } from './public-artifact.controller.js';
     ShareCookieService,
     PasswordShareService,
     PasswordShareGuard,
+    PublicShareResolver,
+    PublicShareProjectionRepository,
   ],
 })
 export class ShareModule {}

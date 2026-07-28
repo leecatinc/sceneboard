@@ -102,6 +102,25 @@ export {
   QuotedSha256EtagSchemaV1,
   ShareCsrfTokenSchemaV1,
 } from './public-shares.js';
+export {
+  SHARE_ANALYTICS_ERROR_CODES_V1,
+  ShareAnalyticsContextRequestSchemaV1,
+  ShareAnalyticsContextSchemaV1,
+  ShareAnalyticsErrorCodeSchemaV1,
+  ShareAnalyticsErrorEnvelopeSchemaV1,
+  ShareAnalyticsEventResultSchemaV1,
+  ShareAnalyticsEventSchemaV1,
+  ShareAnalyticsPageReportSchemaV1,
+  ShareAnalyticsPublicationReportSchemaV1,
+  ShareAnalyticsReportSchemaV1,
+} from './share-analytics.js';
+export type {
+  ShareAnalyticsContextV1,
+  ShareAnalyticsErrorCodeV1,
+  ShareAnalyticsEventResultV1,
+  ShareAnalyticsEventV1,
+  ShareAnalyticsReportV1,
+} from './share-analytics.js';
 export type {
   PublicArtifactSummaryV1,
   PublicBoardProjectionV1,
@@ -352,6 +371,12 @@ export {
   PublicShareStateParserV1,
   PublicShareTokenParserV1,
   QuotedSha256EtagParserV1,
+  ShareAnalyticsContextParserV1,
+  ShareAnalyticsContextRequestParserV1,
+  ShareAnalyticsErrorEnvelopeParserV1,
+  ShareAnalyticsEventParserV1,
+  ShareAnalyticsEventResultParserV1,
+  ShareAnalyticsReportParserV1,
   ShareListResultParserV1,
   ShareManagementViewParserV1,
   SharePasswordAdmissionRequestParserV1,

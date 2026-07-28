@@ -182,6 +182,13 @@ export const MIGRATION_REGISTRY = [
     downAsset: null,
     postcondition: 'd9_media_retention_recovery_v1',
   },
+  {
+    version: '023_d9_share_analytics',
+    upAsset: '023_d9_share_analytics.up.sql',
+    reversible: false,
+    downAsset: null,
+    postcondition: 'd9_share_analytics_v1',
+  },
 ] as const satisfies readonly MigrationRegistryEntry[];
 
 export const MIGRATION_REGISTRY_VERSION = MIGRATION_REGISTRY.at(-1)?.version ?? 'empty';

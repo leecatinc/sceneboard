@@ -9,7 +9,7 @@ test('registers the forward-only share migration and exact durable ledgers', asy
     new URL('../../src/database/migrations/sql/019_d9_board_shares.up.sql', import.meta.url),
     'utf8',
   );
-  assert.deepEqual(MIGRATION_REGISTRY.at(-4), {
+  assert.deepEqual(MIGRATION_REGISTRY.at(-5), {
     version: '019_d9_board_shares',
     upAsset: '019_d9_board_shares.up.sql',
     reversible: false,

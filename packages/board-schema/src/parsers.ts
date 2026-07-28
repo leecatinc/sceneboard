@@ -84,6 +84,14 @@ import {
   PublicShareTokenSchemaV1,
   QuotedSha256EtagSchemaV1,
 } from './public-shares.js';
+import {
+  ShareAnalyticsContextRequestSchemaV1,
+  ShareAnalyticsContextSchemaV1,
+  ShareAnalyticsErrorEnvelopeSchemaV1,
+  ShareAnalyticsEventResultSchemaV1,
+  ShareAnalyticsEventSchemaV1,
+  ShareAnalyticsReportSchemaV1,
+} from './share-analytics.js';
 import { RetainedHistoryMetadataSchemaV1 } from './history.js';
 import { BoardAuthorizationPrincipalSchemaV1, BoardMembershipSchemaV1 } from './memberships.js';
 import type { JsonValue } from './json.js';
@@ -802,6 +810,16 @@ export const PublicArtifactSummaryParserV1 = createParserV1(PublicArtifactSummar
 export const PublicMediaResourceParserV1 = createParserV1(PublicMediaResourceSchemaV1);
 export const PublicBoardProjectionParserV1 = createParserV1(PublicBoardProjectionSchemaV1);
 export const PublicShareStateParserV1 = createParserV1(PublicShareStateSchemaV1);
+export const ShareAnalyticsContextRequestParserV1 = createParserV1(
+  ShareAnalyticsContextRequestSchemaV1,
+);
+export const ShareAnalyticsContextParserV1 = createParserV1(ShareAnalyticsContextSchemaV1);
+export const ShareAnalyticsEventParserV1 = createParserV1(ShareAnalyticsEventSchemaV1);
+export const ShareAnalyticsEventResultParserV1 = createParserV1(ShareAnalyticsEventResultSchemaV1);
+export const ShareAnalyticsReportParserV1 = createParserV1(ShareAnalyticsReportSchemaV1);
+export const ShareAnalyticsErrorEnvelopeParserV1 = createParserV1(
+  ShareAnalyticsErrorEnvelopeSchemaV1,
+);
 export const BoardAuthorizationPrincipalParserV1 = createParserV1(
   BoardAuthorizationPrincipalSchemaV1,
 );

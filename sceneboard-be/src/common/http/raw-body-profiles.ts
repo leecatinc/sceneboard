@@ -52,6 +52,8 @@ const d2BodyRoutes = [
   '/api/v1/pairings/:pairingId/redeem',
   '/api/v1/boards/:boardId/title',
   '/api/v1/grants/:grantId/rotate',
+  '/api/v1/public/shares/:shareId/view-contexts',
+  '/api/v1/public/share-view-events',
 ] as const;
 
 const d2NoBodyRoutes: ReadonlyArray<readonly [HttpMethod, string]> = [
@@ -105,6 +107,7 @@ const d1NoBodyRoutes: ReadonlyArray<readonly [HttpMethod, string]> = [
   ['GET', '/api/v1/boards/:boardId/artifacts/:artifactId/versions/:versionId'],
   ['GET', '/api/v1/boards/:boardId/artifacts/:artifactId/versions/:versionId/package'],
   ['GET', '/api/v1/boards/:boardId/interactions/:hitlRequestId'],
+  ['GET', '/api/v1/boards/:boardId/share-analytics'],
 ];
 
 export const RAW_BODY_PROFILES: readonly RawBodyProfile[] = [

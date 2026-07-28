@@ -102,6 +102,21 @@ const ROUTES: readonly RouteProfileV1[] = [
     methods: ['POST'],
     headers: DEFAULT_HEADERS,
   },
+  {
+    pattern: /^\/api\/v1\/public\/shares\/[^/]+\/view-contexts$/u,
+    methods: ['POST'],
+    headers: ['Content-Type'],
+  },
+  {
+    pattern: /^\/api\/v1\/public\/share-view-events$/u,
+    methods: ['POST'],
+    headers: ['Content-Type', 'X-SceneBoard-View-CSRF'],
+  },
+  {
+    pattern: /^\/api\/v1\/boards\/[^/]+\/share-analytics$/u,
+    methods: ['GET'],
+    headers: [],
+  },
 ];
 
 export type CorsPreflightDecisionV1 =

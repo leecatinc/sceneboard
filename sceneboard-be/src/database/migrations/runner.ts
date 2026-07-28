@@ -706,6 +706,16 @@ export class MigrationRunner {
         'share_password_session_grants',
         'share_password_cleanup_leases',
       ],
+      d9_share_analytics_v1: [
+        'share_analytics_contexts',
+        'share_analytics_context_pages',
+        'share_analytics_replays',
+        'share_analytics_rolling_admissions',
+        'share_analytics_daily_viewers',
+        'share_analytics_daily_aggregates',
+        'share_analytics_lifetime_aggregates',
+        'share_analytics_cleanup_leases',
+      ],
     };
     const expectedTables = postconditions[postcondition] ?? null;
     if (expectedTables === null)

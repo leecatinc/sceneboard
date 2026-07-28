@@ -18,6 +18,7 @@ import {
   publicFailureBody,
 } from '../../shares/share-response-policy.js';
 import { applyAccountMediaErrorHeaders } from '../../media/media-response-policy.js';
+import { ShareAnalyticsError } from '../errors/share-analytics.error.js';
 
 interface HttpResponse {
   headersSent?: boolean;
@@ -51,6 +52,10 @@ const isPublicMediaPath = (url: string): boolean =>
 
 const isAccountMediaPath = (url: string): boolean =>
   /^\/api\/v1\/boards\/[^/?]+\/revisions\/[^/?]+\/media\/[^/?]+(?:\?|$)/u.test(url);
+
+const isShareAnalyticsPath = (url: string): boolean =>
+  /^\/api\/v1\/public\/(?:shares\/[^/?]+\/view-contexts|share-view-events)(?:\?|$)/u.test(url) ||
+  /^\/api\/v1\/boards\/[^/?]+\/share-analytics(?:\?|$)/u.test(url);
 
 const boardInternalError = (): BoardErrorV1 => ({
   protocolVersion: 1,
@@ -163,6 +168,34 @@ export class HttpErrorFilter implements ExceptionFilter {
     if (exception instanceof ArtifactBrokerError) {
       response.setHeader('X-Request-Id', exception.requestId);
       response.status(exception.status).json(exception.toPayload());
+      return;
+    }
+
+    if (isShareAnalyticsPath(request.url ?? '')) {
+      const analyticsError =
+        exception instanceof ShareAnalyticsError
+          ? exception
+          : exception instanceof BoardContractError &&
+              exception.boardError.code === 'UNAUTHENTICATED'
+            ? new ShareAnalyticsError('UNAUTHENTICATED')
+            : exception instanceof AppError && exception.code === 'UNAUTHENTICATED'
+              ? new ShareAnalyticsError('UNAUTHENTICATED')
+              : exception instanceof AppError && exception.code === 'INVALID_PAYLOAD'
+                ? new ShareAnalyticsError('INVALID_PAYLOAD')
+                : exception instanceof AppError && exception.code === 'CSRF_INVALID'
+                  ? new ShareAnalyticsError('CSRF_INVALID')
+                  : exception instanceof AppError && exception.code === 'RATE_LIMITED'
+                    ? new ShareAnalyticsError('RATE_LIMITED', exception.retryAfterSeconds)
+                    : new ShareAnalyticsError('SERVICE_UNAVAILABLE');
+      if (analyticsError.retryAfterSeconds !== null)
+        response.setHeader('Retry-After', String(analyticsError.retryAfterSeconds));
+      response.status(analyticsError.status).json({
+        error: {
+          code: analyticsError.code,
+          message: analyticsError.message,
+          requestId,
+        },
+      });
       return;
     }
 

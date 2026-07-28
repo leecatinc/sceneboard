@@ -30,7 +30,9 @@ type D2RateLimitedSurface =
   | 'pairing-client-status'
   | 'pairing-redeem'
   | 'grant-rotate'
-  | 'public-share-read';
+  | 'public-share-read'
+  | 'share-analytics-context'
+  | 'share-analytics-event';
 const D2_RATE_LIMITED_SURFACE = Symbol('D2_RATE_LIMITED_SURFACE');
 
 export const D2RateLimited = (surface: D2RateLimitedSurface): MethodDecorator =>
@@ -64,7 +66,12 @@ export class D2PreAuthRateLimitGuard implements CanActivate {
     if (surface === undefined) return true;
     const request = context.switchToHttp().getRequest<RateLimitedRequest>();
     let emailIdentity: string | null = null;
-    if (surface === 'csrf-bootstrap' || surface === 'public-share-read') {
+    if (
+      surface === 'csrf-bootstrap' ||
+      surface === 'public-share-read' ||
+      surface === 'share-analytics-context' ||
+      surface === 'share-analytics-event'
+    ) {
       // The no-body transport profile has already rejected any streamed bytes.
     } else if (surface === 'signup') {
       emailIdentity = parseSignupCredentials(request.body).emailNormalized;
@@ -136,7 +143,9 @@ export class D2PostAuthRateLimitGuard implements CanActivate {
       surface === 'email-verification-request' ||
       surface === 'email-verification-confirm' ||
       surface === 'session-renewal' ||
-      surface === 'public-share-read'
+      surface === 'public-share-read' ||
+      surface === 'share-analytics-context' ||
+      surface === 'share-analytics-event'
     ) {
       return true;
     }
@@ -191,6 +200,8 @@ export class D2PostAuthRateLimitGuard implements CanActivate {
 
 const preAuthPolicy = (surface: D2RateLimitedSurface): { limit: number; windowMs: number } => {
   if (surface === 'public-share-read') return { limit: 300, windowMs: 5 * 60 * 1_000 };
+  if (surface === 'share-analytics-context') return { limit: 300, windowMs: 5 * 60 * 1_000 };
+  if (surface === 'share-analytics-event') return { limit: 600, windowMs: 5 * 60 * 1_000 };
   if (surface === 'csrf-bootstrap') return { limit: 60, windowMs: 10 * 60 * 1_000 };
   if (surface === 'signup') return { limit: 5, windowMs: 60 * 60 * 1_000 };
   if (surface === 'login') return { limit: 20, windowMs: 15 * 60 * 1_000 };
