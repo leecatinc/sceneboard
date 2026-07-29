@@ -218,5 +218,12 @@ test('freezes the exact terminal D2/D3/D7/D8/D9 checkpoint order and reversibili
       downAsset: null,
       postcondition: 'd9_share_analytics_v1',
     },
+    {
+      version: '024_d2_scope_mask_capacity',
+      upAsset: '024_d2_scope_mask_capacity.up.sql',
+      reversible: false,
+      downAsset: null,
+      postcondition: 'd2_scope_mask_capacity_v1',
+    },
   ]);
 });

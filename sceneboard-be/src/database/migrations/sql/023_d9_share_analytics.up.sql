@@ -1,4 +1,4 @@
-CREATE TABLE share_analytics_contexts (
+CREATE TABLE IF NOT EXISTS share_analytics_contexts (
   context_id VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   board_pk BIGINT UNSIGNED NOT NULL,
   share_pk BIGINT UNSIGNED NOT NULL,
@@ -25,7 +25,7 @@ CREATE TABLE share_analytics_contexts (
   CONSTRAINT chk_share_analytics_context_expiry CHECK (expires_at > created_at)
 ) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 
-CREATE TABLE share_analytics_context_pages (
+CREATE TABLE IF NOT EXISTS share_analytics_context_pages (
   context_id VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   page_id VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   page_ordinal SMALLINT UNSIGNED NOT NULL,
@@ -37,7 +37,7 @@ CREATE TABLE share_analytics_context_pages (
   CONSTRAINT chk_share_analytics_context_page_ordinal CHECK (page_ordinal <= 999)
 ) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 
-CREATE TABLE share_analytics_replays (
+CREATE TABLE IF NOT EXISTS share_analytics_replays (
   replay_family_key BINARY(32) NOT NULL,
   context_id VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   idempotency_key VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
@@ -55,7 +55,7 @@ CREATE TABLE share_analytics_replays (
   )
 ) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 
-CREATE TABLE share_analytics_rolling_admissions (
+CREATE TABLE IF NOT EXISTS share_analytics_rolling_admissions (
   viewer_dedupe_key BINARY(32) NOT NULL,
   share_pk BIGINT UNSIGNED NOT NULL,
   board_pk BIGINT UNSIGNED NOT NULL,
@@ -82,28 +82,28 @@ CREATE TABLE share_analytics_rolling_admissions (
   )
 ) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 
-CREATE TABLE share_analytics_daily_viewers (
+CREATE TABLE IF NOT EXISTS share_analytics_daily_viewers (
   viewer_daily_key BINARY(32) NOT NULL,
   board_pk BIGINT UNSIGNED NOT NULL,
   share_pk BIGINT UNSIGNED NOT NULL,
   revision_pk BIGINT UNSIGNED NOT NULL,
   publication_generation BIGINT UNSIGNED NOT NULL,
-  utc_date DATE NOT NULL,
+  `utc_date` DATE NOT NULL,
   first_seen_at DATETIME(3) NOT NULL,
   PRIMARY KEY (
-    viewer_daily_key, board_pk, share_pk, revision_pk, publication_generation, utc_date
+    viewer_daily_key, board_pk, share_pk, revision_pk, publication_generation, `utc_date`
   ),
-  KEY ix_share_analytics_daily_viewer_retention (utc_date, board_pk, share_pk),
+  KEY ix_share_analytics_daily_viewer_retention (`utc_date`, board_pk, share_pk),
   CONSTRAINT fk_share_analytics_daily_viewer_share FOREIGN KEY (share_pk)
     REFERENCES board_shares (share_pk) ON DELETE RESTRICT ON UPDATE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 
-CREATE TABLE share_analytics_daily_aggregates (
+CREATE TABLE IF NOT EXISTS share_analytics_daily_aggregates (
   board_pk BIGINT UNSIGNED NOT NULL,
   share_pk BIGINT UNSIGNED NOT NULL,
   revision_pk BIGINT UNSIGNED NOT NULL,
   publication_generation BIGINT UNSIGNED NOT NULL,
-  utc_date DATE NOT NULL,
+  `utc_date` DATE NOT NULL,
   metric_kind ENUM('board-open','page-view') NOT NULL,
   page_dimension VARCHAR(128) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   page_ordinal SMALLINT UNSIGNED NULL,
@@ -111,11 +111,11 @@ CREATE TABLE share_analytics_daily_aggregates (
   metric_count BIGINT UNSIGNED NOT NULL,
   last_aggregated_at DATETIME(3) NOT NULL,
   PRIMARY KEY (
-    board_pk, share_pk, revision_pk, publication_generation, utc_date,
+    board_pk, share_pk, revision_pk, publication_generation, `utc_date`,
     metric_kind, page_dimension
   ),
   KEY ix_share_analytics_daily_report (
-    board_pk, utc_date, publication_generation, page_ordinal, page_dimension
+    board_pk, `utc_date`, publication_generation, page_ordinal, page_dimension
   ),
   CONSTRAINT fk_share_analytics_daily_share FOREIGN KEY (share_pk)
     REFERENCES board_shares (share_pk) ON DELETE RESTRICT ON UPDATE RESTRICT,
@@ -130,7 +130,7 @@ CREATE TABLE share_analytics_daily_aggregates (
   )
 ) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 
-CREATE TABLE share_analytics_lifetime_aggregates (
+CREATE TABLE IF NOT EXISTS share_analytics_lifetime_aggregates (
   board_pk BIGINT UNSIGNED NOT NULL,
   share_pk BIGINT UNSIGNED NOT NULL,
   revision_pk BIGINT UNSIGNED NOT NULL,
@@ -154,7 +154,7 @@ CREATE TABLE share_analytics_lifetime_aggregates (
   )
 ) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 
-CREATE TABLE share_analytics_cleanup_leases (
+CREATE TABLE IF NOT EXISTS share_analytics_cleanup_leases (
   name VARCHAR(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
   lease_owner VARCHAR(191) CHARACTER SET ascii COLLATE ascii_bin NULL,
   fence BIGINT UNSIGNED NOT NULL DEFAULT 0,

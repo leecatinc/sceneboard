@@ -13,7 +13,7 @@ import {
 
 const BOUNDED_DEADLINE_MS = 30_000;
 const METADATA_BYTES = 1_048_576;
-const PAYLOAD_BYTES = 16_777_216;
+const PAYLOAD_BYTES = 33_554_432;
 const rowsFor = (probeId: PersistenceProbeIdV1): number => {
   if (probeId === 'idempotency-result' || probeId === 'outbox-event') return 250;
   if (probeId === 'checkpoint-ref-sequence') return 100;
@@ -75,7 +75,7 @@ export class PersistenceCertificationService implements PersistenceCertification
             cursor,
             maxRows: dispatch.certificationMode === 'BOUNDED_RESTART' ? 200 : rowsFor(probeId),
             maxMetadataBytes: METADATA_BYTES,
-            maxPayloadBytes: probeId === 'checkpoint-ref-sequence' ? 800_000 : PAYLOAD_BYTES,
+            maxPayloadBytes: PAYLOAD_BYTES,
             statementTimeoutMs: 5_000,
             batchDeadlineMs: 15_000,
             signal: controller.signal,

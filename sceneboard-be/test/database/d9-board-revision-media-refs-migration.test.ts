@@ -6,13 +6,16 @@ import { MIGRATION_REGISTRY } from '../../src/database/migrations/registry.js';
 import { splitSqlStatements } from '../../src/database/migrations/sql-splitter.js';
 
 test('registers the exact forward-only revision media reference migration', async () => {
-  assert.deepEqual(MIGRATION_REGISTRY.at(-6), {
-    version: '018_d9_board_revision_media_refs',
-    upAsset: '018_d9_board_revision_media_refs.up.sql',
-    reversible: false,
-    downAsset: null,
-    postcondition: 'd9_board_revision_media_refs_v1',
-  });
+  assert.deepEqual(
+    MIGRATION_REGISTRY.find(({ version }) => version === '018_d9_board_revision_media_refs'),
+    {
+      version: '018_d9_board_revision_media_refs',
+      upAsset: '018_d9_board_revision_media_refs.up.sql',
+      reversible: false,
+      downAsset: null,
+      postcondition: 'd9_board_revision_media_refs_v1',
+    },
+  );
   const sql = await readFile(
     new URL(
       '../../src/database/migrations/sql/018_d9_board_revision_media_refs.up.sql',
@@ -46,4 +49,9 @@ test('registers the exact forward-only revision media reference migration', asyn
   assert.deepEqual(projection.uniqueOrderKey, ['revision_pk', 'ordinal']);
   assert.deepEqual(projection.lookupIndex, ['board_pk', 'media_id', 'revision_pk']);
   assert.equal(projection.mediaForeignKey, null);
+  const runner = await readFile(
+    new URL('../../src/database/migrations/runner.ts', import.meta.url),
+    'utf8',
+  );
+  assert.match(runner, /\['fk_revision_media_refs_revision', '1:board_pk,revision_pk'\]/u);
 });

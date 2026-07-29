@@ -12,7 +12,7 @@ test('binds every staged registry asset to non-empty deterministic SQL', async (
     assets.add(entry.upAsset);
     if (entry.downAsset !== null) assets.add(entry.downAsset);
   }
-  assert.equal(assets.size, 29);
+  assert.equal(assets.size, 30);
   for (const asset of assets) {
     const bytes = await readFile(new URL(asset, directory));
     const source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
@@ -48,8 +48,8 @@ test('interleaves the irreversible D3 board owner before D2 grant bindings', asy
   assert.doesNotMatch(source, /REGEXP_LIKE\s*\(\s*public_id/);
 });
 
-test('materializes the exact terminal twenty-six-entry and twenty-nine-asset checkpoint', async () => {
-  assert.equal(MIGRATION_REGISTRY.length, 26);
+test('materializes the exact terminal twenty-seven-entry and thirty-asset checkpoint', async () => {
+  assert.equal(MIGRATION_REGISTRY.length, 27);
   assert.equal(MIGRATION_REGISTRY.filter((entry) => entry.reversible).length, 3);
   const directory = new URL('../../src/database/migrations/sql/', import.meta.url);
   const expectedTables = new Map([
@@ -132,6 +132,19 @@ test('materializes the exact terminal twenty-six-entry and twenty-nine-asset che
   assert.equal(splitSqlStatements(memberships).length, 2);
   assert.match(memberships, /UNIQUE KEY uq_board_memberships_account \(board_pk, account_pk\)/u);
   assert.match(memberships, /CONSTRAINT chk_board_memberships_owner_projection/u);
+});
+
+test('expands pairing and grant scope masks without changing persisted bit assignments', async () => {
+  const source = await readFile(
+    new URL('../../src/database/migrations/sql/024_d2_scope_mask_capacity.up.sql', import.meta.url),
+    'utf8',
+  );
+  assert.equal(splitSqlStatements(source).length, 2);
+  assert.match(source, /scope_mask BETWEEN 1 AND 255/u);
+  assert.match(source, /requested_scope_mask BETWEEN 0 AND 255/u);
+  assert.match(source, /requested_scope_mask BETWEEN 1 AND 255/u);
+  assert.match(source, /approved_scope_mask BETWEEN 1 AND 255/u);
+  assert.doesNotMatch(source, /UPDATE\s+(?:mcp_grants|pairing_requests)/u);
 });
 
 test('the live runner verifies every terminal D7, D8, and D9 migration postcondition', async () => {

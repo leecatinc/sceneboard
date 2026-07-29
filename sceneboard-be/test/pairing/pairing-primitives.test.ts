@@ -48,18 +48,62 @@ test('issues two independent Crockford halves and persists only locator/verifier
 });
 
 test('maps the eight D1 scopes and two lifecycle permissions without unknown bits', () => {
+  const completeScopes = [
+    'board.read',
+    'board.write',
+    'board.history.read',
+    'board.hitl.request',
+    'board.hitl.respond',
+    'board.media.write',
+    'artifact.publish',
+    'artifact.control',
+  ] as const;
   const scopes = ['board.read', 'board.write', 'artifact.control'] as const;
+  assert.equal(scopeMaskFromValues(completeScopes), 255);
+  assert.deepEqual(scopeValuesFromMask(255), completeScopes);
   assert.equal(scopeMaskFromValues(scopes), 67);
   assert.deepEqual(scopeValuesFromMask(67), scopes);
   assert.equal(lifecycleMaskFromValues(['board.create', 'board.archive']), 3);
   assert.deepEqual(lifecycleValuesFromMask(3), ['board.create', 'board.archive']);
   assert.deepEqual(scopeValuesFromMask(128), ['board.media.write']);
+  assert.deepEqual(scopeValuesFromMask(127), [
+    'board.read',
+    'board.write',
+    'board.history.read',
+    'board.hitl.request',
+    'board.hitl.respond',
+    'artifact.publish',
+    'artifact.control',
+  ]);
+  assert.deepEqual(scopeValuesFromMask(96), ['artifact.publish', 'artifact.control']);
   assert.throws(() => scopeValuesFromMask(256));
   assert.throws(() => scopeMaskFromValues(['board.write', 'board.read']));
+  assert.throws(() => scopeMaskFromValues(['board.read', 'artifact.publish', 'board.media.write']));
 });
 
 test('parses exact claim and decision DTOs without echoing proof or installation secrets', () => {
   const proofChallenge = Buffer.alloc(32, 1).toString('base64url');
+  const completeScopes = [
+    'board.read',
+    'board.write',
+    'board.history.read',
+    'board.hitl.request',
+    'board.hitl.respond',
+    'board.media.write',
+    'artifact.publish',
+    'artifact.control',
+  ] as const;
+  assert.deepEqual(
+    parsePairingClaim({
+      code: 'SB-000000-000001',
+      installationId: 'codex.local.installation-1',
+      clientName: 'Codex local MCP',
+      requestedScopes: completeScopes,
+      requestedLifecyclePermissions: ['board.create', 'board.archive'],
+      clientProofChallenge: proofChallenge,
+    }).requestedScopes,
+    completeScopes,
+  );
   assert.deepEqual(
     parsePairingClaim({
       code: 'sb-000000-000001',

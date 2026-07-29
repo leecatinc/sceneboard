@@ -1,15 +1,9 @@
-import { type ClientGrantCapabilityV1 } from '@sceneboard/board-schema';
+import {
+  CLIENT_GRANT_SCOPE_ORDER_V1,
+  type ClientGrantCapabilityV1,
+} from '@sceneboard/board-schema';
 
-export const D2_SCOPE_CATALOG = [
-  'board.read',
-  'board.write',
-  'board.history.read',
-  'board.hitl.request',
-  'board.hitl.respond',
-  'artifact.publish',
-  'artifact.control',
-  'board.media.write',
-] as const satisfies readonly ClientGrantCapabilityV1[];
+export const D2_SCOPE_CATALOG = CLIENT_GRANT_SCOPE_ORDER_V1;
 
 export const LIFECYCLE_PERMISSIONS = ['board.create', 'board.archive'] as const;
 export type LifecyclePermission = (typeof LIFECYCLE_PERMISSIONS)[number];

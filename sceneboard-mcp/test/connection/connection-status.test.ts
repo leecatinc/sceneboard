@@ -111,6 +111,27 @@ test('connection status accepts a create-capable session before its first board 
   assert.equal(connected.selectedBoard, null);
 });
 
+test('connection status accepts the complete official grant scope order', async () => {
+  const response = connection();
+  response.grant.scopes = [
+    'board.read',
+    'board.write',
+    'board.history.read',
+    'board.hitl.request',
+    'board.hitl.respond',
+    'board.media.write',
+    'artifact.publish',
+    'artifact.control',
+  ];
+  const service = new ConnectionStatusServiceV1(
+    loaded,
+    new EnvironmentTokenProviderV1(token),
+    client(async () => new Response(JSON.stringify(response), { status: 200, headers: headers() })),
+  );
+  const result = await service.status(null, requestId);
+  assert.equal(result.ok && result.value.state, 'connected');
+});
+
 test('targeted connection validates the exact selected board, capabilities, and presence projection', async () => {
   const selectedBoard = {
     board: {

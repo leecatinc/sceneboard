@@ -6,13 +6,16 @@ import { MIGRATION_REGISTRY } from '../../src/database/migrations/registry.js';
 import { splitSqlStatements } from '../../src/database/migrations/sql-splitter.js';
 
 test('registers the exact forward-only immutable media store', async () => {
-  assert.deepEqual(MIGRATION_REGISTRY.at(-3), {
-    version: '021_d9_media_store',
-    upAsset: '021_d9_media_store.up.sql',
-    reversible: false,
-    downAsset: null,
-    postcondition: 'd9_media_store_v1',
-  });
+  assert.deepEqual(
+    MIGRATION_REGISTRY.find(({ version }) => version === '021_d9_media_store'),
+    {
+      version: '021_d9_media_store',
+      upAsset: '021_d9_media_store.up.sql',
+      reversible: false,
+      downAsset: null,
+      postcondition: 'd9_media_store_v1',
+    },
+  );
   const sql = await readFile(
     new URL('../../src/database/migrations/sql/021_d9_media_store.up.sql', import.meta.url),
     'utf8',

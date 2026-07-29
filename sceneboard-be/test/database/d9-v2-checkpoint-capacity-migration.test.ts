@@ -150,6 +150,78 @@ test('accepts the exact information_schema projection and fails closed on type o
   );
 });
 
+test('accepts MySQL-rendered checkpoint clauses with identifiers and character-set introducers', () => {
+  const mysqlRenderedConstraints: V2CheckpointConstraintProjection[] = [
+    {
+      constraintName: 'chk_revisions_origin',
+      checkClause:
+        "(`origin_code` in (_utf8mb4\\'C\\',_utf8mb4\\'R\\',_utf8mb4\\'L\\',_utf8mb4\\'S\\',_utf8mb4\\'D\\'))",
+    },
+    {
+      constraintName: 'chk_revisions_codec',
+      checkClause: "(`scene_codec` = _utf8mb4\\'B\\')",
+    },
+    {
+      constraintName: 'chk_revisions_checkpoint',
+      checkClause:
+        "((`scene_codec` = _utf8mb4\\'B\\') and (`scene_stored_bytes` = length(`scene_payload`)) and (((`scene_schema_version` = _utf8mb4\\'1.0.0\\') and (`scene_canonical_bytes` between 1 and 786432) and (`scene_stored_bytes` between 1 and 800000)) or ((`scene_schema_version` = _utf8mb4\\'2.0.0\\') and (`scene_canonical_bytes` between 1 and 20971520) and (`scene_stored_bytes` between 1 and 33554432))))",
+    },
+  ];
+
+  assert.doesNotThrow(() => assessV2CheckpointCapacity(columns, mysqlRenderedConstraints));
+});
+
+test('accepts the nullable retained-checkpoint projection introduced by migration 015', () => {
+  const retainedColumns = columns.map((column) => ({ ...column, isNullable: 'YES' }));
+  const retainedConstraints: V2CheckpointConstraintProjection[] = [
+    constraints[0]!,
+    {
+      constraintName: 'chk_revisions_retained_checkpoint',
+      checkClause: `
+        (
+          scene_schema_version is null
+          and scene_codec is null
+          and scene_payload is null
+          and scene_canonical_bytes is null
+          and scene_stored_bytes is null
+        )
+        or (
+          scene_schema_version is not null
+          and scene_codec = 'B'
+          and scene_payload is not null
+          and scene_canonical_bytes is not null
+          and scene_stored_bytes = octet_length(scene_payload)
+          and (
+            (scene_schema_version = '1.0.0'
+              and scene_canonical_bytes between 1 and 786432
+              and scene_stored_bytes between 1 and 800000)
+            or
+            (scene_schema_version = '2.0.0'
+              and scene_canonical_bytes between 1 and 20971520
+              and scene_stored_bytes between 1 and 33554432)
+          )
+        )
+      `,
+    },
+  ];
+
+  assert.doesNotThrow(() => assessV2CheckpointCapacity(retainedColumns, retainedConstraints));
+  assert.throws(
+    () => assessV2CheckpointCapacity(retainedColumns, constraints),
+    MigrationStateError,
+  );
+  assert.throws(
+    () =>
+      assessV2CheckpointCapacity(
+        retainedColumns.map((column, index) =>
+          index === 0 ? { ...column, isNullable: 'NO' } : column,
+        ),
+        retainedConstraints,
+      ),
+    MigrationStateError,
+  );
+});
+
 test('proves every lower/upper boundary and rejects branch, case, codec, and octet mismatches', () => {
   for (const [version, maximumCanonical, maximumStored] of [
     ['1.0.0', 786_432, 800_000],

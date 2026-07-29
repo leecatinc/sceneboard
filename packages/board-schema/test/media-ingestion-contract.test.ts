@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import {
   BOARD_ERROR_CODES_V2,
   CLIENT_GRANT_CAPABILITIES_V1,
+  CLIENT_GRANT_SCOPE_ORDER_V1,
   MediaIngestResultParserV1,
 } from '../src/index.js';
 
@@ -33,6 +34,16 @@ test('publishes one strict immutable media ingest result', () => {
     false,
   );
   assert.equal(CLIENT_GRANT_CAPABILITIES_V1.includes('board.media.write'), true);
+  assert.deepEqual(CLIENT_GRANT_SCOPE_ORDER_V1, [
+    'board.read',
+    'board.write',
+    'board.history.read',
+    'board.hitl.request',
+    'board.hitl.respond',
+    'board.media.write',
+    'artifact.publish',
+    'artifact.control',
+  ]);
   assert.equal(BOARD_ERROR_CODES_V2.includes('INVALID_MEDIA_UPLOAD'), true);
   assert.equal(BOARD_ERROR_CODES_V2.includes('IDEMPOTENCY_RESULT_EXPIRED'), true);
 });

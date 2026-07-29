@@ -6,13 +6,16 @@ import { MIGRATION_REGISTRY } from '../../src/database/migrations/registry.js';
 import { splitSqlStatements } from '../../src/database/migrations/sql-splitter.js';
 
 test('registers the exact fenced media retention and recovery ledger', async () => {
-  assert.deepEqual(MIGRATION_REGISTRY.at(-2), {
-    version: '022_d9_media_retention_recovery',
-    upAsset: '022_d9_media_retention_recovery.up.sql',
-    reversible: false,
-    downAsset: null,
-    postcondition: 'd9_media_retention_recovery_v1',
-  });
+  assert.deepEqual(
+    MIGRATION_REGISTRY.find(({ version }) => version === '022_d9_media_retention_recovery'),
+    {
+      version: '022_d9_media_retention_recovery',
+      upAsset: '022_d9_media_retention_recovery.up.sql',
+      reversible: false,
+      downAsset: null,
+      postcondition: 'd9_media_retention_recovery_v1',
+    },
+  );
   const sql = await readFile(
     new URL(
       '../../src/database/migrations/sql/022_d9_media_retention_recovery.up.sql',

@@ -102,7 +102,10 @@ const toTables = (fixture: Fixture): RevisionRetentionTableProjection[] =>
   }));
 
 test('registers the exact forward-only retention expand migration after checkpoint widening', async () => {
-  const entry = MIGRATION_REGISTRY.at(-10);
+  const entryIndex = MIGRATION_REGISTRY.findIndex(
+    ({ version }) => version === '014_d9_revision_retention_expand',
+  );
+  const entry = MIGRATION_REGISTRY[entryIndex];
   assert.deepEqual(entry, {
     version: '014_d9_revision_retention_expand',
     upAsset: '014_d9_revision_retention_expand.up.sql',
@@ -110,7 +113,7 @@ test('registers the exact forward-only retention expand migration after checkpoi
     downAsset: null,
     postcondition: 'd9_revision_retention_expand_v1',
   });
-  assert.equal(MIGRATION_REGISTRY.at(-11)?.version, '013_d9_v2_checkpoint_capacity');
+  assert.equal(MIGRATION_REGISTRY[entryIndex - 1]?.version, '013_d9_v2_checkpoint_capacity');
 
   const fixture = await readFixture();
   assert.deepEqual(
@@ -203,6 +206,108 @@ test('certifies exact columns, indexes, restrictive same-revision FKs, and close
         tables.map((table) =>
           table.tableName === 'board_revision_payloads' ? { ...table, engine: 'MyISAM' } : table,
         ),
+      ),
+    MigrationStateError,
+  );
+});
+
+test('accepts the catalog actor projection added by the retention runtime migration', async () => {
+  const fixture = await readFixture();
+  const columns = toColumns(fixture).flatMap((column) => {
+    if (column.tableName !== 'board_revision_catalog' || column.columnName !== 'created_at')
+      return [column];
+    return [
+      {
+        ...column,
+        columnName: 'actor_account_pk',
+        ordinalPosition: 6,
+        columnType: 'bigint unsigned',
+        isNullable: 'YES',
+      },
+      {
+        ...column,
+        columnName: 'actor_class',
+        ordinalPosition: 7,
+        columnType: "enum('owner','editor','system')",
+        characterSetName: 'utf8mb4',
+        collationName: 'utf8mb4_0900_ai_ci',
+      },
+      { ...column, ordinalPosition: 8 },
+    ];
+  });
+  const indexes = [
+    ...toIndexes(fixture),
+    {
+      tableName: 'board_revision_catalog',
+      indexName: 'ix_revision_catalog_actor',
+      nonUnique: 1,
+      sequence: 1,
+      columnName: 'actor_account_pk',
+    },
+    {
+      tableName: 'board_revision_catalog',
+      indexName: 'ix_revision_catalog_actor',
+      nonUnique: 1,
+      sequence: 2,
+      columnName: 'board_pk',
+    },
+    {
+      tableName: 'board_revision_catalog',
+      indexName: 'ix_revision_catalog_actor',
+      nonUnique: 1,
+      sequence: 3,
+      columnName: 'retained_order',
+    },
+    {
+      tableName: 'board_revision_recovery',
+      indexName: 'uq_revision_recovery_identity',
+      nonUnique: 0,
+      sequence: 1,
+      columnName: 'recovery_id',
+    },
+    {
+      tableName: 'board_revision_recovery',
+      indexName: 'uq_revision_recovery_identity',
+      nonUnique: 0,
+      sequence: 2,
+      columnName: 'board_pk',
+    },
+    {
+      tableName: 'board_revision_recovery',
+      indexName: 'uq_revision_recovery_identity',
+      nonUnique: 0,
+      sequence: 3,
+      columnName: 'revision_pk',
+    },
+  ];
+  const foreignKeys = [
+    ...toForeignKeys(fixture),
+    {
+      tableName: 'board_revision_catalog',
+      constraintName: 'fk_revision_catalog_actor',
+      columnName: 'actor_account_pk',
+      referencedTableName: 'users',
+      referencedColumnName: 'id',
+      deleteRule: 'RESTRICT',
+      sequence: 1,
+    },
+  ];
+  const checks = toChecks(fixture);
+  const tables = toTables(fixture);
+
+  assert.doesNotThrow(() =>
+    assessRevisionRetentionExpand(columns, indexes, foreignKeys, checks, tables),
+  );
+  assert.throws(
+    () =>
+      assessRevisionRetentionExpand(
+        columns.map((column) =>
+          column.columnName === 'actor_class' ? { ...column, isNullable: 'YES' } : column,
+        ),
+        indexes,
+        foreignKeys,
+        checks,
+        tables,
       ),
     MigrationStateError,
   );

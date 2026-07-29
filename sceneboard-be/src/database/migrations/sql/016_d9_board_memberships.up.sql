@@ -66,5 +66,5 @@ ON DUPLICATE KEY UPDATE
   role = 'owner',
   state = 'active',
   owner_account_pk = VALUES(owner_account_pk),
-  version = GREATEST(version, VALUES(version)),
-  updated_at = GREATEST(updated_at, VALUES(updated_at));
+  version = GREATEST(board_memberships.version, VALUES(version)),
+  updated_at = GREATEST(board_memberships.updated_at, VALUES(updated_at));

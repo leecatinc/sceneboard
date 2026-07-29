@@ -21,9 +21,7 @@
       "downAsset": "002_d2_pairing_grants.down.sql",
       "downSha256": "f2665134e2ab6ee546ac6e4e32f4b58f70c3ae249e38f42046710664acf3ea93",
       "reversible": true,
-      "predecessorIds": [
-        "001_d3_boards"
-      ]
+      "predecessorIds": ["001_d3_boards"]
     },
     {
       "order": 9,
@@ -33,9 +31,17 @@
       "downAsset": "003_d2_artifact_capability_policy.down.sql",
       "downSha256": "f847d85beb9ed8bb63d8de06f0d8caede9be1ceaa58c7dcc4acb1e89cf29df07",
       "reversible": true,
-      "predecessorIds": [
-        "006_d3_board_event_outbox"
-      ]
+      "predecessorIds": ["006_d3_board_event_outbox"]
+    },
+    {
+      "order": 27,
+      "version": "024_d2_scope_mask_capacity",
+      "upAsset": "024_d2_scope_mask_capacity.up.sql",
+      "upSha256": "d8b754870e35cdc5de9ac620244ed111a007a5c679957317f360fb33f45d786d",
+      "downAsset": null,
+      "downSha256": null,
+      "reversible": false,
+      "predecessorIds": ["023_d9_share_analytics"]
     }
   ],
   "tables": [

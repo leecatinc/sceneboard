@@ -24907,6 +24907,16 @@ var CLIENT_GRANT_CAPABILITIES_V1 = [
   "board.read",
   "board.write"
 ];
+var CLIENT_GRANT_SCOPE_ORDER_V1 = [
+  "board.read",
+  "board.write",
+  "board.history.read",
+  "board.hitl.request",
+  "board.hitl.respond",
+  "board.media.write",
+  "artifact.publish",
+  "artifact.control"
+];
 var BOARD_AUTHORIZATION_CAPABILITIES_V1 = [
   "account.board.create",
   "artifact.control",
@@ -29518,7 +29528,7 @@ var parseConnection = (value, requestId, boardId) => {
   const clientId = client === null ? null : parseGlobalId(client.clientId);
   if (!parsedPrincipalId.ok || !parsedPrincipalGrantId.ok || !parsedGrantId.ok || client === null || clientId === null || parsedPrincipalGrantId.data.value !== parsedGrantId.data.value || parsedPrincipalId.data.value !== clientId || typeof client.clientName !== "string" || [...client.clientName].length < 1 || [...client.clientName].length > 100 || /[\u0000-\u001f\u007f-\u009f\uD800-\uDFFF]/u.test(client.clientName) || typeof client.installationFingerprint !== "string" || !/^[A-Za-z0-9_-]{16}$/.test(client.installationFingerprint))
     return null;
-  const scopes = exactCatalogSubset(grant.scopes, CLIENT_GRANT_CAPABILITIES_V1, 1);
+  const scopes = exactCatalogSubset(grant.scopes, CLIENT_GRANT_SCOPE_ORDER_V1, 1);
   const lifecyclePermissions = exactCatalogSubset(
     grant.lifecyclePermissions,
     LIFECYCLE_PERMISSIONS,
@@ -34525,16 +34535,7 @@ var NEVER3 = INVALID3;
 // sceneboard-mcp/src/pairing/pairing-http.client.ts
 var GlobalIdSchema = external_exports.string().regex(/^[A-Za-z0-9_-]{1,128}$/);
 var TimestampSchema = external_exports.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/).refine((value) => new Date(value).toISOString() === value);
-var ScopeSchema = external_exports.enum([
-  "board.read",
-  "board.write",
-  "board.history.read",
-  "board.hitl.request",
-  "board.hitl.respond",
-  "board.media.write",
-  "artifact.publish",
-  "artifact.control"
-]);
+var ScopeSchema = external_exports.enum(CLIENT_GRANT_SCOPE_ORDER_V1);
 var LifecycleSchema = external_exports.enum(["board.create", "board.archive"]);
 var ClientSchema = external_exports.object({
   clientId: GlobalIdSchema,
@@ -36366,24 +36367,37 @@ var BoardToolHandlersV1 = class {
 };
 
 // sceneboard-mcp/src/tools/connection.tools.ts
-var ScopeSchema2 = external_exports.enum([
-  "board.read",
-  "board.write",
-  "board.history.read",
-  "board.hitl.request",
-  "board.hitl.respond",
-  "board.media.write",
-  "artifact.publish",
-  "artifact.control"
-]);
+var ScopeSchema2 = external_exports.enum(CLIENT_GRANT_SCOPE_ORDER_V1);
 var LifecycleSchema2 = external_exports.enum(["board.create", "board.archive"]);
+var catalogOrderedSubset = (values, catalog) => {
+  let prior = -1;
+  for (const value of values) {
+    const index = catalog.indexOf(value);
+    if (index <= prior) return false;
+    prior = index;
+  }
+  return true;
+};
 var ConnectionStatusInputSchemaV1 = external_exports.object({ boardId: GlobalIdSchemaV1.nullable() }).strict();
 var PairRequestInputSchemaV1 = external_exports.object({
   code: external_exports.string().regex(/^(?:SB-)?[0-9A-HJKMNP-TV-Z]{6}-[0-9A-HJKMNP-TV-Z]{6}$/i),
   clientName: ShortTextSchemaV12,
   requestedScopes: external_exports.array(ScopeSchema2).min(1).max(8),
   requestedLifecyclePermissions: external_exports.array(LifecycleSchema2).max(2)
-}).strict();
+}).strict().superRefine((value, context) => {
+  if (!catalogOrderedSubset(value.requestedScopes, CLIENT_GRANT_SCOPE_ORDER_V1))
+    context.addIssue({
+      code: external_exports.ZodIssueCode.custom,
+      path: ["requestedScopes"],
+      message: "requested scopes must be a unique catalog-ordered subset"
+    });
+  if (!catalogOrderedSubset(value.requestedLifecyclePermissions, ["board.create", "board.archive"]))
+    context.addIssue({
+      code: external_exports.ZodIssueCode.custom,
+      path: ["requestedLifecyclePermissions"],
+      message: "requested lifecycle permissions must be a unique catalog-ordered subset"
+    });
+});
 var PairStatusInputSchemaV1 = external_exports.object({
   pairingId: GlobalIdSchemaV1,
   waitTimeoutMs: external_exports.number().int().safe().min(0).max(12e4)

@@ -348,7 +348,9 @@ const normalizeCheckClause = (clause: string): string =>
   clause
     .toLowerCase()
     .replaceAll('`', '')
+    .replaceAll(/\\'/gu, "'")
     .replaceAll(/_(?:utf8mb4|ascii)(?=')/gu, '')
+    .replaceAll(/(?<![a-z0-9_])length\(/gu, 'octet_length(')
     .replaceAll(/\s+/gu, '');
 
 export const assessRevisionRetentionExpand = (
@@ -363,10 +365,53 @@ export const assessRevisionRetentionExpand = (
     RETENTION_TABLES.map((tableName) => [tableName, 'BASE TABLE', 'InnoDB', 'utf8mb4_0900_ai_ci']),
     tableRows.map((row) => [row.tableName, row.tableType, row.engine, row.tableCollation]),
   );
+  const runtimeActorColumns = columnRows.filter(
+    (row) =>
+      row.tableName === 'board_revision_catalog' &&
+      ['actor_account_pk', 'actor_class'].includes(row.columnName),
+  );
+  const runtimeActorProjection = runtimeActorColumns.length > 0;
+  if (runtimeActorProjection) {
+    assertExactProjection(
+      'revision retention runtime actor column',
+      [
+        ['actor_account_pk', 6, 'bigint unsigned', null, null, 'YES'],
+        [
+          'actor_class',
+          7,
+          "enum('owner','editor','system')",
+          'utf8mb4',
+          'utf8mb4_0900_ai_ci',
+          'NO',
+        ],
+      ],
+      runtimeActorColumns.map((row) => [
+        row.columnName,
+        Number(row.ordinalPosition),
+        row.columnType.toLowerCase(),
+        row.characterSetName,
+        row.collationName,
+        row.isNullable,
+      ]),
+    );
+  }
+  const baseColumnRows = columnRows
+    .filter(
+      (row) =>
+        row.tableName !== 'board_revision_catalog' ||
+        !['actor_account_pk', 'actor_class'].includes(row.columnName),
+    )
+    .map((row) =>
+      runtimeActorProjection &&
+      row.tableName === 'board_revision_catalog' &&
+      row.columnName === 'created_at'
+        ? { ...row, ordinalPosition: 6 }
+        : row,
+    );
   assertExactProjection(
     'revision retention column',
     expectedRetentionColumns,
-    columnRows.map((row) => [
+    baseColumnRows.map((row) => [
       row.tableName,
       row.columnName,
       Number(row.ordinalPosition),
@@ -379,21 +424,97 @@ export const assessRevisionRetentionExpand = (
   if (columnRows.some((row) => row.columnDefault !== null || row.extra !== '')) {
     throw new MigrationStateError('revision retention column default or extra drift');
   }
+  const runtimeActorIndexes = indexRows.filter(
+    (row) =>
+      row.tableName === 'board_revision_catalog' &&
+      row.indexName === 'ix_revision_catalog_actor',
+  );
+  if (runtimeActorProjection) {
+    assertExactProjection(
+      'revision retention runtime actor index',
+      [
+        [1, 1, 'actor_account_pk'],
+        [1, 2, 'board_pk'],
+        [1, 3, 'retained_order'],
+      ],
+      runtimeActorIndexes.map((row) => [
+        Number(row.nonUnique),
+        Number(row.sequence),
+        row.columnName,
+      ]),
+    );
+  }
+  const recoveryIdentityIndexes = indexRows.filter(
+    (row) =>
+      row.tableName === 'board_revision_recovery' &&
+      row.indexName === 'uq_revision_recovery_identity',
+  );
+  if (recoveryIdentityIndexes.length > 0) {
+    assertExactProjection(
+      'revision retention share recovery identity index',
+      [
+        [0, 1, 'recovery_id'],
+        [0, 2, 'board_pk'],
+        [0, 3, 'revision_pk'],
+      ],
+      recoveryIdentityIndexes.map((row) => [
+        Number(row.nonUnique),
+        Number(row.sequence),
+        row.columnName,
+      ]),
+    );
+  }
   assertExactProjection(
     'revision retention index',
     expectedRetentionIndexes,
-    indexRows.map((row) => [
+    indexRows
+      .filter(
+        (row) =>
+          !(
+            row.tableName === 'board_revision_catalog' &&
+            row.indexName === 'ix_revision_catalog_actor'
+          ) &&
+          !(
+            row.tableName === 'board_revision_recovery' &&
+            row.indexName === 'uq_revision_recovery_identity'
+          ),
+      )
+      .map((row) => [
       row.tableName,
       row.indexName,
       Number(row.nonUnique),
       Number(row.sequence),
       row.columnName,
-    ]),
+      ]),
   );
+  const runtimeActorForeignKeys = foreignKeyRows.filter(
+    (row) =>
+      row.tableName === 'board_revision_catalog' &&
+      row.constraintName === 'fk_revision_catalog_actor',
+  );
+  if (runtimeActorProjection) {
+    assertExactProjection(
+      'revision retention runtime actor foreign key',
+      [['actor_account_pk', 'users', 'id', 'RESTRICT', 1]],
+      runtimeActorForeignKeys.map((row) => [
+        row.columnName,
+        row.referencedTableName,
+        row.referencedColumnName,
+        row.deleteRule,
+        Number(row.sequence),
+      ]),
+    );
+  }
   assertExactProjection(
     'revision retention foreign key',
     expectedRetentionForeignKeys,
-    foreignKeyRows.map((row) => [
+    foreignKeyRows
+      .filter(
+        (row) =>
+          row.tableName !== 'board_revision_catalog' ||
+          row.constraintName !== 'fk_revision_catalog_actor',
+      )
+      .map((row) => [
       row.tableName,
       row.constraintName,
       row.columnName,
@@ -401,7 +522,7 @@ export const assessRevisionRetentionExpand = (
       row.referencedColumnName,
       row.deleteRule,
       Number(row.sequence),
-    ]),
+      ]),
   );
 
   const checks = new Map(
@@ -433,12 +554,13 @@ export const assessV2CheckpointCapacity = (
 ): void => {
   const columns = new Map(columnRows.map((row) => [row.columnName, row]));
   const expected = {
-    scene_schema_version: ['char(5)', 'ascii', 'ascii_bin', 'NO'],
-    scene_codec: ['char(1)', 'ascii', 'ascii_bin', 'NO'],
-    scene_payload: ['longblob', null, null, 'NO'],
-    scene_canonical_bytes: ['int unsigned', null, null, 'NO'],
-    scene_stored_bytes: ['int unsigned', null, null, 'NO'],
+    scene_schema_version: ['char(5)', 'ascii', 'ascii_bin'],
+    scene_codec: ['char(1)', 'ascii', 'ascii_bin'],
+    scene_payload: ['longblob', null, null],
+    scene_canonical_bytes: ['int unsigned', null, null],
+    scene_stored_bytes: ['int unsigned', null, null],
   } as const;
+  const nullability = new Set<string>();
   for (const [name, values] of Object.entries(expected)) {
     const actual = columns.get(name);
     if (
@@ -446,19 +568,23 @@ export const assessV2CheckpointCapacity = (
       actual.columnType.toLowerCase() !== values[0] ||
       actual.characterSetName !== values[1] ||
       actual.collationName !== values[2] ||
-      actual.isNullable !== values[3]
+      !['NO', 'YES'].includes(actual.isNullable)
     ) {
       throw new MigrationStateError(`v2 checkpoint column drift: ${name}`);
     }
+    nullability.add(actual.isNullable);
   }
+  if (nullability.size !== 1)
+    throw new MigrationStateError('v2 checkpoint column nullability drift');
+  const retainedProjection = nullability.has('YES');
 
   const constraints = new Map(
-    constraintRows.map((row) => [
-      row.constraintName,
-      row.checkClause.toLowerCase().replaceAll(/\s+/g, ''),
-    ]),
+    constraintRows.map((row) => [row.constraintName, normalizeCheckClause(row.checkClause)]),
   );
-  const checkpoint = constraints.get('chk_revisions_checkpoint') ?? '';
+  const checkpointName = retainedProjection
+    ? 'chk_revisions_retained_checkpoint'
+    : 'chk_revisions_checkpoint';
+  const checkpoint = constraints.get(checkpointName) ?? '';
   for (const required of [
     "scene_codec='b'",
     'scene_stored_bytes=octet_length(scene_payload)',
@@ -473,7 +599,20 @@ export const assessV2CheckpointCapacity = (
       throw new MigrationStateError(`v2 checkpoint predicate drift: ${required}`);
   }
   if (
-    !constraints.get('chk_revisions_codec')?.includes("scene_codec='b'") ||
+    retainedProjection &&
+    [
+      'scene_schema_versionisnull',
+      'scene_codecisnull',
+      'scene_payloadisnull',
+      'scene_canonical_bytesisnull',
+      'scene_stored_bytesisnull',
+    ].some((required) => !checkpoint.includes(required))
+  ) {
+    throw new MigrationStateError('v2 retained checkpoint null projection drift');
+  }
+  if (
+    (!retainedProjection &&
+      !constraints.get('chk_revisions_codec')?.includes("scene_codec='b'")) ||
     !constraints.get('chk_revisions_origin')?.includes("'d'")
   ) {
     throw new MigrationStateError('v2 checkpoint discriminator constraints are missing');
@@ -669,6 +808,7 @@ export class MigrationRunner {
         'mcp_grant_credentials',
         'mcp_grant_boards',
       ],
+      d2_scope_mask_capacity_v1: ['mcp_grants', 'pairing_requests'],
       d3_board_revisions_v1: ['board_revisions'],
       d3_board_heads_v1: ['board_heads'],
       d3_board_idempotency_records_v1: ['board_idempotency_records'],
@@ -771,7 +911,8 @@ export class MigrationRunner {
          AND tc.constraint_name IN (
            'chk_revisions_origin',
            'chk_revisions_codec',
-           'chk_revisions_checkpoint'
+           'chk_revisions_checkpoint',
+           'chk_revisions_retained_checkpoint'
          )`,
     );
     assessV2CheckpointCapacity(columnRows, constraintRows);
@@ -976,6 +1117,7 @@ export class MigrationRunner {
       ['PRIMARY', '0:revision_pk,media_id'],
       ['uq_revision_media_ref_order', '0:revision_pk,ordinal'],
       ['ix_revision_media_ref_lookup', '1:board_pk,media_id,revision_pk'],
+      ['fk_revision_media_refs_revision', '1:board_pk,revision_pk'],
     ]);
     if (
       actualIndexes.size !== expectedIndexes.size ||
@@ -1438,21 +1580,37 @@ export class MigrationRunner {
 
   private async verifyRevisionRetentionExpand(connection: PoolConnection): Promise<void> {
     const placeholders = RETENTION_TABLES.map(() => '?').join(', ');
-    const [tableRows] = await connection.query<
-      Array<RowDataPacket & RevisionRetentionTableProjection>
+    const [rawTableRows] = await connection.query<
+      Array<
+        RowDataPacket &
+          Omit<RevisionRetentionTableProjection, 'engine'> & {
+            tableEngine: string | null;
+          }
+      >
     >(
       `SELECT
          table_name AS tableName,
          table_type AS tableType,
-         engine,
+         engine AS tableEngine,
          table_collation AS tableCollation
        FROM information_schema.tables
        WHERE table_schema = DATABASE()
          AND table_name IN (${placeholders})`,
       RETENTION_TABLES,
     );
-    const [columnRows] = await connection.query<
-      Array<RowDataPacket & RevisionRetentionColumnProjection>
+    const tableRows: RevisionRetentionTableProjection[] = rawTableRows.map((row) => ({
+      tableName: row.tableName,
+      tableType: row.tableType,
+      engine: row.tableEngine,
+      tableCollation: row.tableCollation,
+    }));
+    const [rawColumnRows] = await connection.query<
+      Array<
+        RowDataPacket &
+          Omit<RevisionRetentionColumnProjection, 'extra'> & {
+            columnExtra: string;
+          }
+      >
     >(
       `SELECT
          table_name AS tableName,
@@ -1463,12 +1621,23 @@ export class MigrationRunner {
          collation_name AS collationName,
          is_nullable AS isNullable,
          column_default AS columnDefault,
-         extra
+         extra AS columnExtra
        FROM information_schema.columns
        WHERE table_schema = DATABASE()
          AND table_name IN (${placeholders})`,
       RETENTION_TABLES,
     );
+    const columnRows: RevisionRetentionColumnProjection[] = rawColumnRows.map((row) => ({
+      tableName: row.tableName,
+      columnName: row.columnName,
+      ordinalPosition: row.ordinalPosition,
+      columnType: row.columnType,
+      characterSetName: row.characterSetName,
+      collationName: row.collationName,
+      isNullable: row.isNullable,
+      columnDefault: row.columnDefault,
+      extra: row.columnExtra,
+    }));
     const [indexRows] = await connection.query<
       Array<RowDataPacket & RevisionRetentionIndexProjection>
     >(

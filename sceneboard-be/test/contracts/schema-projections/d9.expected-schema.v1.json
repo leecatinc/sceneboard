@@ -37,11 +37,81 @@
       "order": 19,
       "version": "016_d9_board_memberships",
       "upAsset": "016_d9_board_memberships.up.sql",
-      "upSha256": "345aeb4eb37b8eb5aca95f7d38fe3f41941e3b1faf186cf3e10b9f69093476be",
+      "upSha256": "fb2709e6d7f6eedf69975e125f5986c5e350b796309034d834dfe2eb83e49181",
       "downAsset": null,
       "downSha256": null,
       "reversible": false,
       "predecessorIds": ["015_d9_revision_retention_runtime"]
+    },
+    {
+      "order": 20,
+      "version": "017_d9_board_invitations",
+      "upAsset": "017_d9_board_invitations.up.sql",
+      "upSha256": "c83de0a3d375babfa214ae2e5551fa7d5efe6c84ac0ab740fefb2c28685ea578",
+      "downAsset": null,
+      "downSha256": null,
+      "reversible": false,
+      "predecessorIds": ["016_d9_board_memberships"]
+    },
+    {
+      "order": 21,
+      "version": "018_d9_board_revision_media_refs",
+      "upAsset": "018_d9_board_revision_media_refs.up.sql",
+      "upSha256": "8748a9dc63706c9eef485e0e7570d2527d43efdeec3589dded43052a9cb02d67",
+      "downAsset": null,
+      "downSha256": null,
+      "reversible": false,
+      "predecessorIds": ["017_d9_board_invitations"]
+    },
+    {
+      "order": 22,
+      "version": "019_d9_board_shares",
+      "upAsset": "019_d9_board_shares.up.sql",
+      "upSha256": "a8d08057d1ae87430c7fc826ce9221353dc8c956c0d99804f74f181bebe85507",
+      "downAsset": null,
+      "downSha256": null,
+      "reversible": false,
+      "predecessorIds": ["018_d9_board_revision_media_refs"]
+    },
+    {
+      "order": 23,
+      "version": "020_d9_share_password_auth",
+      "upAsset": "020_d9_share_password_auth.up.sql",
+      "upSha256": "315da368ab80e5d0f9b43cd1f1148df3b6a67538a4b74f87be3e3b9b42c2906a",
+      "downAsset": null,
+      "downSha256": null,
+      "reversible": false,
+      "predecessorIds": ["019_d9_board_shares"]
+    },
+    {
+      "order": 24,
+      "version": "021_d9_media_store",
+      "upAsset": "021_d9_media_store.up.sql",
+      "upSha256": "6387f9ac592a7b6896f61919ed6b4c318e4225b83a7a0a78e54ec0d3eb2ed53d",
+      "downAsset": null,
+      "downSha256": null,
+      "reversible": false,
+      "predecessorIds": ["020_d9_share_password_auth"]
+    },
+    {
+      "order": 25,
+      "version": "022_d9_media_retention_recovery",
+      "upAsset": "022_d9_media_retention_recovery.up.sql",
+      "upSha256": "cb62fffe52d3b5c75d39ed9816789a3546f17577cc416259fcf0a102cabcb09a",
+      "downAsset": null,
+      "downSha256": null,
+      "reversible": false,
+      "predecessorIds": ["021_d9_media_store"]
+    },
+    {
+      "order": 26,
+      "version": "023_d9_share_analytics",
+      "upAsset": "023_d9_share_analytics.up.sql",
+      "upSha256": "31d1946c2cbaf08a59282039db43165c3ff774971d4da7bf2699c8e3c027a83d",
+      "downAsset": null,
+      "downSha256": null,
+      "reversible": false,
+      "predecessorIds": ["022_d9_media_retention_recovery"]
     }
   ],
   "tables": [
@@ -93,7 +163,137 @@
     {
       "name": "board_memberships",
       "sourceAsset": "016_d9_board_memberships.up.sql",
-      "sourceSha256": "345aeb4eb37b8eb5aca95f7d38fe3f41941e3b1faf186cf3e10b9f69093476be"
+      "sourceSha256": "fb2709e6d7f6eedf69975e125f5986c5e350b796309034d834dfe2eb83e49181"
+    },
+    {
+      "name": "board_invitations",
+      "sourceAsset": "017_d9_board_invitations.up.sql",
+      "sourceSha256": "c83de0a3d375babfa214ae2e5551fa7d5efe6c84ac0ab740fefb2c28685ea578"
+    },
+    {
+      "name": "board_revision_media_refs",
+      "sourceAsset": "018_d9_board_revision_media_refs.up.sql",
+      "sourceSha256": "8748a9dc63706c9eef485e0e7570d2527d43efdeec3589dded43052a9cb02d67"
+    },
+    {
+      "name": "board_shares",
+      "sourceAsset": "019_d9_board_shares.up.sql",
+      "sourceSha256": "a8d08057d1ae87430c7fc826ce9221353dc8c956c0d99804f74f181bebe85507"
+    },
+    {
+      "name": "share_transition_recovery",
+      "sourceAsset": "019_d9_board_shares.up.sql",
+      "sourceSha256": "a8d08057d1ae87430c7fc826ce9221353dc8c956c0d99804f74f181bebe85507"
+    },
+    {
+      "name": "share_transition_recovery_items",
+      "sourceAsset": "019_d9_board_shares.up.sql",
+      "sourceSha256": "a8d08057d1ae87430c7fc826ce9221353dc8c956c0d99804f74f181bebe85507"
+    },
+    {
+      "name": "share_request_idempotency",
+      "sourceAsset": "019_d9_board_shares.up.sql",
+      "sourceSha256": "a8d08057d1ae87430c7fc826ce9221353dc8c956c0d99804f74f181bebe85507"
+    },
+    {
+      "name": "share_password_credentials",
+      "sourceAsset": "020_d9_share_password_auth.up.sql",
+      "sourceSha256": "315da368ab80e5d0f9b43cd1f1148df3b6a67538a4b74f87be3e3b9b42c2906a"
+    },
+    {
+      "name": "share_password_session_families",
+      "sourceAsset": "020_d9_share_password_auth.up.sql",
+      "sourceSha256": "315da368ab80e5d0f9b43cd1f1148df3b6a67538a4b74f87be3e3b9b42c2906a"
+    },
+    {
+      "name": "share_password_session_grants",
+      "sourceAsset": "020_d9_share_password_auth.up.sql",
+      "sourceSha256": "315da368ab80e5d0f9b43cd1f1148df3b6a67538a4b74f87be3e3b9b42c2906a"
+    },
+    {
+      "name": "share_password_cleanup_leases",
+      "sourceAsset": "020_d9_share_password_auth.up.sql",
+      "sourceSha256": "315da368ab80e5d0f9b43cd1f1148df3b6a67538a4b74f87be3e3b9b42c2906a"
+    },
+    {
+      "name": "media_objects",
+      "sourceAsset": "021_d9_media_store.up.sql",
+      "sourceSha256": "6387f9ac592a7b6896f61919ed6b4c318e4225b83a7a0a78e54ec0d3eb2ed53d"
+    },
+    {
+      "name": "board_media",
+      "sourceAsset": "021_d9_media_store.up.sql",
+      "sourceSha256": "6387f9ac592a7b6896f61919ed6b4c318e4225b83a7a0a78e54ec0d3eb2ed53d"
+    },
+    {
+      "name": "board_media_quota",
+      "sourceAsset": "021_d9_media_store.up.sql",
+      "sourceSha256": "6387f9ac592a7b6896f61919ed6b4c318e4225b83a7a0a78e54ec0d3eb2ed53d"
+    },
+    {
+      "name": "media_ingest_idempotency",
+      "sourceAsset": "021_d9_media_store.up.sql",
+      "sourceSha256": "6387f9ac592a7b6896f61919ed6b4c318e4225b83a7a0a78e54ec0d3eb2ed53d"
+    },
+    {
+      "name": "media_cleanup_runs",
+      "sourceAsset": "022_d9_media_retention_recovery.up.sql",
+      "sourceSha256": "cb62fffe52d3b5c75d39ed9816789a3546f17577cc416259fcf0a102cabcb09a"
+    },
+    {
+      "name": "media_cleanup_items",
+      "sourceAsset": "022_d9_media_retention_recovery.up.sql",
+      "sourceSha256": "cb62fffe52d3b5c75d39ed9816789a3546f17577cc416259fcf0a102cabcb09a"
+    },
+    {
+      "name": "media_backup_certificates",
+      "sourceAsset": "022_d9_media_retention_recovery.up.sql",
+      "sourceSha256": "cb62fffe52d3b5c75d39ed9816789a3546f17577cc416259fcf0a102cabcb09a"
+    },
+    {
+      "name": "media_backup_certificate_objects",
+      "sourceAsset": "022_d9_media_retention_recovery.up.sql",
+      "sourceSha256": "cb62fffe52d3b5c75d39ed9816789a3546f17577cc416259fcf0a102cabcb09a"
+    },
+    {
+      "name": "share_analytics_contexts",
+      "sourceAsset": "023_d9_share_analytics.up.sql",
+      "sourceSha256": "31d1946c2cbaf08a59282039db43165c3ff774971d4da7bf2699c8e3c027a83d"
+    },
+    {
+      "name": "share_analytics_context_pages",
+      "sourceAsset": "023_d9_share_analytics.up.sql",
+      "sourceSha256": "31d1946c2cbaf08a59282039db43165c3ff774971d4da7bf2699c8e3c027a83d"
+    },
+    {
+      "name": "share_analytics_replays",
+      "sourceAsset": "023_d9_share_analytics.up.sql",
+      "sourceSha256": "31d1946c2cbaf08a59282039db43165c3ff774971d4da7bf2699c8e3c027a83d"
+    },
+    {
+      "name": "share_analytics_rolling_admissions",
+      "sourceAsset": "023_d9_share_analytics.up.sql",
+      "sourceSha256": "31d1946c2cbaf08a59282039db43165c3ff774971d4da7bf2699c8e3c027a83d"
+    },
+    {
+      "name": "share_analytics_daily_viewers",
+      "sourceAsset": "023_d9_share_analytics.up.sql",
+      "sourceSha256": "31d1946c2cbaf08a59282039db43165c3ff774971d4da7bf2699c8e3c027a83d"
+    },
+    {
+      "name": "share_analytics_daily_aggregates",
+      "sourceAsset": "023_d9_share_analytics.up.sql",
+      "sourceSha256": "31d1946c2cbaf08a59282039db43165c3ff774971d4da7bf2699c8e3c027a83d"
+    },
+    {
+      "name": "share_analytics_lifetime_aggregates",
+      "sourceAsset": "023_d9_share_analytics.up.sql",
+      "sourceSha256": "31d1946c2cbaf08a59282039db43165c3ff774971d4da7bf2699c8e3c027a83d"
+    },
+    {
+      "name": "share_analytics_cleanup_leases",
+      "sourceAsset": "023_d9_share_analytics.up.sql",
+      "sourceSha256": "31d1946c2cbaf08a59282039db43165c3ff774971d4da7bf2699c8e3c027a83d"
     }
   ]
 }

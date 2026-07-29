@@ -111,7 +111,7 @@ export class ShareAnalyticsReportService {
              JOIN board_shares s ON s.share_pk = a.share_pk
              JOIN board_revisions r
                ON r.board_pk = a.board_pk AND r.revision_pk = a.revision_pk
-             WHERE a.board_pk = ? AND a.utc_date BETWEEN ? AND ?
+             WHERE a.board_pk = ? AND a.\`utc_date\` BETWEEN ? AND ?
              GROUP BY s.share_id, r.revision_id, a.publication_generation,
                       a.metric_kind, a.page_dimension, a.page_ordinal, a.title_label
              ORDER BY a.publication_generation DESC, a.page_ordinal, a.page_dimension`,
@@ -125,14 +125,14 @@ export class ShareAnalyticsReportService {
              JOIN board_shares s ON s.share_pk = v.share_pk
              JOIN board_revisions r
                ON r.board_pk = v.board_pk AND r.revision_pk = v.revision_pk
-             WHERE v.board_pk = ? AND v.utc_date BETWEEN ? AND ?
+             WHERE v.board_pk = ? AND v.\`utc_date\` BETWEEN ? AND ?
              GROUP BY s.share_id, r.revision_id, v.publication_generation`,
             [boardPk, input.from, input.to],
           );
           const [totalReachRows] = await connection.execute<TotalReachRow[]>(
             `SELECT CAST(COUNT(DISTINCT viewer_daily_key) AS CHAR) AS estimatedDailyReach
              FROM share_analytics_daily_viewers
-             WHERE board_pk = ? AND utc_date BETWEEN ? AND ?`,
+             WHERE board_pk = ? AND \`utc_date\` BETWEEN ? AND ?`,
             [boardPk, input.from, input.to],
           );
           const totalReachRow = totalReachRows[0];

@@ -189,6 +189,13 @@ export const MIGRATION_REGISTRY = [
     downAsset: null,
     postcondition: 'd9_share_analytics_v1',
   },
+  {
+    version: '024_d2_scope_mask_capacity',
+    upAsset: '024_d2_scope_mask_capacity.up.sql',
+    reversible: false,
+    downAsset: null,
+    postcondition: 'd2_scope_mask_capacity_v1',
+  },
 ] as const satisfies readonly MigrationRegistryEntry[];
 
 export const MIGRATION_REGISTRY_VERSION = MIGRATION_REGISTRY.at(-1)?.version ?? 'empty';

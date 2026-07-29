@@ -1,4 +1,5 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { CLIENT_GRANT_SCOPE_ORDER_V1 } from '@sceneboard/board-schema';
 import { z } from 'zod';
 
 import type { PairingCoordinatorPortV1 } from '../pairing/pairing-session.owner.js';
@@ -11,17 +12,20 @@ import {
   type BoardMcpLocalErrorV1,
 } from './tool-result.js';
 
-const ScopeSchema = z.enum([
-  'board.read',
-  'board.write',
-  'board.history.read',
-  'board.hitl.request',
-  'board.hitl.respond',
-  'board.media.write',
-  'artifact.publish',
-  'artifact.control',
-]);
+const ScopeSchema = z.enum(CLIENT_GRANT_SCOPE_ORDER_V1);
 const LifecycleSchema = z.enum(['board.create', 'board.archive']);
+const catalogOrderedSubset = <Value extends string>(
+  values: readonly Value[],
+  catalog: readonly Value[],
+): boolean => {
+  let prior = -1;
+  for (const value of values) {
+    const index = catalog.indexOf(value);
+    if (index <= prior) return false;
+    prior = index;
+  }
+  return true;
+};
 
 export const ConnectionStatusInputSchemaV1 = z
   .object({ boardId: GlobalIdSchemaV1.nullable() })
@@ -33,7 +37,23 @@ export const PairRequestInputSchemaV1 = z
     requestedScopes: z.array(ScopeSchema).min(1).max(8),
     requestedLifecyclePermissions: z.array(LifecycleSchema).max(2),
   })
-  .strict();
+  .strict()
+  .superRefine((value, context) => {
+    if (!catalogOrderedSubset(value.requestedScopes, CLIENT_GRANT_SCOPE_ORDER_V1))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['requestedScopes'],
+        message: 'requested scopes must be a unique catalog-ordered subset',
+      });
+    if (
+      !catalogOrderedSubset(value.requestedLifecyclePermissions, ['board.create', 'board.archive'])
+    )
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['requestedLifecyclePermissions'],
+        message: 'requested lifecycle permissions must be a unique catalog-ordered subset',
+      });
+  });
 export const PairStatusInputSchemaV1 = z
   .object({
     pairingId: GlobalIdSchemaV1,

@@ -76,6 +76,13 @@ const pageSql = (
   highestSql: `SELECT /*+ MAX_EXECUTION_TIME(5000) */ ${projection} ${joins} ORDER BY ${cursorColumn} DESC LIMIT ?`,
 });
 
+const withLiteralLimit = (sql: string, limit: number): string => {
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500 || !sql.endsWith('LIMIT ?')) {
+    throw new PersistenceProbeFailure('ROW_MAPPING', false);
+  }
+  return `${sql.slice(0, -1)}${limit}`;
+};
+
 const definitions: readonly ProbeDefinition[] = [
   {
     probeId: 'd2-binding-public-id-owner-fk',
@@ -152,30 +159,37 @@ const definitions: readonly ProbeDefinition[] = [
       `CAST(r.revision_pk AS CHAR) AS cursorPk, r.revision_id AS revisionId,
        CAST(r.board_pk AS CHAR) AS boardPk, CAST(r.revision_number AS CHAR) AS revisionNumber,
        CAST(previous.board_pk AS CHAR) AS previousBoardPk, CAST(source.board_pk AS CHAR) AS sourceBoardPk,
-       r.scene_stored_bytes AS sceneStoredBytes, OCTET_LENGTH(r.scene_payload) AS actualStoredBytes`,
+       COALESCE(payloads.stored_bytes, r.scene_stored_bytes) AS sceneStoredBytes,
+       OCTET_LENGTH(COALESCE(payloads.payload, r.scene_payload)) AS actualStoredBytes`,
       `FROM board_revisions r
        LEFT JOIN board_revisions previous ON previous.revision_pk = r.previous_revision_pk
-       LEFT JOIN board_revisions source ON source.revision_pk = r.source_revision_pk`,
+       LEFT JOIN board_revisions source ON source.revision_pk = r.source_revision_pk
+       LEFT JOIN board_revision_payloads payloads ON payloads.revision_pk = r.revision_pk`,
       'r.revision_pk',
     ),
     cursorOf: numericCursor,
     cursorBinds: numericBinds,
-    validate: (row) => {
+    validate: (row, input) => {
       const boardPk = safeUnsigned(row.boardPk, false);
       try {
         formatPublicUuidV4(safeBytes(row.revisionId, 16));
       } catch {
         throw new PersistenceProbeFailure('ROW_MAPPING', false);
       }
+      const reclaimed = row.sceneStoredBytes === null && row.actualStoredBytes === null;
+      const actualStoredBytes =
+        row.actualStoredBytes === null ? null : Number(safeUnsigned(row.actualStoredBytes, false));
       if (
         !safeUnsigned(row.cursorPk, false) ||
         !safeUnsigned(row.revisionNumber, false) ||
         (row.previousBoardPk !== null && safeUnsigned(row.previousBoardPk, false) !== boardPk) ||
         (row.sourceBoardPk !== null && safeUnsigned(row.sourceBoardPk, false) !== boardPk) ||
-        !Number.isInteger(row.sceneStoredBytes) ||
-        row.sceneStoredBytes !== row.actualStoredBytes ||
-        Number(row.sceneStoredBytes) < 1 ||
-        Number(row.sceneStoredBytes) > 800_000
+        (!reclaimed &&
+          (!Number.isInteger(row.sceneStoredBytes) ||
+            !Number.isSafeInteger(actualStoredBytes) ||
+            row.sceneStoredBytes !== actualStoredBytes ||
+            Number(row.sceneStoredBytes) < 1 ||
+            Number(row.sceneStoredBytes) > input.maxPayloadBytes))
       ) {
         throw new PersistenceProbeFailure('ROW_MAPPING', false);
       }
@@ -242,32 +256,51 @@ const definitions: readonly ProbeDefinition[] = [
   {
     probeId: 'checkpoint-ref-sequence',
     ascendingSql: `SELECT /*+ MAX_EXECUTION_TIME(5000) */ CAST(r.revision_pk AS CHAR) AS cursorPk,
-      r.scene_payload AS scenePayload, r.scene_stored_bytes AS sceneStoredBytes, r.scene_sha256 AS sceneSha256,
+      COALESCE(payloads.payload, r.scene_payload) AS scenePayload,
+      COALESCE(payloads.stored_bytes, r.scene_stored_bytes) AS sceneStoredBytes,
+      COALESCE(payloads.payload_sha256, r.scene_sha256) AS sceneSha256,
       COUNT(ref.ref_pk) AS referenceCount,
       SUM(CASE WHEN ref.ref_pk IS NOT NULL AND (ref.artifact_id IS NULL OR ref.artifact_version_id IS NULL) THEN 1 ELSE 0 END) AS invalidReferenceCount
-      FROM board_revisions r LEFT JOIN board_revision_artifact_refs ref ON ref.revision_pk = r.revision_pk
+      FROM board_revisions r
+      LEFT JOIN board_revision_payloads payloads ON payloads.revision_pk = r.revision_pk
+      LEFT JOIN board_revision_artifact_refs ref ON ref.revision_pk = r.revision_pk
       WHERE r.revision_pk > ? GROUP BY r.revision_pk ORDER BY r.revision_pk ASC LIMIT ?`,
     lowestSql: `SELECT /*+ MAX_EXECUTION_TIME(5000) */ CAST(r.revision_pk AS CHAR) AS cursorPk,
-      r.scene_payload AS scenePayload, r.scene_stored_bytes AS sceneStoredBytes, r.scene_sha256 AS sceneSha256,
+      COALESCE(payloads.payload, r.scene_payload) AS scenePayload,
+      COALESCE(payloads.stored_bytes, r.scene_stored_bytes) AS sceneStoredBytes,
+      COALESCE(payloads.payload_sha256, r.scene_sha256) AS sceneSha256,
       COUNT(ref.ref_pk) AS referenceCount,
       SUM(CASE WHEN ref.ref_pk IS NOT NULL AND (ref.artifact_id IS NULL OR ref.artifact_version_id IS NULL) THEN 1 ELSE 0 END) AS invalidReferenceCount
-      FROM board_revisions r LEFT JOIN board_revision_artifact_refs ref ON ref.revision_pk = r.revision_pk
+      FROM board_revisions r
+      LEFT JOIN board_revision_payloads payloads ON payloads.revision_pk = r.revision_pk
+      LEFT JOIN board_revision_artifact_refs ref ON ref.revision_pk = r.revision_pk
       GROUP BY r.revision_pk ORDER BY r.revision_pk ASC LIMIT ?`,
     highestSql: `SELECT /*+ MAX_EXECUTION_TIME(5000) */ CAST(r.revision_pk AS CHAR) AS cursorPk,
-      r.scene_payload AS scenePayload, r.scene_stored_bytes AS sceneStoredBytes, r.scene_sha256 AS sceneSha256,
+      COALESCE(payloads.payload, r.scene_payload) AS scenePayload,
+      COALESCE(payloads.stored_bytes, r.scene_stored_bytes) AS sceneStoredBytes,
+      COALESCE(payloads.payload_sha256, r.scene_sha256) AS sceneSha256,
       COUNT(ref.ref_pk) AS referenceCount,
       SUM(CASE WHEN ref.ref_pk IS NOT NULL AND (ref.artifact_id IS NULL OR ref.artifact_version_id IS NULL) THEN 1 ELSE 0 END) AS invalidReferenceCount
-      FROM board_revisions r LEFT JOIN board_revision_artifact_refs ref ON ref.revision_pk = r.revision_pk
+      FROM board_revisions r
+      LEFT JOIN board_revision_payloads payloads ON payloads.revision_pk = r.revision_pk
+      LEFT JOIN board_revision_artifact_refs ref ON ref.revision_pk = r.revision_pk
       GROUP BY r.revision_pk ORDER BY r.revision_pk DESC LIMIT ?`,
     cursorOf: numericCursor,
     cursorBinds: numericBinds,
     validate: (row, input) => {
+      const reclaimed =
+        row.scenePayload === null &&
+        row.sceneStoredBytes === null &&
+        row.sceneSha256 === null;
+      const referencesValid =
+        Number(row.invalidReferenceCount ?? 0) === 0 &&
+        Number.isSafeInteger(Number(row.referenceCount));
+      if (reclaimed && referencesValid && Number(row.referenceCount) === 0) return;
       const payload = safeBytes(row.scenePayload, input.maxPayloadBytes);
       if (
         row.sceneStoredBytes !== payload.byteLength ||
-        !sameDigest(payload, row.sceneSha256) ||
-        Number(row.invalidReferenceCount ?? 0) !== 0 ||
-        !Number.isSafeInteger(Number(row.referenceCount))
+        !exactLength(row.sceneSha256, 32) ||
+        !referencesValid
       ) {
         throw new PersistenceProbeFailure('ROW_MAPPING', false);
       }
@@ -344,8 +377,11 @@ class MysqlPersistenceCertificationProbe implements PersistenceCertificationProb
     input: PersistenceProbeInputV1,
   ): Promise<ProbeRow[]> {
     const binds = [...this.definition.cursorBinds(input.cursor)];
-    binds[binds.length - 1] = input.maxRows;
-    const [rows] = await connection.execute<ProbeRow[]>(this.definition.ascendingSql, binds);
+    binds.pop();
+    const [rows] = await connection.execute<ProbeRow[]>(
+      withLiteralLimit(this.definition.ascendingSql, input.maxRows),
+      binds,
+    );
     return rows;
   }
 
@@ -354,8 +390,14 @@ class MysqlPersistenceCertificationProbe implements PersistenceCertificationProb
     input: PersistenceProbeInputV1,
   ): Promise<ProbeRow[]> {
     const half = Math.min(100, Math.floor(input.maxRows / 2));
-    const [lowest] = await connection.execute<ProbeRow[]>(this.definition.lowestSql, [half]);
-    const [highest] = await connection.execute<ProbeRow[]>(this.definition.highestSql, [half]);
+    const [lowest] = await connection.execute<ProbeRow[]>(
+      withLiteralLimit(this.definition.lowestSql, half),
+      [],
+    );
+    const [highest] = await connection.execute<ProbeRow[]>(
+      withLiteralLimit(this.definition.highestSql, half),
+      [],
+    );
     const byCursor = new Map<string, ProbeRow>();
     for (const row of [...lowest, ...highest]) byCursor.set(this.definition.cursorOf(row), row);
     return [...byCursor.values()];

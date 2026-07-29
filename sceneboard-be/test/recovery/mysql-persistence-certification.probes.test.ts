@@ -23,7 +23,8 @@ test('executes every bounded MySQL canary in a short read-only transaction with 
     },
     execute: async (statement: string, binds: unknown[]) => {
       sql.push(statement);
-      assert.deepEqual(binds, [100]);
+      assert.deepEqual(binds, []);
+      assert.match(statement, /LIMIT 100$/u);
       return [[], []];
     },
   };
@@ -91,4 +92,66 @@ test('refuses an aborted canary before opening a database transaction', async ()
     }),
     { name: 'PersistenceProbeFailure' },
   );
+});
+
+test('accepts fully reclaimed revisions in lineage and checkpoint canaries', async () => {
+  const revisionId = Buffer.from('00112233445546778899aabbccddeeff', 'hex');
+  const connection = {
+    query: async () => [[], []],
+    beginTransaction: async () => undefined,
+    commit: async () => undefined,
+    rollback: async () => undefined,
+    execute: async (statement: string) => {
+      if (statement.includes('actualStoredBytes')) {
+        return [
+          [
+            {
+              cursorPk: '1',
+              revisionId,
+              boardPk: '1',
+              revisionNumber: '1',
+              previousBoardPk: null,
+              sourceBoardPk: null,
+              sceneStoredBytes: null,
+              actualStoredBytes: null,
+            },
+          ],
+          [],
+        ];
+      }
+      return [
+        [
+          {
+            cursorPk: '1',
+            scenePayload: null,
+            sceneStoredBytes: null,
+            sceneSha256: null,
+            referenceCount: 0,
+            invalidReferenceCount: 0,
+          },
+        ],
+        [],
+      ];
+    },
+  };
+  const probes = createMysqlPersistenceCertificationProbes({
+    withConnection: async <Value>(operation: (value: typeof connection) => Promise<Value>) =>
+      operation(connection),
+  } as never);
+
+  for (const probe of [probes[2]!, probes[5]!]) {
+    const result = await probe.run({
+      probeId: probe.probeId,
+      mode: 'BOUNDED_RESTART',
+      scope: 'bounded-canary',
+      cursor: null,
+      maxRows: 200,
+      maxMetadataBytes: 1_048_576,
+      maxPayloadBytes: 33_554_432,
+      statementTimeoutMs: 5_000,
+      batchDeadlineMs: 15_000,
+      signal: new AbortController().signal,
+    });
+    assert.equal(result.scannedRows, 1);
+  }
 });

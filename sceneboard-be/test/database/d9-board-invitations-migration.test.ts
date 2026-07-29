@@ -12,14 +12,17 @@ const source = async (): Promise<string> =>
   );
 
 test('registers the forward-additive invitation and capability epoch migration', () => {
-  assert.deepEqual(MIGRATION_REGISTRY.at(-7), {
+  const entryIndex = MIGRATION_REGISTRY.findIndex(
+    ({ version }) => version === '017_d9_board_invitations',
+  );
+  assert.deepEqual(MIGRATION_REGISTRY[entryIndex], {
     version: '017_d9_board_invitations',
     upAsset: '017_d9_board_invitations.up.sql',
     reversible: false,
     downAsset: null,
     postcondition: 'd9_board_invitations_v1',
   });
-  assert.equal(MIGRATION_REGISTRY.at(-8)?.version, '016_d9_board_memberships');
+  assert.equal(MIGRATION_REGISTRY[entryIndex - 1]?.version, '016_d9_board_memberships');
 });
 
 test('pins digest-only tokens and one active identity regardless of role', async () => {

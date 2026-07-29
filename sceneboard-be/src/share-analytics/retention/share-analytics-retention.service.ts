@@ -45,7 +45,7 @@ export class ShareAnalyticsRetentionService {
              )`,
             limit,
           );
-          const cutoff = `utc_date < DATE_SUB(UTC_DATE(), INTERVAL 13 MONTH)`;
+          const cutoff = `\`utc_date\` < DATE_SUB(UTC_DATE(), INTERVAL 13 MONTH)`;
           removed += await this.deleteLimited(
             connection,
             'share_analytics_daily_viewers',

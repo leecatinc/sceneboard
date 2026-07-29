@@ -71,6 +71,17 @@ export const CLIENT_GRANT_CAPABILITIES_V1 = [
 ] as const;
 export type ClientGrantCapabilityV1 = (typeof CLIENT_GRANT_CAPABILITIES_V1)[number];
 
+export const CLIENT_GRANT_SCOPE_ORDER_V1 = [
+  'board.read',
+  'board.write',
+  'board.history.read',
+  'board.hitl.request',
+  'board.hitl.respond',
+  'board.media.write',
+  'artifact.publish',
+  'artifact.control',
+] as const satisfies readonly ClientGrantCapabilityV1[];
+
 export const BOARD_AUTHORIZATION_CAPABILITIES_V1 = [
   'account.board.create',
   'artifact.control',

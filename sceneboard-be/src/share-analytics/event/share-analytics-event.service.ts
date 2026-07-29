@@ -376,7 +376,7 @@ export class ShareAnalyticsEventService {
     await connection.execute<ResultSetHeader>(
       `INSERT IGNORE INTO share_analytics_daily_viewers (
          viewer_daily_key, board_pk, share_pk, revision_pk, publication_generation,
-         utc_date, first_seen_at
+         \`utc_date\`, first_seen_at
        ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
         input.viewerDailyKey,
@@ -400,7 +400,7 @@ export class ShareAnalyticsEventService {
     ] as const;
     const [daily] = await connection.execute<ResultSetHeader>(
       `INSERT INTO share_analytics_daily_aggregates (
-         board_pk, share_pk, revision_pk, publication_generation, utc_date,
+         board_pk, share_pk, revision_pk, publication_generation, \`utc_date\`,
          metric_kind, page_dimension, page_ordinal, title_label, metric_count,
          last_aggregated_at
        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)

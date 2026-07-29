@@ -9,13 +9,16 @@ test('registers the forward-only share migration and exact durable ledgers', asy
     new URL('../../src/database/migrations/sql/019_d9_board_shares.up.sql', import.meta.url),
     'utf8',
   );
-  assert.deepEqual(MIGRATION_REGISTRY.at(-5), {
-    version: '019_d9_board_shares',
-    upAsset: '019_d9_board_shares.up.sql',
-    reversible: false,
-    downAsset: null,
-    postcondition: 'd9_board_shares_v1',
-  });
+  assert.deepEqual(
+    MIGRATION_REGISTRY.find(({ version }) => version === '019_d9_board_shares'),
+    {
+      version: '019_d9_board_shares',
+      upAsset: '019_d9_board_shares.up.sql',
+      reversible: false,
+      downAsset: null,
+      postcondition: 'd9_board_shares_v1',
+    },
+  );
   for (const table of [
     'board_shares',
     'share_transition_recovery',

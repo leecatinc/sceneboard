@@ -12,14 +12,17 @@ const source = async (): Promise<string> =>
   );
 
 test('registers the forward-additive membership migration after retention runtime', () => {
-  assert.deepEqual(MIGRATION_REGISTRY.at(-8), {
+  const entryIndex = MIGRATION_REGISTRY.findIndex(
+    ({ version }) => version === '016_d9_board_memberships',
+  );
+  assert.deepEqual(MIGRATION_REGISTRY[entryIndex], {
     version: '016_d9_board_memberships',
     upAsset: '016_d9_board_memberships.up.sql',
     reversible: false,
     downAsset: null,
     postcondition: 'd9_board_memberships_v1',
   });
-  assert.equal(MIGRATION_REGISTRY.at(-9)?.version, '015_d9_revision_retention_runtime');
+  assert.equal(MIGRATION_REGISTRY[entryIndex - 1]?.version, '015_d9_revision_retention_runtime');
 });
 
 test('pins unique membership, active lookup, version, and owner projection constraints', async () => {
@@ -38,5 +41,9 @@ test('owner adoption is bounded and idempotent across interrupted restart', asyn
   assert.match(sql, /INSERT INTO board_memberships/u);
   assert.match(sql, /FROM boards b/u);
   assert.match(sql, /ON DUPLICATE KEY UPDATE/u);
-  assert.match(sql, /version = GREATEST\(version, VALUES\(version\)\)/u);
+  assert.match(sql, /version = GREATEST\(board_memberships\.version, VALUES\(version\)\)/u);
+  assert.match(
+    sql,
+    /updated_at = GREATEST\(board_memberships\.updated_at, VALUES\(updated_at\)\)/u,
+  );
 });

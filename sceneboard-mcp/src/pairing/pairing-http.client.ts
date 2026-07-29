@@ -1,4 +1,5 @@
 import { BoardSdkHttpClient } from '@sceneboard/board-sdk/http';
+import { CLIENT_GRANT_SCOPE_ORDER_V1 } from '@sceneboard/board-schema';
 import { z } from 'zod';
 
 const GlobalIdSchema = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/);
@@ -6,16 +7,7 @@ const TimestampSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
   .refine((value) => new Date(value).toISOString() === value);
-const ScopeSchema = z.enum([
-  'board.read',
-  'board.write',
-  'board.history.read',
-  'board.hitl.request',
-  'board.hitl.respond',
-  'board.media.write',
-  'artifact.publish',
-  'artifact.control',
-]);
+const ScopeSchema = z.enum(CLIENT_GRANT_SCOPE_ORDER_V1);
 const LifecycleSchema = z.enum(['board.create', 'board.archive']);
 const ClientSchema = z
   .object({

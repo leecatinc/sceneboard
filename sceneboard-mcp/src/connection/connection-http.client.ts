@@ -2,7 +2,7 @@ import {
   BoardCapabilitiesParserV1,
   BoardErrorParserV1,
   BoardOperationResultParserV1,
-  CLIENT_GRANT_CAPABILITIES_V1,
+  CLIENT_GRANT_SCOPE_ORDER_V1,
   GlobalIdStringParserV1,
   GrantIdParserV1,
   PrincipalIdParserV1,
@@ -180,7 +180,7 @@ const parseConnection = (
     !/^[A-Za-z0-9_-]{16}$/.test(client.installationFingerprint)
   )
     return null;
-  const scopes = exactCatalogSubset(grant.scopes, CLIENT_GRANT_CAPABILITIES_V1, 1);
+  const scopes = exactCatalogSubset(grant.scopes, CLIENT_GRANT_SCOPE_ORDER_V1, 1);
   const lifecyclePermissions = exactCatalogSubset(
     grant.lifecyclePermissions,
     LIFECYCLE_PERMISSIONS,
