@@ -5,11 +5,13 @@ import { plannedRecycleJitterMsV1, reconnectBackoffMsV1 } from './reconnect-back
 import {
   createSseFrameParserV1,
   createSseFrameParserV2,
+  createSseFrameParserV3,
   SseProtocolErrorV1,
 } from './sse-frame-parser.js';
 import type {
   BoardStreamClientOptionsV1,
   BoardStreamClientOptionsV2,
+  BoardStreamClientOptionsV3,
   BoardStreamClientV1,
   BoardStreamFailureV1,
   BoardStreamPresenceStateV1,
@@ -30,7 +32,7 @@ type ConsumeOutcome =
   | { kind: 'stopped'; reason: StopReason };
 
 const validateOptions = (
-  options: BoardStreamClientOptionsV1 | BoardStreamClientOptionsV2,
+  options: BoardStreamClientOptionsV1 | BoardStreamClientOptionsV2 | BoardStreamClientOptionsV3,
 ): void => {
   let origin: URL;
   try {
@@ -44,8 +46,12 @@ const validateOptions = (
   ) {
     throw new TypeError('apiOrigin must be an exact HTTP(S) origin without a path');
   }
-  if ('documentSchemaVersion' in options && options.documentSchemaVersion !== 2) {
-    throw new TypeError('documentSchemaVersion must be 1 or 2');
+  if (
+    'documentSchemaVersion' in options &&
+    options.documentSchemaVersion !== 2 &&
+    options.documentSchemaVersion !== 3
+  ) {
+    throw new TypeError('documentSchemaVersion must be 1, 2, or 3');
   }
   if (!BoardIdParserV1.parse(options.boardId).ok) throw new TypeError('boardId is invalid');
   if (!TAB_ID_PATTERN.test(options.tabId))
@@ -101,7 +107,7 @@ const terminalState = (
 };
 
 const createBoardStreamClient = (
-  options: BoardStreamClientOptionsV1 | BoardStreamClientOptionsV2,
+  options: BoardStreamClientOptionsV1 | BoardStreamClientOptionsV2 | BoardStreamClientOptionsV3,
 ): BoardStreamClientV1 => {
   validateOptions(options);
   const documentSchemaVersion =
@@ -157,7 +163,11 @@ const createBoardStreamClient = (
       return { kind: 'terminal', failure: { kind: 'protocol', sourceStatus: 200, error: null } };
     }
     const parser =
-      documentSchemaVersion === 2 ? createSseFrameParserV2() : createSseFrameParserV1();
+      documentSchemaVersion === 3
+        ? createSseFrameParserV3()
+        : documentSchemaVersion === 2
+          ? createSseFrameParserV2()
+          : createSseFrameParserV1();
     const reader = response.body.getReader();
     let silenceBase = performance.now();
     try {
@@ -539,4 +549,8 @@ export const createBoardStreamClientV1 = (
 
 export const createBoardStreamClientV2 = (
   options: BoardStreamClientOptionsV2,
+): BoardStreamClientV1 => createBoardStreamClient(options);
+
+export const createBoardStreamClientV3 = (
+  options: BoardStreamClientOptionsV3,
 ): BoardStreamClientV1 => createBoardStreamClient(options);

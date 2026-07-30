@@ -1,6 +1,6 @@
 import {
   adaptLegacySceneToDocumentV2,
-  type BoardDocumentV2,
+  type BoardDocument,
   type BoardSnapshot,
   type PageId,
 } from '@sceneboard/board-schema';
@@ -81,13 +81,13 @@ export const admitPageNavigationKeyV1 = (
 export const admitPresentationEscapeKeyV1 = (input: PageNavigationAdmissionV1): boolean =>
   input.key === 'Escape' && !pageNavigationContextIsExcludedV1(input);
 
-export const documentForPageNavigationV1 = (snapshot: BoardSnapshot): BoardDocumentV2 =>
+export const documentForPageNavigationV1 = (snapshot: BoardSnapshot): BoardDocument =>
   'document' in snapshot
     ? snapshot.document
     : adaptLegacySceneToDocumentV2({ boardId: snapshot.boardId, scene: snapshot.scene });
 
 export const resolveSelectedPageIdV1 = (
-  document: BoardDocumentV2,
+  document: BoardDocument,
   selectedPageId: PageId | null,
 ): PageId => {
   if (selectedPageId !== null && document.pages.some((page) => page.pageId === selectedPageId))
@@ -100,7 +100,7 @@ export const resolveSelectedPageIdV1 = (
 };
 
 export const navigatePageIdV1 = (
-  document: BoardDocumentV2,
+  document: BoardDocument,
   selectedPageId: PageId,
   command: PageNavigationCommandV1,
 ): PageId => {

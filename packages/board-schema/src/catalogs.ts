@@ -71,6 +71,25 @@ export const CLIENT_GRANT_CAPABILITIES_V1 = [
 ] as const;
 export type ClientGrantCapabilityV1 = (typeof CLIENT_GRANT_CAPABILITIES_V1)[number];
 
+export const ACCOUNT_API_KEY_SCOPES_V1 = [
+  'board:archive',
+  'board:create',
+  'board:read',
+  'board:write',
+  'export:read',
+  'history:read',
+] as const;
+export type AccountApiKeyScopeV1 = (typeof ACCOUNT_API_KEY_SCOPES_V1)[number];
+
+export const ACCOUNT_API_KEY_SCOPE_BITS_V1 = {
+  'board:archive': 1 << 0,
+  'board:create': 1 << 1,
+  'board:read': 1 << 2,
+  'board:write': 1 << 3,
+  'export:read': 1 << 4,
+  'history:read': 1 << 5,
+} as const satisfies Readonly<Record<AccountApiKeyScopeV1, number>>;
+
 export const CLIENT_GRANT_SCOPE_ORDER_V1 = [
   'board.read',
   'board.write',
@@ -97,6 +116,7 @@ export const BOARD_AUTHORIZATION_CAPABILITIES_V1 = [
   'board.share.manage',
   'board.write',
   'connection.manage.own',
+  'export.read',
 ] as const;
 export type BoardAuthorizationCapabilityV1 = (typeof BOARD_AUTHORIZATION_CAPABILITIES_V1)[number];
 
@@ -143,6 +163,7 @@ export const BOARD_AUTHORIZATION_OPERATION_TYPES_V1 = [
   'share.password.disable',
   'media.upload',
   'analytics.report.get',
+  'export.render',
 ] as const;
 export type BoardAuthorizationOperationTypeV1 =
   (typeof BOARD_AUTHORIZATION_OPERATION_TYPES_V1)[number];
@@ -180,7 +201,7 @@ export const SHARE_ERROR_CODES_V1 = [
 ] as const;
 export type ShareErrorCodeV1 = (typeof SHARE_ERROR_CODES_V1)[number];
 
-export const BOARD_AUTHORIZATION_SURFACES_V1 = ['browser', 'mcp'] as const;
+export const BOARD_AUTHORIZATION_SURFACES_V1 = ['browser', 'mcp', 'account_api_key'] as const;
 export type BoardAuthorizationSurfaceV1 = (typeof BOARD_AUTHORIZATION_SURFACES_V1)[number];
 
 export const BOARD_MEMBERSHIP_ROLES_V1 = ['owner', 'editor', 'viewer'] as const;
@@ -240,3 +261,6 @@ export const BOARD_ERROR_CODES_V2 = [
   'RANGE_NOT_SATISFIABLE',
 ] as const;
 export type BoardErrorCodeV2 = (typeof BOARD_ERROR_CODES_V2)[number];
+
+export const BOARD_ERROR_CODES_V3 = [...BOARD_ERROR_CODES_V2, 'UPGRADE_REQUIRED'] as const;
+export type BoardErrorCodeV3 = (typeof BOARD_ERROR_CODES_V3)[number];

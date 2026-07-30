@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { normalizeHistoryListV1 } from '@sceneboard/board-sdk/client';
 import type { IdempotencyKey, RequestId } from '@sceneboard/board-schema';
 
 import { BoardApiClient } from '../../lib/api/board-api';
@@ -230,4 +231,161 @@ test('renameBoard sends an owner CSRF request and accepts only the matching titl
   assert.equal(request?.init?.method, 'POST');
   assert.equal((request?.init?.headers as Headers).get('X-CSRF-Token'), session.csrfToken);
   assert.deepEqual(JSON.parse(String(request?.init?.body)), { title: 'Launch plan' });
+});
+
+test('listHistory admits a strict correlated retained-history envelope through the production client', async () => {
+  const listResult = fixture('operation-result-history-list.v1.json');
+  assert.equal((listResult.result as { type: string }).type, 'history.list');
+  const entries = (
+    listResult.result as {
+      entries: Array<{ revision: { revisionId: string; revisionNumber: number } }>;
+    }
+  ).entries;
+  const headRevision = entries[0]?.revision;
+  if (headRevision === undefined) throw new Error('history.list fixture is missing an entry');
+  // retained metadata correlates 1:1 with the retained entries; navigation stays null for a list page
+  const retainedMetadata = {
+    protocolVersion: 1,
+    type: 'history.retained-metadata',
+    entries: [
+      {
+        revisionId: headRevision.revisionId,
+        label: `Revision ${headRevision.revisionNumber}`,
+        actorLabel: 'self',
+        summary: 'Board created',
+        schemaVersion: '1.0.0',
+      },
+    ],
+    boundary: { truncatedBefore: false, oldestRetainedRevisionId: headRevision.revisionId },
+    navigation: null,
+  };
+
+  const values = new Map<string, string>();
+  const requests: Array<{ url: string; init?: RequestInit }> = [];
+  let call = 0;
+  const fetcher = async (input: string | URL | Request, init?: RequestInit) => {
+    requests.push({ url: String(input), ...(init === undefined ? {} : { init }) });
+    if (call++ === 0)
+      return new Response(JSON.stringify(session), {
+        status: 200,
+        headers: { 'X-Auth-Generation': generation },
+      });
+    const url = new URL(String(input));
+    const requestId = String(url.searchParams.get('requestId') ?? '');
+    return new Response(
+      JSON.stringify({
+        protocolVersion: 1,
+        type: 'board.http.success',
+        requestId,
+        result: { ...listResult, requestId },
+        metadata: { history: retainedMetadata },
+      }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Cache-Control': 'no-store',
+          'X-Request-Id': requestId,
+        },
+      },
+    );
+  };
+  const coordinator = new SessionRequestCoordinator('https://sceneboard.dev', {
+    locks: { request: async (_name, _options, callback) => callback() },
+    storage: {
+      getItem: (key) => values.get(key) ?? null,
+      setItem: (key, value) => {
+        values.set(key, value);
+      },
+      removeItem: (key) => {
+        values.delete(key);
+      },
+    },
+    fetcher,
+    randomBytes: () => new Uint8Array(16).fill(7),
+  });
+  await coordinator.reconcileSessionGeneration();
+
+  const result = await new BoardApiClient(coordinator).listHistory('board_1');
+
+  // production client must admit a correlated retained-history page (not collapse it to corrupt)
+  assert.equal(result.kind, 'ok');
+  if (result.kind !== 'ok') return;
+  assert.equal(result.value.type, 'history.list');
+  assert.equal(result.value.entries[0]?.revision.revisionId, headRevision.revisionId);
+  assert.equal(result.value.nextCursor, null);
+  assert.equal(result.value.metadata.type, 'history.retained-metadata');
+  // the same correlated page also normalizes without throwing, ruling out normalizeHistoryListV1
+  const head = result.value.entries[0]?.revision;
+  if (head === undefined) throw new Error('listHistory returned no retained entries');
+  assert.doesNotThrow(() =>
+    normalizeHistoryListV1({
+      entries: result.value.entries,
+      metadata: result.value.metadata,
+      nextCursor: result.value.nextCursor,
+      requestedCursor: null,
+      latest: { revisionId: head.revisionId, revisionNumber: head.revisionNumber },
+    }),
+  );
+  const request = requests[1];
+  const url = new URL(request?.url ?? '');
+  assert.equal(url.pathname, '/api/v1/boards/board_1/revisions');
+  assert.equal(url.searchParams.get('limit'), '50');
+  assert.match(url.searchParams.get('requestId') ?? '', /^req_/u);
+  assert.equal(request?.init?.method, 'GET');
+  assert.equal(request?.init?.body, undefined);
+});
+
+test('listHistory still rejects a null history metadata envelope as corrupt', async () => {
+  const listResult = fixture('operation-result-history-list.v1.json');
+  const values = new Map<string, string>();
+  const requests: Array<{ url: string; init?: RequestInit }> = [];
+  let call = 0;
+  const fetcher = async (input: string | URL | Request, init?: RequestInit) => {
+    requests.push({ url: String(input), ...(init === undefined ? {} : { init }) });
+    if (call++ === 0)
+      return new Response(JSON.stringify(session), {
+        status: 200,
+        headers: { 'X-Auth-Generation': generation },
+      });
+    const url = new URL(String(input));
+    const requestId = String(url.searchParams.get('requestId') ?? '');
+    return new Response(
+      JSON.stringify({
+        protocolVersion: 1,
+        type: 'board.http.success',
+        requestId,
+        result: { ...listResult, requestId },
+        metadata: { history: null },
+      }),
+      {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Cache-Control': 'no-store',
+          'X-Request-Id': requestId,
+        },
+      },
+    );
+  };
+  const coordinator = new SessionRequestCoordinator('https://sceneboard.dev', {
+    locks: { request: async (_name, _options, callback) => callback() },
+    storage: {
+      getItem: (key) => values.get(key) ?? null,
+      setItem: (key, value) => {
+        values.set(key, value);
+      },
+      removeItem: (key) => {
+        values.delete(key);
+      },
+    },
+    fetcher,
+    randomBytes: () => new Uint8Array(16).fill(7),
+  });
+  await coordinator.reconcileSessionGeneration();
+
+  const result = await new BoardApiClient(coordinator).listHistory('board_1');
+
+  // strict correlation is preserved: history.list without retained metadata stays corrupt
+  assert.equal(result.kind, 'corrupt_response');
 });

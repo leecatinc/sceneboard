@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { BoardDocumentSchemaV2 } from './documents.js';
+import { BoardDocumentSchemaV2, BoardDocumentSchemaV3 } from './documents.js';
 import {
   ArtifactIdSchemaV1,
   ArtifactVersionIdSchemaV1,
@@ -111,7 +111,7 @@ export const PublicBoardProjectionSchemaV1 = z
     publicationGeneration: z.number().int().safe().positive(),
     accessGeneration: z.number().int().safe().positive(),
     title: ShortTextSchemaV1,
-    document: BoardDocumentSchemaV2,
+    document: z.union([BoardDocumentSchemaV2, BoardDocumentSchemaV3]),
     artifacts: z.array(PublicArtifactSummarySchemaV1).max(MAX_MEDIA_REFERENCES),
     media: z.array(PublicMediaResourceSchemaV1).max(MAX_MEDIA_REFERENCES),
   })

@@ -6,14 +6,18 @@ import {
   adaptLegacySceneToDocumentV2,
   BoardEventEnvelopeParserV1,
   BoardEventEnvelopeParserV2,
+  BoardEventEnvelopeParserV3,
   DEFAULT_BOARD_CAPABILITIES_V2,
+  DEFAULT_BOARD_CAPABILITIES_V3,
   canonicalizeJsonV1,
+  projectDocumentV2ToV3,
   type BoardEventEnvelopeV1,
 } from '@sceneboard/board-schema';
 
 import {
   createSseFrameParserV1,
   createSseFrameParserV2,
+  createSseFrameParserV3,
   SseProtocolErrorV1,
 } from '../../src/sse/sse-frame-parser.js';
 
@@ -129,6 +133,57 @@ test('binds V2 document snapshots to the 32 MiB parser and keeps the V1 parser f
     assert.equal('document' in records[0].input.envelope.data.snapshot, true);
   }
   assert.throws(() => createSseFrameParserV1().push(bytes), SseProtocolErrorV1);
+});
+
+test('binds a format-bearing V3 snapshot only to the V3 SSE parser', () => {
+  const source = readEvent('event-board-snapshot.v1.json');
+  assert.equal(source.data.type, 'board.snapshot');
+  if (source.data.type !== 'board.snapshot') return;
+  const base = source.data.snapshot;
+  const { scene, capabilities, ...shared } = base;
+  const snapshot = {
+    ...shared,
+    document: projectDocumentV2ToV3(
+      adaptLegacySceneToDocumentV2({ boardId: base.boardId, scene }),
+      'standard_4_3',
+    ),
+    capabilities: {
+      ...DEFAULT_BOARD_CAPABILITIES_V3,
+      supported: {
+        ...DEFAULT_BOARD_CAPABILITIES_V3.supported,
+        nodeTypes: [...DEFAULT_BOARD_CAPABILITIES_V3.supported.nodeTypes],
+        commandTypes: [...DEFAULT_BOARD_CAPABILITIES_V3.supported.commandTypes],
+        operationTypes: [...DEFAULT_BOARD_CAPABILITIES_V3.supported.operationTypes],
+        eventTypes: [...DEFAULT_BOARD_CAPABILITIES_V3.supported.eventTypes],
+        hitlKinds: [...DEFAULT_BOARD_CAPABILITIES_V3.supported.hitlKinds],
+        artifactRequestCapabilities: [
+          ...DEFAULT_BOARD_CAPABILITIES_V3.supported.artifactRequestCapabilities,
+        ],
+      },
+      limits: { ...DEFAULT_BOARD_CAPABILITIES_V3.limits },
+      grantedCapabilities: [...capabilities.grantedCapabilities],
+      allowedArtifactRequestCapabilities: [...capabilities.allowedArtifactRequestCapabilities],
+    },
+  };
+  const parsed = BoardEventEnvelopeParserV3.parse({
+    ...source,
+    data: { type: 'board.snapshot', snapshot },
+  });
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) return;
+  const canonical = canonicalizeJsonV1(parsed.data.value);
+  assert.equal(canonical.ok, true);
+  if (!canonical.ok) return;
+  const bytes = concat(
+    encoder.encode('event: board.event.v1\nid: cursor_v3\ndata: '),
+    canonical.data.canonicalBytes,
+    encoder.encode('\n\n'),
+  );
+  const v3 = createSseFrameParserV3();
+  const records = v3.push(bytes);
+  v3.finish();
+  assert.equal(records[0]?.kind, 'event');
+  assert.throws(() => createSseFrameParserV2().push(bytes), SseProtocolErrorV1);
 });
 
 test('accepts empty and UTF-8 comment keepalives without producing board data', () => {

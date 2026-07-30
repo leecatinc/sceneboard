@@ -1,15 +1,18 @@
 import {
+  accountApiKeyActorContextV1,
   type ActorContextV1,
   type GrantId,
   normalizeActorContextV1,
 } from '@sceneboard/board-schema';
 
+import { AccountApiKeyService } from '../api-keys/account-api-key.service.js';
 import type { SessionRecord } from '../auth/session.service.js';
 import { AppError } from '../common/errors/app-error.js';
 import type {
   ResolvedBoardPrincipalV1,
   ResolvedMcpGrantProjectionV1,
 } from './board-access.policy.js';
+import { ACCOUNT_API_KEY_SNAPSHOT as ACCOUNT_API_KEY_SNAPSHOT_SYMBOL } from './board-access.policy.js';
 import { D2_SCOPE_CATALOG, scopeValuesFromMask } from './scope-map.js';
 import { GrantTokenService } from './grant-token.service.js';
 
@@ -39,6 +42,7 @@ export class ActorContextService {
   constructor(
     private readonly persistence: GrantPrincipalPersistence,
     private readonly tokens: GrantTokenService,
+    private readonly accountApiKeys?: AccountApiKeyService,
   ) {}
 
   resolveUser(session: SessionRecord): Extract<ResolvedBoardPrincipalV1, { kind: 'user' }> {
@@ -53,6 +57,26 @@ export class ActorContextService {
       userPk: databaseId(session.user.databaseId),
       sessionPk: databaseId(session.databaseId),
       familyPublicId: session.familyPublicId,
+      isBrowserCredential: true,
+    };
+  }
+
+  async resolveAccountApiKey(
+    token: string,
+    context: { correlationId: string; clientIp: string },
+    now: number,
+  ): Promise<Extract<ResolvedBoardPrincipalV1, { kind: 'account_api_key' }>> {
+    if (this.accountApiKeys === undefined) throw new AppError('UNAUTHENTICATED');
+    const snapshot = await this.accountApiKeys.resolveBearer(token, context, now);
+    const actor = accountApiKeyActorContextV1(snapshot.keyPublicId);
+    return {
+      kind: 'account_api_key',
+      actor,
+      ownerUserPk: databaseId(snapshot.ownerUserPk),
+      apiKeyPk: databaseId(snapshot.keyPk),
+      scopeMask: snapshot.scopeMask,
+      isBrowserCredential: false,
+      [ACCOUNT_API_KEY_SNAPSHOT_SYMBOL]: snapshot,
     };
   }
 
@@ -90,6 +114,7 @@ export class ActorContextService {
       ...(resolved.connectionGrant === undefined
         ? {}
         : { connectionGrant: resolved.connectionGrant }),
+      isBrowserCredential: false,
     };
   }
 

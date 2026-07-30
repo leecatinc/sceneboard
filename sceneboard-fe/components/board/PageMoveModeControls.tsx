@@ -19,6 +19,7 @@ export function PageMoveModeControls({
       className={styles.button}
       disabled={!available}
       aria-pressed={active}
+      title={t('presentation.movePageDescription')}
       onClick={() => onChange(!active)}
     >
       {active ? t('presentation.stopMoving') : t('presentation.movePage')}

@@ -15,7 +15,7 @@ export type BoardStreamOpenInputV1 = {
   presenceState: BoardStreamPresenceStateV1;
   cursor: string | null;
   signal: AbortSignal;
-  documentSchemaVersion?: 1 | 2;
+  documentSchemaVersion?: 1 | 2 | 3;
 };
 
 export type BoardStreamDispatchResultV1<T> =
@@ -139,6 +139,11 @@ export type BoardStreamCallbacksV2 = Omit<BoardStreamCallbacksV1, 'replaceSnapsh
 
 export type BoardStreamClientOptionsV2 = Omit<BoardStreamClientOptionsV1, 'callbacks'> & {
   documentSchemaVersion: 2;
+  callbacks: BoardStreamCallbacksV2;
+};
+
+export type BoardStreamClientOptionsV3 = Omit<BoardStreamClientOptionsV1, 'callbacks'> & {
+  documentSchemaVersion: 3;
   callbacks: BoardStreamCallbacksV2;
 };
 

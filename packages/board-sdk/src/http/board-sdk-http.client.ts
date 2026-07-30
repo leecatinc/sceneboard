@@ -3,6 +3,7 @@ import {
   BOARD_DOCUMENT_LIMITS_V2,
   MutationRequestParserV1,
   MutationRequestParserV2,
+  MutationRequestParserV3,
   type BoardErrorV1,
   type BoardError,
   type ArtifactId,
@@ -14,6 +15,7 @@ import {
   type BoardOperationResultV1,
   type MutationRequestV1,
   type MutationRequestV2,
+  type MutationRequestV3,
   type MutationResultV1,
   type RequestId,
   type RevisionId,
@@ -23,7 +25,9 @@ import {
 import {
   parseBoardHttpResultV1,
   parseBoardDocumentHttpResultV2,
+  parseBoardDocumentHttpResultV3,
   parseBoardOperationHttpResultV2,
+  parseBoardOperationHttpResultV3,
   type BoardHttpMetadataV1,
   type BoardHttpResultParseFailureReasonV1,
 } from './http-result.parser.js';
@@ -72,7 +76,22 @@ export type BoardSdkDocumentHttpResultV2 =
     }
   | { ok: false; error: BoardError | BoardSdkHttpLocalErrorV1 };
 
-export type BoardSdkDocumentReadHttpResultV2<K extends 'board.get' | 'history.get'> =
+export type BoardSdkDocumentHttpResultV3 =
+  | {
+      ok: true;
+      result: import('@sceneboard/board-schema').MutationResultV3 & {
+        result: Extract<
+          import('@sceneboard/board-schema').MutationResultV3['result'],
+          { type: 'document.replace' }
+        >;
+      };
+      metadata: { history: null };
+    }
+  | { ok: false; error: BoardError | BoardSdkHttpLocalErrorV1 };
+
+export type BoardSdkDocumentReadHttpResultV2<
+  K extends 'board.get' | 'history.list' | 'history.get',
+> =
   | { ok: true; result: ResultEnvelopeFor<K>; metadata: BoardHttpMetadataV1 }
   | { ok: false; error: BoardError | BoardSdkHttpLocalErrorV1 };
 
@@ -119,13 +138,14 @@ type CallSpec<K extends string> = {
   artifact?: ArtifactReferenceV1;
   revisionId?: MutationRequestV1['expectedRevisionId'];
   retryKind: 'read' | 'mutation';
-  profile?: 'v1' | 'document-v2';
+  profile?: 'v1' | 'document-v2' | 'document-v3';
 };
 
 const SUCCESS_BODY_LIMIT = 2_097_152;
 const ERROR_BODY_LIMIT = 65_536;
 const DOCUMENT_MEDIA_TYPE = 'application/vnd.sceneboard.document+json;version=2';
-const TOKEN_PATTERN = /^lcbg_v1\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$/;
+const DOCUMENT_MEDIA_TYPE_V3 = 'application/vnd.sceneboard.document+json;version=3';
+const TOKEN_PATTERN = /^(?:lcbg_v1|sbk_v1)\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$/;
 
 const localFailure = <K extends string>(
   error: BoardSdkHttpLocalErrorV1,
@@ -259,6 +279,31 @@ export class BoardSdkHttpClient {
     ) as Promise<BoardSdkDocumentReadHttpResultV2<'board.get'>>;
   }
 
+  getDocumentBoardV3(
+    request: OperationRequest<'board.get'>,
+    signal?: AbortSignal,
+  ): Promise<BoardSdkDocumentReadHttpResultV2<'board.get'>> {
+    const parsed = this.#operation(request, 'board.get');
+    return this.#call(
+      {
+        method: 'GET',
+        routeTemplate: '/api/v1/boards/:boardId',
+        path: `/api/v1/boards/${parsed.boardId}`,
+        query: new URLSearchParams({
+          requestId: parsed.requestId,
+          documentSchemaVersion: '3',
+        }),
+        body: null,
+        requestId: parsed.requestId,
+        resultType: 'board.get',
+        boardId: parsed.boardId,
+        retryKind: 'read',
+        profile: 'document-v3',
+      },
+      signal,
+    ) as Promise<BoardSdkDocumentReadHttpResultV2<'board.get'>>;
+  }
+
   createBoard(
     request: OperationRequest<'board.create'>,
     signal?: AbortSignal,
@@ -358,6 +403,32 @@ export class BoardSdkHttpClient {
     ) as Promise<BoardSdkDocumentHttpResultV2>;
   }
 
+  mutateDocumentV3(
+    request: MutationRequestV3 & {
+      command: Extract<MutationRequestV3['command'], { type: 'document.replace' }>;
+    },
+    signal?: AbortSignal,
+  ): Promise<BoardSdkDocumentHttpResultV3> {
+    const parsed = MutationRequestParserV3.parse(request);
+    if (!parsed.ok || parsed.data.value.command.type !== 'document.replace')
+      throw new TypeError('invalid document.replace V3 request');
+    return this.#call(
+      {
+        method: 'POST',
+        routeTemplate: '/api/v1/boards/:boardId/mutations',
+        path: `/api/v1/boards/${parsed.data.value.boardId}/mutations`,
+        query: new URLSearchParams({ documentSchemaVersion: '3' }),
+        body: parsed.data.canonicalBytes,
+        requestId: parsed.data.value.requestId,
+        resultType: 'document.replace',
+        boardId: parsed.data.value.boardId,
+        retryKind: 'mutation',
+        profile: 'document-v3',
+      },
+      signal,
+    ) as Promise<BoardSdkDocumentHttpResultV3>;
+  }
+
   restoreRevision(
     request: MutationRequestV1 & {
       command: Extract<MutationRequestV1['command'], { type: 'scene.restore' }>;
@@ -415,6 +486,34 @@ export class BoardSdkHttpClient {
     );
   }
 
+  listDocumentHistoryV3(
+    request: OperationRequest<'history.list'>,
+    signal?: AbortSignal,
+  ): Promise<BoardSdkDocumentReadHttpResultV2<'history.list'>> {
+    const parsed = this.#operation(request, 'history.list');
+    const query = new URLSearchParams({
+      requestId: parsed.requestId,
+      limit: String(parsed.limit),
+      documentSchemaVersion: '3',
+    });
+    if (parsed.cursor !== null) query.set('cursor', parsed.cursor);
+    return this.#call(
+      {
+        method: 'GET',
+        routeTemplate: '/api/v1/boards/:boardId/revisions',
+        path: `/api/v1/boards/${parsed.boardId}/revisions`,
+        query,
+        body: null,
+        requestId: parsed.requestId,
+        resultType: 'history.list',
+        boardId: parsed.boardId,
+        retryKind: 'read',
+        profile: 'document-v3',
+      },
+      signal,
+    ) as Promise<BoardSdkDocumentReadHttpResultV2<'history.list'>>;
+  }
+
   getHistory(
     request: OperationRequest<'history.get'>,
     signal?: AbortSignal,
@@ -455,6 +554,32 @@ export class BoardSdkHttpClient {
         revisionId: parsed.revisionId,
         retryKind: 'read',
         profile: 'document-v2',
+      },
+      signal,
+    ) as Promise<BoardSdkDocumentReadHttpResultV2<'history.get'>>;
+  }
+
+  getDocumentHistoryV3(
+    request: OperationRequest<'history.get'>,
+    signal?: AbortSignal,
+  ): Promise<BoardSdkDocumentReadHttpResultV2<'history.get'>> {
+    const parsed = this.#operation(request, 'history.get');
+    return this.#call(
+      {
+        method: 'GET',
+        routeTemplate: '/api/v1/boards/:boardId/revisions/:revisionId',
+        path: `/api/v1/boards/${parsed.boardId}/revisions/${parsed.revisionId}`,
+        query: new URLSearchParams({
+          requestId: parsed.requestId,
+          documentSchemaVersion: '3',
+        }),
+        body: null,
+        requestId: parsed.requestId,
+        resultType: 'history.get',
+        boardId: parsed.boardId,
+        revisionId: parsed.revisionId,
+        retryKind: 'read',
+        profile: 'document-v3',
       },
       signal,
     ) as Promise<BoardSdkDocumentReadHttpResultV2<'history.get'>>;
@@ -616,7 +741,11 @@ export class BoardSdkHttpClient {
                 ? {}
                 : {
                     'Content-Type':
-                      spec.profile === 'document-v2' ? DOCUMENT_MEDIA_TYPE : 'application/json',
+                      spec.profile === 'document-v3'
+                        ? DOCUMENT_MEDIA_TYPE_V3
+                        : spec.profile === 'document-v2'
+                          ? DOCUMENT_MEDIA_TYPE
+                          : 'application/json',
                   }),
             },
             ...(spec.body === null ? {} : { body: spec.body.slice().buffer as ArrayBuffer }),
@@ -652,7 +781,7 @@ export class BoardSdkHttpClient {
         }
         const cap =
           response.status >= 200 && response.status < 300
-            ? spec.profile === 'document-v2'
+            ? spec.profile === 'document-v2' || spec.profile === 'document-v3'
               ? BOARD_DOCUMENT_LIMITS_V2.maxDocumentEnvelopeBytes
               : SUCCESS_BODY_LIMIT
             : ERROR_BODY_LIMIT;
@@ -683,30 +812,44 @@ export class BoardSdkHttpClient {
           });
         }
         const parsed =
-          spec.profile === 'document-v2' && spec.resultType === 'document.replace'
-            ? parseBoardDocumentHttpResultV2(bytes, {
+          spec.profile === 'document-v3' && spec.resultType === 'document.replace'
+            ? parseBoardDocumentHttpResultV3(bytes, {
                 status: response.status,
                 requestId: spec.requestId,
                 boardId: spec.boardId as BoardId,
               })
-            : spec.profile === 'document-v2'
-              ? parseBoardOperationHttpResultV2(bytes, {
+            : spec.profile === 'document-v3'
+              ? parseBoardOperationHttpResultV3(bytes, {
                   status: response.status,
                   requestId: spec.requestId,
                   resultType: spec.resultType as BoardOperationResultDataV1['type'],
                   ...(spec.boardId === undefined ? {} : { boardId: spec.boardId }),
                   ...(spec.revisionId === undefined ? {} : { revisionId: spec.revisionId }),
                 })
-              : parseBoardHttpResultV1(bytes, {
-                  status: response.status,
-                  requestId: spec.requestId,
-                  resultType: spec.resultType as
-                    | BoardOperationResultDataV1['type']
-                    | MutationResultV1['result']['type'],
-                  ...(spec.boardId === undefined ? {} : { boardId: spec.boardId }),
-                  ...(spec.artifact === undefined ? {} : { artifact: spec.artifact }),
-                  ...(spec.revisionId === undefined ? {} : { revisionId: spec.revisionId }),
-                });
+              : spec.profile === 'document-v2' && spec.resultType === 'document.replace'
+                ? parseBoardDocumentHttpResultV2(bytes, {
+                    status: response.status,
+                    requestId: spec.requestId,
+                    boardId: spec.boardId as BoardId,
+                  })
+                : spec.profile === 'document-v2'
+                  ? parseBoardOperationHttpResultV2(bytes, {
+                      status: response.status,
+                      requestId: spec.requestId,
+                      resultType: spec.resultType as BoardOperationResultDataV1['type'],
+                      ...(spec.boardId === undefined ? {} : { boardId: spec.boardId }),
+                      ...(spec.revisionId === undefined ? {} : { revisionId: spec.revisionId }),
+                    })
+                  : parseBoardHttpResultV1(bytes, {
+                      status: response.status,
+                      requestId: spec.requestId,
+                      resultType: spec.resultType as
+                        | BoardOperationResultDataV1['type']
+                        | MutationResultV1['result']['type'],
+                      ...(spec.boardId === undefined ? {} : { boardId: spec.boardId }),
+                      ...(spec.artifact === undefined ? {} : { artifact: spec.artifact }),
+                      ...(spec.revisionId === undefined ? {} : { revisionId: spec.revisionId }),
+                    });
         if (!parsed.ok)
           return localFailure({
             code: 'RESPONSE_INVALID',

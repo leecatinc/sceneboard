@@ -473,6 +473,7 @@ export function BoardPairingControl({
           pairing={displayPairing}
           matchingCode={created?.pairingId === displayPairing.pairingId ? created.code : null}
           boards={boards}
+          preferredBoardId={boardId}
           busy={busy}
           error={error}
           connectionGrantCeiling={connectionGrantCeiling}

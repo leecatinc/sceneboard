@@ -31,6 +31,7 @@ test('renames one active owner board without creating a scene revision', async (
     userPk: 1n,
     sessionPk: 2n,
     familyPublicId: 'family_1',
+    isBrowserCredential: true,
   };
   const policy: BoardAccessPolicy = {
     withAuthorizedBoardTransaction: async (input, apply) => {

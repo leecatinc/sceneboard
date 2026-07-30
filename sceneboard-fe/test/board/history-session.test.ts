@@ -33,3 +33,17 @@ test('list settlements normalize in the SDK before entering dropdown state', () 
   assert.match(source, /status: 'error'/);
   assert.match(source, /announcement: 'history_unavailable'/);
 });
+
+test('retry lifecycle is deterministic: loading disables repeat activation and reuses the failed cursor once', () => {
+  // Retry cannot be repeatedly activated while loading or loading more (an in-flight retry already clears failedCursor to null).
+  assert.match(
+    source,
+    /historyDropdown\.status === 'loading' \|\| historyDropdown\.status === 'loading_more'/,
+  );
+  // The failed cursor is the retry target.
+  assert.match(source, /const cursor = historyDropdown\.failedCursor/);
+  // On success the error state is replaced with ready and the announcement is cleared.
+  assert.match(source, /status: 'ready'/);
+  assert.match(source, /failedCursor: null/);
+  assert.match(source, /announcement: null/);
+});

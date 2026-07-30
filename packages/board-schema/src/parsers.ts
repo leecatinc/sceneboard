@@ -12,20 +12,24 @@ import {
   BoardCapabilitiesSchema,
   BoardCapabilitiesSchemaV1,
   BoardCapabilitiesSchemaV2,
+  BoardCapabilitiesSchemaV3,
   BoardSessionAccessSchemaV1,
 } from './capabilities.js';
 import { CLIENT_GRANT_CAPABILITIES_V1, NODE_TYPES_V1 } from './catalogs.js';
 import {
   MutationEnvelopeSchemaV1,
   MutationEnvelopeSchemaV2,
+  MutationEnvelopeSchemaV3,
   MutationRequestSchemaV1,
   MutationRequestSchemaV2,
+  MutationRequestSchemaV3,
   MutationResultSchemaV1,
   MutationResultSchemaV2,
+  MutationResultSchemaV3,
   type MutationEnvelopeV1,
   type MutationFingerprintInputV1,
 } from './commands.js';
-import { BoardDocumentSchemaV2 } from './documents.js';
+import { BoardDocumentSchemaV2, BoardDocumentSchemaV3 } from './documents.js';
 import { BoardEventEnvelopeSchemaV1, BoardEventEnvelopeSchemaV2 } from './events.js';
 import type { BoardError, BoardErrorV1 } from './errors.js';
 import { BoardErrorSchema, BoardErrorSchemaV1 } from './errors.js';
@@ -124,7 +128,12 @@ import {
   type KernelResultV1,
 } from './parser-kernel.js';
 import { BoardNodeSchemaV1, SceneSchemaV1 } from './scene.js';
-import { BoardSnapshotSchema, BoardSnapshotSchemaV1, BoardSnapshotSchemaV2 } from './snapshots.js';
+import {
+  BoardSnapshotSchema,
+  BoardSnapshotSchemaV1,
+  BoardSnapshotSchemaV2,
+  BoardSnapshotSchemaV3,
+} from './snapshots.js';
 
 export type CanonicalContractValueV1<T> = { value: T; canonicalBytes: Uint8Array };
 export type BoardParseResultV1<T> =
@@ -366,7 +375,10 @@ const mapSchemaIssue = (input: unknown, issue: KernelIssueV1, kind: ParserKind):
         | 'limit',
     );
   const knownDocument =
-    kind === 'document' || findDocumentValues(input).some(({ value }) => value.schemaVersion === 2);
+    kind === 'document' ||
+    findDocumentValues(input).some(
+      ({ value }) => value.schemaVersion === 2 || value.schemaVersion === 3,
+    );
   if (knownDocument) {
     if (issue.path.at(-1) === 'displayMode')
       return invalidDocument(issue.path, 'invalid_display_mode');
@@ -613,12 +625,19 @@ const findDocumentValues = (
   return documents;
 };
 
-const guardDocumentLimits = (input: unknown, kind: ParserKind): BoardError | null => {
+const guardDocumentLimits = (
+  input: unknown,
+  kind: ParserKind,
+  documentSchemaVersions: readonly number[],
+): BoardError | null => {
   const documents = findDocumentValues(input);
   if (kind === 'document' && documents.length === 0 && isRecord(input))
     documents.push({ value: input, path: [] });
   for (const document of documents) {
-    if (document.value.schemaVersion !== 2)
+    if (
+      typeof document.value.schemaVersion !== 'number' ||
+      !documentSchemaVersions.includes(document.value.schemaVersion)
+    )
       return protocolMismatch(1, 'schema_revision', 'document.schemaVersion');
     const canonical = runDecodedKernelV1(document.value);
     if (canonical.ok && canonical.canonicalBytes.byteLength > MAX_DOCUMENT_BYTES)
@@ -689,6 +708,7 @@ const processKernel = <Schema extends z.ZodTypeAny>(
   kernel: KernelResultV1<JsonValue>,
   kind: ParserKind,
   documentProfile = false,
+  documentSchemaVersions: readonly number[] = [2],
 ): BoardParseResult<z.output<Schema>> => {
   if (!kernel.ok) return { ok: false, error: kernelError(kernel.issue, documentProfile) };
   const input = kernel.value;
@@ -705,7 +725,7 @@ const processKernel = <Schema extends z.ZodTypeAny>(
     };
   const sceneIssue = guardSceneLimits(input, kind);
   if (sceneIssue) return { ok: false, error: sceneIssue };
-  const documentIssue = guardDocumentLimits(input, kind);
+  const documentIssue = guardDocumentLimits(input, kind, documentSchemaVersions);
   if (documentIssue) return { ok: false, error: documentIssue };
   const hitlByteIssue = guardHitlResponseBytes(input, kind);
   if (hitlByteIssue) return { ok: false, error: hitlByteIssue };
@@ -718,14 +738,17 @@ const createParser = <Schema extends z.ZodTypeAny>(
   schema: Schema,
   kind: ParserKind = 'generic',
   documentProfile = false,
+  documentSchemaVersions: readonly number[] = [2],
 ): BoardContractParser<z.output<Schema>> => ({
-  parse: (input) => processKernel(schema, runDecodedKernelV1(input), kind, documentProfile),
+  parse: (input) =>
+    processKernel(schema, runDecodedKernelV1(input), kind, documentProfile, documentSchemaVersions),
   parseBytes: (bytes) =>
     processKernel(
       schema,
       documentProfile ? runDocumentBytesKernelV2(bytes) : runBytesKernelV1(bytes),
       kind,
       documentProfile,
+      documentSchemaVersions,
     ),
 });
 
@@ -808,8 +831,18 @@ export const QuotedSha256EtagParserV1 = createParserV1(QuotedSha256EtagSchemaV1)
 export const PublicShareContextParserV1 = createParserV1(PublicShareContextSchemaV1);
 export const PublicArtifactSummaryParserV1 = createParserV1(PublicArtifactSummarySchemaV1);
 export const PublicMediaResourceParserV1 = createParserV1(PublicMediaResourceSchemaV1);
-export const PublicBoardProjectionParserV1 = createParserV1(PublicBoardProjectionSchemaV1);
-export const PublicShareStateParserV1 = createParserV1(PublicShareStateSchemaV1);
+export const PublicBoardProjectionParserV1 = createParser(
+  PublicBoardProjectionSchemaV1,
+  'generic',
+  true,
+  [2, 3],
+);
+export const PublicShareStateParserV1 = createParser(
+  PublicShareStateSchemaV1,
+  'generic',
+  true,
+  [2, 3],
+);
 export const ShareAnalyticsContextRequestParserV1 = createParserV1(
   ShareAnalyticsContextRequestSchemaV1,
 );
@@ -835,18 +868,41 @@ export const BoardOperationAuthorizationMatrixParserV1 = createParserV1(
 export const BoardErrorParserV1 = createParserV1(BoardErrorSchemaV1);
 
 export const BoardDocumentParserV2 = createParser(BoardDocumentSchemaV2, 'document', true);
+export const BoardDocumentParserV3 = createParser(BoardDocumentSchemaV3, 'document', true, [3]);
 export const MutationRequestParserV2 = createParser(MutationRequestSchemaV2, 'mutation', true);
 export const MutationEnvelopeParserV2 = createParser(MutationEnvelopeSchemaV2, 'mutation', true);
 export const MutationResultParserV2 = createParser(MutationResultSchemaV2, 'mutation', true);
+export const MutationRequestParserV3 = createParser(MutationRequestSchemaV3, 'mutation', true, [3]);
+export const MutationEnvelopeParserV3 = createParser(
+  MutationEnvelopeSchemaV3,
+  'mutation',
+  true,
+  [3],
+);
+export const MutationResultParserV3 = createParser(MutationResultSchemaV3, 'mutation', true, [3]);
 export const BoardOperationResultParserV2 = createParser(
   BoardOperationResultSchemaV1,
   'operation',
   true,
 );
+export const BoardOperationResultParserV3 = createParser(
+  BoardOperationResultSchemaV1,
+  'operation',
+  true,
+  [3],
+);
 export const BoardSnapshotParserV2 = createParser(BoardSnapshotSchemaV2, 'document', true);
-export const BoardSnapshotParser = createParser(BoardSnapshotSchema, 'generic', true);
+export const BoardSnapshotParserV3 = createParser(BoardSnapshotSchemaV3, 'document', true, [3]);
+export const BoardSnapshotParser = createParser(BoardSnapshotSchema, 'generic', true, [2, 3]);
 export const BoardEventEnvelopeParserV2 = createParser(BoardEventEnvelopeSchemaV2, 'event', true);
+export const BoardEventEnvelopeParserV3 = createParser(
+  BoardEventEnvelopeSchemaV2,
+  'event',
+  true,
+  [3],
+);
 export const BoardCapabilitiesParserV2 = createParser(BoardCapabilitiesSchemaV2);
+export const BoardCapabilitiesParserV3 = createParser(BoardCapabilitiesSchemaV3);
 export const BoardCapabilitiesParser = createParser(BoardCapabilitiesSchema);
 export const BoardErrorParser = createParser(BoardErrorSchema);
 

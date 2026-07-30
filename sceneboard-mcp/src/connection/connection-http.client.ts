@@ -2,6 +2,7 @@ import {
   BoardCapabilitiesParserV1,
   BoardErrorParserV1,
   BoardOperationResultParserV1,
+  ACCOUNT_API_KEY_SCOPES_V1,
   CLIENT_GRANT_SCOPE_ORDER_V1,
   GlobalIdStringParserV1,
   GrantIdParserV1,
@@ -10,17 +11,18 @@ import {
   type BoardErrorV1,
   type BoardId,
   type BoardSummaryV1,
+  type AccountApiKeyScopeV1,
   type ClientGrantCapabilityV1,
   type GrantId,
   type PrincipalId,
 } from '@sceneboard/board-schema';
 import { BoardSdkHttpClient } from '@sceneboard/board-sdk/http';
 
-const TOKEN_PATTERN = /^lcbg_v1\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$/;
+const TOKEN_PATTERN = /^(?:lcbg_v1|sbk_v1)\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$/;
 const TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 const LIFECYCLE_PERMISSIONS = ['board.create', 'board.archive'] as const;
 
-export type SafeAuthorizedConnectionV1 = {
+export type SafePairingAuthorizedConnectionV1 = {
   principal: {
     principalKind: 'mcp_client';
     principalId: PrincipalId;
@@ -52,6 +54,33 @@ export type SafeAuthorizedConnectionV1 = {
     api: 'v1';
   };
 };
+
+export type SafeApiKeyAuthorizedConnectionV1 = {
+  principal: {
+    principalKind: 'service';
+    principalId: PrincipalId;
+    grantId: null;
+  };
+  credential: {
+    keyPublicId: PrincipalId;
+    scopes: AccountApiKeyScopeV1[];
+    status: 'active';
+    expiresAt: string;
+  };
+  selectedBoard: null | {
+    board: BoardSummaryV1;
+    capabilities: BoardCapabilitiesV1;
+  };
+  versions: {
+    mcpServer: '0.0.0';
+    boardProtocol: '1.0.0';
+    api: 'v1';
+  };
+};
+
+export type SafeAuthorizedConnectionV1 =
+  | SafePairingAuthorizedConnectionV1
+  | SafeApiKeyAuthorizedConnectionV1;
 
 export type ConnectionHttpLocalErrorV1 =
   | { code: 'CANCELLED'; retryable: false }
@@ -129,11 +158,39 @@ const parseGlobalId = (value: unknown): string | null => {
   return parsed.ok ? parsed.data.value : null;
 };
 
-const parseConnection = (
+const parseBoardAndCapabilities = (
+  board: unknown,
+  capabilities: unknown,
+  requestId: string,
+  boardId: string,
+): { board: BoardSummaryV1; capabilities: BoardCapabilitiesV1 } | null => {
+  const boardResult = BoardOperationResultParserV1.parse({
+    protocolVersion: 1,
+    type: 'board.operation.result',
+    requestId,
+    replayed: false,
+    result: { type: 'board.list', boards: [board], nextCursor: null },
+  });
+  const parsedCapabilities = BoardCapabilitiesParserV1.parse(capabilities);
+  if (
+    !boardResult.ok ||
+    boardResult.data.value.result.type !== 'board.list' ||
+    !parsedCapabilities.ok
+  )
+    return null;
+  const parsedBoard = boardResult.data.value.result.boards[0];
+  if (parsedBoard === undefined || parsedBoard.boardId !== boardId) return null;
+  return {
+    board: parsedBoard,
+    capabilities: parsedCapabilities.data.value,
+  };
+};
+
+const parsePairingConnection = (
   value: unknown,
   requestId: string,
   boardId: string | null,
-): SafeAuthorizedConnectionV1 | null => {
+): SafePairingAuthorizedConnectionV1 | null => {
   const root = exactRecord(value, ['principal', 'grant', 'selectedBoard', 'versions']);
   if (root === null) return null;
   const principal = exactRecord(root.principal, ['principalKind', 'principalId', 'grantId']);
@@ -207,7 +264,7 @@ const parseConnection = (
     previousBoardId = parsed;
     parsedBoardIds.push(parsed as BoardId);
   }
-  let selectedBoard: SafeAuthorizedConnectionV1['selectedBoard'] = null;
+  let selectedBoard: SafePairingAuthorizedConnectionV1['selectedBoard'] = null;
   if (root.selectedBoard !== null) {
     if (boardId === null) return null;
     const selected = exactRecord(root.selectedBoard, ['board', 'capabilities', 'browserPresence']);
@@ -216,22 +273,15 @@ const parseConnection = (
       !['online', 'offline', 'unknown'].includes(String(selected.browserPresence))
     )
       return null;
-    const boardResult = BoardOperationResultParserV1.parse({
-      protocolVersion: 1,
-      type: 'board.operation.result',
+    const projection = parseBoardAndCapabilities(
+      selected.board,
+      selected.capabilities,
       requestId,
-      replayed: false,
-      result: { type: 'board.list', boards: [selected.board], nextCursor: null },
-    });
-    const capabilities = BoardCapabilitiesParserV1.parse(selected.capabilities);
-    if (!boardResult.ok || boardResult.data.value.result.type !== 'board.list' || !capabilities.ok)
-      return null;
-    const board = boardResult.data.value.result.boards[0];
-    if (board === undefined || board.boardId !== boardId || !parsedBoardIds.includes(board.boardId))
-      return null;
+      boardId,
+    );
+    if (projection === null || !parsedBoardIds.includes(projection.board.boardId)) return null;
     selectedBoard = {
-      board,
-      capabilities: capabilities.data.value,
+      ...projection,
       browserPresence: selected.browserPresence as 'online' | 'offline' | 'unknown',
     };
   } else if (boardId !== null) return null;
@@ -260,6 +310,71 @@ const parseConnection = (
     versions: { mcpServer: '0.0.0', boardProtocol: '1.0.0', api: 'v1' },
   };
 };
+
+const parseApiKeyConnection = (
+  value: unknown,
+  requestId: string,
+  boardId: string | null,
+): SafeApiKeyAuthorizedConnectionV1 | null => {
+  const root = exactRecord(value, ['principal', 'credential', 'selectedBoard', 'versions']);
+  if (root === null) return null;
+  const principal = exactRecord(root.principal, ['principalKind', 'principalId', 'grantId']);
+  const credential = exactRecord(root.credential, ['keyPublicId', 'scopes', 'status', 'expiresAt']);
+  const versions = exactRecord(root.versions, ['mcpServer', 'boardProtocol', 'api']);
+  if (
+    principal === null ||
+    credential === null ||
+    versions === null ||
+    principal.principalKind !== 'service' ||
+    principal.grantId !== null ||
+    credential.status !== 'active' ||
+    !validTimestamp(credential.expiresAt) ||
+    versions.mcpServer !== '0.0.0' ||
+    versions.boardProtocol !== '1.0.0' ||
+    versions.api !== 'v1'
+  )
+    return null;
+  const principalId = PrincipalIdParserV1.parse(principal.principalId);
+  const keyPublicId = PrincipalIdParserV1.parse(credential.keyPublicId);
+  const scopes = exactCatalogSubset(credential.scopes, ACCOUNT_API_KEY_SCOPES_V1, 1);
+  if (!principalId.ok || !keyPublicId.ok || scopes === null) return null;
+  let selectedBoard: SafeApiKeyAuthorizedConnectionV1['selectedBoard'] = null;
+  if (root.selectedBoard !== null) {
+    if (boardId === null) return null;
+    const selected = exactRecord(root.selectedBoard, ['board', 'capabilities']);
+    if (selected === null) return null;
+    selectedBoard = parseBoardAndCapabilities(
+      selected.board,
+      selected.capabilities,
+      requestId,
+      boardId,
+    );
+    if (selectedBoard === null) return null;
+  } else if (boardId !== null) return null;
+  return {
+    principal: {
+      principalKind: 'service',
+      principalId: principalId.data.value,
+      grantId: null,
+    },
+    credential: {
+      keyPublicId: keyPublicId.data.value,
+      scopes,
+      status: 'active',
+      expiresAt: credential.expiresAt,
+    },
+    selectedBoard,
+    versions: { mcpServer: '0.0.0', boardProtocol: '1.0.0', api: 'v1' },
+  };
+};
+
+const parseConnection = (
+  value: unknown,
+  requestId: string,
+  boardId: string | null,
+): SafeAuthorizedConnectionV1 | null =>
+  parsePairingConnection(value, requestId, boardId) ??
+  parseApiKeyConnection(value, requestId, boardId);
 
 const local = (error: ConnectionHttpLocalErrorV1): ConnectionHttpResultV1 => ({
   ok: false,

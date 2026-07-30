@@ -3,6 +3,7 @@ import {
   deriveSceneRecipeNodeId,
   stringifyCanonicalSceneRecipeJson,
 } from './scene-recipe-core.mjs';
+import { renderSlideDeck, SLIDE_DECK_PROGRAM } from './scene-artifact-slide-deck.mjs';
 
 export const SCENE_ARTIFACT_RECIPE_VERSION = 1;
 export const SCENE_ARTIFACT_TEMPLATE_VERSION = 1;
@@ -12,6 +13,7 @@ export const SCENE_ARTIFACT_TEMPLATE_NAMES_V1 = Object.freeze([
   'demo-showcase',
   'metric-story',
   'process-flow',
+  'slide-deck',
   'threejs-showcase',
   'timeline',
   'webgl-showcase',
@@ -45,6 +47,15 @@ export const SCENE_ARTIFACT_LIMITS_V1 = deepFreeze({
     seriesLabelMaxScalars: 60,
     unitMaxScalars: 20,
     pointLabelMaxScalars: 40,
+    deckLabelMaxScalars: 80,
+    slideKeyMaxScalars: 64,
+    slideEyebrowMaxScalars: 48,
+    slideTitleMaxScalars: 120,
+    slideSubtitleMaxScalars: 220,
+    slideLabelMaxScalars: 72,
+    slideDetailMaxScalars: 180,
+    slideValueMaxScalars: 48,
+    slideClosingLineMaxScalars: 180,
   },
   size: { widthMin: 320, widthMax: 1920, heightMin: 240, heightMax: 1080 },
   collections: {
@@ -62,6 +73,9 @@ export const SCENE_ARTIFACT_LIMITS_V1 = deepFreeze({
     currentEventsMax: 1,
     dataPointsMin: 2,
     dataPointsMax: 12,
+    slidesMin: 1,
+    slidesMax: 20,
+    slideItemsMax: 7,
   },
   numbers: { dataValueMin: -1000000000, dataValueMax: 1000000000 },
   identifiers: {
@@ -86,7 +100,7 @@ export const SCENE_ARTIFACT_LIMITS_V1 = deepFreeze({
     cssRulesMax: 1024,
     cssDeclarationsMax: 16384,
   },
-  catalog: { descriptorCount: 8, descriptorMaxBytes: 4096 },
+  catalog: { descriptorCount: 9, descriptorMaxBytes: 4096 },
   motion: {
     subtleOpacityStart: 0.92,
     subtleDurationMs: 280,
@@ -168,6 +182,9 @@ const escapeHtml = (value) =>
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
+
+export const shouldUseSceneSlideDeck = (request) =>
+  typeof request === 'string' && (request.includes('발표자료') || /ppt/i.test(request));
 
 export const stringifyCanonicalSceneArtifactJson = (value) => {
   try {
@@ -342,6 +359,99 @@ const validateContent = (recipe) => {
     if (!['garden-cat', 'space-cat', 'neon-cat'].includes(content.scene))
       fail('INVALID_VALUE', ['content', 'scene']);
     if (!['orbit', 'still'].includes(content.camera)) fail('INVALID_VALUE', ['content', 'camera']);
+  } else if (template === 'slide-deck') {
+    closed(content, ['deckLabel', 'slides'], ['content']);
+    text(content.deckLabel, 80, ['content', 'deckLabel']);
+    array(content.slides, 1, 20, ['content', 'slides']);
+    const keys = new Set();
+    const common = ['key', 'type', 'eyebrow', 'title', 'subtitle'];
+    const fields = {
+      cover: [...common, 'badges', 'highlights'],
+      problem: [...common, 'items'],
+      process: [...common, 'steps'],
+      'business-model': [...common, 'offers'],
+      metrics: [...common, 'metrics'],
+      evidence: [...common, 'metrics'],
+      timeline: [...common, 'events'],
+      closing: [...common, 'actions', 'closingLine'],
+    };
+    const validateLabelDetail = (item, path) => {
+      closed(item, ['label', 'detail'], path);
+      text(item.label, 72, [...path, 'label']);
+      text(item.detail, 180, [...path, 'detail']);
+    };
+    content.slides.forEach((slide, index) => {
+      const path = ['content', 'slides', index];
+      if (!object(slide)) fail('INVALID_ARTIFACT_RECIPE', path);
+      const type = slide.type;
+      if (!Object.hasOwn(fields, type)) fail('INVALID_VALUE', [...path, 'type']);
+      closed(slide, fields[type], path);
+      if (
+        typeof slide.key !== 'string' ||
+        !/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(slide.key) ||
+        keys.has(slide.key)
+      )
+        fail('INVALID_RELATION', [...path, 'key']);
+      keys.add(slide.key);
+      text(slide.eyebrow, 48, [...path, 'eyebrow'], true);
+      text(slide.title, 120, [...path, 'title']);
+      text(slide.subtitle, 220, [...path, 'subtitle'], true);
+      if (type === 'cover') {
+        array(slide.badges, 1, 4, [...path, 'badges']);
+        slide.badges.forEach((item, itemIndex) => text(item, 48, [...path, 'badges', itemIndex]));
+        array(slide.highlights, 1, 3, [...path, 'highlights']);
+        slide.highlights.forEach((item, itemIndex) =>
+          validateLabelDetail(item, [...path, 'highlights', itemIndex]),
+        );
+      } else if (type === 'problem') {
+        array(slide.items, 2, 4, [...path, 'items']);
+        slide.items.forEach((item, itemIndex) =>
+          validateLabelDetail(item, [...path, 'items', itemIndex]),
+        );
+      } else if (type === 'process') {
+        array(slide.steps, 3, 6, [...path, 'steps']);
+        slide.steps.forEach((item, itemIndex) =>
+          validateLabelDetail(item, [...path, 'steps', itemIndex]),
+        );
+      } else if (type === 'business-model') {
+        array(slide.offers, 2, 3, [...path, 'offers']);
+        slide.offers.forEach((offer, itemIndex) => {
+          const offerPath = [...path, 'offers', itemIndex];
+          closed(offer, ['label', 'price', 'detail', 'features'], offerPath);
+          text(offer.label, 72, [...offerPath, 'label']);
+          text(offer.price, 48, [...offerPath, 'price']);
+          text(offer.detail, 180, [...offerPath, 'detail']);
+          array(offer.features, 1, 4, [...offerPath, 'features']);
+          offer.features.forEach((feature, featureIndex) =>
+            text(feature, 100, [...offerPath, 'features', featureIndex]),
+          );
+        });
+      } else if (type === 'metrics' || type === 'evidence') {
+        array(slide.metrics, 2, 4, [...path, 'metrics']);
+        slide.metrics.forEach((metric, itemIndex) => {
+          const metricPath = [...path, 'metrics', itemIndex];
+          closed(metric, ['value', 'label', 'detail'], metricPath);
+          text(metric.value, 48, [...metricPath, 'value']);
+          text(metric.label, 72, [...metricPath, 'label']);
+          text(metric.detail, 180, [...metricPath, 'detail']);
+        });
+      } else if (type === 'timeline') {
+        array(slide.events, 3, 7, [...path, 'events']);
+        slide.events.forEach((event, itemIndex) => {
+          const eventPath = [...path, 'events', itemIndex];
+          closed(event, ['date', 'label', 'detail'], eventPath);
+          text(event.date, 48, [...eventPath, 'date']);
+          text(event.label, 72, [...eventPath, 'label']);
+          text(event.detail, 180, [...eventPath, 'detail']);
+        });
+      } else {
+        array(slide.actions, 1, 3, [...path, 'actions']);
+        slide.actions.forEach((item, itemIndex) =>
+          validateLabelDetail(item, [...path, 'actions', itemIndex]),
+        );
+        text(slide.closingLine, 180, [...path, 'closingLine']);
+      }
+    });
   } else {
     closed(content, ['seriesLabel', 'unit', 'points'], ['content']);
     text(content.seriesLabel, 60, ['content', 'seriesLabel']);
@@ -396,8 +506,25 @@ export const validateSceneArtifactRecipe = (value) => {
     value.size.height > 1080
   )
     fail('INVALID_VALUE', ['size']);
+  if (
+    value.template === 'slide-deck' &&
+    (value.theme !== 'dark' || value.size.width !== 1920 || value.size.height !== 1080)
+  )
+    fail('INVALID_RELATION', ['size']);
   if (!SCENE_ARTIFACT_MOTION_LEVELS_V1.includes(value.motion)) fail('INVALID_VALUE', ['motion']);
   validateContent(value);
+  const userTextScalars = [];
+  const collectText = (entry) => {
+    if (typeof entry === 'string') userTextScalars.push(scalars(entry));
+    else if (Array.isArray(entry)) entry.forEach(collectText);
+    else if (object(entry)) Object.values(entry).forEach(collectText);
+  };
+  collectText(value);
+  if (
+    userTextScalars.reduce((total, count) => total + count, 0) >
+    SCENE_ARTIFACT_LIMITS_V1.json.maxUserTextScalars
+  )
+    fail('LIMIT_EXCEEDED', ['content']);
   return canonicalizeSceneRecipeJson(value);
 };
 
@@ -619,6 +746,7 @@ const render = (recipe) => {
       javascript: DEMO_SHOWCASE_PROGRAM,
       requestedCapabilities: [],
     };
+  else if (recipe.template === 'slide-deck') return renderSlideDeck(recipe);
   else if (recipe.template === 'threejs-showcase')
     return {
       artifactId: null,
@@ -684,6 +812,7 @@ export const auditSceneArtifactSource = (source) => {
     (source.javascript !== null &&
       source.javascript !== CANVAS_PROGRAM &&
       source.javascript !== DEMO_SHOWCASE_PROGRAM &&
+      source.javascript !== SLIDE_DECK_PROGRAM &&
       source.javascript !== THREEJS_SHOWCASE_PROGRAM &&
       source.javascript !== THREEJS_SHOWCASE_PROGRAM_PREMIUM &&
       source.javascript !== WEBGL_SHOWCASE_PROGRAM)
@@ -704,6 +833,9 @@ export const auditSceneArtifactSource = (source) => {
     fail('UNSAFE_ARTIFACT_SOURCE', ['source', 'javascript']);
   const hasDemoShowcase = source.html.includes('data-sb-demo-showcase="v1"');
   if ((source.javascript === DEMO_SHOWCASE_PROGRAM) !== hasDemoShowcase)
+    fail('UNSAFE_ARTIFACT_SOURCE', ['source', 'javascript']);
+  const hasSlideDeck = source.html.includes('data-sb-slide-deck="v1"');
+  if ((source.javascript === SLIDE_DECK_PROGRAM) !== hasSlideDeck)
     fail('UNSAFE_ARTIFACT_SOURCE', ['source', 'javascript']);
   const hasWebglShowcase = source.html.includes('data-sb-webgl-showcase="v1"');
   if ((source.javascript === WEBGL_SHOWCASE_PROGRAM) !== hasWebglShowcase)

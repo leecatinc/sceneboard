@@ -20,6 +20,7 @@ export type BoardToolNameV1 =
   | 'board_list'
   | 'board_get'
   | 'board_create'
+  | 'board_rename'
   | 'board_archive'
   | 'board_capabilities_get'
   | 'board_scene_get'
@@ -36,6 +37,7 @@ export type BoardToolNameV1 =
   | 'board_history_list'
   | 'board_history_get'
   | 'board_history_restore'
+  | 'board_export'
   | 'board_artifact_get'
   | 'board_artifact_put'
   | 'board_artifact_stop'
@@ -117,6 +119,19 @@ export type BoardMcpLocalErrorV1 =
       message: string;
       retryable: false;
       details: { incidentId: string };
+    }
+  | {
+      code:
+        | 'LOCAL_EXPORT_UNAVAILABLE'
+        | 'LOCAL_EXPORT_INVALID_PATH'
+        | 'LOCAL_EXPORT_EXISTS'
+        | 'LOCAL_EXPORT_IO'
+        | 'LOCAL_EXPORT_SHORT'
+        | 'LOCAL_EXPORT_CORRUPT'
+        | 'LOCAL_EXPORT_CANCELLED';
+      message: string;
+      retryable: false;
+      details: null;
     };
 
 const GlobalIdSchema = z.string().regex(/^[A-Za-z0-9_-]{1,128}$/);
@@ -138,6 +153,13 @@ const LOCAL_ERROR_CODES_V1 = [
   'BOARD_MCP_LOCAL_FILE_PLATFORM_UNSUPPORTED',
   'BOARD_MCP_LOCAL_FILE_TOO_LARGE',
   'BOARD_MCP_LOCAL_MEDIA_UNSUPPORTED',
+  'LOCAL_EXPORT_UNAVAILABLE',
+  'LOCAL_EXPORT_INVALID_PATH',
+  'LOCAL_EXPORT_EXISTS',
+  'LOCAL_EXPORT_IO',
+  'LOCAL_EXPORT_SHORT',
+  'LOCAL_EXPORT_CORRUPT',
+  'LOCAL_EXPORT_CANCELLED',
   'BOARD_MCP_INTERNAL_ERROR',
 ] as const;
 const GENERIC_LOCAL_ERROR_CODES_V1 = LOCAL_ERROR_CODES_V1.filter(
@@ -194,6 +216,16 @@ const D1_RESULT_TYPES_V1 = {
   sceneboard_media_upload: ['media.ingest.result'],
   sceneboard_media_place: ['document.replace'],
 } as const satisfies Partial<Record<BoardToolNameV1, readonly string[]>>;
+
+const LOCAL_EXPORT_MESSAGES_V1 = Object.freeze({
+  LOCAL_EXPORT_UNAVAILABLE: 'Secure local export is unavailable on this platform',
+  LOCAL_EXPORT_INVALID_PATH: 'Local export path is invalid',
+  LOCAL_EXPORT_EXISTS: 'Local export target already exists',
+  LOCAL_EXPORT_IO: 'Local export could not be published',
+  LOCAL_EXPORT_SHORT: 'Export download ended before completion',
+  LOCAL_EXPORT_CORRUPT: 'Export download or local helper response is invalid',
+  LOCAL_EXPORT_CANCELLED: 'Local export was cancelled',
+} as const);
 
 export const toolOutputSchemaV1 = (
   tool: BoardToolNameV1,
@@ -292,6 +324,27 @@ export const toolOutputSchemaV1 = (
           path: ['result', 'requestId'],
           message: 'request IDs must match',
         });
+      }
+      if (tool === 'board_export') {
+        if (
+          Object.keys(output.result).sort().join('\0') !==
+            ['bytes', 'fileName', 'format'].join('\0') ||
+          (output.result.format !== 'pdf' && output.result.format !== 'pptx') ||
+          !Number.isSafeInteger(output.result.bytes) ||
+          (output.result.bytes as number) < 1 ||
+          (output.result.bytes as number) > 536_870_912 ||
+          typeof output.result.fileName !== 'string' ||
+          output.result.fileName.length < 1 ||
+          output.result.fileName.length > 120 ||
+          /[/\\]/u.test(output.result.fileName) ||
+          output.metadata !== null
+        )
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['result'],
+            message: 'local export result is invalid',
+          });
+        return;
       }
       const expected = D1_RESULT_TYPES_V1[tool as keyof typeof D1_RESULT_TYPES_V1];
       if (expected !== undefined) {
@@ -421,6 +474,26 @@ export const toolOutputSchemaV1 = (
         path: ['error', 'source'],
         message: 'non-pairing tools cannot emit pairing errors',
       });
+    }
+    if (
+      tool === 'board_export' &&
+      output.error?.source === 'mcp' &&
+      typeof output.error.value.code === 'string' &&
+      Object.hasOwn(LOCAL_EXPORT_MESSAGES_V1, output.error.value.code)
+    ) {
+      const code = output.error.value.code as keyof typeof LOCAL_EXPORT_MESSAGES_V1;
+      if (
+        Object.keys(output.error.value).sort().join('\0') !==
+          ['code', 'details', 'message', 'retryable'].join('\0') ||
+        output.error.value.message !== LOCAL_EXPORT_MESSAGES_V1[code] ||
+        output.error.value.retryable !== false ||
+        output.error.value.details !== null
+      )
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['error', 'value'],
+          message: 'local export error is invalid',
+        });
     }
     if (output.result !== undefined || Object.hasOwn(output, 'metadata')) {
       context.addIssue({

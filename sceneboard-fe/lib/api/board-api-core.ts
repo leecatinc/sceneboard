@@ -7,6 +7,7 @@ import {
   HitlInteractionParserV1,
   MutationRequestParserV1,
   MutationRequestParserV2,
+  MutationRequestParserV3,
   canonicalizeJsonV1,
   type ArtifactReferenceV1,
   type BoardId,
@@ -18,8 +19,10 @@ import {
 } from '@sceneboard/board-schema';
 import {
   parseBoardDocumentHttpResultV2,
+  parseBoardDocumentHttpResultV3,
   parseBoardHttpResultV1,
   parseBoardOperationHttpResultV2,
+  parseBoardOperationHttpResultV3,
   type HistoryHttpMetadataV1,
 } from '@sceneboard/board-sdk/http';
 
@@ -28,7 +31,9 @@ import type { AuthoringGenerationBindingV1 } from '../auth/renewal-singleflight'
 import type {
   ApiResult,
   DocumentMutationRequest,
+  DocumentMutationRequestV3,
   DocumentMutationResult,
+  DocumentMutationResultV3,
   HitlCancelAdapterRequest,
   HitlLifecycleResult,
   HitlMutationRequest,
@@ -73,6 +78,7 @@ export class BoardApiTransport {
     path: string,
     request: OperationRequest<K>,
     signal?: AbortSignal,
+    documentSchemaVersion?: 2 | 3,
   ): Promise<
     ApiResult<
       K extends 'history.list' | 'history.get'
@@ -88,7 +94,7 @@ export class BoardApiTransport {
         : {}),
       ...(signal === undefined ? {} : { signal }),
     });
-    return this.decodeOperation(result, request) as ApiResult<
+    return this.decodeOperation(result, request, documentSchemaVersion) as ApiResult<
       K extends 'history.list' | 'history.get'
         ? { result: OperationData<K>; metadata: HistoryHttpMetadataV1 | null }
         : OperationData<K>
@@ -142,6 +148,37 @@ export class BoardApiTransport {
     return { kind: 'ok', value: parsed.value.value.result };
   }
 
+  protected async writeDocumentMutationV3(
+    request: DocumentMutationRequestV3,
+    signal?: AbortSignal,
+  ): Promise<ApiResult<DocumentMutationResultV3>> {
+    const parsedRequest = MutationRequestParserV3.parse(request);
+    if (!parsedRequest.ok || parsedRequest.data.value.command.type !== 'document.replace')
+      throw new TypeError('invalid document.replace V3 request');
+    const csrfToken = this.coordinator.currentSnapshot()?.csrfToken;
+    if (csrfToken === undefined) return { kind: 'reconciliation_required' };
+    const dispatched = await this.coordinator.dispatchShared({
+      path: `/api/v1/boards/${encodeURIComponent(request.boardId)}/mutations?documentSchemaVersion=3`,
+      method: 'POST',
+      body: parsedRequest.data.value,
+      csrfToken,
+      contentType: 'application/vnd.sceneboard.document+json;version=3',
+      responseKind: 'document-json',
+      ...(signal === undefined ? {} : { signal }),
+    });
+    if (dispatched.kind !== 'ok') return dispatched;
+    const { response, bytes } = dispatched.value;
+    if (!validJsonResponse(response, request.requestId)) return { kind: 'corrupt_response' };
+    const parsed = parseBoardDocumentHttpResultV3(bytes, {
+      status: response.status,
+      requestId: request.requestId,
+      boardId: request.boardId,
+    });
+    if (!parsed.ok) return { kind: 'corrupt_response' };
+    if (!parsed.value.ok) return { kind: 'board_error', error: parsed.value.error };
+    return { kind: 'ok', value: parsed.value.value.result };
+  }
+
   protected async writeDocumentMutationForGeneration(
     binding: AuthoringGenerationBindingV1,
     request: DocumentMutationRequest,
@@ -173,6 +210,46 @@ export class BoardApiTransport {
     if (!validJsonResponse(response, request.requestId))
       return { kind: 'commit_uncertain', reason: 'response_contract' };
     const parsed = parseBoardDocumentHttpResultV2(bytes, {
+      status: response.status,
+      requestId: request.requestId,
+      boardId: request.boardId,
+    });
+    if (!parsed.ok) return { kind: 'commit_uncertain', reason: 'response_contract' };
+    if (!parsed.value.ok) return { kind: 'board_error', error: parsed.value.error };
+    return { kind: 'ok', value: parsed.value.value.result };
+  }
+
+  protected async writeDocumentMutationV3ForGeneration(
+    binding: AuthoringGenerationBindingV1,
+    request: DocumentMutationRequestV3,
+    signal?: AbortSignal,
+  ): Promise<
+    | ApiResult<DocumentMutationResultV3>
+    | { kind: 'commit_uncertain'; reason: 'transport' | 'response_contract' }
+    | { kind: 'stale_attempt' }
+  > {
+    const parsedRequest = MutationRequestParserV3.parse(request);
+    if (!parsedRequest.ok || parsedRequest.data.value.command.type !== 'document.replace')
+      throw new TypeError('invalid document.replace V3 request');
+    const csrfToken = this.coordinator.currentSnapshot()?.csrfToken;
+    if (csrfToken === undefined) return { kind: 'stale_attempt' };
+    const dispatched = await this.coordinator.dispatchSharedForGeneration(binding, {
+      path: `/api/v1/boards/${encodeURIComponent(request.boardId)}/mutations?documentSchemaVersion=3`,
+      method: 'POST',
+      body: parsedRequest.data.value,
+      csrfToken,
+      contentType: 'application/vnd.sceneboard.document+json;version=3',
+      responseKind: 'document-json',
+      ...(signal === undefined ? {} : { signal }),
+    });
+    if (dispatched.kind === 'transport_uncertain')
+      return { kind: 'commit_uncertain', reason: 'transport' };
+    if (dispatched.kind === 'stale_attempt') return dispatched;
+    if (dispatched.kind === 'unsupported_browser') return dispatched;
+    const { response, bytes } = dispatched.value;
+    if (!validJsonResponse(response, request.requestId))
+      return { kind: 'commit_uncertain', reason: 'response_contract' };
+    const parsed = parseBoardDocumentHttpResultV3(bytes, {
       status: response.status,
       requestId: request.requestId,
       boardId: request.boardId,
@@ -236,6 +313,7 @@ export class BoardApiTransport {
   >(
     result: Awaited<ReturnType<SessionRequestCoordinator['dispatchShared']>>,
     request: OperationRequest<K>,
+    documentSchemaVersion?: 2 | 3,
   ): ApiResult<
     OperationData<K> | { result: OperationData<K>; metadata: HistoryHttpMetadataV1 | null }
   > {
@@ -263,9 +341,11 @@ export class BoardApiTransport {
       ...(request.type === 'history.get' ? { revisionId: request.revisionId } : {}),
     };
     const parsed =
-      request.type === 'board.get' || request.type === 'history.get'
-        ? parseBoardOperationHttpResultV2(bytes, expectation)
-        : parseBoardHttpResultV1(bytes, expectation);
+      documentSchemaVersion === 3
+        ? parseBoardOperationHttpResultV3(bytes, expectation)
+        : request.type === 'board.get' || request.type === 'history.get'
+          ? parseBoardOperationHttpResultV2(bytes, expectation)
+          : parseBoardHttpResultV1(bytes, expectation);
     if (!parsed.ok) return { kind: 'corrupt_response' };
     if (!parsed.value.ok) return { kind: 'board_error', error: parsed.value.error };
     const operation = parsed.value.value.result;

@@ -7,7 +7,11 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 
 import { createBoardMcpServerV1 } from '../../src/server.js';
-import { BOARD_TOOL_NAMES_V1, SAFE_TOOL_NAMES_V1 } from '../../src/tools/register-tools.js';
+import {
+  API_KEY_TOOL_NAMES_V1,
+  BOARD_TOOL_NAMES_V1,
+  SAFE_TOOL_NAMES_V1,
+} from '../../src/tools/register-tools.js';
 
 test('missing configuration boots only the three safe tools and pairing dispatches no network request', async () => {
   let fetchCalls = 0;
@@ -182,4 +186,111 @@ test('terminal authentication failure invalidates the token and shrinks discover
     await runtime.close();
   }
   assert.equal(calls, 2);
+});
+
+test('API-key composition exposes only owner tools and executes board rename without pairing', async () => {
+  const apiKey = `sbk_v1.${'A'.repeat(22)}.${'B'.repeat(43)}`;
+  const fetchImplementation: typeof fetch = async (input, init) => {
+    const url = new URL(String(input));
+    if (url.pathname === '/api/v1/mcp/connection') {
+      const requestId = url.searchParams.get('requestId') ?? '';
+      return new Response(
+        JSON.stringify({
+          principal: {
+            principalKind: 'service',
+            principalId: 'service_1',
+            grantId: null,
+          },
+          credential: {
+            keyPublicId: 'key_1',
+            scopes: ['board:read', 'board:write'],
+            status: 'active',
+            expiresAt: '2027-07-30T00:00:00.000Z',
+          },
+          selectedBoard: null,
+          versions: {
+            mcpServer: '0.0.0',
+            boardProtocol: '1.0.0',
+            api: 'v1',
+          },
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8',
+            'Cache-Control': 'no-store, private',
+            Pragma: 'no-cache',
+            Vary: 'Origin, Cookie, Authorization',
+            'X-Request-Id': requestId,
+          },
+        },
+      );
+    }
+    assert.equal(url.pathname, '/api/v1/boards/board_1/title');
+    assert.equal(new Headers(init?.headers).get('authorization'), `Bearer ${apiKey}`);
+    assert.deepEqual(JSON.parse(String(init?.body)), { title: 'Renamed board' });
+    return new Response(
+      JSON.stringify({
+        boardId: 'board_1',
+        title: 'Renamed board',
+        updatedAt: '2026-07-30T01:02:03.004Z',
+      }),
+      {
+        status: 200,
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      },
+    );
+  };
+  const runtime = await createBoardMcpServerV1({
+    argv: [],
+    cwd: await mkdtemp(`${tmpdir()}/board-mcp-api-key-`),
+    env: {
+      BOARD_API_URL: 'http://127.0.0.1:3411',
+      BOARD_CREDENTIAL_MODE: 'api_key',
+      BOARD_ACCESS_TOKEN_REF: 'env://SCENEBOARD_API_KEY',
+      SCENEBOARD_API_KEY: apiKey,
+    },
+    fetch: fetchImplementation,
+    stderr: () => undefined,
+  });
+  const client = new Client({ name: 'composition test', version: '1.0.0' });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  await runtime.connect(serverTransport);
+  await client.connect(clientTransport);
+  try {
+    assert.deepEqual(
+      (await client.listTools()).tools.map((tool) => tool.name).sort(),
+      [...API_KEY_TOOL_NAMES_V1].sort(),
+    );
+    const status = await client.callTool({
+      name: 'board_connection_status',
+      arguments: { boardId: null },
+    });
+    const statusResult = (status.structuredContent as { result: Record<string, unknown> }).result;
+    assert.deepEqual(Object.keys(statusResult).sort(), [
+      'config',
+      'connection',
+      'credentialMode',
+      'lastErrorCode',
+      'retryable',
+      'state',
+    ]);
+    const renamed = await client.callTool({
+      name: 'board_rename',
+      arguments: { boardId: 'board_1', title: 'Renamed board' },
+    });
+    assert.equal(renamed.isError, false);
+    assert.deepEqual((renamed.structuredContent as { result: Record<string, unknown> }).result, {
+      boardId: 'board_1',
+      title: 'Renamed board',
+      updatedAt: '2026-07-30T01:02:03.004Z',
+    });
+    const names = (await client.listTools()).tools.map((tool) => tool.name);
+    assert.equal(names.includes('board_pair_request'), false);
+    assert.equal(names.includes('sceneboard_media_place'), false);
+    assert.equal(names.includes('board_artifact_put'), false);
+  } finally {
+    await client.close();
+    await runtime.close();
+  }
 });

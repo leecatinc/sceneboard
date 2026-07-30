@@ -40,6 +40,7 @@ Prefer tools returned by MCP discovery. Before authentication exactly the three 
 | `board_history_list`        | `{boardId,cursor,limit}`                                                                                                                | `history.list` newest first with aligned metadata.                                                                                                                               |
 | `board_history_get`         | `{boardId,revisionId}`                                                                                                                  | `history.get` immutable scene/current-cut summaries with navigation metadata.                                                                                                    |
 | `board_history_restore`     | `{boardId,revisionId,expectedRevisionId,confirm:true,idempotencyKey}`                                                                   | `scene.restore` copy-forward.                                                                                                                                                    |
+| `board_export`              | API-key mode only: `{boardId,revisionId,format:"pdf"\|"pptx",outputFile}`                                                               | `{format,bytes,fileName}` after secure no-clobber local publication.                                                                                                             |
 | `board_interaction_request` | `{boardId,expectedRevisionId,idempotencyKey,hitlRequestId,definition}`                                                                  | `hitl.request` in `open`.                                                                                                                                                        |
 | `board_interaction_status`  | `{boardId,hitlRequestId,wait:null\|{afterStateUpdatedAt,timeoutMs}}`                                                                    | `hitl.read` with exact `changed` and interaction state.                                                                                                                          |
 | `board_interaction_respond` | `{boardId,expectedRevisionId,idempotencyKey,hitlRequestId,response}`                                                                    | `hitl.respond` in `answered`.                                                                                                                                                    |
@@ -63,10 +64,23 @@ Protected tools share `INVALID_PAYLOAD`, `PROTOCOL_VERSION_MISMATCH`, `UNAUTHENT
 - HITL request: `HITL_REQUEST_ID_CONFLICT`, `LIMIT_EXCEEDED`, `PAYLOAD_TOO_LARGE`.
 - HITL status: `HITL_REQUEST_NOT_FOUND`.
 - HITL respond: `HITL_REQUEST_NOT_FOUND`, `HITL_RESPONSE_CONFLICT`, `HITL_REQUEST_EXPIRED`, `PAYLOAD_TOO_LARGE`.
+- Export: the eleven closed `EXPORT_*` server reasons retain their exact retryability. Local
+  publication adds permanent `LOCAL_EXPORT_UNAVAILABLE`, `LOCAL_EXPORT_INVALID_PATH`,
+  `LOCAL_EXPORT_EXISTS`, `LOCAL_EXPORT_IO`, `LOCAL_EXPORT_SHORT`, `LOCAL_EXPORT_CORRUPT`, and
+  `LOCAL_EXPORT_CANCELLED`; response-stream transport failure remains retryable
+  `BOARD_MCP_TRANSPORT_ERROR`.
 
 `CAPABILITY_DENIED` is invalid for every tool except `board_artifact_put`. MCP-local errors retain the `BOARD_MCP_*` namespace. The official fallback uses the closed `BOARD_API_*` local namespace for config, credential, profile, not-connected, transport, timeout, response-invalid, and internal failures while returning server D1 and pairing error codes unchanged.
 
 On `REVISION_CONFLICT`, re-read and consciously reapply with a new key. On `IDEMPOTENCY_KEY_REUSED`, stop unless replaying the byte-identical semantic request. Do not translate these into legacy `BOARD_REVISION_CONFLICT`, `IDEMPOTENCY_CONFLICT`, or open-ended skill-only codes.
+
+`board_export` is not a board mutation and has no idempotency key. It always pins the caller's
+explicit retained `revisionId`; it never substitutes the live head. `outputFile` must be an
+absolute NFC path with the exact selected extension and no glob syntax. The verified
+`linux-x64-gnu` helper walks parents without following links, writes one private same-directory
+temporary and publishes with no-replace semantics. Existing targets, symlink/hardlink ambiguity,
+unsupported platforms, partial downloads and aborts never produce or replace a final file. Tool
+success returns only the format, byte count and basename—never the parent path.
 
 ## Exact media upload then placement
 

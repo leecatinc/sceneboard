@@ -75,6 +75,26 @@ is padded RFC 4648 base64. Services read configuration from the process
 environment, so export the variables (or use a dotenv runner) before starting each
 service — copying `.env.example` alone does not load them. Never commit
 credentials, generated recordings, screenshots with personal data, or runtime state.
+Account API-key issuance and bearer authentication remain disabled unless
+`ACCOUNT_API_KEY_ISSUANCE_ENABLED=true` and `ACCOUNT_API_KEY_AUTH_ENABLED=true` are
+set explicitly after migration certification.
+When enabled, an account API key can use the existing board list, get, create, rename,
+archive, capabilities, scene/document, and history HTTP contracts for boards currently
+owned by its account. Each operation still requires its literal key scope; API keys do
+not gain membership, share, media, artifact, HITL, physical-delete, or pairing-grant
+administration, and the pairing flow remains available independently.
+Document V3 writing likewise remains disabled until
+`BOARD_DOCUMENT_V3_WRITE_ENABLED=true` is set after migration 026 certification; V3-capable
+readers remain available while the writer flag is false.
+
+Board document clients negotiate the checkpoint shape with
+`documentSchemaVersion=1|2|3` on board GET, history, mutation/restore, capabilities,
+and SSE routes. Version 3 adds the document-level `format` value
+(`wide_16_9`, `standard_4_3`, `a4_portrait`, or `a4_landscape`). A V3 head requires
+an explicit capable selector; selector 2 receives the deterministic V2 projection,
+while selector 3 preserves the format-bearing V3 document. Browser format controls
+emit a single V3 `document.replace` revision and remain separate from page fit,
+zoom, pan, and presentation view state.
 
 ### 3. Prepare the database
 

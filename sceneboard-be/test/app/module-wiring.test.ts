@@ -5,6 +5,7 @@ import { NestFactory } from '@nestjs/core';
 
 import { AppModule } from '../../src/app.module.js';
 import { AuthService } from '../../src/auth/auth.service.js';
+import { AccountApiKeyService } from '../../src/api-keys/account-api-key.service.js';
 import { APP_ENVIRONMENT, type AppEnvironment } from '../../src/config/env.schema.js';
 
 const key = Buffer.alloc(32, 3).toString('base64url');
@@ -50,6 +51,7 @@ test('constructs the complete Nest dependency graph without opening a listener',
   try {
     assert.equal(context.get<AppEnvironment>(APP_ENVIRONMENT).appEnv, 'test');
     assert.ok(context.get(AuthService));
+    assert.ok(context.get(AccountApiKeyService));
   } finally {
     await context.close();
   }

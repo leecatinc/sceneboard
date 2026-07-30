@@ -4,8 +4,14 @@ import { Reflector } from '@nestjs/core';
 import { CookieService } from '../../auth/cookie.service.js';
 import { SessionService, type SessionRecord } from '../../auth/session.service.js';
 import { ActorContextService } from '../../grants/actor-context.service.js';
-import type { ResolvedBoardPrincipalV1 } from '../../grants/board-access.policy.js';
+import {
+  isBrowserBoardPrincipal,
+  type ResolvedBoardPrincipalV1,
+} from '../../grants/board-access.policy.js';
+import { resolveClientIp } from '../security/client-ip.js';
+import { APP_ENVIRONMENT, type AppEnvironment } from '../../config/env.schema.js';
 import { AppError, BoardContractError } from '../errors/app-error.js';
+import { selectBearerCredentialFamilyV1 } from './bearer-credential-family.js';
 
 const BOARD_PRINCIPAL_REQUIRED = Symbol('BOARD_PRINCIPAL_REQUIRED');
 
@@ -17,9 +23,12 @@ export const RequireBoardPrincipal = (
 
 export interface BoardPrincipalRequest {
   headers: Record<string, string | string[] | undefined>;
+  rawHeaders?: string[] | undefined;
   cookies?: Record<string, string | undefined> | undefined;
   authSession?: SessionRecord | undefined;
   boardPrincipal?: ResolvedBoardPrincipalV1 | undefined;
+  originalUrl?: string | undefined;
+  socket?: { remoteAddress?: string | undefined } | undefined;
 }
 
 @Injectable()
@@ -29,6 +38,7 @@ export class BoardPrincipalGuard implements CanActivate {
     @Inject(SessionService) private readonly sessions: SessionService,
     @Inject(CookieService) private readonly cookies: CookieService,
     @Inject(ActorContextService) private readonly actors: ActorContextService,
+    @Inject(APP_ENVIRONMENT) private readonly environment: AppEnvironment,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -40,9 +50,10 @@ export class BoardPrincipalGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<BoardPrincipalRequest>();
     const sessionCredential = request.cookies?.[this.cookies.names.session];
     const authorizationValue = request.headers.authorization;
-    const authorization = typeof authorizationValue === 'string' ? authorizationValue : undefined;
     try {
-      const mixed = sessionCredential !== undefined && authorizationValue !== undefined;
+      const mixed =
+        authorizationValue !== undefined &&
+        (sessionCredential !== undefined || request.headers.cookie !== undefined);
       if (
         mixed ||
         (sessionCredential === undefined && authorizationValue === undefined) ||
@@ -65,7 +76,21 @@ export class BoardPrincipalGuard implements CanActivate {
           request.headers['x-csrf-token'] !== undefined)
       )
         throw boardForbidden();
-      request.boardPrincipal = await this.actors.resolveMcp(authorization, Date.now());
+      const selected = selectBearerCredentialFamilyV1(request);
+      if (mode === 'media-upload' && selected.family !== 'mcp_grant') throw boardForbidden();
+      request.boardPrincipal =
+        selected.family === 'mcp_grant'
+          ? await this.actors.resolveMcp(`Bearer ${selected.token}`, Date.now())
+          : await this.actors.resolveAccountApiKey(
+              selected.token,
+              {
+                correlationId: correlationId(request),
+                clientIp: clientIp(request, this.environment),
+              },
+              Date.now(),
+            );
+      if (mode === 'media-upload' && isBrowserBoardPrincipal(request.boardPrincipal))
+        throw boardForbidden();
       return true;
     } catch (error) {
       if (error instanceof BoardContractError) throw error;
@@ -76,6 +101,40 @@ export class BoardPrincipalGuard implements CanActivate {
     }
   }
 }
+
+const recordRequestId = (value: unknown): string | null => {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+  const requestId = (value as Record<string, unknown>).requestId;
+  return typeof requestId === 'string' && /^[A-Za-z0-9_-]{1,128}$/u.test(requestId)
+    ? requestId
+    : null;
+};
+
+const correlationId = (request: BoardPrincipalRequest): string => {
+  const carrier = request as BoardPrincipalRequest & { body?: unknown; query?: unknown };
+  const direct = recordRequestId(carrier.body) ?? recordRequestId(carrier.query);
+  if (direct !== null) return direct;
+  try {
+    const requestId =
+      request.originalUrl === undefined
+        ? null
+        : new URL(request.originalUrl, 'http://sceneboard.internal').searchParams.get('requestId');
+    return requestId !== null && /^[A-Za-z0-9_-]{1,128}$/u.test(requestId)
+      ? requestId
+      : 'request_unavailable';
+  } catch {
+    return 'request_unavailable';
+  }
+};
+
+const clientIp = (request: BoardPrincipalRequest, environment: AppEnvironment): string => {
+  const forwarded = request.headers['x-forwarded-for'];
+  return resolveClientIp({
+    socketAddress: request.socket?.remoteAddress ?? '127.0.0.1',
+    xForwardedFor: typeof forwarded === 'string' ? forwarded : undefined,
+    trustedProxyCidrs: environment.trustedProxyCidrs,
+  }).address;
+};
 
 const boardForbidden = (): BoardContractError =>
   new BoardContractError({

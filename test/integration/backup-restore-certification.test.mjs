@@ -5,7 +5,7 @@ import { parseCertificationArguments } from '../../scripts/run-local-certificati
 
 const root = new URL('../../', import.meta.url);
 
-test('forward-only D3/D7/D8/D9 migrations expose no automatic destructive rollback', async () => {
+test('forward-only D3/D7/D8/D9/D10 migrations expose no automatic destructive rollback', async () => {
   const registry = await readFile(
     new URL('sceneboard-be/src/database/migrations/registry.ts', root),
     'utf8',
@@ -15,7 +15,7 @@ test('forward-only D3/D7/D8/D9 migrations expose no automatic destructive rollba
       /version: '([^']+)'[\s\S]*?upAsset: '([^']+)'[\s\S]*?reversible: false,[\s\S]*?downAsset: null/gu,
     ),
   ];
-  assert.equal(forwardOnly.length, 23);
+  assert.equal(forwardOnly.length, 27);
   for (const [, , asset] of forwardOnly) {
     const sql = await readFile(
       new URL(`sceneboard-be/src/database/migrations/sql/${asset}`, root),

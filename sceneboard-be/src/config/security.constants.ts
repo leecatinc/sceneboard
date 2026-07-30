@@ -6,6 +6,7 @@ export const SECURITY_PURPOSES = [
   'session-token/v1',
   'grant-token/v1',
   'grant-list-cursor/v1',
+  'account-api-key/v1',
   'csrf-anonymous/v1',
   'csrf-session/v1',
   'csrf-family-binding/v1',
@@ -35,6 +36,7 @@ export const SECURITY_PURPOSES = [
   'rate-limit-session/v1',
   'rate-limit-pairing/v1',
   'rate-limit-grant/v1',
+  'rate-limit-api-key/v1',
 ] as const;
 
 export type SecurityPurpose = (typeof SECURITY_PURPOSES)[number];

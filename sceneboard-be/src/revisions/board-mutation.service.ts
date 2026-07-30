@@ -1,11 +1,15 @@
 import {
   BoardEventEnvelopeParserV2,
+  BoardEventEnvelopeParserV3,
   MutationResultParserV1,
   MutationResultParserV2,
+  MutationResultParserV3,
   type MutationRequestV1,
   type MutationRequestV2,
+  type MutationRequestV3,
   type MutationResultV1,
   type MutationResultV2,
+  type MutationResultV3,
 } from '@sceneboard/board-schema';
 import type { PoolConnection, ResultSetHeader } from 'mysql2/promise';
 
@@ -35,6 +39,8 @@ import {
 } from './board-mutation.support.js';
 import {
   MutationIdentifierCollisionError,
+  type CheckpointMutationRequest,
+  type CheckpointMutationResult,
   type LockedHeadRow,
   type MutationRuntime,
   type PreparedMutationV1,
@@ -59,6 +65,7 @@ export class BoardMutationService {
     runtime: Partial<MutationRuntime> = {},
     private readonly mediaOwnership: MediaOwnershipPort = new DenyAllMediaOwnershipProvider(),
     mediaReferences = new RevisionMediaReferenceExtractor(),
+    private readonly v3WriteEnabled = false,
   ) {
     this.preparer = new BoardMutationPreparer(checkpoints, runtime, mediaReferences);
     this.restoreRepository = new BoardMutationRestoreRepository(checkpoints, mediaReferences);
@@ -66,9 +73,13 @@ export class BoardMutationService {
 
   async applySceneMutation(input: {
     principal: ResolvedBoardPrincipalV1;
-    request: MutationRequestV1;
-  }): Promise<MutationResultV1> {
-    const result = await this.applyCheckpointMutation(input);
+    request: MutationRequestV1 | MutationRequestV3;
+    documentSchemaVersion?: 1 | 2 | 3;
+  }): Promise<MutationResultV1 | MutationResultV2 | MutationResultV3> {
+    const documentSchemaVersion = input.documentSchemaVersion ?? 1;
+    if (documentSchemaVersion === 3) this.assertV3WriteEnabled();
+    const result = await this.applyCheckpointMutation({ ...input, documentSchemaVersion });
+    if (documentSchemaVersion !== 1) return result;
     const parsed = MutationResultParserV1.parse(result);
     if (!parsed.ok) throw internalFailure();
     return parsed.data.value;
@@ -76,16 +87,36 @@ export class BoardMutationService {
 
   async applyDocumentMutation(input: {
     principal: ResolvedBoardPrincipalV1;
-    request: MutationRequestV2;
-  }): Promise<MutationResultV2> {
+    request: MutationRequestV2 | MutationRequestV3;
+  }): Promise<MutationResultV2 | MutationResultV3> {
     if (input.request.command.type !== 'document.replace') throw invalidMutation();
-    return this.applyCheckpointMutation(input);
+    const documentSchemaVersion = input.request.command.document.schemaVersion;
+    if (documentSchemaVersion === 3) this.assertV3WriteEnabled();
+    return this.applyCheckpointMutation({
+      ...input,
+      documentSchemaVersion,
+    }) as Promise<MutationResultV2 | MutationResultV3>;
+  }
+
+  private assertV3WriteEnabled(): void {
+    if (this.v3WriteEnabled) return;
+    throw new BoardContractError({
+      protocolVersion: 1,
+      type: 'board.error',
+      code: 'SERVICE_UNAVAILABLE',
+      message: 'Document V3 writing is disabled',
+      category: 'availability',
+      retryable: true,
+      httpStatusHint: 503,
+      details: { retryAfterSeconds: null },
+    });
   }
 
   private async applyCheckpointMutation(input: {
     principal: ResolvedBoardPrincipalV1;
-    request: MutationRequestV2;
-  }): Promise<MutationResultV2> {
+    request: CheckpointMutationRequest;
+    documentSchemaVersion: 1 | 2 | 3;
+  }): Promise<CheckpointMutationResult> {
     if (!isSceneMutation(input.request.command.type)) throw invalidMutation();
     let prepared = await this.preparer.prepare(input);
     for (let collisionCount = 0; collisionCount <= 3; collisionCount += 1) {
@@ -98,7 +129,13 @@ export class BoardMutationService {
             isolation: 'READ_COMMITTED_WRITE',
           },
           async (connection, context) =>
-            this.applyNewOrReplay(connection, context, input.request, prepared),
+            this.applyNewOrReplay(
+              connection,
+              context,
+              input.request,
+              prepared,
+              input.documentSchemaVersion,
+            ),
         );
       } catch (error) {
         if (!(error instanceof MutationIdentifierCollisionError)) throw error;
@@ -112,11 +149,41 @@ export class BoardMutationService {
   private async applyNewOrReplay(
     connection: PoolConnection,
     context: AuthorizedBoardContextV1,
-    request: MutationRequestV2,
+    request: CheckpointMutationRequest,
     prepared: PreparedMutationV1,
-  ): Promise<MutationResultV2> {
+    documentSchemaVersion: 1 | 2 | 3,
+  ): Promise<CheckpointMutationResult> {
     const operation = request.command.type;
     if (!isSceneMutation(operation)) throw invalidMutation();
+    const head = await this.lockHead(connection, request);
+    const actualRevisionId = revisionIdFromBytes(head.headRevisionId);
+    const headNumber = safePositive(head.headRevisionNumber);
+    const lastSequence = safePositive(head.lastEventSequence);
+    const headSchemaVersion =
+      head.sceneSchemaVersion === '1.0.0'
+        ? 1
+        : head.sceneSchemaVersion === '2.0.0'
+          ? 2
+          : head.sceneSchemaVersion === '3.0.0'
+            ? 3
+            : null;
+    if (headSchemaVersion === null) throw new BoardPersistenceError('row_integrity');
+    if (headSchemaVersion === 3 && documentSchemaVersion !== 3) {
+      throw new BoardContractError({
+        protocolVersion: 1,
+        type: 'board.error',
+        code: 'UPGRADE_REQUIRED',
+        message: 'A newer document client is required',
+        category: 'conflict',
+        retryable: false,
+        httpStatusHint: 409,
+        details: {
+          headSchemaVersion: 3,
+          requestedDocumentSchemaVersion: documentSchemaVersion,
+          operationType: operation,
+        },
+      });
+    }
     const replay = await this.replayRepository.replayOrReject(
       connection,
       context,
@@ -138,17 +205,6 @@ export class BoardMutationService {
       );
       return replay;
     }
-    const restore =
-      operation === 'scene.restore'
-        ? await this.restoreRepository.prepareRestore(connection, request)
-        : null;
-    const head = await this.lockHead(connection, request);
-    const actualRevisionId = revisionIdFromBytes(head.headRevisionId);
-    const headNumber = safePositive(head.headRevisionNumber);
-    const lastSequence = safePositive(head.lastEventSequence);
-    const headSchemaVersion =
-      head.sceneSchemaVersion === '1.0.0' ? 1 : head.sceneSchemaVersion === '2.0.0' ? 2 : null;
-    if (headSchemaVersion === null) throw new BoardPersistenceError('row_integrity');
     if (actualRevisionId !== request.expectedRevisionId) {
       throw revisionConflict(request, actualRevisionId, headNumber);
     }
@@ -158,6 +214,10 @@ export class BoardMutationService {
     if (headNumber >= MAX_SAFE_SEQUENCE || lastSequence >= MAX_SAFE_SEQUENCE) {
       throw new BoardPersistenceError('capacity_exhausted');
     }
+    const restore =
+      operation === 'scene.restore'
+        ? await this.restoreRepository.prepareRestore(connection, request)
+        : null;
     const selected =
       restore === null
         ? {
@@ -173,6 +233,7 @@ export class BoardMutationService {
             head.sceneSchemaVersion,
             request.boardId,
             prepared.revisionId,
+            documentSchemaVersion,
           );
     if (
       selected.checkpoint === null ||
@@ -194,7 +255,9 @@ export class BoardMutationService {
     };
     const sourceRevisionId =
       operation === 'scene.restore' ? request.command.sourceRevisionId : null;
-    const event = BoardEventEnvelopeParserV2.parse({
+    const eventParser =
+      documentSchemaVersion === 3 ? BoardEventEnvelopeParserV3 : BoardEventEnvelopeParserV2;
+    const event = eventParser.parse({
       protocolVersion: 1,
       type: 'board.event',
       boardId: request.boardId,
@@ -211,7 +274,9 @@ export class BoardMutationService {
     });
     if (!event.ok) throw new BoardContractError(event.error);
     const eventPayload = Buffer.from(event.data.canonicalBytes);
-    const result = MutationResultParserV2.parse({
+    const resultParser =
+      documentSchemaVersion === 3 ? MutationResultParserV3 : MutationResultParserV2;
+    const result = resultParser.parse({
       protocolVersion: 1,
       type: 'mutation.result',
       requestId: request.requestId,
@@ -345,21 +410,25 @@ export class BoardMutationService {
       retainedOrder: revisionNumber,
       createdAtSql: prepared.occurredAtSql,
       actorAccountPk:
-        context.membership !== undefined
+        context.access.kind === 'api_key'
           ? (context.accountUserPk ?? context.ownerUserPk).toString()
-          : context.access.kind === 'owner' && context.actor.principalKind === 'user'
-            ? context.ownerUserPk.toString()
-            : null,
-      actorClass:
-        context.actor.principalKind === 'service'
-          ? 'system'
           : context.membership !== undefined
-            ? context.membership?.membershipRole === 'owner'
-              ? 'owner'
-              : 'editor'
-            : context.access.kind === 'owner'
-              ? 'owner'
-              : 'editor',
+            ? (context.accountUserPk ?? context.ownerUserPk).toString()
+            : context.access.kind === 'owner' && context.actor.principalKind === 'user'
+              ? context.ownerUserPk.toString()
+              : null,
+      actorClass:
+        context.access.kind === 'api_key'
+          ? 'owner'
+          : context.actor.principalKind === 'service'
+            ? 'system'
+            : context.membership !== undefined
+              ? context.membership?.membershipRole === 'owner'
+                ? 'owner'
+                : 'editor'
+              : context.access.kind === 'owner'
+                ? 'owner'
+                : 'editor',
       checkpoint: selected.checkpoint,
     });
     await this.restoreRepository.insertReferences(connection, revisionPk, selected.references);
@@ -446,7 +515,7 @@ export class BoardMutationService {
 
   private async lockHead(
     connection: PoolConnection,
-    request: MutationRequestV2,
+    request: CheckpointMutationRequest,
   ): Promise<LockedHeadRow> {
     const [rows] = await connection.execute<LockedHeadRow[]>(
       `

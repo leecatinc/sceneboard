@@ -22,7 +22,7 @@ export const RetainedHistoryMetadataSchemaV1 = z
             label: PrintableAscii160SchemaV1,
             actorLabel: RetainedHistoryActorLabelSchemaV1,
             summary: PrintableAscii160SchemaV1,
-            schemaVersion: z.enum(['1.0.0', '2.0.0']),
+            schemaVersion: z.enum(['1.0.0', '2.0.0', '3.0.0']),
           })
           .strict(),
       )

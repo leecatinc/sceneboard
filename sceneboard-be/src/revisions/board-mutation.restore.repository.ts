@@ -1,8 +1,8 @@
 import {
   adaptLegacySceneToDocumentV2,
+  projectDocumentV2ToV3,
   MAX_MEDIA_REFERENCES,
   type BoardId,
-  type MutationRequestV2,
   type RevisionId,
 } from '@sceneboard/board-schema';
 import type { PoolConnection, ResultSetHeader } from 'mysql2/promise';
@@ -18,6 +18,7 @@ import {
 } from './board-mutation.support.js';
 import type {
   RestorePreparedV1,
+  CheckpointMutationRequest,
   RestoreSourceRow,
   StoredMediaReferenceRow,
   StoredReferenceRow,
@@ -65,7 +66,7 @@ export class BoardMutationRestoreRepository {
 
   async prepareRestore(
     connection: PoolConnection,
-    request: MutationRequestV2,
+    request: CheckpointMutationRequest,
   ): Promise<RestorePreparedV1> {
     if (request.command.type !== 'scene.restore') throw internalFailure();
     const sourceBytes = uuidBytesOrNull(request.command.sourceRevisionId);
@@ -138,7 +139,14 @@ export class BoardMutationRestoreRepository {
     return {
       row,
       checkpoint: {
-        schemaVersion: decoded.kind === 'scene' ? '1.0.0' : '2.0.0',
+        schemaVersion:
+          row.sceneSchemaVersion === '1.0.0' ||
+          row.sceneSchemaVersion === '2.0.0' ||
+          row.sceneSchemaVersion === '3.0.0'
+            ? row.sceneSchemaVersion
+            : (() => {
+                throw new BoardPersistenceError('row_integrity');
+              })(),
         codec: 'B',
         payload: Buffer.from(row.scenePayload),
         canonicalPayload: Buffer.from(decoded.canonicalBytes),
@@ -159,6 +167,7 @@ export class BoardMutationRestoreRepository {
     headSchemaVersion: string,
     boardId: BoardId,
     targetRevisionId: RevisionId,
+    documentSchemaVersion: 1 | 2 | 3,
   ): Promise<{
     checkpoint: EncodedBoardCheckpoint;
     references: readonly SceneArtifactReferenceRowV1[];
@@ -215,7 +224,36 @@ export class BoardMutationRestoreRepository {
     ) {
       throw new BoardPersistenceError('row_integrity');
     }
-    if (headSchemaVersion !== '1.0.0' && headSchemaVersion !== '2.0.0')
+    if (
+      headSchemaVersion !== '1.0.0' &&
+      headSchemaVersion !== '2.0.0' &&
+      headSchemaVersion !== '3.0.0'
+    )
+      throw new BoardPersistenceError('row_integrity');
+    if (documentSchemaVersion === 3) {
+      const document =
+        prepared.decoded.kind === 'scene'
+          ? projectDocumentV2ToV3(
+              adaptLegacySceneToDocumentV2({
+                boardId,
+                scene: prepared.decoded.scene,
+              }),
+            )
+          : prepared.decoded.document.schemaVersion === 2
+            ? projectDocumentV2ToV3(prepared.decoded.document)
+            : prepared.decoded.document;
+      return {
+        checkpoint: await this.checkpoints.encodeDocumentV3(document),
+        references: extractDocumentArtifactReferences(document),
+        mediaReferences: this.mediaReferences.extract({
+          boardId,
+          revisionId: targetRevisionId,
+          document,
+        }),
+        sourceRevisionPk: row.revisionPk,
+      };
+    }
+    if (prepared.decoded.kind === 'document' && prepared.decoded.document.schemaVersion === 3)
       throw new BoardPersistenceError('row_integrity');
     if (prepared.decoded.kind === 'scene' && headSchemaVersion === '2.0.0') {
       const document = adaptLegacySceneToDocumentV2({

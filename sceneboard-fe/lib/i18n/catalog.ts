@@ -1,5 +1,6 @@
 import { AI_CONNECTIONS_CATALOG } from './catalogs/ai-connections';
 import { AI_PAIRING_CATALOG } from './catalogs/ai-pairing';
+import { API_KEY_MANAGEMENT_CATALOG } from './catalogs/api-key-management';
 import { ANALYTICS_CATALOG } from './catalogs/analytics';
 import { AUTH_CATALOG } from './catalogs/auth';
 import { BOARD_CATALOG } from './catalogs/board';
@@ -310,6 +311,7 @@ const BASE_CATALOG = BASE_CATALOG_ORDER.map((key) => {
 
 const CATALOG = [
   ...BASE_CATALOG,
+  ...API_KEY_MANAGEMENT_CATALOG,
   ...INTERFACE_CATALOG,
   ...PRESENTATION_CATALOG,
   ...MEDIA_AUTHORING_CATALOG,

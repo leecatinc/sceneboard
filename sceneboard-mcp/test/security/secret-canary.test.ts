@@ -5,6 +5,7 @@ import test from 'node:test';
 import { SafeStderrLoggerV1 } from '../../src/diagnostics/safe-logger.js';
 
 const token = `lcbg_v1.${'a'.repeat(22)}.${'b'.repeat(43)}`;
+const apiKey = `sbk_v1.${'A'.repeat(22)}.${'B'.repeat(43)}`;
 
 test('safe diagnostics redact credentials, pairing proof, code, generation, and store paths', () => {
   let output = '';
@@ -12,11 +13,12 @@ test('safe diagnostics redact credentials, pairing proof, code, generation, and 
     output += line;
   });
   logger.log({
-    event: `failure ${token} PairingProof ${'c'.repeat(43)}`,
+    event: `failure ${token} ${apiKey} PairingProof ${'c'.repeat(43)}`,
     requestId: 'abcdefghijklmnopqrstuv',
     route: '/safe/template',
   });
   assert.equal(output.includes(token), false);
+  assert.equal(output.includes(apiKey), false);
   assert.equal(output.includes('c'.repeat(43)), false);
 });
 

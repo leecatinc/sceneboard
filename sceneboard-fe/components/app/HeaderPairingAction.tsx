@@ -2,7 +2,7 @@
 
 import type { BoardSummaryV1, ClientGrantCapabilityV1 } from '@sceneboard/board-schema';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type {
@@ -22,6 +22,7 @@ import {
   type HeaderConnectionState,
 } from '../../lib/ai-connections/header-connection-state';
 import { authSessionClient } from '../../lib/auth/session-client';
+import { boardIdFromDetailPath } from '../../lib/board/board-lifecycle-navigation';
 import { PairingRequestModal } from '../ai-connections/PairingRequestModal';
 import { useI18n } from '../i18n/I18nProvider';
 import styles from './HeaderPairingAction.module.css';
@@ -33,6 +34,7 @@ interface PairingBoardOption {
 
 export function HeaderPairingAction() {
   const { t } = useI18n();
+  const pathname = usePathname();
   const router = useRouter();
   const [api] = useState(() => new BoardApiClient(authSessionClient().sharedCoordinator()));
   const [created, setCreated] = useState<CreatedPairing | null>(null);
@@ -246,6 +248,7 @@ export function HeaderPairingAction() {
 
   const displayPairing = ownerStatus ?? created;
   const visualState: HeaderConnectionState = created === null ? grantState : 'connecting';
+  const preferredBoardId = boardIdFromDetailPath(pathname ?? '');
 
   return (
     <div className={styles.control}>
@@ -283,6 +286,7 @@ export function HeaderPairingAction() {
           pairing={displayPairing}
           matchingCode={created?.pairingId === displayPairing.pairingId ? created.code : null}
           boards={boards}
+          preferredBoardId={preferredBoardId}
           busy={busy}
           error={error}
           onDismiss={() => setIsOpen(false)}

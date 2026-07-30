@@ -1,0 +1,32 @@
+.controls {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.label {
+  color: var(--text-muted, #667085);
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.select {
+  width: 100%;
+  min-height: 2.5rem;
+  border: 1px solid var(--border-subtle, #d0d5dd);
+  border-radius: 0.625rem;
+  background: var(--surface-raised, #fff);
+  color: inherit;
+  padding: 0.5rem 2rem 0.5rem 0.75rem;
+}
+
+.select:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.status {
+  min-height: 1rem;
+  color: var(--text-muted, #667085);
+  font-size: 0.75rem;
+}

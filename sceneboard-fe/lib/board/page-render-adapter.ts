@@ -2,6 +2,7 @@ import {
   adaptLegacySceneToDocumentV2,
   BoardSnapshotParserV1,
   BoardSnapshotParserV2,
+  BoardSnapshotParserV3,
   type BoardSnapshot,
   type PageId,
 } from '@sceneboard/board-schema';
@@ -16,7 +17,9 @@ const parseSnapshot = (input: unknown): BoardSnapshot => {
       : null;
   const parsed =
     record !== null && Object.hasOwn(record, 'document')
-      ? BoardSnapshotParserV2.parse(input)
+      ? (record.document as Record<string, unknown>).schemaVersion === 3
+        ? BoardSnapshotParserV3.parse(input)
+        : BoardSnapshotParserV2.parse(input)
       : BoardSnapshotParserV1.parse(input);
   if (!parsed.ok) throw new TypeError('board snapshot could not be verified');
   return parsed.data.value;
@@ -41,7 +44,8 @@ export const adaptSnapshotToPageRenderV2 = (
     artifacts: snapshot.artifacts,
     capabilities: snapshot.capabilities,
     lastEventSequence: snapshot.lastEventSequence,
-    documentSchemaVersion: 'document' in snapshot ? 2 : 1,
+    documentSchemaVersion:
+      'document' in snapshot ? (snapshot.document.schemaVersion === 3 ? 3 : 2) : 1,
     selectedPageId,
   };
   return { page, context };

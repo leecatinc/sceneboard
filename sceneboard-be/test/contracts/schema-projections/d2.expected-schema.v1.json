@@ -42,6 +42,36 @@
       "downSha256": null,
       "reversible": false,
       "predecessorIds": ["023_d9_share_analytics"]
+    },
+    {
+      "order": 28,
+      "version": "025_d10_account_api_keys",
+      "upAsset": "025_d10_account_api_keys.up.sql",
+      "upSha256": "42c794dee2ba8ae1fe318653b27f6d970b44a46a6e351c3012f0cf81c70dab09",
+      "downAsset": null,
+      "downSha256": null,
+      "reversible": false,
+      "predecessorIds": ["024_d2_scope_mask_capacity"]
+    },
+    {
+      "order": 29,
+      "version": "026_d10_document_v3_checkpoint",
+      "upAsset": "026_d10_document_v3_checkpoint.up.sql",
+      "upSha256": "315734b489ade75487a3c26eef6bf3d0e876c891262774cffe5042ebf1b2018d",
+      "downAsset": null,
+      "downSha256": null,
+      "reversible": false,
+      "predecessorIds": ["025_d10_account_api_keys"]
+    },
+    {
+      "order": 30,
+      "version": "027_d10_revision_export_hold",
+      "upAsset": "027_d10_revision_export_hold.up.sql",
+      "upSha256": "2ad4ea5ba09b19e98f9cc800d20ee8d4765c06ed3dc2fb4eab52b89ec434c9f6",
+      "downAsset": null,
+      "downSha256": null,
+      "reversible": false,
+      "predecessorIds": ["026_d10_document_v3_checkpoint"]
     }
   ],
   "tables": [
@@ -99,6 +129,11 @@
       "name": "artifact_capability_preauthorization_tickets",
       "sourceAsset": "003_d2_artifact_capability_policy.up.sql",
       "sourceSha256": "2777bcdd8e05212df37f270526fe1f08678b57124a5cc1a36e26ea8866ca7ea8"
+    },
+    {
+      "name": "account_api_keys",
+      "sourceAsset": "025_d10_account_api_keys.up.sql",
+      "sourceSha256": "42c794dee2ba8ae1fe318653b27f6d970b44a46a6e351c3012f0cf81c70dab09"
     }
   ]
 }

@@ -22,7 +22,7 @@ test('committed public-registry dependency inventory matches the hydrated static
   const result = await verifyDependencies({ profile: 'static' });
   assert.equal(result.status, 'PASS');
   assert.equal(result.registryHost, 'registry.npmjs.org');
-  assert.equal(result.dependencyCount, 572);
+  assert.equal(result.dependencyCount, 588);
   assert.equal(result.npmVersion, '10.9.3');
   assert.ok(result.nodeMajor >= 22);
 });

@@ -11,10 +11,16 @@ import {
 } from '@sceneboard/board-schema';
 import type { PoolConnection } from 'mysql2/promise';
 
+import type { AccountApiKeyService } from '../../src/api-keys/account-api-key.service.js';
+import type { ActiveAccountApiKeySnapshot } from '../../src/api-keys/account-api-key.repository.js';
+import { AppError } from '../../src/common/errors/app-error.js';
 import { BoardContractError } from '../../src/common/errors/app-error.js';
 import type { CryptoService } from '../../src/common/security/crypto.service.js';
 import type { MysqlService } from '../../src/database/mysql.service.js';
-import type { ResolvedBoardPrincipalV1 } from '../../src/grants/board-access.policy.js';
+import {
+  ACCOUNT_API_KEY_SNAPSHOT,
+  type ResolvedBoardPrincipalV1,
+} from '../../src/grants/board-access.policy.js';
 import { MysqlBoardAccessPolicy } from '../../src/grants/board-access-policy.service.js';
 import { MembershipRepository } from '../../src/memberships/membership.repository.js';
 import { BoardMembershipAuthorizationService } from '../../src/memberships/membership.service.js';
@@ -61,6 +67,7 @@ const userPrincipal = (): Extract<ResolvedBoardPrincipalV1, { kind: 'user' }> =>
   userPk: 20n,
   sessionPk: 21n,
   familyPublicId: 'family_1',
+  isBrowserCredential: true,
 });
 
 const mcpPrincipal = (
@@ -78,6 +85,43 @@ const mcpPrincipal = (
   credentialPk: 40n,
   grantId: grantId('grant_1'),
   sourceFamilyPublicId: null,
+  isBrowserCredential: false,
+});
+
+const accountApiKeySnapshot = (
+  scopes: ActiveAccountApiKeySnapshot['scopes'] = [
+    'board:archive',
+    'board:create',
+    'board:read',
+    'board:write',
+    'export:read',
+    'history:read',
+  ],
+): ActiveAccountApiKeySnapshot => ({
+  keyPk: '70',
+  keyPublicId: 'key_public_1',
+  ownerUserPk: '20',
+  ownerPublicId: 'user_1',
+  scopeMask: 63,
+  scopes,
+  expiresAt: Date.parse('2026-07-17T00:00:00.000Z'),
+});
+
+const accountApiKeyPrincipal = (
+  snapshot = accountApiKeySnapshot(),
+): Extract<ResolvedBoardPrincipalV1, { kind: 'account_api_key' }> => ({
+  kind: 'account_api_key',
+  actor: actor({
+    principalKind: 'service',
+    principalId: snapshot.keyPublicId,
+    grantId: null,
+    scopes: [],
+  }),
+  ownerUserPk: BigInt(snapshot.ownerUserPk),
+  apiKeyPk: BigInt(snapshot.keyPk),
+  scopeMask: snapshot.scopeMask,
+  isBrowserCredential: false,
+  [ACCOUNT_API_KEY_SNAPSHOT]: snapshot,
 });
 
 interface SetupOptions {
@@ -86,6 +130,7 @@ interface SetupOptions {
   archivedAt?: string | null;
   boardOwnerPk?: bigint;
   membershipRoles?: Array<'owner' | 'editor' | 'viewer' | null>;
+  apiKeyRecheckFailureAt?: number;
 }
 
 const setup = (options: SetupOptions = {}) => {
@@ -190,6 +235,7 @@ const setup = (options: SetupOptions = {}) => {
   } as MysqlService;
   const crypto = { random: (length: number) => Buffer.alloc(length, 9) } as CryptoService;
   const membershipRoles = [...(options.membershipRoles ?? [])];
+  let ownerMembershipCreations = 0;
   const memberships =
     options.membershipRoles === undefined
       ? null
@@ -207,8 +253,19 @@ const setup = (options: SetupOptions = {}) => {
                 };
           },
           adoptCanonicalOwner: async () => undefined,
-          createOwner: async () => undefined,
+          createOwner: async () => {
+            ownerMembershipCreations += 1;
+          },
         } as unknown as MembershipRepository);
+  let apiKeyRechecks = 0;
+  const accountApiKeys = {
+    async recheckActive() {
+      apiKeyRechecks += 1;
+      if (apiKeyRechecks === options.apiKeyRecheckFailureAt) {
+        throw new AppError('UNAUTHENTICATED');
+      }
+    },
+  } as unknown as AccountApiKeyService;
   return {
     policy: new MysqlBoardAccessPolicy(
       mysql,
@@ -218,9 +275,12 @@ const setup = (options: SetupOptions = {}) => {
         sleep: async () => undefined,
       },
       memberships,
+      accountApiKeys,
     ),
     calls,
     connectionCount: () => connectionCount,
+    apiKeyRechecks: () => apiKeyRechecks,
+    ownerMembershipCreations: () => ownerMembershipCreations,
   };
 };
 
@@ -324,6 +384,24 @@ test('denies stale MCP scope before board binding or protected apply work', asyn
   );
 });
 
+test('keeps rename and export unreachable to pairing grants even with owner membership', async () => {
+  for (const operation of ['board.rename', 'export.render'] as const) {
+    const value = setup({ membershipRoles: ['owner'] });
+    await assert.rejects(
+      value.policy.withAuthorizedBoardTransaction(
+        {
+          principal: mcpPrincipal(),
+          operation,
+          boardId: boardId('board_1'),
+          isolation: operation === 'export.render' ? 'REPEATABLE_READ_CUT' : 'READ_COMMITTED_WRITE',
+        },
+        async () => 'unreachable',
+      ),
+      isBoardError('BOARD_NOT_FOUND'),
+    );
+  }
+});
+
 test('returns the archived conflict only after current owner authorization', async () => {
   const value = setup({ archivedAt: '2026-07-16 12:00:00.000' });
   let applied = false;
@@ -403,6 +481,137 @@ test('rolls back a write when the locked membership version or role changes befo
     isBoardError('BOARD_NOT_FOUND'),
   );
   assert.equal(applied, true);
+  assert.equal(value.calls.includes('ROLLBACK'), true);
+  assert.equal(value.calls.includes('COMMIT'), false);
+});
+
+test('authorizes an owner API key with the literal scope and rechecks it before and after work', async () => {
+  const value = setup({ membershipRoles: ['owner', 'owner'] });
+  const principal = accountApiKeyPrincipal();
+  const result = await value.policy.withAuthorizedBoardTransaction(
+    {
+      principal,
+      operation: 'scene.clear',
+      boardId: boardId('board_1'),
+      isolation: 'READ_COMMITTED_WRITE',
+    },
+    async (_connection, context) => {
+      assert.deepEqual(context.access, {
+        kind: 'api_key',
+        ownerUserPk: 20n,
+        apiKeyPk: 70n,
+      });
+      assert.equal(context.accountUserPk, 20n);
+      return 'authorized';
+    },
+  );
+  assert.equal(result, 'authorized');
+  assert.equal(value.apiKeyRechecks(), 2);
+  assert.equal(value.calls.includes('COMMIT'), true);
+});
+
+test('creates API-key owner membership through the same authorized transaction capability', async () => {
+  const value = setup({ membershipRoles: [] });
+  await value.policy.withAuthorizedBoardTransaction(
+    {
+      principal: accountApiKeyPrincipal(),
+      operation: 'board.create',
+      boardId: null,
+      isolation: 'READ_COMMITTED_WRITE',
+    },
+    async (_connection, context) => {
+      assert.ok(context.createOwnerMembership);
+      await context.createOwnerMembership.create(50n, '2026-07-16 12:00:00.000');
+    },
+  );
+  assert.equal(value.ownerMembershipCreations(), 1);
+  assert.equal(value.apiKeyRechecks(), 2);
+  assert.equal(value.calls.includes('COMMIT'), true);
+});
+
+test('denies a key missing one composite restore scope before board work', async () => {
+  const snapshot = accountApiKeySnapshot(['history:read']);
+  const value = setup({ membershipRoles: ['owner'] });
+  let applied = false;
+  await assert.rejects(
+    value.policy.withAuthorizedBoardTransaction(
+      {
+        principal: accountApiKeyPrincipal(snapshot),
+        operation: 'scene.restore',
+        boardId: boardId('board_1'),
+        isolation: 'READ_COMMITTED_WRITE',
+      },
+      async () => {
+        applied = true;
+      },
+    ),
+    isBoardError('BOARD_NOT_FOUND'),
+  );
+  assert.equal(applied, false);
+  assert.equal(value.apiKeyRechecks(), 0);
+  assert.equal(
+    value.calls.some((call) => call.includes('FROM boards b')),
+    false,
+  );
+});
+
+test('keeps membership and share administration outside the API-key partition', async () => {
+  for (const operation of ['membership.list', 'share.list'] as const) {
+    const value = setup({ membershipRoles: ['owner'] });
+    await assert.rejects(
+      value.policy.withAuthorizedBoardTransaction(
+        {
+          principal: accountApiKeyPrincipal(),
+          operation,
+          boardId: boardId('board_1'),
+          isolation: 'REPEATABLE_READ_CUT',
+        },
+        async () => 'unreachable',
+      ),
+      isBoardError('BOARD_NOT_FOUND'),
+    );
+    assert.equal(value.apiKeyRechecks(), 0);
+  }
+});
+
+test('normalizes non-owner API-key membership to board-not-found', async () => {
+  const value = setup({ boardOwnerPk: 99n, membershipRoles: ['editor'] });
+  await assert.rejects(
+    value.policy.withAuthorizedBoardTransaction(
+      {
+        principal: accountApiKeyPrincipal(),
+        operation: 'board.get',
+        boardId: boardId('board_1'),
+        isolation: 'REPEATABLE_READ_CUT',
+      },
+      async () => 'unreachable',
+    ),
+    isBoardError('BOARD_NOT_FOUND'),
+  );
+});
+
+test('rolls back API-key mutation when the locked credential changes before commit', async () => {
+  const value = setup({
+    membershipRoles: ['owner'],
+    apiKeyRecheckFailureAt: 2,
+  });
+  let applied = false;
+  await assert.rejects(
+    value.policy.withAuthorizedBoardTransaction(
+      {
+        principal: accountApiKeyPrincipal(),
+        operation: 'scene.clear',
+        boardId: boardId('board_1'),
+        isolation: 'READ_COMMITTED_WRITE',
+      },
+      async () => {
+        applied = true;
+      },
+    ),
+    isBoardError('UNAUTHENTICATED'),
+  );
+  assert.equal(applied, true);
+  assert.equal(value.apiKeyRechecks(), 2);
   assert.equal(value.calls.includes('ROLLBACK'), true);
   assert.equal(value.calls.includes('COMMIT'), false);
 });

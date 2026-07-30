@@ -1,8 +1,13 @@
 import {
   BOARD_LIMITS_V1,
   BoardDocumentParserV2,
+  BoardDocumentParserV3,
   collectDocumentNodesV2,
+  projectDocumentV3ToV2,
+  projectDocumentV2ToV3,
+  type BoardDocument,
   type BoardDocumentV2,
+  type BoardDocumentV3,
   type BoardError,
   type ImageNodeV1,
   type NodeId,
@@ -39,7 +44,7 @@ export type MediaImagePlacementV1 =
     };
 
 export type PlaceMediaImageOnPageInputV1 = Readonly<{
-  document: BoardDocumentV2;
+  document: BoardDocument;
   pageId: PageId;
   image: ImageNodeV1;
   placement: MediaImagePlacementV1;
@@ -86,7 +91,7 @@ const finiteCanvasPlacement = (
   placement.height > 0 &&
   Number.isSafeInteger(placement.zIndex);
 
-export const placeMediaImageOnPageV1 = (
+const placeMediaImageOnPageV2 = (
   input: PlaceMediaImageOnPageInputV1,
 ): BoardParseResult<BoardDocumentV2> => {
   const source = BoardDocumentParserV2.parse(input.document);
@@ -162,6 +167,31 @@ export const placeMediaImageOnPageV1 = (
   pages[index] = { ...page, scene: { ...page.scene, root: nextRoot } };
   return BoardDocumentParserV2.parse({ ...current, pages });
 };
+
+export function placeMediaImageOnPageV1(
+  input: PlaceMediaImageOnPageInputV1 & { document: BoardDocumentV2 },
+): BoardParseResult<BoardDocumentV2>;
+export function placeMediaImageOnPageV1(
+  input: PlaceMediaImageOnPageInputV1 & { document: BoardDocumentV3 },
+): BoardParseResult<BoardDocumentV3>;
+export function placeMediaImageOnPageV1(
+  input: PlaceMediaImageOnPageInputV1,
+): BoardParseResult<BoardDocument>;
+export function placeMediaImageOnPageV1(
+  input: PlaceMediaImageOnPageInputV1,
+): BoardParseResult<BoardDocument> {
+  if (input.document.schemaVersion === 2) return placeMediaImageOnPageV2(input);
+  const source = BoardDocumentParserV3.parse(input.document);
+  if (!source.ok) return source;
+  const transformed = placeMediaImageOnPageV2({
+    ...input,
+    document: projectDocumentV3ToV2(source.data.value),
+  });
+  if (!transformed.ok) return transformed;
+  return BoardDocumentParserV3.parse(
+    projectDocumentV2ToV3(transformed.data.value, source.data.value.format),
+  );
+}
 
 export const applyDocumentTransformV2 = (
   source: BoardDocumentV2,

@@ -54,8 +54,7 @@
 .content :global(.scene-canvas-child),
 .content :global(.scene-canvas-list),
 .content :global(.scene-drawing-viewport),
-.content :global(.scene-table-scroll),
-.content :global(.artifact-frame-container) {
+.content :global(.scene-table-scroll) {
   min-height: 0;
   overflow: visible;
 }
@@ -141,6 +140,7 @@
 
 .content :global(.scene-drawing-viewport),
 .content :global(.artifact-frame-container) {
+  min-height: 18rem;
   max-width: 100%;
   overflow: clip;
 }

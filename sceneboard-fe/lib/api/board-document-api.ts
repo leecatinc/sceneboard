@@ -9,7 +9,9 @@ import type {
   ApiResult,
   BrowserDocumentMutationInput,
   DocumentMutationRequest,
+  DocumentMutationRequestV3,
   DocumentMutationResult,
+  DocumentMutationResultV3,
 } from './board-api-types';
 
 export class BoardDocumentApi extends BoardApiTransport {
@@ -18,6 +20,13 @@ export class BoardDocumentApi extends BoardApiTransport {
     signal?: AbortSignal,
   ): Promise<ApiResult<DocumentMutationResult>> {
     return this.writeDocumentMutation(request, signal);
+  }
+
+  replaceV3(
+    request: DocumentMutationRequestV3,
+    signal?: AbortSignal,
+  ): Promise<ApiResult<DocumentMutationResultV3>> {
+    return this.writeDocumentMutationV3(request, signal);
   }
 
   transform(
@@ -41,6 +50,14 @@ export class BoardDocumentApi extends BoardApiTransport {
     signal?: AbortSignal,
   ) {
     return this.writeDocumentMutationForGeneration(binding, request, signal);
+  }
+
+  replaceV3ForGeneration(
+    binding: AuthoringGenerationBindingV1,
+    request: DocumentMutationRequestV3,
+    signal?: AbortSignal,
+  ) {
+    return this.writeDocumentMutationV3ForGeneration(binding, request, signal);
   }
 }
 

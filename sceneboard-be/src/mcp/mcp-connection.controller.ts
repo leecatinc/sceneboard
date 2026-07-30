@@ -13,6 +13,7 @@ import {
 } from '../common/http/board-request-correlation.js';
 import type { SafeAuthorizedConnectionV1 } from './mcp-connection.dto.js';
 import { McpConnectionService } from './mcp-connection.service.js';
+import { BoardOperationRateLimited } from '../rate-limit/board-operation-rate-limit.policy.js';
 
 interface McpConnectionRequest extends BoardPrincipalRequest, BoardRequestCorrelationCarrier {}
 
@@ -42,6 +43,7 @@ export class McpConnectionController {
 
   @Get('connection')
   @RequireBoardPrincipal()
+  @BoardOperationRateLimited('board-read')
   async get(
     @Query() query: unknown,
     @Req() request: McpConnectionRequest,

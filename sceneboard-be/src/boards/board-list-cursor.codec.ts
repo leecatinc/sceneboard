@@ -16,7 +16,8 @@ const TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 
 export type BoardListAccessContextV1 =
   | { accessKind: 'owner'; ownerUserId: string }
-  | { accessKind: 'grant'; grantId: GrantId };
+  | { accessKind: 'grant'; grantId: GrantId }
+  | { accessKind: 'account_api_key'; ownerUserId: string; apiKeyId: string };
 
 export interface BoardListCursorTupleV1 {
   createdAt: TimestampV1;
@@ -105,13 +106,20 @@ export class BoardListCursorCodec {
   }
 
   private contextMac(access: BoardListAccessContextV1): string {
-    const payload =
-      access.accessKind === 'owner'
-        ? Buffer.from(
-            JSON.stringify({ accessKind: 'owner', ownerUserId: decimalId(access.ownerUserId) }),
-            'utf8',
-          )
-        : Buffer.from(JSON.stringify({ accessKind: 'grant', grantId: access.grantId }), 'utf8');
+    const payload = Buffer.from(
+      JSON.stringify(
+        access.accessKind === 'owner'
+          ? { accessKind: 'owner', ownerUserId: decimalId(access.ownerUserId) }
+          : access.accessKind === 'grant'
+            ? { accessKind: 'grant', grantId: access.grantId }
+            : {
+                accessKind: 'account_api_key',
+                ownerUserId: decimalId(access.ownerUserId),
+                apiKeyId: decimalId(access.apiKeyId),
+              },
+      ),
+      'utf8',
+    );
     return encodeBase64Url(cursorHmacSha256V1(this.key, CONTEXT_DOMAIN, payload));
   }
 }

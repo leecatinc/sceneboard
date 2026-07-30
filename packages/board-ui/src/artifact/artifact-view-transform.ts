@@ -80,7 +80,7 @@ export const panArtifactViewByInnerDeltaV1 = (
   panArtifactViewV1(transform, deltaX * transform.scale, deltaY * transform.scale);
 
 export const fitArtifactViewV1 = (input: {
-  mode: 'fit-height' | 'fit-width';
+  mode: 'fit-page' | 'fit-width';
   availableWidth: number;
   availableHeight: number;
   contentWidth: number;
@@ -93,8 +93,11 @@ export const fitArtifactViewV1 = (input: {
   )
     return { scale: 1, x: 0, y: 0 };
   const scale =
-    input.mode === 'fit-height'
-      ? input.availableHeight / input.contentHeight
+    input.mode === 'fit-page'
+      ? Math.min(
+          input.availableWidth / input.contentWidth,
+          input.availableHeight / input.contentHeight,
+        )
       : input.availableWidth / input.contentWidth;
   const renderedWidth = input.contentWidth * scale;
   const renderedHeight = input.contentHeight * scale;
@@ -106,7 +109,7 @@ export const fitArtifactViewV1 = (input: {
 };
 
 export const sizeArtifactStageV1 = (input: {
-  mode: 'fit-height' | 'fit-width' | 'actual';
+  mode: 'fit-page' | 'fit-width' | 'actual';
   availableWidth: number;
   availableHeight: number;
   contentWidth: number;

@@ -13,19 +13,20 @@ import type { PoolConnection } from 'mysql2/promise';
 import { BoardListCursorCodec } from '../../src/boards/board-list-cursor.codec.js';
 import { BoardListService, type BoardListRequestV1 } from '../../src/boards/board-list.service.js';
 import { createCursorMacKeyV1 } from '../../src/common/security/cursor-mac-key.js';
-import type {
-  AuthorizedBoardContextV1,
-  AuthorizedBoardTransactionInputV1,
-  BoardAccessPolicy,
-  ResolvedBoardPrincipalV1,
+import {
+  ACCOUNT_API_KEY_SNAPSHOT,
+  type AuthorizedBoardContextV1,
+  type AuthorizedBoardTransactionInputV1,
+  type BoardAccessPolicy,
+  type ResolvedBoardPrincipalV1,
 } from '../../src/grants/board-access.policy.js';
 
-const actor = (kind: 'user' | 'mcp_client'): ActorContextV1 => {
+const actor = (kind: 'user' | 'mcp_client' | 'service'): ActorContextV1 => {
   const parsed = normalizeActorContextV1({
     principalKind: kind,
-    principalId: kind === 'user' ? 'user_1' : 'client_1',
-    grantId: kind === 'user' ? null : 'grant_1',
-    scopes: ['board.read'],
+    principalId: kind === 'user' ? 'user_1' : kind === 'mcp_client' ? 'client_1' : 'key_public_1',
+    grantId: kind === 'mcp_client' ? 'grant_1' : null,
+    scopes: kind === 'service' ? [] : ['board.read'],
   });
   assert.equal(parsed.ok, true);
   if (!parsed.ok) throw new Error('invalid actor fixture');
@@ -62,7 +63,7 @@ const row = (boardPk: string, createdSecond: number, uuidByte: string) => ({
   headRevisionCreatedAt: `2026-07-16 12:01:${String(createdSecond).padStart(2, '0')}.000`,
 });
 
-const setup = (kind: 'owner' | 'grant') => {
+const setup = (kind: 'owner' | 'grant' | 'account_api_key') => {
   const calls: Array<{ sql: string; binds: unknown[] }> = [];
   const rows = [row('3', 3, 'a'), row('2', 2, 'b'), row('1', 1, 'c')];
   const connection = {
@@ -80,24 +81,47 @@ const setup = (kind: 'owner' | 'grant') => {
           userPk: 20n,
           sessionPk: 21n,
           familyPublicId: 'family_1',
+          isBrowserCredential: true,
         }
-      : {
-          kind: 'mcp',
-          actor: actor('mcp_client'),
-          ownerUserPk: 20n,
-          grantPk: 30n,
-          credentialPk: 40n,
-          grantId: 'grant_1' as GrantId,
-          sourceFamilyPublicId: null,
-        };
+      : kind === 'grant'
+        ? {
+            kind: 'mcp',
+            actor: actor('mcp_client'),
+            ownerUserPk: 20n,
+            grantPk: 30n,
+            credentialPk: 40n,
+            grantId: 'grant_1' as GrantId,
+            sourceFamilyPublicId: null,
+            isBrowserCredential: false,
+          }
+        : {
+            kind: 'account_api_key',
+            actor: actor('service'),
+            ownerUserPk: 20n,
+            apiKeyPk: 70n,
+            scopeMask: 4,
+            isBrowserCredential: false,
+            [ACCOUNT_API_KEY_SNAPSHOT]: {
+              keyPk: '70',
+              keyPublicId: 'key_public_1',
+              ownerUserPk: '20',
+              ownerPublicId: 'user_1',
+              scopeMask: 4,
+              scopes: ['board:read'],
+              expiresAt: Date.parse('2026-07-17T00:00:00.000Z'),
+            },
+          };
   const context: AuthorizedBoardContextV1 = {
     actor: principal.actor,
     ownerUserPk: 20n,
     access:
       kind === 'owner'
         ? { kind: 'owner', ownerUserPk: 20n }
-        : { kind: 'grant', grantPk: 30n, grantId: 'grant_1' as GrantId },
+        : kind === 'grant'
+          ? { kind: 'grant', grantPk: 30n, grantId: 'grant_1' as GrantId }
+          : { kind: 'api_key', ownerUserPk: 20n, apiKeyPk: 70n },
     createBinding: null,
+    ...(kind === 'account_api_key' ? { accountUserPk: 20n, membership: null } : {}),
     artifactCapabilityPolicy: {
       allowedArtifactRequestCapabilities: [],
       policyEpoch: 'AAAAAAAAAAAAAAAAAAAAAA',
@@ -152,4 +176,41 @@ test('grant board page starts from the exact binding key and never performs a pe
   assert.match(value.calls[0]?.sql ?? '', /gb\.grant_id = \?/);
   assert.match(value.calls[0]?.sql ?? '', /LIMIT 3$/);
   assert.deepEqual(value.calls[0]?.binds, ['30']);
+});
+
+test('API-key board page filters active owner membership and binds its cursor to both owner and key', async () => {
+  const value = setup('account_api_key');
+  const result = await value.service.list({ principal: value.principal, request: request() });
+  assert.equal(result.result.type, 'board.list');
+  if (result.result.type !== 'board.list' || result.result.nextCursor === null) return;
+  assert.equal(value.calls.length, 1);
+  assert.match(value.calls[0]?.sql ?? '', /FROM board_memberships bm JOIN boards b/);
+  assert.match(
+    value.calls[0]?.sql ?? '',
+    /bm\.account_pk = \? AND bm\.role = 'owner' AND bm\.state = 'active' AND b\.owner_user_id = bm\.account_pk/,
+  );
+  assert.deepEqual(value.calls[0]?.binds, ['20']);
+  assert.deepEqual(
+    value.cursors.parse({
+      cursor: result.result.nextCursor,
+      includeArchived: false,
+      access: {
+        accessKind: 'account_api_key',
+        ownerUserId: '20',
+        apiKeyId: '70',
+      },
+    }),
+    { createdAt: '2026-07-16T12:00:02.000Z', boardPk: '2' },
+  );
+  assert.throws(() =>
+    value.cursors.parse({
+      cursor: result.result.nextCursor!,
+      includeArchived: false,
+      access: {
+        accessKind: 'account_api_key',
+        ownerUserId: '20',
+        apiKeyId: '71',
+      },
+    }),
+  );
 });

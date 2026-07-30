@@ -29,9 +29,10 @@ test('normalizes every hidden share management failure without 403 or 410', asyn
     new URL('../../src/common/filters/http-error.filter.ts', import.meta.url),
     'utf8',
   );
+  const shareStart = source.indexOf("if (isSharePath(request.url ?? ''))");
   const shareBranch = source.slice(
-    source.indexOf("if (isSharePath(request.url ?? ''))"),
-    source.indexOf('if (exception instanceof BoardContractError)'),
+    shareStart,
+    source.indexOf('if (exception instanceof BoardContractError)', shareStart),
   );
   assert.match(shareBranch, /new ShareContractError\('BOARD_NOT_FOUND'\)/u);
   assert.match(shareBranch, /new ShareContractError\('INVALID_REQUEST'\)/u);

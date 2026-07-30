@@ -32,6 +32,7 @@ export type HistoryListRequestV1 = BoardOperationRequestV1 & {
   boardId: BoardId;
   cursor: PageCursorV1 | null;
   limit: number;
+  documentSchemaVersion?: 1 | 2 | 3;
 };
 
 interface HistoryListRow extends RowDataPacket {
@@ -145,6 +146,26 @@ export class HistoryListService {
         );
         if (rows.length > input.request.limit + 1) throw new BoardPersistenceError('row_integrity');
         const page = rows.slice(0, input.request.limit);
+        if (
+          input.request.documentSchemaVersion === 1 &&
+          page.some((row) => row.sceneSchemaVersion !== '1.0.0')
+        ) {
+          throw new BoardContractError({
+            protocolVersion: 1,
+            type: 'board.error',
+            code: 'PROTOCOL_VERSION_MISMATCH',
+            message: 'Document history requires a document-capable client',
+            category: 'protocol',
+            retryable: false,
+            httpStatusHint: 409,
+            details: {
+              reason: 'schema_revision',
+              supportedMajor: 1,
+              receivedMajor: 1,
+              field: 'documentSchemaVersion',
+            },
+          });
+        }
         const entries: HistoryEntryV1[] = page.map((row) => ({
           revision: {
             revisionId: revisionId(row.revisionId),
@@ -188,8 +209,32 @@ export class HistoryListService {
                 entries.map((entry, index) => {
                   const row = page[index];
                   if (row === undefined) throw new BoardPersistenceError('row_integrity');
-                  if (row.sceneSchemaVersion !== '1.0.0' && row.sceneSchemaVersion !== '2.0.0') {
+                  if (
+                    row.sceneSchemaVersion !== '1.0.0' &&
+                    row.sceneSchemaVersion !== '2.0.0' &&
+                    row.sceneSchemaVersion !== '3.0.0'
+                  ) {
                     throw new BoardPersistenceError('row_integrity');
+                  }
+                  if (
+                    input.request.documentSchemaVersion === 1 &&
+                    row.sceneSchemaVersion !== '1.0.0'
+                  ) {
+                    throw new BoardContractError({
+                      protocolVersion: 1,
+                      type: 'board.error',
+                      code: 'PROTOCOL_VERSION_MISMATCH',
+                      message: 'Document history requires a document-capable client',
+                      category: 'protocol',
+                      retryable: false,
+                      httpStatusHint: 409,
+                      details: {
+                        reason: 'schema_revision',
+                        supportedMajor: 1,
+                        receivedMajor: 1,
+                        field: 'documentSchemaVersion',
+                      },
+                    });
                   }
                   return {
                     entry,
@@ -202,7 +247,11 @@ export class HistoryListService {
                           : row.actorClass === 'owner'
                             ? 'owner'
                             : 'editor',
-                    schemaVersion: row.sceneSchemaVersion,
+                    schemaVersion:
+                      row.sceneSchemaVersion === '3.0.0' &&
+                      input.request.documentSchemaVersion !== 3
+                        ? '2.0.0'
+                        : row.sceneSchemaVersion,
                   };
                 }),
                 {

@@ -179,8 +179,12 @@ test('AI connection presentation preserves a bounded tab code and gates approval
   assert.match(requests, /requestRow/);
 });
 
-test('board top bar preserves live connection and history controls before pairing integration', () => {
+test('board chrome keeps page and revision navigation in the compact bar and presentation in the rail', () => {
   const topBar = readFileSync(resolve(workspace, 'components/board/BoardTopBar.tsx'), 'utf8');
+  const utilityRail = readFileSync(
+    resolve(workspace, 'components/board/BoardUtilityRail.tsx'),
+    'utf8',
+  );
   const chromeSlots = readFileSync(
     resolve(workspace, 'components/board/BoardChromeSlots.tsx'),
     'utf8',
@@ -204,7 +208,7 @@ test('board top bar preserves live connection and history controls before pairin
     chromeSlots,
     /<BoardViewModeControls\s+value=\{viewMode\}\s+zoom=\{artifactZoom\}\s+canReset=\{canResetArtifactView\}/,
   );
-  assert.match(viewModes, /'fit-height', 'fit-width', 'actual'/);
+  assert.match(viewModes, /'fit-page', 'fit-width', 'actual'/);
   assert.match(viewModes, /aria-pressed=\{value === mode\}/);
   assert.match(viewModes, /board\.artifactZoomStatus/);
   assert.match(viewModes, /aria-live="polite"/);
@@ -218,12 +222,32 @@ test('board top bar preserves live connection and history controls before pairin
     boardClient,
     /rootIsDrawing \? drawingView\.scale : selectedArtifactZoomV1\(artifactViews\)/,
   );
+  assert.match(
+    boardClient,
+    /const hasArtifact = pageRootContainsArtifactV1\(pageRender\.page\.scene\.root\);/,
+  );
+  // 네이티브 페이지 컨트롤은 루트 캔버스가 있을 때만 렌더된다(캔버스 없는 아티팩트 페이지에는 미동작 버튼이 없음).
+  assert.match(
+    boardClient,
+    /nativePageControls\s*=\s*rootCanvas !== null \?\s*\(\s*<>\s*<PageDisplayModeControls/,
+  );
+  // 아티팩트/드로잉 보기 컨트롤은 해당 콘텐츠가 있을 때만 렌더된다.
+  assert.match(
+    boardClient,
+    /artifactViewControls = showArtifactControls \?\s*\(\s*<BoardViewModeControls/,
+  );
+  assert.match(boardClient, /showArtifactView=\{showArtifactControls\}/);
   assert.match(boardClient, /setDrawingResetSignal\(\(value\) => value \+ 1\)/);
   assert.match(boardClient, /<BoardRenderer[\s\S]*?emptyLabel=""/);
   assert.match(boardClient, /return\s*\(\s*<BoardStatePanel\s+error=/);
   assert.match(viewModes, /onClick=\{onReset\}/);
   assert.match(chromeSlots, /artifactZoom/);
-  assert.match(topBar, /board-topbar-history/);
+  assert.match(topBar, /board-topbar-page-navigation/);
+  assert.match(topBar, /board-topbar-revision/);
+  assert.doesNotMatch(topBar, /board-topbar-presentation/);
+  assert.match(utilityRail, /viewControls: ReactNode/);
+  assert.match(utilityRail, /presentationControl: ReactNode/);
+  assert.doesNotMatch(utilityRail, /historyControls: ReactNode/);
   assert.match(statusRail, /artifact-stop-sidebar/);
   assert.match(statusRail, /onStopRendering/);
 });

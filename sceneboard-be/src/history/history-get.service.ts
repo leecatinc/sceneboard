@@ -1,7 +1,11 @@
 import {
   adaptLegacySceneToDocumentV2,
   BoardOperationResultParserV1,
+  BoardOperationResultParserV2,
+  BoardOperationResultParserV3,
   PrincipalIdParserV1,
+  projectDocumentV2ToV3,
+  projectDocumentV3ToV2,
   type BoardId,
   type BoardOperationRequestV1,
   type BoardOperationResultV1,
@@ -41,6 +45,7 @@ export type HistoryGetRequestV1 = BoardOperationRequestV1 & {
   type: 'history.get';
   boardId: BoardId;
   revisionId: RevisionId;
+  documentSchemaVersion?: 1 | 2 | 3;
 };
 
 interface HistoryGetRow extends RowDataPacket {
@@ -178,6 +183,23 @@ export class HistoryGetService {
           storedBytes: row.sceneStoredBytes,
           sha256: row.sceneSha256,
         });
+        if (input.request.documentSchemaVersion === 1 && decoded.kind === 'document') {
+          throw new BoardContractError({
+            protocolVersion: 1,
+            type: 'board.error',
+            code: 'PROTOCOL_VERSION_MISMATCH',
+            message: 'Document history requires a document-capable client',
+            category: 'protocol',
+            retryable: false,
+            httpStatusHint: 409,
+            details: {
+              reason: 'schema_revision',
+              supportedMajor: 1,
+              receivedMajor: 1,
+              field: 'documentSchemaVersion',
+            },
+          });
+        }
         await this.assertReferences(connection, row.revisionPk, decoded);
         await this.assertMediaReferences(
           connection,
@@ -200,22 +222,53 @@ export class HistoryGetService {
             principalId: principalId(row.actorPrincipalId),
           },
         };
+        const composition = {
+          actor: context.actor,
+          boardId: input.request.boardId,
+          revision,
+          lastEventSequence,
+        };
         const snapshot =
-          decoded.kind === 'scene'
-            ? await this.snapshots.compose(connection, {
-                actor: context.actor,
-                boardId: input.request.boardId,
-                revision,
-                checkpoint: decoded,
-                lastEventSequence,
+          input.request.documentSchemaVersion === 3
+            ? await this.snapshots.composeDocument(connection, {
+                ...composition,
+                checkpoint: {
+                  kind: 'document',
+                  document:
+                    decoded.kind === 'scene'
+                      ? projectDocumentV2ToV3(
+                          adaptLegacySceneToDocumentV2({
+                            boardId: input.request.boardId,
+                            scene: decoded.scene,
+                          }),
+                        )
+                      : decoded.document.schemaVersion === 2
+                        ? projectDocumentV2ToV3(decoded.document)
+                        : decoded.document,
+                  canonicalBytes: decoded.canonicalBytes,
+                },
               })
-            : await this.snapshots.composeDocument(connection, {
-                actor: context.actor,
-                boardId: input.request.boardId,
-                revision,
-                checkpoint: decoded,
-                lastEventSequence,
-              });
+            : input.request.documentSchemaVersion === 2 || decoded.kind === 'document'
+              ? await this.snapshots.composeDocument(connection, {
+                  ...composition,
+                  checkpoint: {
+                    kind: 'document',
+                    document:
+                      decoded.kind === 'scene'
+                        ? adaptLegacySceneToDocumentV2({
+                            boardId: input.request.boardId,
+                            scene: decoded.scene,
+                          })
+                        : decoded.document.schemaVersion === 3
+                          ? projectDocumentV3ToV2(decoded.document)
+                          : decoded.document,
+                    canonicalBytes: decoded.canonicalBytes,
+                  },
+                })
+              : await this.snapshots.compose(connection, {
+                  ...composition,
+                  checkpoint: decoded,
+                });
         const entry: HistoryEntryV1 = {
           revision: {
             revisionId: revision.revisionId,
@@ -227,7 +280,13 @@ export class HistoryGetService {
           sourceRevisionId: revision.sourceRevisionId,
           actor: revision.actor,
         };
-        const parsed = BoardOperationResultParserV1.parse({
+        const parser =
+          'document' in snapshot
+            ? snapshot.document.schemaVersion === 3
+              ? BoardOperationResultParserV3
+              : BoardOperationResultParserV2
+            : BoardOperationResultParserV1;
+        const parsed = parser.parse({
           protocolVersion: 1,
           type: 'board.operation.result',
           requestId: input.request.requestId,
@@ -255,8 +314,13 @@ export class HistoryGetService {
                           ? 'owner'
                           : 'editor',
                   schemaVersion:
-                    row.sceneSchemaVersion === '1.0.0' || row.sceneSchemaVersion === '2.0.0'
-                      ? row.sceneSchemaVersion
+                    row.sceneSchemaVersion === '1.0.0' ||
+                    row.sceneSchemaVersion === '2.0.0' ||
+                    row.sceneSchemaVersion === '3.0.0'
+                      ? row.sceneSchemaVersion === '3.0.0' &&
+                        input.request.documentSchemaVersion !== 3
+                        ? '2.0.0'
+                        : row.sceneSchemaVersion
                       : (() => {
                           throw new BoardPersistenceError('row_integrity');
                         })(),

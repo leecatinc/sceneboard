@@ -1,7 +1,7 @@
 import {
   MediaAltSchemaV1,
   MediaCaptionSchemaV1,
-  type BoardDocumentV2,
+  type BoardDocument,
   type ImageNodeV1,
   type MediaId,
   type NodeId,
@@ -66,7 +66,7 @@ export const createMediaImageNodeV1 = (input: {
 };
 
 export const chooseMediaImagePlacementV1 = (input: {
-  document: BoardDocumentV2;
+  document: BoardDocument;
   pageId: PageId;
   wrapperNodeId: NodeId;
   intrinsicWidth: number;
@@ -139,7 +139,7 @@ const sameImage = (left: ImageNodeV1, right: ImageNodeV1): boolean =>
   JSON.stringify(left) === JSON.stringify(right);
 
 export const mediaImageProjectionV1 = (input: {
-  document: BoardDocumentV2;
+  document: BoardDocument;
   pageId: PageId;
   image: ImageNodeV1;
   placement: MediaImagePlacementV1;

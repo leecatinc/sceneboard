@@ -36,7 +36,7 @@ test('route lifecycle uses exact epochs, stale guards, matching exit, and focus 
   assert.match(route, /page\?\.isConnected/u);
 });
 
-test('visibility component owns one timer, exact holds, first Tab, and admitted activity', () => {
+test('visibility component owns one timer, exact holds, first Tab, and bottom-edge activity', () => {
   const overlay = source('components/board/PresentationControlOverlay.tsx');
   assert.equal((overlay.match(/useRef<ReturnType<typeof setTimeout>/gu) ?? []).length, 1);
   for (const key of [
@@ -50,6 +50,9 @@ test('visibility component owns one timer, exact holds, first Tab, and admitted 
     assert.match(overlay, new RegExp(`\\b${key}\\b`, 'u'));
   assert.match(overlay, /event\.key !== 'Tab'/u);
   assert.match(overlay, /firstControlRef\.current\?\.focus\(\)/u);
-  assert.match(overlay, /window\.addEventListener\('pointermove', recordActivity/u);
+  assert.doesNotMatch(overlay, /window\.addEventListener\('pointermove', recordActivity/u);
+  assert.match(overlay, /className=\{styles\.revealZone\}/u);
+  assert.match(overlay, /onPointerEnter=\{recordActivity\}/u);
+  assert.doesNotMatch(overlay, /presentation\.showControls/u);
   assert.match(overlay, /data-presentation-controls=\{visibility\.phase\}/u);
 });

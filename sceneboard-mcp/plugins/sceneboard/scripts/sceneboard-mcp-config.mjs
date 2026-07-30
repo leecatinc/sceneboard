@@ -45,6 +45,9 @@ const normalizeStdioServer = (value, source, environment = {}) => {
     throw new TypeError(`invalid_sceneboard_${source}_cwd`);
   }
   const env = stringRecord(value.env, `${source}_env`);
+  if (Object.hasOwn(env, 'SCENEBOARD_API_KEY')) {
+    throw new TypeError(`invalid_sceneboard_${source}_raw_api_key`);
+  }
   for (const name of envVars) {
     if (typeof environment[name] === 'string') env[name] = environment[name];
   }
@@ -116,11 +119,26 @@ export const readCodexServer = ({ projectRoot, environment = process.env, run = 
   return server === null ? null : { source: 'codex_config_toml', server };
 };
 
-export const productionServer = ({ pluginRoot, productionApiUrl = PRODUCTION_API_URL }) => {
+export const productionServer = ({
+  pluginRoot,
+  productionApiUrl = PRODUCTION_API_URL,
+  environment = process.env,
+}) => {
   const parsedUrl = new URL(productionApiUrl);
   if (parsedUrl.protocol !== 'https:' || parsedUrl.username !== '' || parsedUrl.password !== '') {
     throw new TypeError('invalid_sceneboard_production_api_url');
   }
+  const credentialMode = environment.BOARD_CREDENTIAL_MODE ?? 'pairing';
+  if (credentialMode !== 'pairing' && credentialMode !== 'api_key') {
+    throw new TypeError('invalid_sceneboard_credential_mode');
+  }
+  const profile = environment.BOARD_PROFILE ?? 'sceneboard';
+  if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/u.test(profile)) {
+    throw new TypeError('invalid_sceneboard_profile');
+  }
+  const accessTokenRef =
+    environment.BOARD_ACCESS_TOKEN_REF ??
+    (credentialMode === 'api_key' ? 'env://SCENEBOARD_API_KEY' : 'store://sceneboard');
   return {
     source: 'production_default',
     server: {
@@ -129,8 +147,9 @@ export const productionServer = ({ pluginRoot, productionApiUrl = PRODUCTION_API
       cwd: pluginRoot,
       env: {
         BOARD_API_URL: parsedUrl.origin,
-        BOARD_ACCESS_TOKEN_REF: 'store://sceneboard',
-        BOARD_PROFILE: 'sceneboard',
+        BOARD_CREDENTIAL_MODE: credentialMode,
+        BOARD_ACCESS_TOKEN_REF: accessTokenRef,
+        BOARD_PROFILE: profile,
         BOARD_TIMEOUT_MS: '30000',
       },
     },
@@ -159,5 +178,6 @@ export const resolveSceneBoardServer = async ({
     pluginRoot,
     productionApiUrl:
       productionApiUrl ?? environment.SCENEBOARD_PRODUCTION_API_URL ?? PRODUCTION_API_URL,
+    environment,
   });
 };

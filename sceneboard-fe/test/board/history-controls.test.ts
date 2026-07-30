@@ -37,3 +37,36 @@ test('renders only normalized privacy-safe history fields', () => {
   assert.match(source, /row\.summary/);
   assert.doesNotMatch(source, /principalId|email|grantId|hold|recovery|sourceRevisionId/);
 });
+
+test('each history presentation keeps one visible error and a visually hidden live region', () => {
+  // Both sidebar and mobile combobox variants keep the live region for assistive tech.
+  assert.match(source, /history-live-region visually-hidden/);
+  assert.match(source, /role="status" aria-live="polite"/);
+  // Each variant renders its own visible error block exactly once.
+  const errorBlocks = source.match(
+    /history\.status === 'error' && \(\s*<div className="history-popup-state">/g,
+  );
+  assert.equal(errorBlocks?.length ?? 0, 2);
+});
+
+test('trigger carries a compact warning state and busy semantics during history load', () => {
+  assert.match(source, /history-trigger\$\{history\.status === 'error' \? ' is-warning' : ''\}/);
+  assert.match(
+    source,
+    /history-trigger-caret\$\{history\.status === 'error' \? ' is-warning' : ''\}/,
+  );
+  assert.match(
+    source,
+    /aria-busy=\{history\.status === 'loading' \|\| history\.status === 'loading_more'\}/,
+  );
+  assert.match(styles, /\.history-trigger\.is-warning\b/);
+  assert.match(styles, /\.history-trigger-caret\.is-warning::after/);
+});
+
+test('retry copy reloads history instead of the ambiguous retry-again wording', () => {
+  const catalog = readFileSync(
+    new URL('../../lib/i18n/catalogs/presentation.ts', import.meta.url),
+    'utf8',
+  );
+  assert.match(catalog, /'board\.historyRetry',\n\s+'Reload history',\n\s+'다시 불러오기'/);
+});

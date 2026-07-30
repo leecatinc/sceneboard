@@ -1,6 +1,6 @@
 const SECRET_KEY =
   /(authorization|token|proof|challenge|code|password|cookie|secret|path|generation)/i;
-const TOKEN_PATTERN = /lcbg_v1\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}/g;
+const TOKEN_PATTERN = /(?:lcbg_v1|sbk_v1)\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}/g;
 const PAIRING_PROOF_PATTERN = /PairingProof\s+[A-Za-z0-9_-]+/gi;
 
 export const redactSecretsV1 = (value: unknown, depth = 0): unknown => {

@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 
+import { AccountApiKeyModule } from '../api-keys/account-api-key.module.js';
+import { AccountApiKeyService } from '../api-keys/account-api-key.service.js';
 import { AuditRepository } from '../audit/audit.repository.js';
 import { AuditModule } from '../audit/audit.module.js';
 import { AuthModule } from '../auth/auth.module.js';
@@ -18,7 +20,7 @@ import { MysqlBoardAccessPolicy } from './board-access-policy.service.js';
 import { GrantPrincipalRepository } from './grant-principal.repository.js';
 
 @Module({
-  imports: [AuthModule, DatabaseModule, AuditModule, MembershipsModule],
+  imports: [AccountApiKeyModule, AuthModule, DatabaseModule, AuditModule, MembershipsModule],
   controllers: [GrantController],
   providers: [
     {
@@ -45,18 +47,27 @@ import { GrantPrincipalRepository } from './grant-principal.repository.js';
     },
     {
       provide: ActorContextService,
-      inject: [GrantPrincipalRepository, GrantTokenService],
-      useFactory: (repository: GrantPrincipalRepository, tokens: GrantTokenService) =>
-        new ActorContextService(repository, tokens),
+      inject: [GrantPrincipalRepository, GrantTokenService, AccountApiKeyService],
+      useFactory: (
+        repository: GrantPrincipalRepository,
+        tokens: GrantTokenService,
+        accountApiKeys: AccountApiKeyService,
+      ) => new ActorContextService(repository, tokens, accountApiKeys),
     },
     {
       provide: MysqlBoardAccessPolicy,
-      inject: [MysqlService, CryptoService, BoardMembershipAuthorizationService],
+      inject: [
+        MysqlService,
+        CryptoService,
+        BoardMembershipAuthorizationService,
+        AccountApiKeyService,
+      ],
       useFactory: (
         mysql: MysqlService,
         crypto: CryptoService,
         memberships: BoardMembershipAuthorizationService,
-      ) => new MysqlBoardAccessPolicy(mysql, crypto, {}, memberships),
+        accountApiKeys: AccountApiKeyService,
+      ) => new MysqlBoardAccessPolicy(mysql, crypto, {}, memberships, accountApiKeys),
     },
     {
       provide: GrantService,

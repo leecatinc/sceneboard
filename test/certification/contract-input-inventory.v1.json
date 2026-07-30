@@ -3671,9 +3671,36 @@
           "exportKind": null,
           "projectionId": null,
           "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-43",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/assets/artifact-templates/slide-deck.json",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-44",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/references/slide-deck.md",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "D6-SKILL-45",
+          "owner": "D6",
+          "path": "sceneboard-mcp/plugins/sceneboard/skills/sceneboard/scripts/scene-artifact-slide-deck.mjs",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
         }
       ],
-      "expectedCardinality": 42,
+      "expectedCardinality": 45,
       "canonicalization": "utf8-lf",
       "materializationPredecessor": null,
       "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
@@ -4088,9 +4115,45 @@
       "exportKind": null,
       "projectionId": null,
       "selector": "whole-file"
+    },
+    {
+      "resourceId": "MIGRATION-ASSET-30",
+      "owner": "D2",
+      "path": "sceneboard-be/src/database/migrations/sql/024_d2_scope_mask_capacity.up.sql",
+      "exportName": null,
+      "exportKind": null,
+      "projectionId": null,
+      "selector": "whole-file"
+    },
+    {
+      "resourceId": "MIGRATION-ASSET-31",
+      "owner": "D2",
+      "path": "sceneboard-be/src/database/migrations/sql/025_d10_account_api_keys.up.sql",
+      "exportName": null,
+      "exportKind": null,
+      "projectionId": null,
+      "selector": "whole-file"
+    },
+    {
+      "resourceId": "MIGRATION-ASSET-32",
+      "owner": "D3",
+      "path": "sceneboard-be/src/database/migrations/sql/026_d10_document_v3_checkpoint.up.sql",
+      "exportName": null,
+      "exportKind": null,
+      "projectionId": null,
+      "selector": "whole-file"
+    },
+    {
+      "resourceId": "MIGRATION-ASSET-33",
+      "owner": "D3",
+      "path": "sceneboard-be/src/database/migrations/sql/027_d10_revision_export_hold.up.sql",
+      "exportName": null,
+      "exportKind": null,
+      "projectionId": null,
+      "selector": "whole-file"
     }
   ],
-  "expectedCardinality": 30,
+  "expectedCardinality": 34,
       "canonicalization": "utf8-lf",
       "materializationPredecessor": null,
       "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"

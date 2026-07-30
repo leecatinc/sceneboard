@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "package": "@fontsource/noto-sans-kr",
+  "version": "5.2.6",
+  "license": "OFL-1.1",
+  "licensePath": "node_modules/@fontsource/noto-sans-kr/LICENSE",
+  "installDirectory": "/opt/sceneboard/fonts",
+  "fonts": [
+    {
+      "subset": "korean",
+      "file": "noto-sans-kr-korean-400-normal.woff2",
+      "sha256": "2d289d2d456dbd2c7764384ed40c7a98c630fdda50b0a9e6f751533727ec59fe"
+    },
+    {
+      "subset": "latin",
+      "file": "noto-sans-kr-latin-400-normal.woff2",
+      "sha256": "00b30a809a30a8ce77c4ca4a6f3b0216526ca910b37fc75a528253ab3b96acad"
+    }
+  ]
+}

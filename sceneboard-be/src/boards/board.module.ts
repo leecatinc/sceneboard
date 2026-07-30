@@ -123,12 +123,14 @@ import { BoardController } from './board.controller.js';
         DocumentCheckpointCodec,
         MediaOwnershipPort,
         RevisionMediaReferenceExtractor,
+        APP_ENVIRONMENT,
       ],
       useFactory: (
         accessPolicy: MysqlBoardAccessPolicy,
         checkpointCodec: DocumentCheckpointCodec,
         mediaOwnership: MediaOwnershipPort,
         mediaReferences: RevisionMediaReferenceExtractor,
+        environment: AppEnvironment,
       ) =>
         new BoardMutationService(
           accessPolicy,
@@ -136,6 +138,7 @@ import { BoardController } from './board.controller.js';
           {},
           mediaOwnership,
           mediaReferences,
+          environment.boardDocumentV3WriteEnabled,
         ),
     },
     {

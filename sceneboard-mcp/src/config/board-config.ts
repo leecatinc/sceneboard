@@ -3,14 +3,27 @@ import { readFile } from 'node:fs/promises';
 export const BOARD_CONFIG_MAX_BYTES_V1 = 65_536;
 export const BOARD_PROFILE_PATTERN_V1 = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 
-export type BoardConfigFileV1 = {
+export type PairingBoardConfigFileV1 = {
   version: 1;
   baseUrl: string;
   accessTokenRef: 'env://SCENEBOARD_ACCESS_TOKEN' | `store://${string}`;
   authScheme: 'bearer';
   timeoutMs: number;
   profile: string;
+  credentialMode?: 'pairing';
 };
+
+export type ApiKeyBoardConfigFileV1 = {
+  version: 1;
+  baseUrl: string;
+  accessTokenRef: 'env://SCENEBOARD_API_KEY' | `store://${string}`;
+  authScheme: 'bearer';
+  timeoutMs: number;
+  profile: string;
+  credentialMode: 'api_key';
+};
+
+export type BoardConfigFileV1 = PairingBoardConfigFileV1 | ApiKeyBoardConfigFileV1;
 
 export type SafeConfigSourceV1 =
   | 'process_option'
@@ -156,10 +169,21 @@ export const parseBoardConfigV1 = (
   value: unknown,
   source: SafeConfigSourceV1,
 ): BoardConfigFileV1 => {
-  const keys = ['version', 'baseUrl', 'accessTokenRef', 'authScheme', 'timeoutMs', 'profile'];
-  if (!isRecord(value) || !hasExactKeys(value, keys)) throw new BoardConfigError(source, null);
+  const legacyKeys = ['version', 'baseUrl', 'accessTokenRef', 'authScheme', 'timeoutMs', 'profile'];
+  const discriminatedKeys = [...legacyKeys, 'credentialMode'];
+  if (
+    !isRecord(value) ||
+    (!hasExactKeys(value, legacyKeys) && !hasExactKeys(value, discriminatedKeys))
+  )
+    throw new BoardConfigError(source, null);
   if (value.version !== 1) throw new BoardConfigError(source, 'version');
   if (value.authScheme !== 'bearer') throw new BoardConfigError(source, 'authScheme');
+  if (
+    value.credentialMode !== undefined &&
+    value.credentialMode !== 'pairing' &&
+    value.credentialMode !== 'api_key'
+  )
+    throw new BoardConfigError(source, 'credentialMode');
   if (
     !Number.isSafeInteger(value.timeoutMs) ||
     Number(value.timeoutMs) < 1_000 ||
@@ -170,25 +194,38 @@ export const parseBoardConfigV1 = (
   if (typeof value.profile !== 'string' || !BOARD_PROFILE_PATTERN_V1.test(value.profile)) {
     throw new BoardConfigError(source, 'profile');
   }
-  const rawAccessTokenRef = value.accessTokenRef;
+  const credentialMode = value.credentialMode ?? 'pairing';
+  const environmentReference =
+    credentialMode === 'api_key' ? 'env://SCENEBOARD_API_KEY' : 'env://SCENEBOARD_ACCESS_TOKEN';
   if (
-    rawAccessTokenRef !== 'env://SCENEBOARD_ACCESS_TOKEN' &&
-    rawAccessTokenRef !== `store://${value.profile}`
-  ) {
+    value.accessTokenRef !== environmentReference &&
+    value.accessTokenRef !== `store://${value.profile}`
+  )
     throw new BoardConfigError(source, 'accessTokenRef');
-  }
-  const accessTokenRef: BoardConfigFileV1['accessTokenRef'] =
-    rawAccessTokenRef === 'env://SCENEBOARD_ACCESS_TOKEN'
-      ? rawAccessTokenRef
-      : `store://${value.profile}`;
-  return {
-    version: 1,
+  const base = {
+    version: 1 as const,
     baseUrl: canonicalBaseUrl(value.baseUrl, source),
-    accessTokenRef,
-    authScheme: 'bearer',
+    authScheme: 'bearer' as const,
     timeoutMs: Number(value.timeoutMs),
     profile: value.profile,
   };
+  if (credentialMode === 'api_key')
+    return {
+      ...base,
+      accessTokenRef:
+        value.accessTokenRef === 'env://SCENEBOARD_API_KEY'
+          ? value.accessTokenRef
+          : `store://${value.profile}`,
+      credentialMode: 'api_key',
+    };
+  const pairing: PairingBoardConfigFileV1 = {
+    ...base,
+    accessTokenRef:
+      value.accessTokenRef === 'env://SCENEBOARD_ACCESS_TOKEN'
+        ? value.accessTokenRef
+        : `store://${value.profile}`,
+  };
+  return value.credentialMode === 'pairing' ? { ...pairing, credentialMode: 'pairing' } : pairing;
 };
 
 export const readBoardConfigFileV1 = async (

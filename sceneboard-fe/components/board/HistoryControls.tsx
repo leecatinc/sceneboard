@@ -19,6 +19,7 @@ export function HistoryControls({
   onRetry,
   onSelectRevision,
   onSelectLatest,
+  variant = 'combobox',
 }: {
   state: LiveBoardStateV1;
   liveUpdated: boolean;
@@ -29,6 +30,7 @@ export function HistoryControls({
   onRetry: () => void;
   onSelectRevision: (revisionId: RevisionId) => void;
   onSelectLatest: () => void;
+  variant?: 'combobox' | 'sidebar';
 }) {
   const { locale, t, formatDateTime } = useI18n();
   const rootRef = useRef<HTMLElement>(null);
@@ -56,11 +58,17 @@ export function HistoryControls({
         }));
 
   useEffect(() => {
+    if (variant !== 'sidebar') return;
+    onOpen();
+    return onClose;
+  }, [onClose, onOpen, variant]);
+
+  useEffect(() => {
     if (history.isOpen) setActiveIndex(Math.min(selectedIndex, optionCount - 1));
   }, [history.isOpen, optionCount, selectedIndex]);
 
   useEffect(() => {
-    if (!history.isOpen) return;
+    if (variant === 'sidebar' || !history.isOpen) return;
     const dismiss = (event: PointerEvent) => {
       const root = rootRef.current;
       if (root === null || root.contains(event.target as Node)) return;
@@ -70,7 +78,7 @@ export function HistoryControls({
     };
     document.addEventListener('pointerdown', dismiss);
     return () => document.removeEventListener('pointerdown', dismiss);
-  }, [history.isOpen, onClose]);
+  }, [history.isOpen, onClose, variant]);
 
   const select = (index: number) => {
     if (index === 0) onSelectLatest();
@@ -147,13 +155,87 @@ export function HistoryControls({
           ? t('board.liveUpdated')
           : '';
 
+  if (variant === 'sidebar') {
+    const retainedRows = history.rows.filter(
+      (row) => row.revisionId !== state.liveSnapshot.revision.revisionId,
+    );
+    return (
+      <nav
+        className="history-controls history-sidebar"
+        aria-label={t('board.historyLabel')}
+        aria-busy={history.status === 'loading' || history.status === 'loading_more'}
+      >
+        <button
+          type="button"
+          className="history-sidebar-latest"
+          aria-pressed={selectedRevisionId === null}
+          disabled={state.pendingNavigation}
+          onClick={onSelectLatest}
+        >
+          {t('presentation.goToLatest')}
+        </button>
+        <ol className="history-sidebar-list">
+          <li>
+            <button
+              type="button"
+              aria-pressed={selectedRevisionId === null}
+              disabled={state.pendingNavigation}
+              onClick={onSelectLatest}
+            >
+              <strong>{latestLabel}</strong>
+              {liveUpdated && <span>{t('board.liveUpdated')}</span>}
+            </button>
+          </li>
+          {retainedRows.map((row) => (
+            <li key={row.revisionId}>
+              <button
+                type="button"
+                aria-pressed={selectedRevisionId === row.revisionId}
+                disabled={state.pendingNavigation}
+                onClick={() => onSelectRevision(row.revisionId)}
+              >
+                <strong>{row.label}</strong>
+                <span>
+                  {formatDateTime(row.createdAt)} · {t(`board.historyActor.${row.actorLabel}`)}
+                </span>
+                <span>{t(`board.historySummary.${row.summary}`)}</span>
+              </button>
+            </li>
+          ))}
+        </ol>
+        {(history.status === 'loading' || history.status === 'loading_more') && (
+          <p className="history-popup-state">{t('board.historyLoading')}</p>
+        )}
+        {history.status === 'error' && (
+          <div className="history-popup-state">
+            <p>{t('board.historyUnavailable')}</p>
+            <button ref={retryRef} type="button" onClick={retry}>
+              {t('board.historyRetry')}
+            </button>
+          </div>
+        )}
+        {history.status === 'ready' && retainedRows.length === 0 && history.nextCursor === null && (
+          <p className="history-popup-state">{t('board.historyEmpty')}</p>
+        )}
+        {history.nextCursor !== null && history.status === 'ready' && (
+          <button type="button" className="history-load-more" onClick={onLoadMore}>
+            {t('board.historyLoadMore')}
+          </button>
+        )}
+        <span className="history-live-region visually-hidden" role="status" aria-live="polite">
+          {state.pendingNavigation ? t('board.loadingRevision') : announcement}
+        </span>
+      </nav>
+    );
+  }
+
   return (
     <nav ref={rootRef} className="history-controls" aria-label={t('board.historyLabel')}>
       <div className="history-combobox">
         <button
           ref={triggerRef}
           type="button"
-          className="history-trigger"
+          className={`history-trigger${history.status === 'error' ? ' is-warning' : ''}`}
           role="combobox"
           aria-label={`${t('board.historyLabel')}: ${selectedLabel}`}
           aria-expanded={history.isOpen}
@@ -162,6 +244,7 @@ export function HistoryControls({
             history.isOpen ? `history-revision-option-${currentActiveIndex}` : undefined
           }
           aria-disabled={state.pendingNavigation}
+          aria-busy={history.status === 'loading' || history.status === 'loading_more'}
           onClick={() => {
             if (state.pendingNavigation) return;
             if (history.isOpen) onClose();
@@ -170,7 +253,12 @@ export function HistoryControls({
           onKeyDown={onTriggerKeyDown}
         >
           <span>{selectedLabel}</span>
-          <span aria-hidden="true">▾</span>
+          <span
+            aria-hidden="true"
+            className={`history-trigger-caret${history.status === 'error' ? ' is-warning' : ''}`}
+          >
+            ▾
+          </span>
         </button>
         {history.isOpen && (
           <div className="history-popup">
@@ -234,7 +322,7 @@ export function HistoryControls({
           </div>
         )}
       </div>
-      <span className="history-live-region" role="status" aria-live="polite">
+      <span className="history-live-region visually-hidden" role="status" aria-live="polite">
         {state.pendingNavigation ? t('board.loadingRevision') : announcement}
       </span>
     </nav>

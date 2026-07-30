@@ -5,6 +5,7 @@ const usage =
   'usage: verify-auth-origin-topology.mjs --frontend-env <json> --backend-env <json> --runtime-env <json> --out <json>';
 
 const parseArguments = (arguments_) => {
+  if (arguments_.length === 0) return { inline: true };
   if (
     arguments_.length !== 8 ||
     arguments_[0] !== '--frontend-env' ||
@@ -14,6 +15,7 @@ const parseArguments = (arguments_) => {
   )
     throw new Error(usage);
   return {
+    inline: false,
     frontendPath: arguments_[1],
     backendPath: arguments_[3],
     runtimePath: arguments_[5],
@@ -62,14 +64,35 @@ const canonicalOrigin = (value, key) => {
 };
 
 const main = async () => {
-  const { frontendPath, backendPath, runtimePath, outputPath } = parseArguments(
-    process.argv.slice(2),
-  );
-  const [frontendBytes, backendBytes, runtimeBytes] = await Promise.all([
-    readFile(frontendPath),
-    readFile(backendPath),
-    readFile(runtimePath),
-  ]);
+  const arguments_ = parseArguments(process.argv.slice(2));
+  const [frontendBytes, backendBytes, runtimeBytes] = arguments_.inline
+    ? [
+        Buffer.from(
+          JSON.stringify({
+            NEXT_PUBLIC_BOARD_API_URL: 'http://127.0.0.1:3411',
+            NEXT_PUBLIC_ARTIFACT_RUNTIME_ORIGIN: 'http://127.0.0.2:3412',
+          }),
+        ),
+        Buffer.from(
+          JSON.stringify({
+            APP_ENV: 'test',
+            BOARD_ALLOWED_ORIGINS: 'http://127.0.0.1:3410',
+            BOARD_PUBLIC_API_ORIGIN: 'http://127.0.0.1:3411',
+          }),
+        ),
+        Buffer.from(
+          JSON.stringify({
+            ARTIFACT_RUNTIME_APP_ORIGIN: 'http://127.0.0.1:3410',
+            ARTIFACT_RUNTIME_API_ORIGIN: 'http://127.0.0.1:3411',
+            ARTIFACT_RUNTIME_ORIGIN: 'http://127.0.0.2:3412',
+          }),
+        ),
+      ]
+    : await Promise.all([
+        readFile(arguments_.frontendPath),
+        readFile(arguments_.backendPath),
+        readFile(arguments_.runtimePath),
+      ]);
   const frontend = parseJsonObject(frontendBytes, 'frontend env');
   const backend = parseJsonObject(backendBytes, 'backend env');
   const runtime = parseJsonObject(runtimeBytes, 'runtime env');
@@ -159,10 +182,13 @@ const main = async () => {
     backendInputSha256: createHash('sha256').update(backendBytes).digest('hex'),
     runtimeInputSha256: createHash('sha256').update(runtimeBytes).digest('hex'),
   };
-  await writeFile(outputPath, `${JSON.stringify(evidence, null, 2)}\n`, {
-    encoding: 'utf8',
-    flag: 'w',
-  });
+  const evidenceJson = `${JSON.stringify(evidence, null, 2)}\n`;
+  if (arguments_.inline) process.stdout.write(evidenceJson);
+  else
+    await writeFile(arguments_.outputPath, evidenceJson, {
+      encoding: 'utf8',
+      flag: 'w',
+    });
 };
 
 main().catch((error) => {

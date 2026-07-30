@@ -4,6 +4,8 @@ import { test } from 'node:test';
 import {
   BoardOperationRequestParserV1,
   BoardOperationResultParserV1,
+  BoardOperationResultParserV2,
+  BoardOperationResultParserV3,
   normalizeActorContextV1,
   type ActorContextV1,
   type BoardId,
@@ -13,6 +15,7 @@ import type { PoolConnection } from 'mysql2/promise';
 
 import { BoardGetService } from '../../src/boards/board-get.service.js';
 import { BoardPersistenceError } from '../../src/common/errors/board-persistence.error.js';
+import { BoardContractError } from '../../src/common/errors/app-error.js';
 import type {
   AuthorizedBoardContextV1,
   AuthorizedBoardTransactionInputV1,
@@ -45,6 +48,7 @@ const principal = (): Extract<ResolvedBoardPrincipalV1, { kind: 'user' }> => ({
   userPk: 20n,
   sessionPk: 21n,
   familyPublicId: 'family_1',
+  isBrowserCredential: true,
 });
 
 const request = (): { requestId: RequestId; boardId: BoardId } => {
@@ -63,20 +67,34 @@ const request = (): { requestId: RequestId; boardId: BoardId } => {
   };
 };
 
-const setup = async (referenceMismatch = false, documentMode = false) => {
+const setup = async (referenceMismatch = false, documentMode: boolean | 3 = false) => {
   const checkpoint = documentMode
-    ? await new DocumentCheckpointCodec().encodeDocument({
-        schemaVersion: 2,
-        defaultPageId: 'page_1',
-        pages: [
-          {
-            pageId: 'page_1',
-            title: '',
-            displayMode: 'fit-page',
-            scene: { protocolVersion: 1, type: 'scene', root: null },
-          },
-        ],
-      })
+    ? documentMode === 3
+      ? await new DocumentCheckpointCodec().encodeDocumentV3({
+          schemaVersion: 3,
+          format: 'a4_portrait',
+          defaultPageId: 'page_1',
+          pages: [
+            {
+              pageId: 'page_1',
+              title: '',
+              displayMode: 'fit-page',
+              scene: { protocolVersion: 1, type: 'scene', root: null },
+            },
+          ],
+        })
+      : await new DocumentCheckpointCodec().encodeDocument({
+          schemaVersion: 2,
+          defaultPageId: 'page_1',
+          pages: [
+            {
+              pageId: 'page_1',
+              title: '',
+              displayMode: 'fit-page',
+              scene: { protocolVersion: 1, type: 'scene', root: null },
+            },
+          ],
+        })
     : await new DocumentCheckpointCodec().encodeScene({
         protocolVersion: 1,
         type: 'scene',
@@ -221,4 +239,37 @@ test('decodes a v2 document head and returns matching v2 capabilities without a 
   assert.equal(result.result.snapshot.revision.originType, 'document.replace');
   assert.equal(result.result.snapshot.capabilities.schemaVersion, '1.1.0');
   assert.equal(result.result.snapshot.lastEventSequence, 2);
+});
+
+test('V3 head requires an explicit capable selector and projects deterministically for V2 readers', async () => {
+  const omitted = await setup(false, 3);
+  await assert.rejects(
+    omitted.service.get({ principal: principal(), ...request() }),
+    (error: unknown) =>
+      error instanceof BoardContractError &&
+      error.boardError.code === 'UPGRADE_REQUIRED' &&
+      error.boardError.details.headSchemaVersion === 3,
+  );
+
+  const v2 = await setup(false, 3);
+  const projected = await v2.service.get({
+    principal: principal(),
+    ...request(),
+    documentSchemaVersion: 2,
+  });
+  assert.equal(BoardOperationResultParserV2.parse(projected).ok, true);
+  if (projected.result.type !== 'board.get' || !('document' in projected.result.snapshot)) return;
+  assert.equal(projected.result.snapshot.document.schemaVersion, 2);
+
+  const v3 = await setup(false, 3);
+  const native = await v3.service.get({
+    principal: principal(),
+    ...request(),
+    documentSchemaVersion: 3,
+  });
+  assert.equal(BoardOperationResultParserV3.parse(native).ok, true);
+  if (native.result.type !== 'board.get' || !('document' in native.result.snapshot)) return;
+  assert.equal(native.result.snapshot.document.schemaVersion, 3);
+  if (native.result.snapshot.document.schemaVersion === 3)
+    assert.equal(native.result.snapshot.document.format, 'a4_portrait');
 });

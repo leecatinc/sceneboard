@@ -1,8 +1,4 @@
-import {
-  MutationResultParserV2,
-  type MutationRequestV2,
-  type MutationResultV2,
-} from '@sceneboard/board-schema';
+import { MutationResultParserV2, MutationResultParserV3 } from '@sceneboard/board-schema';
 import type { PoolConnection } from 'mysql2/promise';
 
 import type { AuthorizedBoardContextV1 } from '../grants/board-access.policy.js';
@@ -18,6 +14,8 @@ import {
 import {
   MutationIdentifierCollisionError,
   type MutationIdempotencyRow,
+  type CheckpointMutationRequest,
+  type CheckpointMutationResult,
   type PreparedMutationV1,
   type ReplayRelationRow,
 } from './board-mutation.types.js';
@@ -26,10 +24,10 @@ export class BoardMutationReplayRepository {
   async replayOrReject(
     connection: PoolConnection,
     context: AuthorizedBoardContextV1,
-    request: MutationRequestV2,
+    request: CheckpointMutationRequest,
     prepared: PreparedMutationV1,
     missing: 'collision' | 'return-null' = 'collision',
-  ): Promise<MutationResultV2 | null> {
+  ): Promise<CheckpointMutationResult | null> {
     const [rows] = await connection.execute<MutationIdempotencyRow[]>(
       `
       SELECT status_code AS statusCode, operation_type AS operationType,
@@ -93,7 +91,11 @@ export class BoardMutationReplayRepository {
     ) {
       throw internalFailure();
     }
-    const stored = MutationResultParserV2.parseBytes(row.resultPayload);
+    const parser =
+      request.command.type === 'document.replace' && request.command.document.schemaVersion === 3
+        ? MutationResultParserV3
+        : MutationResultParserV2;
+    const stored = parser.parseBytes(row.resultPayload);
     if (
       !stored.ok ||
       !Buffer.from(stored.data.canonicalBytes).equals(row.resultPayload) ||
@@ -136,7 +138,7 @@ export class BoardMutationReplayRepository {
     ) {
       throw internalFailure();
     }
-    const replay = MutationResultParserV2.parse({
+    const replay = parser.parse({
       ...stored.data.value,
       requestId: request.requestId,
       replayed: true,

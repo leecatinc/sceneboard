@@ -1,0 +1,215 @@
+{
+  "artifactRecipeVersion": 1,
+  "template": "slide-deck",
+  "placementKey": "kitcathub-xprize-slide-deck",
+  "title": "KitCatHub × Build with Gemini XPRIZE",
+  "fallbackText": "KitCatHub의 문제, 제품 흐름, 사업 모델, 대회 적합성, 실행 일정과 결론을 7장으로 설명하는 발표자료입니다.",
+  "theme": "dark",
+  "size": { "width": 1920, "height": 1080 },
+  "motion": "subtle",
+  "content": {
+    "deckLabel": "KitCatHub · Build with Gemini XPRIZE",
+    "slides": [
+      {
+        "key": "opening",
+        "type": "cover",
+        "eyebrow": "Build with Gemini XPRIZE",
+        "title": "검증 가능한 AI 개발 키트의 유통 기반",
+        "subtitle": "개발자가 만든 재사용 구현물을 자동 검사, Gemini 검토, 사람의 최종 판단을 거쳐 신뢰할 수 있는 제품으로 바꿉니다.",
+        "badges": ["KitCatHub", "Entrepreneurship & Job Creation", "2026.08.17"],
+        "highlights": [
+          {
+            "label": "패키징",
+            "detail": "재사용 가능한 AI·개발 키트를 표준 패키지로 제출합니다."
+          },
+          {
+            "label": "검토 근거",
+            "detail": "고유 지문에 자동 검사, Gemini 분석과 사람의 판단을 연결합니다."
+          },
+          {
+            "label": "실제 사업",
+            "detail": "유료 Full Review와 독립 고객의 결제로 사업 가능성을 증명합니다."
+          }
+        ]
+      },
+      {
+        "key": "problem",
+        "type": "problem",
+        "eyebrow": "Problem",
+        "title": "빠르게 만든 코드는 많지만, 안심하고 재사용하기는 어렵습니다",
+        "subtitle": "“AI가 확인했다”는 말만으로는 실제 패키지의 안전성과 검토 범위를 증명할 수 없습니다.",
+        "items": [
+          {
+            "label": "내용 불일치",
+            "detail": "문서와 실제 파일이 같은지, 불필요한 파일이 섞였는지 확인하기 어렵습니다."
+          },
+          {
+            "label": "민감정보 위험",
+            "detail": "비밀키, 로컬 설정과 위험 경로가 패키지에 포함될 수 있습니다."
+          },
+          {
+            "label": "검토 근거 부재",
+            "detail": "모델, 시점, 검사 범위와 사람의 최종 판단이 남지 않습니다."
+          },
+          {
+            "label": "수익화 경로 부족",
+            "detail": "제작자가 좋은 구현물을 신뢰 가능한 상품으로 전환할 표준이 없습니다."
+          }
+        ]
+      },
+      {
+        "key": "solution",
+        "type": "process",
+        "eyebrow": "Product flow",
+        "title": "하나의 키트가 검증 가능한 공개 자산이 되는 과정",
+        "subtitle": "결정론적 검사와 Gemini의 분석을 결합하되, 공개 판단은 사람이 책임집니다.",
+        "steps": [
+          {
+            "label": "패키지 제출",
+            "detail": "제외 정책을 반영한 실제 업로드 파일을 먼저 확인합니다."
+          },
+          {
+            "label": "고유 지문",
+            "detail": "파일 전체를 대표하는 변경 불가능한 artifact digest를 만듭니다."
+          },
+          {
+            "label": "자동 사전 검사",
+            "detail": "manifest, 경로, 민감정보 의심 항목과 문서 누락을 검사합니다."
+          },
+          {
+            "label": "Gemini 검토",
+            "detail": "Cloud Run에서 코드 위험, 문서 완성도와 수정 권고를 구조화합니다."
+          },
+          {
+            "label": "사람의 판단",
+            "detail": "관리자가 공개, 수정 요청 또는 거절을 최종 결정합니다."
+          },
+          {
+            "label": "근거와 공개",
+            "detail": "정확한 패키지와 검토 기준을 연결해 사용자가 확인하게 합니다."
+          }
+        ]
+      },
+      {
+        "key": "business",
+        "type": "business-model",
+        "eyebrow": "Business model",
+        "title": "작게 출시하고 실제 매출로 검증합니다",
+        "subtitle": "복잡한 마켓보다 고객이 검토에 돈을 지불하는지 먼저 확인합니다.",
+        "offers": [
+          {
+            "label": "무료 경로",
+            "price": "$0",
+            "detail": "제작자가 위험을 이해하고 유료 검토 전 패키지를 정리하는 진입점입니다.",
+            "features": [
+              "제작자 계정과 키트 초안",
+              "manifest·경로·민감정보 의심 검사",
+              "업로드 파일과 제외 결과 확인"
+            ]
+          },
+          {
+            "label": "Founding Creator Full Review",
+            "price": "$9–19",
+            "detail": "Gemini 분석과 사람의 확인을 결합한 유료 베타 검토입니다.",
+            "features": [
+              "코드·manifest·문서 검토",
+              "위험 항목과 수정 제안 보고서",
+              "고유 지문과 검토 날짜",
+              "수정 후 1회 재검토"
+            ]
+          }
+        ]
+      },
+      {
+        "key": "xprize",
+        "type": "evidence",
+        "eyebrow": "XPRIZE fit",
+        "title": "대회의 세 기준을 제품 운영 증거로 답합니다",
+        "subtitle": "아이디어 설명이 아니라 결제, Gemini 호출, 사람의 승인과 제작자 성과를 제출합니다.",
+        "metrics": [
+          {
+            "value": "매출",
+            "label": "Business Viability",
+            "detail": "제3자 결제, 월별 매출, 비용, 전환 흐름과 고객 피드백을 보존합니다."
+          },
+          {
+            "value": "Gemini",
+            "label": "AI-Native Operations",
+            "detail": "호출 로그, 모델, 처리시간, 비용과 사람의 수정·승인 이력을 연결합니다."
+          },
+          {
+            "value": "Creator",
+            "label": "Category Impact",
+            "detail": "등록·공개 키트, 재사용 사례와 제작자 후기로 신뢰 자산 전환을 증명합니다."
+          }
+        ]
+      },
+      {
+        "key": "execution",
+        "type": "timeline",
+        "eyebrow": "Execution",
+        "title": "마감까지 하나의 완결된 고객 흐름에 집중합니다",
+        "subtitle": "내부 제출 목표는 2026년 8월 17일 18:00 한국 시간입니다.",
+        "events": [
+          {
+            "date": "7/29–31",
+            "label": "범위 확정",
+            "detail": "제출 주체, 카테고리, Cloud·Gemini 기반과 정책 문구를 확정합니다."
+          },
+          {
+            "date": "8/1–4",
+            "label": "업로드 연결",
+            "detail": "파일 확인, 고유 지문, 사전 검사와 저장을 끝까지 연결합니다."
+          },
+          {
+            "date": "8/5–7",
+            "label": "AI 검토",
+            "detail": "Cloud Run, Gemini 구조화 검토, 비용 상한과 관리자 판단을 완성합니다."
+          },
+          {
+            "date": "8/8–10",
+            "label": "실제 결제",
+            "detail": "주문과 검토 요청을 연결하고 첫 독립 고객을 확보합니다."
+          },
+          {
+            "date": "8/11–13",
+            "label": "운영 증거",
+            "detail": "사용자, 후기, 매출, 비용, 실패와 재검토 사례를 축적합니다."
+          },
+          {
+            "date": "8/14–15",
+            "label": "제출 자료",
+            "detail": "영문 설명, 저장소, 3분 영상과 무료 심사 계정을 준비합니다."
+          },
+          {
+            "date": "8/16–17",
+            "label": "최종 제출",
+            "detail": "증거를 대조하고 Devpost 제출과 서비스 상태를 확인합니다."
+          }
+        ]
+      },
+      {
+        "key": "closing",
+        "type": "closing",
+        "eyebrow": "Outcome",
+        "title": "수상 여부와 무관하게 ‘실제로 운영된 AI 제품’을 남깁니다",
+        "subtitle": "제작자의 제출부터 Gemini 검토, 사람의 판단과 고객 결제까지 하나의 프로덕션 흐름을 완성합니다.",
+        "actions": [
+          {
+            "label": "Applied AI 운영",
+            "detail": "Google Cloud에서 Gemini가 실제 운영 판단에 참여하는 서비스를 남깁니다."
+          },
+          {
+            "label": "검증 공급망",
+            "detail": "패키지 고유 지문, 검토 근거와 감사 가능한 판단 이력을 남깁니다."
+          },
+          {
+            "label": "확장 기반",
+            "detail": "CLI·MCP 업로드, 복수 모델 검토와 유료 키트 시장으로 이어갑니다."
+          }
+        ],
+        "closingLine": "좋은 코드를 더 많이 만드는 시대에서, 믿고 재사용할 수 있는 개발 자산을 만드는 시대로."
+      }
+    ]
+  }
+}

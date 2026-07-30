@@ -59,6 +59,14 @@ export const AuditEventCatalog = {
   'share.password.regenerated': 56,
   'share.password.disabled': 57,
   'media.ingested': 58,
+  'api_key.issued': 59,
+  'api_key.listed': 60,
+  'api_key.revoked': 61,
+  'api_key.auth.succeeded': 62,
+  'api_key.auth.failed': 63,
+  'export.started': 64,
+  'export.completed': 65,
+  'export.failed': 66,
 } as const;
 
 export type AuditEventName = keyof typeof AuditEventCatalog;
@@ -331,6 +339,14 @@ const MetadataAllowlists: Readonly<Record<AuditEventName, ReadonlySet<string>>> 
     'recoveryId',
   ]),
   'media.ingested': new Set(['boardPk', 'actorKind', 'mime', 'bytes', 'replayed', 'outcome']),
+  'api_key.issued': new Set(['keyPublicId', 'correlationId']),
+  'api_key.listed': new Set(['correlationId', 'resultCount']),
+  'api_key.revoked': new Set(['keyPublicId', 'correlationId', 'reason']),
+  'api_key.auth.succeeded': new Set(['authMethod', 'keyPublicId', 'correlationId']),
+  'api_key.auth.failed': new Set(['authMethod', 'keyPublicId', 'correlationId', 'reason']),
+  'export.started': new Set(['correlationId', 'format', 'revisionNumber']),
+  'export.completed': new Set(['correlationId', 'format', 'revisionNumber', 'bytes']),
+  'export.failed': new Set(['correlationId', 'format', 'revisionNumber', 'reason']),
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

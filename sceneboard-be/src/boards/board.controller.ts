@@ -5,9 +5,11 @@ import {
   BoardOperationRequestParserV1,
   MutationRequestParserV1,
   MutationRequestParserV2,
+  MutationRequestParserV3,
   type BoardId,
   type MutationRequestV1,
   type MutationRequestV2,
+  type MutationRequestV3,
   type RequestId,
   type ShortText,
 } from '@sceneboard/board-schema';
@@ -32,6 +34,7 @@ import { HistoryGetService, type HistoryGetRequestV1 } from '../history/history-
 import { HistoryListService, type HistoryListRequestV1 } from '../history/history-list.service.js';
 import { InteractionCommandService } from '../interactions/application/interaction-command.service.js';
 import { BoardMutationService } from '../revisions/board-mutation.service.js';
+import { BoardOperationRateLimited } from '../rate-limit/board-operation-rate-limit.policy.js';
 import { BoardArchiveService, type BoardArchiveRequestV1 } from './board-archive.service.js';
 import { BoardCapabilitiesService } from './board-capabilities.service.js';
 import { BoardCreateService, type BoardCreateRequestV1 } from './board-create.service.js';
@@ -107,12 +110,46 @@ const readArchiveRequest = (
   return parsed.data.value as BoardArchiveRequestV1;
 };
 
-const readMutationRequest = (request: BoardHttpRequest, pathBoardId: string): MutationRequestV2 => {
-  const parsed = MutationRequestParserV2.parse(body(request));
+const documentSchemaSelector = (
+  value: unknown,
+  allowed: readonly string[] = ['documentSchemaVersion'],
+): 1 | 2 | 3 | undefined => {
+  const query = queryRecord(value, allowed);
+  const source = query.documentSchemaVersion;
+  if (source === undefined) return undefined;
+  if (source === '1') return 1;
+  if (source === '2') return 2;
+  if (source === '3') return 3;
+  throw invalid('documentSchemaVersion must be 1, 2, or 3', ['documentSchemaVersion']);
+};
+
+const readMutationRequest = (
+  request: BoardHttpRequest,
+  pathBoardId: string,
+  queryValue: unknown,
+): {
+  request: MutationRequestV1 | MutationRequestV2 | MutationRequestV3;
+  documentSchemaVersion: 1 | 2 | 3;
+} => {
+  const selected = documentSchemaSelector(queryValue);
+  const parser =
+    selected === 3
+      ? MutationRequestParserV3
+      : selected === 1
+        ? MutationRequestParserV1
+        : MutationRequestParserV2;
+  const parsed = parser.parse(body(request));
   if (!parsed.ok) throw new BoardContractError(parsed.error);
   if (parsed.data.value.boardId !== pathBoardId)
     throw invalid('path and body board IDs differ', ['boardId']);
-  return parsed.data.value;
+  return {
+    request: parsed.data.value,
+    documentSchemaVersion:
+      selected ??
+      (parsed.data.value.command.type === 'document.replace'
+        ? parsed.data.value.command.document.schemaVersion
+        : 1),
+  };
 };
 
 const record = (value: unknown, allowed: readonly string[]): Record<string, unknown> => {
@@ -200,8 +237,24 @@ const parseGetQuery = (
   request: BoardHttpRequest,
   value: unknown,
   pathBoardId: string,
-): { requestId: RequestId; boardId: BoardId } => {
-  const query = queryRecord(value, ['requestId']);
+): {
+  requestId: RequestId;
+  boardId: BoardId;
+  documentSchemaVersion: 1 | 2 | 3 | undefined;
+} => {
+  const query = queryRecord(value, ['requestId', 'documentSchemaVersion']);
+  const documentSchemaVersion =
+    query.documentSchemaVersion === undefined
+      ? undefined
+      : query.documentSchemaVersion === '1'
+        ? 1
+        : query.documentSchemaVersion === '2'
+          ? 2
+          : query.documentSchemaVersion === '3'
+            ? 3
+            : null;
+  if (documentSchemaVersion === null)
+    throw invalid('documentSchemaVersion must be 1, 2, or 3', ['documentSchemaVersion']);
   const requestId = admitBoardRequestId(request, query.requestId);
   const parsed = BoardOperationRequestParserV1.parse({
     protocolVersion: 1,
@@ -217,6 +270,7 @@ const parseGetQuery = (
   return {
     requestId: parsed.data.value.requestId,
     boardId: parsed.data.value.boardId,
+    documentSchemaVersion,
   };
 };
 
@@ -224,8 +278,19 @@ const parseCapabilitiesQuery = (
   request: BoardHttpRequest,
   value: unknown,
   pathBoardId: string,
-): { requestId: RequestId; boardId: BoardId } => {
-  const query = queryRecord(value, ['requestId']);
+): {
+  requestId: RequestId;
+  boardId: BoardId;
+  documentSchemaVersion: 1 | 2 | 3 | undefined;
+} => {
+  const query = queryRecord(value, ['requestId', 'documentSchemaVersion']);
+  const selected = documentSchemaSelector(
+    Object.fromEntries(
+      query.documentSchemaVersion === undefined
+        ? []
+        : [['documentSchemaVersion', query.documentSchemaVersion]],
+    ),
+  );
   const requestId = admitBoardRequestId(request, query.requestId);
   const parsed = BoardOperationRequestParserV1.parse({
     protocolVersion: 1,
@@ -238,7 +303,11 @@ const parseCapabilitiesQuery = (
       parsed.ok ? invalidBoardPayload('invalid capabilities.get query') : parsed.error,
     );
   }
-  return { requestId: parsed.data.value.requestId, boardId: parsed.data.value.boardId };
+  return {
+    requestId: parsed.data.value.requestId,
+    boardId: parsed.data.value.boardId,
+    documentSchemaVersion: selected,
+  };
 };
 
 const parseHistoryListQuery = (
@@ -246,7 +315,14 @@ const parseHistoryListQuery = (
   value: unknown,
   pathBoardId: string,
 ): HistoryListRequestV1 => {
-  const query = queryRecord(value, ['requestId', 'cursor', 'limit']);
+  const query = queryRecord(value, ['requestId', 'cursor', 'limit', 'documentSchemaVersion']);
+  const selected = documentSchemaSelector(
+    Object.fromEntries(
+      query.documentSchemaVersion === undefined
+        ? []
+        : [['documentSchemaVersion', query.documentSchemaVersion]],
+    ),
+  );
   const requestId = admitBoardRequestId(request, query.requestId);
   const parsed = BoardOperationRequestParserV1.parse({
     protocolVersion: 1,
@@ -261,7 +337,10 @@ const parseHistoryListQuery = (
       parsed.ok ? invalidBoardPayload('invalid history.list query') : parsed.error,
     );
   }
-  return parsed.data.value as HistoryListRequestV1;
+  return {
+    ...(parsed.data.value as HistoryListRequestV1),
+    ...(selected === undefined ? {} : { documentSchemaVersion: selected }),
+  };
 };
 
 const parseHistoryGetQuery = (
@@ -270,7 +349,14 @@ const parseHistoryGetQuery = (
   pathBoardId: string,
   pathRevisionId: string,
 ): HistoryGetRequestV1 => {
-  const query = queryRecord(value, ['requestId']);
+  const query = queryRecord(value, ['requestId', 'documentSchemaVersion']);
+  const selected = documentSchemaSelector(
+    Object.fromEntries(
+      query.documentSchemaVersion === undefined
+        ? []
+        : [['documentSchemaVersion', query.documentSchemaVersion]],
+    ),
+  );
   const requestId = admitBoardRequestId(request, query.requestId);
   const parsed = BoardOperationRequestParserV1.parse({
     protocolVersion: 1,
@@ -284,7 +370,10 @@ const parseHistoryGetQuery = (
       parsed.ok ? invalidBoardPayload('invalid history.get query') : parsed.error,
     );
   }
-  return parsed.data.value as HistoryGetRequestV1;
+  return {
+    ...(parsed.data.value as HistoryGetRequestV1),
+    ...(selected === undefined ? {} : { documentSchemaVersion: selected }),
+  };
 };
 
 @Controller('api/v1/boards')
@@ -306,6 +395,7 @@ export class BoardController {
   ) {}
 
   @Get()
+  @BoardOperationRateLimited('board-read')
   async list(
     @Req() request: BoardHttpRequest,
     @Query() query: unknown,
@@ -320,6 +410,7 @@ export class BoardController {
   @Post()
   @HttpCode(201)
   @RequireCsrf('session')
+  @BoardOperationRateLimited('board-create')
   async create(
     @Req() request: BoardHttpRequest,
     @Res({ passthrough: true }) response: StatusResponse,
@@ -333,6 +424,7 @@ export class BoardController {
   }
 
   @Get(':boardId')
+  @BoardOperationRateLimited('board-read')
   async get(
     @Req() request: BoardHttpRequest,
     @Param('boardId') pathBoardId: string,
@@ -343,11 +435,15 @@ export class BoardController {
       principal: principal(request, this.actors),
       requestId: parsed.requestId,
       boardId: parsed.boardId,
+      ...(parsed.documentSchemaVersion === undefined
+        ? {}
+        : { documentSchemaVersion: parsed.documentSchemaVersion }),
     });
     return boardHttpSuccess(result);
   }
 
   @Get(':boardId/capabilities')
+  @BoardOperationRateLimited('capability-negotiation')
   async getCapabilities(
     @Req() request: BoardHttpRequest,
     @Param('boardId') pathBoardId: string,
@@ -358,6 +454,9 @@ export class BoardController {
       principal: principal(request, this.actors),
       requestId: parsed.requestId,
       boardId: parsed.boardId,
+      ...(parsed.documentSchemaVersion === undefined
+        ? {}
+        : { documentSchemaVersion: parsed.documentSchemaVersion }),
     });
     return boardHttpSuccess(result);
   }
@@ -365,13 +464,16 @@ export class BoardController {
   @Post(':boardId/title')
   @HttpCode(200)
   @RequireCsrf('session')
+  @BoardOperationRateLimited('board-mutation')
   async rename(
     @Req() request: BoardHttpRequest,
     @Param('boardId') pathBoardId: string,
   ): Promise<BoardRenameResultV1> {
-    if (request.authSession === undefined) throw new AppError('UNAUTHENTICATED');
     return this.renames.rename({
-      principal: this.actors.resolveUser(request.authSession),
+      principal: principal(request, this.actors) as Extract<
+        ResolvedBoardPrincipalV1,
+        { kind: 'user' | 'account_api_key' }
+      >,
       request: readRenameRequest(request, pathBoardId),
     });
   }
@@ -379,6 +481,7 @@ export class BoardController {
   @Post(':boardId/archive')
   @HttpCode(200)
   @RequireCsrf('session')
+  @BoardOperationRateLimited('board-archive')
   async archive(
     @Req() request: BoardHttpRequest,
     @Param('boardId') pathBoardId: string,
@@ -397,12 +500,15 @@ export class BoardController {
   @Post(':boardId/mutations')
   @HttpCode(201)
   @RequireCsrf('session')
+  @BoardOperationRateLimited('board-mutation')
   async mutate(
     @Req() request: BoardHttpRequest,
     @Param('boardId') pathBoardId: string,
+    @Query() query: unknown,
     @Res({ passthrough: true }) response: StatusResponse,
   ): Promise<BoardHttpSuccessEnvelopeV1> {
-    const parsedRequest = readMutationRequest(request, pathBoardId);
+    const parsedMutation = readMutationRequest(request, pathBoardId, query);
+    const parsedRequest = parsedMutation.request;
     const actor = principal(request, this.actors);
     const result =
       parsedRequest.command.type === 'artifact.stop'
@@ -419,11 +525,12 @@ export class BoardController {
           : parsedRequest.command.type === 'document.replace'
             ? await this.mutations.applyDocumentMutation({
                 principal: actor,
-                request: parsedRequest,
+                request: parsedRequest as MutationRequestV2 | MutationRequestV3,
               })
             : await this.mutations.applySceneMutation({
                 principal: actor,
-                request: parsedRequest as MutationRequestV1,
+                request: parsedRequest as MutationRequestV1 | MutationRequestV3,
+                documentSchemaVersion: parsedMutation.documentSchemaVersion,
               });
     if (result.replayed) response.status(200);
     return boardHttpSuccess(result);
@@ -432,19 +539,23 @@ export class BoardController {
   @Post(':boardId/revisions/:revisionId/restore')
   @HttpCode(200)
   @RequireCsrf('session')
+  @BoardOperationRateLimited('board-mutation')
   async restore(
     @Req() request: BoardHttpRequest,
     @Param('boardId') pathBoardId: string,
     @Param('revisionId') pathRevisionId: string,
+    @Query() query: unknown,
   ): Promise<BoardHttpSuccessEnvelopeV1> {
     const result = await this.mutations.applySceneMutation({
       principal: principal(request, this.actors),
       request: readRestoreRequest(request, pathBoardId, pathRevisionId),
+      documentSchemaVersion: documentSchemaSelector(query) ?? 1,
     });
     return boardHttpSuccess(result);
   }
 
   @Get(':boardId/revisions')
+  @BoardOperationRateLimited('board-read')
   async listHistory(
     @Req() request: BoardHttpRequest,
     @Param('boardId') pathBoardId: string,
@@ -458,6 +569,7 @@ export class BoardController {
   }
 
   @Get(':boardId/revisions/:revisionId')
+  @BoardOperationRateLimited('board-read')
   async getHistory(
     @Req() request: BoardHttpRequest,
     @Param('boardId') pathBoardId: string,

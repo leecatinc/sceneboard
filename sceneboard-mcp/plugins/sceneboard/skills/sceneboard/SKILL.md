@@ -9,7 +9,7 @@ Operate SceneBoard as an owner-scoped persistent visual surface outside chat. Pr
 
 ## Product boundaries
 
-- `sceneboard-mcp` (`sceneboard-mcp`) owns the preferred local stdio transport, full protected client validation, and all 30 terminal descriptors. This skill bundles a narrow dependency-free API adapter only for an absent MCP transport.
+- `sceneboard-mcp` (`sceneboard-mcp`) owns the preferred local stdio transport and full protected client validation. Pairing mode exposes exactly the 30 terminal descriptors; explicit account API-key mode exposes only the 22 owner-board descriptors documented below. This skill bundles a narrow dependency-free API adapter only for an absent MCP transport.
 - `sceneboard-be` (`sceneboard-be`) owns authentication, authorization, MySQL-authoritative boards/revisions/artifacts/interactions/pairing/grants, and browser APIs. Redis is ephemeral only.
 - `sceneboard-fe` (`sceneboard-fe`) owns live rendering, local history navigation, responder controls, and sandboxed artifact hosting.
 - `packages/board-schema` owns D1 wire DTOs, the recursive scene/node model, results, events, limits, and stable errors.
@@ -20,7 +20,7 @@ Read [platform.md](references/platform.md) for implementation boundaries. The fa
 ## Prerequisites and target resolution
 
 1. Use a registered `sceneboard-mcp` connection when its descriptors are available. Otherwise resolve and use the installed skill's official adapter: `scripts/sceneboard-api.mjs` on POSIX hosts or its `scripts/sceneboard-api.ps1` launcher on Windows. The PowerShell launcher only streams stdin to the same Node adapter. Never invent `Invoke-SceneBoardApi`, call SceneBoard through `Invoke-RestMethod`, `Invoke-WebRequest`, `curl`, or another custom HTTP helper, or reproduce credential handling in shell code. Remote MCP transport is not a v1 fallback.
-2. Pair with the signed-in owner without exposing the long-lived credential in chat, tool content, logs, or config. If the entire user message is one valid `SB-`-prefixed code, treat it as an explicit request to pair immediately. Always request the complete grant catalog in its exact order: `board.read`, `board.write`, `board.history.read`, `board.hitl.request`, `board.hitl.respond`, `board.media.write`, `artifact.publish`, and `artifact.control`; also request lifecycle permissions `board.create` and `board.archive`. Use client name `Codex SceneBoard` unless the active client has a more specific stable name. Present the complete request to the owner and let the owner approve, deselect, deny, or cancel it in SceneBoard; never claim unapproved capabilities.
+2. In the default pairing mode, pair with the signed-in owner without exposing the long-lived credential in chat, tool content, logs, or config. If the entire user message is one valid `SB-`-prefixed code, treat it as an explicit request to pair immediately. Always request the complete grant catalog in its exact order: `board.read`, `board.write`, `board.history.read`, `board.hitl.request`, `board.hitl.respond`, `board.media.write`, `artifact.publish`, and `artifact.control`; also request lifecycle permissions `board.create` and `board.archive`. Use client name `Codex SceneBoard` unless the active client has a more specific stable name. Present the complete request to the owner and let the owner approve, deselect, deny, or cancel it in SceneBoard; never claim unapproved capabilities. In explicit `api_key` mode, never call pairing tools: they are intentionally absent, and account settings own key issuance and revocation.
 3. Use a user-supplied `boardId`, or call `board_list`. If candidates remain ambiguous, ask. Never infer an active, first, or sole board. If the user explicitly asks to create a board, an empty `board_list` is a valid starting state: require approved `board.write` plus lifecycle `board.create`, call `board_create`, and use only its returned `boardId` for subsequent work.
 4. Call `board_connection_status` with `{boardId:null}` for untargeted authentication and zero-board diagnostics, or `{boardId:<id>}` for one explicit board. Null never selects a board.
 
@@ -73,12 +73,18 @@ Treat every complete person-facing Scene, HITL request or response, approval pro
 
 ## Visual composition routing
 
+- If and only if the user's request contains the exact Korean string `발표자료` or `ppt`
+  in any letter case, prefer the closed `slide-deck` artifact instead of the native
+  Markdown-tabs `presentation` recipe. Follow [slide-deck.md](references/slide-deck.md)
+  for its schema, content compression, accessibility, security, and rendering checks.
+  `presentation`, `프레젠테이션`, report, meeting material, document, tabs, and ordinary
+  SceneBoard requests do not activate this exception; they remain native-first.
 - Start with `scripts/scene-recipe.mjs`: trusted native recipes and the six presets cover markdown, code, table, chart, map, drawing, status, progress, split, grid, tabs, canvas, architecture, and ordinary flow compositions.
 - Escalate to `scripts/scene-artifact.mjs` only for materially necessary custom SVG, Canvas, HTML/CSS/JavaScript, animation, or specialized behavior that trusted nodes cannot express faithfully. A custom input format or extra decoration alone is not a reason to escalate.
 - Author one closed recipe, compile it deterministically, inspect the exact emitted JSON, then perform one full `board_scene_replace` or one bounded ordered `board_scene_patch`. Do not stream a composition as many fragmented mutations.
 - Preserve explicit board resolution, the freshly observed `expectedRevisionId`, a distinct explicit `idempotencyKey` for every mutation, and conscious `REVISION_CONFLICT` handling.
 - Artifact use is two-stage: compile and publish the immutable artifact version, then create and place a `content.artifact` node with the returned identifiers. Never place an unpublished draft or invent immutable identifiers.
-- Apply the visual quality baseline in [visual-composer.md](references/visual-composer.md): prefer scalable SVG and semantic HTML/CSS, make compositions fill the available board surface, render Canvas and WebGL at a capped device-pixel ratio, and preserve legibility at a 1920×1080 recording viewport. Use the closed `threejs-showcase` template for polished interactive 3D with lighting, shadows, and tone mapping; use `webgl-showcase` only for a minimal engine-free WebGL composition. Neither template may request a content delivery network.
+- Apply the visual quality baseline in [visual-composer.md](references/visual-composer.md): prefer scalable SVG and semantic HTML/CSS, make compositions fill the available board surface, render Canvas and WebGL at a capped device-pixel ratio, and preserve legibility at a 1920×1080 recording viewport. Use the closed `slide-deck` template only for the explicit trigger above, the closed `threejs-showcase` template for polished interactive 3D with lighting, shadows, and tone mapping, and `webgl-showcase` only for a minimal engine-free WebGL composition. None may request a content delivery network.
 - If the artifact runtime is unavailable or cannot be verified, preserve the same information with native nodes where possible. When publication succeeds but browser rendering fails, report immutable persistence and rendering as separate outcomes.
 - Follow [visual-composer.md](references/visual-composer.md) for exact commands, catalogs, deterministic batching, publication/placement, accessibility, and motion. The MCP-first transport, human-readable delivery, artifact isolation, history, HITL, and browser-verification contracts above remain authoritative.
 
@@ -101,16 +107,25 @@ Keep `wait.timeoutMs` in `[0,30000]`. Effective wait is `min(30000, remaining SD
 
 | Intent                 | Tools                                                                                                                                                      |
 | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Connection/pairing     | `board_connection_status`, `board_pair_request`, `board_pair_status`; fallback uses one private `pair` process                                             |
-| Lifecycle/capabilities | `board_list`, `board_get`, `board_create`, `board_archive`, `board_capabilities_get`                                                                       |
+| Connection/pairing     | `board_connection_status`, plus `board_pair_request` and `board_pair_status` only in pairing mode; fallback uses one private `pair` process                |
+| Lifecycle/capabilities | `board_list`, `board_get`, `board_create`, `board_archive`, `board_capabilities_get`; API-key mode also exposes `board_rename`                             |
 | Scene                  | `board_scene_get`, `board_scene_replace`, `board_scene_patch`, `board_scene_clear`                                                                         |
 | Document/pages         | `board_document_get`, `board_document_replace`, `board_page_add`, `board_page_remove`, `board_page_reorder`, `board_page_update`, `board_page_default_set` |
 | Media                  | `sceneboard_media_upload`, `sceneboard_media_place`                                                                                                        |
 | Artifact               | `board_artifact_get`, `board_artifact_put`, `board_artifact_stop`                                                                                          |
 | History                | `board_history_list`, `board_history_get`, `board_history_restore`                                                                                         |
+| Export                 | API-key mode only: `board_export`                                                                                                                          |
 | HITL                   | `board_interaction_request`, `board_interaction_status`, `board_interaction_respond`                                                                       |
 
 `board_artifact_remove` and `board_interaction_cancel` do not exist in v1. Artifact stop does not remove a scene reference.
+
+Account API-key mode is an explicit non-pairing MCP mode. It exposes only connection status, owner
+board lifecycle, scene/document/page, history, and export tools. Pairing, media (including
+`sceneboard_media_place`), artifact, and human-interaction tools are absent. A missing scope is
+reported as `FORBIDDEN`; selected-board `403`/`404` failures remain ordinary board-tool failures.
+`board_export` requires `export:read`, an explicit retained revision and an absolute non-existing
+`.pdf` or `.pptx` output path. Secure local publication is limited to verified Linux x64 glibc
+targets and never overwrites a destination.
 
 A zero-board connection is deliberately not wildcard access. It is valid only with `board.write` and lifecycle `board.create`; existing boards remain hidden, while each successful `board_create` is atomically bound to that same grant. Treat `board_archive` as recoverable deletion and request lifecycle `board.archive` only when the user explicitly asks to remove or archive a board.
 

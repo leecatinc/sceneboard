@@ -12,7 +12,7 @@ export type CorrelatedHistoryListV1 = Array<{
   label: string;
   actorLabel?: RetainedHistoryActorLabelV1;
   summary?: string;
-  schemaVersion?: '1.0.0' | '2.0.0';
+  schemaVersion?: '1.0.0' | '2.0.0' | '3.0.0';
 }>;
 
 export type NormalizedRetainedHistoryRowV1 = {
@@ -27,7 +27,7 @@ export type NormalizedRetainedHistoryRowV1 = {
     | 'Scene cleared'
     | 'Revision restored'
     | 'Document updated';
-  schemaVersion: '1.0.0' | '2.0.0';
+  schemaVersion: '1.0.0' | '2.0.0' | '3.0.0';
   previous: { kind: 'revision'; revisionId: RevisionId } | { kind: 'truncated' } | null;
   nextRevisionId: RevisionId | null;
 };
@@ -134,7 +134,9 @@ export const normalizeHistoryListV1 = ({
       if (
         retained === undefined ||
         retained.summary !== summary ||
-        (retained.schemaVersion !== '1.0.0' && retained.schemaVersion !== '2.0.0')
+        (retained.schemaVersion !== '1.0.0' &&
+          retained.schemaVersion !== '2.0.0' &&
+          retained.schemaVersion !== '3.0.0')
       ) {
         throw new TypeError('retained history metadata is not render safe');
       }
@@ -212,7 +214,7 @@ export type CorrelatedHistoryNavigationV1 = {
   label: string;
   actorLabel?: RetainedHistoryActorLabelV1;
   summary?: string;
-  schemaVersion?: '1.0.0' | '2.0.0';
+  schemaVersion?: '1.0.0' | '2.0.0' | '3.0.0';
 };
 
 export const correlateHistoryNavigationV1 = (

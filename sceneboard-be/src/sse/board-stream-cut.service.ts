@@ -5,13 +5,18 @@ import {
   BOARD_LIMITS_V1,
   BoardEventEnvelopeParserV1,
   BoardEventEnvelopeParserV2,
+  BoardEventEnvelopeParserV3,
   DEFAULT_BOARD_CAPABILITIES_V2,
+  DEFAULT_BOARD_CAPABILITIES_V3,
+  projectDocumentV2ToV3,
+  projectDocumentV3ToV2,
   type BoardEventEnvelopeV1,
   type BoardEventEnvelopeV2,
   type BoardId,
   type BoardSnapshot,
   type BoardSnapshotV1,
   type BoardSnapshotV2,
+  type BoardSnapshotV3,
   type RequestId,
   type TimestampV1,
 } from '@sceneboard/board-schema';
@@ -51,10 +56,10 @@ export class BoardStreamCutService {
     principal: ResolvedBoardPrincipalV1,
     boardId: BoardId,
     cursorSource: string | null,
-    documentSchemaVersion: 1 | 2 = 1,
+    documentSchemaVersion: 1 | 2 | 3 = 1,
   ): Promise<PreparedBoardStreamCutV1> {
     const snapshot = this.#projectSnapshot(
-      await this.#authorizedSnapshot(principal, boardId),
+      await this.#authorizedSnapshot(principal, boardId, documentSchemaVersion),
       documentSchemaVersion,
     );
     const watermark = snapshot.lastEventSequence;
@@ -83,10 +88,10 @@ export class BoardStreamCutService {
   async reauthorize(
     principal: ResolvedBoardPrincipalV1,
     boardId: BoardId,
-    documentSchemaVersion: 1 | 2 = 1,
+    documentSchemaVersion: 1 | 2 | 3 = 1,
   ): Promise<number> {
     return this.#projectSnapshot(
-      await this.#authorizedSnapshot(principal, boardId),
+      await this.#authorizedSnapshot(principal, boardId, documentSchemaVersion),
       documentSchemaVersion,
     ).lastEventSequence;
   }
@@ -95,7 +100,7 @@ export class BoardStreamCutService {
     boardId: BoardId,
     afterSequence: number,
     headSequence: number,
-    documentSchemaVersion: 1 | 2 = 1,
+    documentSchemaVersion: 1 | 2 | 3 = 1,
   ): Promise<PreparedBoardStreamFrameV1[] | null> {
     const events = await this.#range(boardId, afterSequence, headSequence);
     return events?.map((event) => this.eventFrame(event, documentSchemaVersion)) ?? null;
@@ -103,16 +108,18 @@ export class BoardStreamCutService {
 
   eventFrame(
     event: DeliverableBoardEventV1,
-    documentSchemaVersion: 1 | 2 = 1,
+    documentSchemaVersion: 1 | 2 | 3 = 1,
   ): PreparedBoardStreamFrameV1 {
     const issuedAt = new Date().toISOString() as TimestampV1;
     const parsed =
-      documentSchemaVersion === 2
-        ? BoardEventEnvelopeParserV2.parseBytes(event.canonicalBytes)
-        : BoardEventEnvelopeParserV1.parseBytes(event.canonicalBytes);
+      documentSchemaVersion === 3
+        ? BoardEventEnvelopeParserV3.parseBytes(event.canonicalBytes)
+        : documentSchemaVersion === 2
+          ? BoardEventEnvelopeParserV2.parseBytes(event.canonicalBytes)
+          : BoardEventEnvelopeParserV1.parseBytes(event.canonicalBytes);
     if (!parsed.ok) throw new BoardContractError(parsed.error);
     const limit =
-      documentSchemaVersion === 2
+      documentSchemaVersion === 2 || documentSchemaVersion === 3
         ? BOARD_DOCUMENT_LIMITS_V2.maxDocumentEnvelopeBytes
         : BOARD_LIMITS_V1.maxEnvelopeBytes;
     if (parsed.data.canonicalBytes.byteLength > limit)
@@ -134,11 +141,13 @@ export class BoardStreamCutService {
   async #authorizedSnapshot(
     principal: ResolvedBoardPrincipalV1,
     boardId: BoardId,
+    documentSchemaVersion: 1 | 2 | 3,
   ): Promise<BoardSnapshot> {
     const result = await this.boards.get({
       principal,
       requestId: this.crypto.generatePublicIdV1() as RequestId,
       boardId,
+      documentSchemaVersion,
     });
     if (result.result.type !== 'board.get') throw new Error('board snapshot result drift');
     return result.result.snapshot;
@@ -147,7 +156,12 @@ export class BoardStreamCutService {
   #snapshotCut(snapshot: BoardSnapshot): PreparedBoardStreamCutV1 {
     const occurredAt = new Date().toISOString() as TimestampV1;
     const eventId = this.cursors.createSnapshotEventId();
-    const parser = 'document' in snapshot ? BoardEventEnvelopeParserV2 : BoardEventEnvelopeParserV1;
+    const parser =
+      'document' in snapshot
+        ? snapshot.document.schemaVersion === 3
+          ? BoardEventEnvelopeParserV3
+          : BoardEventEnvelopeParserV2
+        : BoardEventEnvelopeParserV1;
     const parsed = parser.parse({
       protocolVersion: 1,
       type: 'board.event',
@@ -178,9 +192,24 @@ export class BoardStreamCutService {
     };
   }
 
-  #projectSnapshot(snapshot: BoardSnapshot, documentSchemaVersion: 1 | 2): BoardSnapshot {
+  #projectSnapshot(snapshot: BoardSnapshot, documentSchemaVersion: 1 | 2 | 3): BoardSnapshot {
     if (documentSchemaVersion === 1) {
       if ('document' in snapshot) {
+        if (snapshot.document.schemaVersion === 3)
+          throw new BoardContractError({
+            protocolVersion: 1,
+            type: 'board.error',
+            code: 'UPGRADE_REQUIRED',
+            message: 'A newer document client is required',
+            category: 'conflict',
+            retryable: false,
+            httpStatusHint: 409,
+            details: {
+              headSchemaVersion: 3,
+              requestedDocumentSchemaVersion: 1,
+              surface: 'board.stream',
+            },
+          });
         throw new BoardContractError({
           protocolVersion: 1,
           type: 'board.error',
@@ -198,14 +227,46 @@ export class BoardStreamCutService {
       }
       return snapshot;
     }
-    if ('document' in snapshot) return snapshot;
+    if (documentSchemaVersion === 2 && 'document' in snapshot) {
+      if (snapshot.document.schemaVersion === 2) return snapshot;
+      return {
+        ...snapshot,
+        document: projectDocumentV3ToV2(snapshot.document),
+        capabilities: {
+          ...DEFAULT_BOARD_CAPABILITIES_V2,
+          grantedCapabilities: [...snapshot.capabilities.grantedCapabilities],
+          allowedArtifactRequestCapabilities: [
+            ...snapshot.capabilities.allowedArtifactRequestCapabilities,
+          ],
+        },
+      } as unknown as BoardSnapshotV2;
+    }
+    if (documentSchemaVersion === 3 && 'document' in snapshot) {
+      if (snapshot.document.schemaVersion === 3) return snapshot;
+      return {
+        ...snapshot,
+        document: projectDocumentV2ToV3(snapshot.document),
+        capabilities: {
+          ...DEFAULT_BOARD_CAPABILITIES_V3,
+          grantedCapabilities: [...snapshot.capabilities.grantedCapabilities],
+          allowedArtifactRequestCapabilities: [
+            ...snapshot.capabilities.allowedArtifactRequestCapabilities,
+          ],
+        },
+      } as unknown as BoardSnapshotV3;
+    }
     const source = snapshot as BoardSnapshotV1;
     const { scene, capabilities, ...shared } = source;
     return {
       ...shared,
-      document: adaptLegacySceneToDocumentV2({ boardId: source.boardId, scene }),
+      document:
+        documentSchemaVersion === 3
+          ? projectDocumentV2ToV3(adaptLegacySceneToDocumentV2({ boardId: source.boardId, scene }))
+          : adaptLegacySceneToDocumentV2({ boardId: source.boardId, scene }),
       capabilities: {
-        ...DEFAULT_BOARD_CAPABILITIES_V2,
+        ...(documentSchemaVersion === 3
+          ? DEFAULT_BOARD_CAPABILITIES_V3
+          : DEFAULT_BOARD_CAPABILITIES_V2),
         supported: {
           ...DEFAULT_BOARD_CAPABILITIES_V2.supported,
           nodeTypes: [...DEFAULT_BOARD_CAPABILITIES_V2.supported.nodeTypes],
@@ -221,7 +282,7 @@ export class BoardStreamCutService {
         grantedCapabilities: [...capabilities.grantedCapabilities],
         allowedArtifactRequestCapabilities: [...capabilities.allowedArtifactRequestCapabilities],
       },
-    } as BoardSnapshotV2;
+    } as BoardSnapshotV2 | BoardSnapshotV3;
   }
 
   async #range(

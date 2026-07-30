@@ -23,12 +23,14 @@ interface HeaderResponse {
 }
 
 export const applyPrivateResponseHeaders = (url: string, response: HeaderResponse): void => {
-  if (/^\/api\/v1\/(?:auth|pairings|grants|boards|mcp)(?:\/|\?|$)/.test(url)) {
+  if (/^\/api\/v1\/(?:auth|pairings|grants|boards|mcp|account\/api-keys)(?:\/|\?|$)/.test(url)) {
     response.setHeader('Cache-Control', 'no-store, private');
     response.setHeader('Pragma', 'no-cache');
   }
   if (/^\/api\/v1\/(?:boards|mcp)(?:\/|\?|$)/.test(url)) {
     response.setHeader('Vary', 'Origin, Cookie, Authorization');
+  } else if (/^\/api\/v1\/account\/api-keys(?:\/|\?|$)/.test(url)) {
+    response.setHeader('Vary', 'Origin, Cookie');
   } else if (/^\/api\/v1\/pairings\/[^/?]+\/(?:client-status|redeem)(?:\?|$)/.test(url)) {
     response.setHeader('Vary', 'Authorization');
   } else if (

@@ -6,6 +6,7 @@ import type {
   GrantId,
 } from '@sceneboard/board-schema';
 import type { PoolConnection } from 'mysql2/promise';
+import type { ActiveAccountApiKeySnapshot } from '../api-keys/account-api-key.repository.js';
 import type { MembershipAuthorizationContextV1 } from '../memberships/membership-authorization.context.js';
 
 export const AUTHORIZED_BOARD_OPERATIONS_V1 = [
@@ -27,6 +28,7 @@ export const AUTHORIZED_BOARD_OPERATIONS_V1 = [
   'artifact.publish',
   'artifact.stop',
   'media.upload',
+  'export.render',
 ] as const;
 
 export type AuthorizedBoardOperationV1 = (typeof AUTHORIZED_BOARD_OPERATIONS_V1)[number];
@@ -93,6 +95,8 @@ export type ResolvedMcpGrantProjectionV1 = {
   expiresAt: string;
 };
 
+export const ACCOUNT_API_KEY_SNAPSHOT = Symbol('ACCOUNT_API_KEY_SNAPSHOT');
+
 export type ResolvedBoardPrincipalV1 =
   | {
       kind: 'user';
@@ -100,6 +104,7 @@ export type ResolvedBoardPrincipalV1 =
       userPk: bigint;
       sessionPk: bigint;
       familyPublicId: string;
+      isBrowserCredential: true;
     }
   | {
       kind: 'mcp';
@@ -110,6 +115,16 @@ export type ResolvedBoardPrincipalV1 =
       grantId: GrantId;
       sourceFamilyPublicId: string | null;
       connectionGrant?: ResolvedMcpGrantProjectionV1;
+      isBrowserCredential: false;
+    }
+  | {
+      kind: 'account_api_key';
+      actor: ActorContextV1;
+      ownerUserPk: bigint;
+      apiKeyPk: bigint;
+      scopeMask: number;
+      isBrowserCredential: false;
+      [ACCOUNT_API_KEY_SNAPSHOT]: ActiveAccountApiKeySnapshot;
     };
 
 export type CreateBoardBindingCapabilityV1 = {
@@ -128,7 +143,8 @@ export type AuthorizedBoardContextV1 = {
   accountUserPk?: bigint;
   access:
     | { kind: 'owner'; ownerUserPk: bigint }
-    | { kind: 'grant'; grantPk: bigint; grantId: GrantId };
+    | { kind: 'grant'; grantPk: bigint; grantId: GrantId }
+    | { kind: 'api_key'; ownerUserPk: bigint; apiKeyPk: bigint };
   createBinding: CreateBoardBindingCapabilityV1 | null;
   createOwnerMembership?: CreateOwnerMembershipCapabilityV1 | null;
   membership?: MembershipAuthorizationContextV1 | null;
@@ -228,6 +244,10 @@ const AUTHORIZATION_RULES: Readonly<Record<BoardAccessOperationV1, Authorization
   'artifact.publish': write(['artifact.publish'], 'D7'),
   'artifact.stop': write(['artifact.control'], 'D7'),
   'media.upload': write(['board.media.write'], 'D3'),
+  'export.render': {
+    ...read([], 'D3'),
+    activeBoardRequired: false,
+  },
 };
 
 export const isBoardAccessOperation = (operation: string): operation is BoardAccessOperationV1 =>
@@ -235,3 +255,6 @@ export const isBoardAccessOperation = (operation: string): operation is BoardAcc
 
 export const authorizationRuleFor = (operation: BoardAccessOperationV1): AuthorizationRuleV1 =>
   AUTHORIZATION_RULES[operation];
+
+export const isBrowserBoardPrincipal = (principal: ResolvedBoardPrincipalV1 | undefined): boolean =>
+  principal?.kind === 'user' && principal.isBrowserCredential;

@@ -72,7 +72,13 @@ const revisionId = (value: Uint8Array): RevisionId => formatPublicUuidV4(value) 
 const accessContext = (context: AuthorizedBoardContextV1): BoardListAccessContextV1 =>
   context.access.kind === 'owner'
     ? { accessKind: 'owner', ownerUserId: context.access.ownerUserPk.toString() }
-    : { accessKind: 'grant', grantId: context.access.grantId };
+    : context.access.kind === 'grant'
+      ? { accessKind: 'grant', grantId: context.access.grantId }
+      : {
+          accessKind: 'account_api_key',
+          ownerUserId: context.access.ownerUserPk.toString(),
+          apiKeyId: context.access.apiKeyPk.toString(),
+        };
 
 export class BoardListService {
   constructor(
@@ -166,33 +172,37 @@ export class BoardListService {
             cursor.boardPk,
           ];
     const membershipPolicyEnabled = context.membership !== undefined;
+    const grantAccess = context.access.kind === 'grant' ? context.access : null;
+    const accountApiKeyAccess = context.access.kind === 'api_key';
     const from = membershipPolicyEnabled
-      ? context.access.kind === 'owner'
-        ? `FROM board_memberships bm
-           JOIN boards b ON b.board_pk = bm.board_pk`
-        : `FROM mcp_grant_boards gb
+      ? grantAccess !== null
+        ? `FROM mcp_grant_boards gb
            JOIN boards b ON b.public_id = gb.board_public_id
            JOIN board_memberships bm ON bm.board_pk = b.board_pk`
-      : context.access.kind === 'owner'
-        ? 'FROM boards b'
-        : 'FROM mcp_grant_boards gb JOIN boards b ON b.public_id = gb.board_public_id';
+        : `FROM board_memberships bm
+           JOIN boards b ON b.board_pk = bm.board_pk`
+      : grantAccess !== null
+        ? 'FROM mcp_grant_boards gb JOIN boards b ON b.public_id = gb.board_public_id'
+        : 'FROM boards b';
     const accessPredicate = membershipPolicyEnabled
-      ? context.access.kind === 'owner'
-        ? "bm.account_pk = ? AND bm.state = 'active'"
-        : "gb.grant_id = ? AND bm.account_pk = ? AND bm.state = 'active'"
-      : context.access.kind === 'owner'
-        ? 'b.owner_user_id = ?'
-        : 'gb.grant_id = ?';
+      ? grantAccess !== null
+        ? "gb.grant_id = ? AND bm.account_pk = ? AND bm.state = 'active'"
+        : accountApiKeyAccess
+          ? "bm.account_pk = ? AND bm.role = 'owner' AND bm.state = 'active' AND b.owner_user_id = bm.account_pk"
+          : "bm.account_pk = ? AND bm.state = 'active'"
+      : grantAccess !== null
+        ? 'gb.grant_id = ?'
+        : 'b.owner_user_id = ?';
     const accessBinds = membershipPolicyEnabled
-      ? context.access.kind === 'owner'
-        ? [(context.accountUserPk ?? context.access.ownerUserPk).toString()]
-        : [
-            context.access.grantPk.toString(),
+      ? grantAccess !== null
+        ? [
+            grantAccess.grantPk.toString(),
             (context.accountUserPk ?? context.ownerUserPk).toString(),
           ]
-      : context.access.kind === 'owner'
-        ? [context.access.ownerUserPk.toString()]
-        : [context.access.grantPk.toString()];
+        : [(context.accountUserPk ?? context.ownerUserPk).toString()]
+      : grantAccess !== null
+        ? [grantAccess.grantPk.toString()]
+        : [context.ownerUserPk.toString()];
     const [rows] = await connection.execute<BoardListRow[]>(
       `
       SELECT

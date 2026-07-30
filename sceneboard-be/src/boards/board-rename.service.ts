@@ -31,7 +31,7 @@ export class BoardRenameService {
   constructor(private readonly accessPolicy: BoardAccessPolicy) {}
 
   async rename(input: {
-    principal: Extract<ResolvedBoardPrincipalV1, { kind: 'user' }>;
+    principal: Extract<ResolvedBoardPrincipalV1, { kind: 'user' | 'account_api_key' }>;
     request: BoardRenameRequestV1;
   }): Promise<BoardRenameResultV1> {
     return this.accessPolicy.withAuthorizedBoardTransaction(

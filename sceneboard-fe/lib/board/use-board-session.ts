@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BoardIdParserV1,
+  projectDocumentV2ToV3,
   type BoardSessionAccessV1,
   type BoardSnapshot,
   type PageCursorV1,
+  type PresentationFormatV1,
   type RevisionId,
 } from '@sceneboard/board-schema';
 import {
@@ -19,6 +21,7 @@ import {
 import {
   createBoardStreamClientV1,
   createBoardStreamClientV2,
+  createBoardStreamClientV3,
   createBoardStreamTabIdV1,
   type BoardStreamCallbacksV2,
   type BoardStreamClientV1,
@@ -39,7 +42,7 @@ import {
   type LiveBoardStateV1,
 } from '@sceneboard/board-sdk/state';
 
-import { BoardApiClient, type ApiResult } from '../api/board-api';
+import { BoardApiClient, createBoardRequestIdentity, type ApiResult } from '../api/board-api';
 import { authSessionClient } from '../auth/session-client';
 import {
   capabilitySettlementIsCurrentV1,
@@ -236,7 +239,9 @@ export function useBoardSession(boardIdValue: string) {
       };
       const client =
         'document' in snapshot
-          ? createBoardStreamClientV2({ ...common, documentSchemaVersion: 2 })
+          ? snapshot.document.schemaVersion === 3
+            ? createBoardStreamClientV3({ ...common, documentSchemaVersion: 3 })
+            : createBoardStreamClientV2({ ...common, documentSchemaVersion: 2 })
           : createBoardStreamClientV1(common);
       stream.current = client;
       const visibility = () =>
@@ -431,13 +436,16 @@ export function useBoardSession(boardIdValue: string) {
   }, [loadHistoryPage]);
 
   const retryHistory = useCallback(() => {
+    // An in-flight retry already clears failedCursor to null, so block repeat
+    // activation while loading to retry the same failed cursor exactly once per click.
+    if (historyDropdown.status === 'loading' || historyDropdown.status === 'loading_more') return;
     const cursor = historyDropdown.failedCursor;
     pageEpoch.current += 1;
     listRequest.current?.controller.abort();
     listRequest.current = null;
     if (cursor === null) historyPage.current = null;
     void loadHistoryPage(cursor);
-  }, [historyDropdown.failedCursor, loadHistoryPage]);
+  }, [historyDropdown.status, historyDropdown.failedCursor, loadHistoryPage]);
 
   const navigateHistory = useCallback(
     async (revisionId: RevisionId): Promise<'ok' | 'unavailable' | 'failed'> => {
@@ -606,6 +614,58 @@ export function useBoardSession(boardIdValue: string) {
     [api, boardIdValue],
   );
 
+  const changePresentationFormat = useCallback(
+    async (format: PresentationFormatV1): Promise<boolean> => {
+      const current = state?.liveSnapshot;
+      if (
+        current === undefined ||
+        state?.mode.kind !== 'live' ||
+        !('document' in current) ||
+        !sessionAccessRef.current.authorizationCapabilities.includes('board.write')
+      )
+        return false;
+      const document =
+        current.document.schemaVersion === 3
+          ? { ...current.document, format }
+          : projectDocumentV2ToV3(current.document, format);
+      if (current.document.schemaVersion === 3 && current.document.format === format) return true;
+      writeAbort.current?.abort();
+      const controller = new AbortController();
+      writeAbort.current = controller;
+      const expected: BoardCapabilityRequestIdentityV1 = {
+        uiEpoch: (writeIdentity.current?.uiEpoch ?? 0) + 1,
+        boardId: boardIdValue,
+        action: 'document.format',
+      };
+      const expectedCapabilityEpoch = sessionAccessRef.current.capabilityEpoch;
+      writeIdentity.current = expected;
+      const identity = createBoardRequestIdentity();
+      const result = await api.replaceDocument(
+        {
+          protocolVersion: 1,
+          requestId: identity.requestId,
+          boardId: current.boardId,
+          expectedRevisionId: current.revision.revisionId,
+          idempotencyKey: identity.idempotencyKey,
+          command: { type: 'document.replace', document },
+        },
+        controller.signal,
+      );
+      if (
+        controller.signal.aborted ||
+        writeAbort.current !== controller ||
+        !capabilitySettlementIsCurrentV1(expected, writeIdentity.current) ||
+        expectedCapabilityEpoch !== sessionAccessRef.current.capabilityEpoch ||
+        result.kind !== 'ok'
+      )
+        return false;
+      writeAbort.current = null;
+      writeIdentity.current = null;
+      return latest(true);
+    },
+    [api, boardIdValue, latest, state],
+  );
+
   return {
     phase,
     title,
@@ -625,6 +685,7 @@ export function useBoardSession(boardIdValue: string) {
     selectHistoryRevision,
     selectLatestHistory,
     rename,
+    changePresentationFormat,
     sessionAccess,
     capabilityUiEpoch,
     refreshCapabilities,

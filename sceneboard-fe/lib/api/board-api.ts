@@ -31,7 +31,9 @@ import type {
   CreateBoardInput,
   CreatedPairing,
   DocumentMutationRequest,
+  DocumentMutationRequestV3,
   DocumentMutationResult,
+  DocumentMutationResultV3,
   GrantSummary,
   HistoryGetResult,
   HistoryListResult,
@@ -64,7 +66,9 @@ export type {
   BrowserDocumentMutationInput,
   CreatedPairing,
   DocumentMutationRequest,
+  DocumentMutationRequestV3,
   DocumentMutationResult,
+  DocumentMutationResultV3,
   GrantSummary,
   HistoryGetResult,
   HistoryListResult,
@@ -157,10 +161,12 @@ export class BoardApiClient {
   }
 
   async replaceDocument(
-    request: DocumentMutationRequest,
+    request: DocumentMutationRequest | DocumentMutationRequestV3,
     signal?: AbortSignal,
-  ): Promise<ApiResult<DocumentMutationResult>> {
-    return this.documents.replace(request, signal);
+  ): Promise<ApiResult<DocumentMutationResult | DocumentMutationResultV3>> {
+    return request.command.document.schemaVersion === 3
+      ? this.documents.replaceV3(request as DocumentMutationRequestV3, signal)
+      : this.documents.replace(request as DocumentMutationRequest, signal);
   }
 
   async transformDocument(

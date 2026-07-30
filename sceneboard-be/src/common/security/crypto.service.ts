@@ -19,7 +19,12 @@ type RandomBytesSource = (length: number) => Buffer;
 
 const purposeKeyOwner = (purpose: SecurityPurpose): keyof SecurityKeyMaterial => {
   if (purpose === 'session-token/v1') return 'sessionToken';
-  if (purpose === 'grant-token/v1' || purpose === 'grant-list-cursor/v1') return 'grantToken';
+  if (
+    purpose === 'grant-token/v1' ||
+    purpose === 'grant-list-cursor/v1' ||
+    purpose === 'account-api-key/v1'
+  )
+    return 'grantToken';
   if (purpose.startsWith('csrf-') || purpose === 'auth-generation/v1') return 'csrf';
   if (purpose.startsWith('pairing-')) return 'pairingCodePepper';
   if (purpose.startsWith('email-verification-')) return 'auditHmac';

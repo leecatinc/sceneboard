@@ -20,6 +20,7 @@
     "test": "tsx --test test/**/*.test.ts"
   },
   "dependencies": {
+    "@sceneboard/artifact-runtime": "0.0.0",
     "@sceneboard/board-schema": "0.0.0",
     "@sceneboard/board-sdk": "0.0.0",
     "@sceneboard/board-ui": "0.0.0",

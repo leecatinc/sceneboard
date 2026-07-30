@@ -35,3 +35,21 @@ The deterministic package, migration-source, security, browser-contract,
 native-media, and skill/archive suites remain mandatory. Live MySQL/Redis
 capacity campaigns and supervised browser acceptance require their isolated
 environment and are recorded separately when available.
+
+## API-key and export increment
+
+I-53 records the exact seven-package test/typecheck/build matrix, artifact runtime tree hash,
+migration 027, deterministic PDF/PPTX, owner browser/API-key parity, export runtime, native local
+helper, secret scan and traceability rows under
+`.hpipe/plan/evidence/I-53-certification/`. Pairing remains a required regression surface and is
+never replaced by API-key evidence.
+
+Browser export evidence must pin an explicit retained revision and prove that owner session and
+properly scoped API-key paths succeed while viewer, editor, public-share and cross-account paths
+fail closed. It also proves that cancel, retry and download do not mutate board/head/revision
+payloads. A browser, MySQL, Redis, Chromium image or font prerequisite that is unavailable is
+recorded as `BLOCKED` or `UNVERIFIED`, not inferred from unit tests.
+
+No evidence/log/config/archive may contain a raw account key, bearer value, pairing proof/code,
+real board or revision identifier, or absolute private path. Examples use synthetic identifiers
+and `env://SCENEBOARD_API_KEY` references only.

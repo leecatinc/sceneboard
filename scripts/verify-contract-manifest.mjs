@@ -86,10 +86,10 @@ const expectedGroups = new Map([
   ['D5-BROWSER-API-SEAMS', 27],
   ['D5-UI-ROUTES', 22],
   ['D6-MCP-SDK', 10],
-  ['D6-INSTALLED-SKILL', 42],
+  ['D6-INSTALLED-SKILL', 45],
   ['D7-ARTIFACT-SEAM', 7],
   ['D8-HITL-SEAM', 6],
-  ['MIGRATION-REGISTRY-ASSETS', 30],
+  ['MIGRATION-REGISTRY-ASSETS', 34],
   ['D2-MIGRATION-RUNNER', 5],
   ['RUNTIME-TOPOLOGY', 3],
   ['DEPENDENCY-EVIDENCE', 11],
@@ -659,6 +659,7 @@ const observeToolRegistry = async () => {
   );
   const core = stringArrayInitializer(source, 'CORE_TOOL_NAMES_V1');
   const downstream = stringArrayInitializer(source, 'DOWNSTREAM_TOOL_NAMES_V1');
+  const apiKey = stringArrayInitializer(source, 'API_KEY_TOOL_NAMES_V1');
   const registered = [...source.matchAll(/\badd\(\s*'([^']+)'/gu)].map((match) => match[1]);
   equal(core.slice(0, 3), terminalToolNames.slice(0, 3), 'TOOL_REGISTRY_DRIFT');
   equal(
@@ -671,7 +672,42 @@ const observeToolRegistry = async () => {
     [...terminalToolNames.slice(21, 24), ...terminalToolNames.slice(27)],
     'TOOL_REGISTRY_DRIFT',
   );
-  equal(registered, terminalToolNames, 'TOOL_REGISTRY_DRIFT');
+  const apiKeyExpected = [
+    'board_connection_status',
+    'board_list',
+    'board_get',
+    'board_create',
+    'board_rename',
+    'board_archive',
+    'board_capabilities_get',
+    'board_scene_get',
+    'board_scene_replace',
+    'board_scene_patch',
+    'board_scene_clear',
+    'board_document_get',
+    'board_document_replace',
+    'board_page_add',
+    'board_page_remove',
+    'board_page_reorder',
+    'board_page_update',
+    'board_page_default_set',
+    'board_history_list',
+    'board_history_get',
+    'board_history_restore',
+    'board_export',
+  ];
+  equal(apiKey, apiKeyExpected, 'TOOL_REGISTRY_DRIFT');
+  equal(
+    registered,
+    [
+      ...terminalToolNames.slice(0, 6),
+      'board_rename',
+      ...terminalToolNames.slice(6, 27),
+      'board_export',
+      ...terminalToolNames.slice(27),
+    ],
+    'TOOL_REGISTRY_DRIFT',
+  );
   return { preAuthCount: 3, coreCount: 24, finalCount: 30, terminalNames: terminalToolNames };
 };
 
@@ -682,7 +718,7 @@ const observeMigrations = async (observedById) => {
   const versions = [...source.matchAll(/\bversion: '([^']+)'/gu)].map((match) => match[1]);
   const upAssets = [...source.matchAll(/\bupAsset: '([^']+)'/gu)].map((match) => match[1]);
   const downAssets = [...source.matchAll(/\bdownAsset: '([^']+)'/gu)].map((match) => match[1]);
-  if (versions.length !== 26 || upAssets.length !== 26 || downAssets.length !== 3)
+  if (versions.length !== 30 || upAssets.length !== 30 || downAssets.length !== 3)
     fail('MIGRATION_REGISTRY_DRIFT');
   const assets = [...observedById.values()].filter(({ resourceId }) =>
     resourceId.startsWith('MIGRATION-ASSET-'),

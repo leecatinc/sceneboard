@@ -44,7 +44,7 @@ export class HistoryToolHandlersV1 {
     const requestId = createRequestIdV1();
     const parsed = HistoryListInputSchemaV1.safeParse(raw);
     if (!parsed.success) return validationFailureV1('board_history_list', requestId, parsed.error);
-    const result = await this.gateway.call((client) =>
+    const result = await this.gateway.call('board_history_list', 'history.list', (client) =>
       client.listHistory(
         {
           protocolVersion: 1,
@@ -76,7 +76,7 @@ export class HistoryToolHandlersV1 {
     const requestId = createRequestIdV1();
     const parsed = HistoryGetInputSchemaV1.safeParse(raw);
     if (!parsed.success) return validationFailureV1('board_history_get', requestId, parsed.error);
-    const result = await this.gateway.call((client) =>
+    const result = await this.gateway.call('board_history_get', 'history.get', (client) =>
       client.getHistory(
         {
           protocolVersion: 1,
@@ -108,7 +108,7 @@ export class HistoryToolHandlersV1 {
     const parsed = HistoryRestoreInputSchemaV1.safeParse(raw);
     if (!parsed.success)
       return validationFailureV1('board_history_restore', requestId, parsed.error);
-    const result = await this.gateway.call((client) =>
+    const result = await this.gateway.call('board_history_restore', 'scene.restore', (client) =>
       client.restoreRevision(
         {
           protocolVersion: 1,

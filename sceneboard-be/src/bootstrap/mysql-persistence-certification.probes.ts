@@ -289,9 +289,7 @@ const definitions: readonly ProbeDefinition[] = [
     cursorBinds: numericBinds,
     validate: (row, input) => {
       const reclaimed =
-        row.scenePayload === null &&
-        row.sceneStoredBytes === null &&
-        row.sceneSha256 === null;
+        row.scenePayload === null && row.sceneStoredBytes === null && row.sceneSha256 === null;
       const referencesValid =
         Number(row.invalidReferenceCount ?? 0) === 0 &&
         Number.isSafeInteger(Number(row.referenceCount));

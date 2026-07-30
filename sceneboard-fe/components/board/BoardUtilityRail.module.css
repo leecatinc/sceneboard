@@ -1,0 +1,230 @@
+/* Board utility rail — a desktop-only thin icon rail with an overlay flyout.
+   It reserves only a thin column instead of permanently consuming 228px of canvas. */
+
+.rail {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: 52px;
+  min-width: 0;
+  padding: 8px 0;
+  gap: 4px;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+}
+
+.presentationAction {
+  width: 36px;
+  margin: 0 auto;
+}
+
+.separator {
+  width: 28px;
+  height: 1px;
+  margin: 2px auto 4px;
+  background: var(--border);
+}
+
+.button {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin: 0 auto;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.button:hover {
+  background: var(--surface-muted);
+  color: var(--text-strong);
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--secondary);
+  outline-offset: 2px;
+}
+
+.button[aria-expanded='true'] {
+  background: var(--surface-muted);
+  color: var(--text-strong);
+  border-color: var(--border-strong);
+}
+
+.icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
+
+/* The flyout overlays the canvas, anchored to the rail's left so no extra column is reserved. */
+.flyout {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 100%;
+  width: 300px;
+  max-width: min(320px, calc(100vw - 60px));
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin-right: 1px;
+  border: 1px solid var(--border);
+  border-radius: 8px 0 0 8px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgba(17, 36, 33, 0.12);
+  z-index: 5;
+}
+
+.flyoutHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.flyoutHeader h3 {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: 14px;
+}
+
+.close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.close:hover {
+  background: var(--surface-muted);
+  color: var(--text-strong);
+}
+
+.close:focus-visible {
+  outline: 2px solid var(--secondary);
+  outline-offset: 2px;
+}
+
+.flyoutBody {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+  padding: 14px;
+  overflow-y: auto;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.section + .section {
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.section h4 {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: 13px;
+}
+
+.viewControls {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.viewControls :global(.board-page-display-actions) {
+  justify-content: flex-start;
+}
+
+.viewControls :global(.board-view-modes) {
+  width: 100%;
+}
+
+.metric {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.metricLabel {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.metricValue {
+  color: var(--text-strong);
+  font-weight: 700;
+}
+
+.note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.stop {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.stop:hover {
+  border-color: var(--warning);
+  color: var(--text-strong);
+}
+
+/* Access panel — owner-management controls stack vertically so they stay usable in a narrow flyout.
+   Destructive delete actions are separated after the exposed non-destructive ones. */
+.management {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.management:empty {
+  display: none;
+}

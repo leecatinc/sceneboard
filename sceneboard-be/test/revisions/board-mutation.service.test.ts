@@ -5,22 +5,26 @@ import {
   BoardEventEnvelopeParserV2,
   MutationRequestParserV1,
   MutationRequestParserV2,
+  MutationRequestParserV3,
   MutationResultParserV1,
   MutationResultParserV2,
+  MutationResultParserV3,
   normalizeActorContextV1,
   type ActorContextV1,
   type BoardId,
   type MutationRequestV1,
   type MutationRequestV2,
+  type MutationRequestV3,
 } from '@sceneboard/board-schema';
 import type { PoolConnection, ResultSetHeader } from 'mysql2/promise';
 
 import { BoardContractError } from '../../src/common/errors/app-error.js';
-import type {
-  AuthorizedBoardContextV1,
-  AuthorizedBoardTransactionInputV1,
-  BoardAccessPolicy,
-  ResolvedBoardPrincipalV1,
+import {
+  ACCOUNT_API_KEY_SNAPSHOT,
+  type AuthorizedBoardContextV1,
+  type AuthorizedBoardTransactionInputV1,
+  type BoardAccessPolicy,
+  type ResolvedBoardPrincipalV1,
 } from '../../src/grants/board-access.policy.js';
 import { BoardMutationService } from '../../src/revisions/board-mutation.service.js';
 import { DocumentCheckpointCodec } from '../../src/revisions/document-checkpoint.codec.js';
@@ -49,7 +53,40 @@ const principal = (): Extract<ResolvedBoardPrincipalV1, { kind: 'user' }> => ({
   userPk: 20n,
   sessionPk: 21n,
   familyPublicId: 'family_1',
+  isBrowserCredential: true,
 });
+
+const accountApiKeyPrincipal = (): Extract<
+  ResolvedBoardPrincipalV1,
+  { kind: 'account_api_key' }
+> => {
+  const keyActor = normalizeActorContextV1({
+    principalKind: 'service',
+    principalId: 'key_public_1',
+    grantId: null,
+    scopes: [],
+  });
+  assert.equal(keyActor.ok, true);
+  if (!keyActor.ok) throw new Error('invalid API-key actor fixture');
+  const snapshot = {
+    keyPk: '70',
+    keyPublicId: 'key_public_1',
+    ownerUserPk: '20',
+    ownerPublicId: 'user_1',
+    scopeMask: 8,
+    scopes: ['board:write'] as const,
+    expiresAt: Date.parse('2026-08-01T00:00:00.000Z'),
+  };
+  return {
+    kind: 'account_api_key',
+    actor: keyActor.data.value,
+    ownerUserPk: 20n,
+    apiKeyPk: 70n,
+    scopeMask: snapshot.scopeMask,
+    isBrowserCredential: false,
+    [ACCOUNT_API_KEY_SNAPSHOT]: snapshot,
+  };
+};
 
 const request = (
   type: 'scene.clear' | 'scene.restore',
@@ -94,6 +131,35 @@ const documentRequest = (requestId: string): MutationRequestV2 => {
   });
   assert.equal(parsed.ok, true);
   if (!parsed.ok) throw new Error('invalid document request fixture');
+  return parsed.data.value;
+};
+
+const documentRequestV3 = (requestId: string): MutationRequestV3 => {
+  const parsed = MutationRequestParserV3.parse({
+    protocolVersion: 1,
+    requestId,
+    idempotencyKey: 'mutation-key-v3-0001',
+    boardId,
+    expectedRevisionId: headRevisionId,
+    command: {
+      type: 'document.replace',
+      document: {
+        schemaVersion: 3,
+        format: 'standard_4_3',
+        defaultPageId: 'page_1',
+        pages: [
+          {
+            pageId: 'page_1',
+            title: 'First',
+            displayMode: 'fit-page',
+            scene: { protocolVersion: 1, type: 'scene', root: null },
+          },
+        ],
+      },
+    },
+  });
+  assert.equal(parsed.ok, true);
+  if (!parsed.ok) throw new Error('invalid V3 document request fixture');
   return parsed.data.value;
 };
 
@@ -179,8 +245,10 @@ const oversizedDocumentRequest = (): MutationRequestV2 =>
 
 const setup = async (
   type: 'scene.clear' | 'scene.restore' | 'document.replace',
-  headSchemaVersion: '1.0.0' | '2.0.0' = '1.0.0',
+  headSchemaVersion: '1.0.0' | '2.0.0' | '3.0.0' = '1.0.0',
   sourceSchemaVersion: '1.0.0' | '2.0.0' = '1.0.0',
+  v3WriteEnabled = false,
+  apiKey = false,
 ) => {
   const calls: string[] = [];
   const sourceCheckpoint =
@@ -209,6 +277,7 @@ const setup = async (
   let idempotencyInserts = 0;
   let revisionInsertBinds: unknown[] | null = null;
   let eventInsertBinds: unknown[] | null = null;
+  let revisionCatalogBinds: unknown[] | null = null;
   const connection = {
     async execute(sql: string, binds: unknown[] = []): Promise<[unknown, unknown]> {
       const normalized = sql.replace(/\s+/g, ' ').trim();
@@ -337,6 +406,7 @@ const setup = async (
         return [{ affectedRows: 1, insertId: 0 } as ResultSetHeader, []];
       }
       if (normalized.startsWith('INSERT INTO board_revision_catalog')) {
+        revisionCatalogBinds = [...binds];
         return [{ affectedRows: 1, insertId: 0 } as ResultSetHeader, []];
       }
       if (normalized.startsWith('UPDATE board_heads')) {
@@ -380,10 +450,14 @@ const setup = async (
       throw new Error(`unexpected SQL: ${normalized}`);
     },
   } as unknown as PoolConnection;
+  const apiKeyPrincipal = accountApiKeyPrincipal();
   const context: AuthorizedBoardContextV1 = {
-    actor: actor(),
+    actor: apiKey ? apiKeyPrincipal.actor : actor(),
     ownerUserPk: 20n,
-    access: { kind: 'owner', ownerUserPk: 20n },
+    accountUserPk: 20n,
+    access: apiKey
+      ? { kind: 'api_key', ownerUserPk: 20n, apiKeyPk: 70n }
+      : { kind: 'owner', ownerUserPk: 20n },
     createBinding: null,
     artifactCapabilityPolicy: {
       allowedArtifactRequestCapabilities: [],
@@ -416,10 +490,19 @@ const setup = async (
     idempotencyInserts: () => idempotencyInserts,
     revisionInsertBinds: () => revisionInsertBinds,
     eventInsertBinds: () => eventInsertBinds,
-    service: new BoardMutationService(policy, new DocumentCheckpointCodec(), {
-      now: () => new Date('2026-07-16T12:00:00.000Z'),
-      generateUuid: () => generated.shift() ?? '33332233-4455-4677-8899-aabbccddeeff',
-    }),
+    revisionCatalogBinds: () => revisionCatalogBinds,
+    apiKeyPrincipal,
+    service: new BoardMutationService(
+      policy,
+      new DocumentCheckpointCodec(),
+      {
+        now: () => new Date('2026-07-16T12:00:00.000Z'),
+        generateUuid: () => generated.shift() ?? '33332233-4455-4677-8899-aabbccddeeff',
+      },
+      undefined,
+      undefined,
+      v3WriteEnabled,
+    ),
   };
 };
 
@@ -446,6 +529,15 @@ test('scene.clear atomically appends one immutable checkpoint, CAS head, event, 
     call.startsWith('UPDATE board_idempotency_records'),
   );
   assert.ok(revisionIndex < headIndex && headIndex < eventIndex && eventIndex < completeIndex);
+});
+
+test('attributes API-key scene mutation to the owner account without classifying it as system', async () => {
+  const value = await setup('scene.clear', '1.0.0', '1.0.0', false, true);
+  await value.service.applySceneMutation({
+    principal: value.apiKeyPrincipal,
+    request: request('scene.clear', 'request_key_mutation_1'),
+  });
+  assert.deepEqual(value.revisionCatalogBinds()?.slice(0, 5), ['50', '71', 3, '20', 'owner']);
 });
 
 test('identical clear retry replays stored result while changed expected head is classified first', async () => {
@@ -529,6 +621,45 @@ test('document.replace promotes a v1 head to one exact v2 checkpoint, event, and
   assert.equal(replay.replayed, true);
   assert.deepEqual(replay.result, result.result);
   assert.equal(value.revisionWrites(), 1);
+});
+
+test('document.replace V3 writes exactly one format-bearing checkpoint when the rollout gate is enabled', async () => {
+  const value = await setup('document.replace', '2.0.0', '1.0.0', true);
+  const requestValue = documentRequestV3('request_document_v3_1');
+  const result = await value.service.applyDocumentMutation({
+    principal: principal(),
+    request: requestValue,
+  });
+  assert.equal(MutationResultParserV3.parse(result).ok, true);
+  assert.equal(result.result.type, 'document.replace');
+  if (result.result.type !== 'document.replace') return;
+  assert.equal(result.result.document.schemaVersion, 3);
+  assert.equal(result.result.document.format, 'standard_4_3');
+  assert.equal(value.revisionInsertBinds()?.[7], '3.0.0');
+  assert.equal(value.revisionWrites(), 1);
+  assert.equal(value.idempotencyInserts(), 1);
+});
+
+test('legacy writer is rejected against a V3 head before replay lookup or durable writes', async () => {
+  const value = await setup('scene.clear', '3.0.0');
+  await assert.rejects(
+    value.service.applySceneMutation({
+      principal: principal(),
+      request: request('scene.clear', 'request_legacy_on_v3'),
+    }),
+    (error: unknown) =>
+      error instanceof BoardContractError &&
+      error.boardError.code === 'UPGRADE_REQUIRED' &&
+      error.boardError.details.headSchemaVersion === 3 &&
+      error.boardError.details.requestedDocumentSchemaVersion === 1,
+  );
+  assert.equal(
+    value.calls.some((call) => call.includes('FROM board_idempotency_records')),
+    false,
+  );
+  assert.equal(value.idempotencyInserts(), 0);
+  assert.equal(value.sourceReads(), 0);
+  assert.equal(value.revisionWrites(), 0);
 });
 
 test('deny-all media gate rejects before idempotency, revision, ref, head, or outbox writes', async () => {

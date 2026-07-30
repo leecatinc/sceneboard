@@ -9,7 +9,8 @@ export type RevisionHoldKindV1 =
   | 'idempotency'
   | 'outbox'
   | 'recovery'
-  | 'restore';
+  | 'restore'
+  | 'export';
 
 export type RevisionRecoveryPhaseV1 =
   | 'planned'

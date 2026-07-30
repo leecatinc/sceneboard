@@ -53,7 +53,7 @@ test('fit modes suppress navigation without invoking the callback', () => {
   const intent = { type: 'artifact.navigation.pan.cancel', pointerId: 7 } as const;
   let calls = 0;
   assert.equal(
-    dispatchArtifactNavigationIntentV1('fit-height', intent, () => {
+    dispatchArtifactNavigationIntentV1('fit-page', intent, () => {
       calls += 1;
     }),
     false,

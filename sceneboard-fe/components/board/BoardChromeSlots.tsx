@@ -17,13 +17,18 @@ export function BoardIdentitySlot({
   state,
   onRename,
   canRename,
+  compact = false,
 }: {
   title: string;
   state: LiveBoardStateV1;
   onRename: (title: string) => Promise<boolean>;
   canRename: boolean;
+  compact?: boolean;
 }) {
   const { t } = useI18n();
+  if (compact) {
+    return <BoardTitleEditor title={title} onRename={onRename} enabled={canRename} />;
+  }
   const snapshot = state.mode.kind === 'history' ? state.mode.snapshot : state.liveSnapshot;
   return (
     <>
@@ -59,6 +64,7 @@ export function BoardHistorySlot({
   canResetArtifactView,
   onViewModeChange,
   onResetArtifactView,
+  showArtifactView,
   history,
   onOpenHistory,
   onCloseHistory,
@@ -74,6 +80,7 @@ export function BoardHistorySlot({
   canResetArtifactView: boolean;
   onViewModeChange: (mode: ArtifactViewModeV1) => void;
   onResetArtifactView: () => void;
+  showArtifactView: boolean;
   history: RetainedHistoryDropdownV1;
   onOpenHistory: () => void;
   onCloseHistory: () => void;
@@ -84,13 +91,15 @@ export function BoardHistorySlot({
 }) {
   return (
     <div className="board-navigation-actions">
-      <BoardViewModeControls
-        value={viewMode}
-        zoom={artifactZoom}
-        canReset={canResetArtifactView}
-        onChange={onViewModeChange}
-        onReset={onResetArtifactView}
-      />
+      {showArtifactView && (
+        <BoardViewModeControls
+          value={viewMode}
+          zoom={artifactZoom}
+          canReset={canResetArtifactView}
+          onChange={onViewModeChange}
+          onReset={onResetArtifactView}
+        />
+      )}
       <HistoryControls
         state={state}
         liveUpdated={liveUpdated}

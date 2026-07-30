@@ -16,6 +16,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./artifact": "./src/artifact/index.ts",
+    "./export": "./src/export/index.ts",
     "./interaction": "./src/interaction/index.ts",
     "./renderer": "./src/renderer/index.ts"
   },

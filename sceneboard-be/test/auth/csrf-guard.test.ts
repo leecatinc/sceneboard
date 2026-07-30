@@ -1,11 +1,17 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
+import type { ExecutionContext } from '@nestjs/common';
+import type { Reflector } from '@nestjs/core';
+
 import { assertOriginAndCsrf } from '../../src/common/guards/csrf.guard.js';
+import { CsrfGuard } from '../../src/common/guards/csrf.guard.js';
 import { CookieService } from '../../src/auth/cookie.service.js';
 import { CsrfService } from '../../src/auth/csrf.service.js';
 import { AppError } from '../../src/common/errors/app-error.js';
 import { CryptoService } from '../../src/common/security/crypto.service.js';
+import type { AppEnvironment } from '../../src/config/env.schema.js';
+import type { ResolvedBoardPrincipalV1 } from '../../src/grants/board-access.policy.js';
 
 const key = Buffer.alloc(32, 8);
 const crypto = new CryptoService({
@@ -55,4 +61,35 @@ test('requires exact Origin plus equal anonymous cookie/header before verificati
       (error) => error instanceof AppError && error.code === 'CSRF_INVALID',
     );
   }
+});
+
+test('bypasses browser CSRF only for a resolved bearer principal', () => {
+  const request = {
+    headers: {},
+    cookies: {},
+    boardPrincipal: {
+      kind: 'account_api_key',
+      isBrowserCredential: false,
+    } as ResolvedBoardPrincipalV1,
+  };
+  const context = {
+    getHandler: () => 'handler',
+    getClass: () => 'controller',
+    switchToHttp: () => ({ getRequest: () => request }),
+  } as unknown as ExecutionContext;
+  const reflector = {
+    getAllAndOverride: () => 'session',
+  } as unknown as Reflector;
+  const rejectingCsrf = {
+    constantTimeEqual() {
+      throw new Error('must not evaluate browser CSRF');
+    },
+  } as unknown as CsrfService;
+  const guard = new CsrfGuard(
+    reflector,
+    { browserOrigin: 'https://browser.example' } as AppEnvironment,
+    rejectingCsrf,
+    new CookieService('test'),
+  );
+  assert.equal(guard.canActivate(context), true);
 });

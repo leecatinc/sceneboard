@@ -39,6 +39,7 @@ export function PairingRequestModal({
   pairing,
   matchingCode,
   boards,
+  preferredBoardId = null,
   busy,
   error = null,
   connectionGrantCeiling = DEFAULT_CONNECTION_GRANT_CEILING,
@@ -50,6 +51,7 @@ export function PairingRequestModal({
   pairing: PairingRequest;
   matchingCode: string | null;
   boards: PairingBoardOption[];
+  preferredBoardId?: string | null;
   busy: boolean;
   error?: string | null;
   connectionGrantCeiling?: BoardSessionAccessV1['connectionGrantCeiling'];
@@ -69,7 +71,7 @@ export function PairingRequestModal({
   const descriptionId = useId();
   const formId = useId();
   const [validation, setValidation] = useState<string | null>(null);
-  const [destinationMode, setDestinationMode] = useState<'create' | 'existing'>('create');
+  const [destinationMode, setDestinationMode] = useState<'create' | 'existing'>('existing');
   const [newBoardTitle, setNewBoardTitle] = useState('');
   const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null);
   const [boardSearch, setBoardSearch] = useState('');
@@ -82,7 +84,10 @@ export function PairingRequestModal({
     ownerStatus?.requestedLifecyclePermissions.filter((permission) =>
       connectionGrantCeiling.lifecyclePermissions.includes(permission),
     ) ?? [];
-  const boardCreationRequested = allowedLifecyclePermissions.includes('board.create');
+  const availablePreferredBoardId =
+    preferredBoardId !== null && boards.some((board) => board.boardId === preferredBoardId)
+      ? preferredBoardId
+      : null;
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -100,10 +105,10 @@ export function PairingRequestModal({
     setValidation(null);
     setBoardSearch('');
     setPickerOpen(false);
-    setDestinationMode(boardCreationRequested ? 'create' : 'existing');
+    setDestinationMode('existing');
     setNewBoardTitle(t('boards.new'));
-    setSelectedBoardId(null);
-  }, [boardCreationRequested, pairing.pairingId, t]);
+    setSelectedBoardId(availablePreferredBoardId);
+  }, [availablePreferredBoardId, pairing.pairingId, t]);
 
   const filteredBoards = useMemo(() => {
     const query = boardSearch.trim().toLocaleLowerCase();

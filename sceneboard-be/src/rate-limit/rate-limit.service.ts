@@ -17,6 +17,7 @@ export interface RateLimitInput {
     | 'rate-limit-session/v1'
     | 'rate-limit-pairing/v1'
     | 'rate-limit-grant/v1'
+    | 'rate-limit-api-key/v1'
   >;
   identity: string;
   limit: number;

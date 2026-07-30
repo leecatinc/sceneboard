@@ -81,7 +81,7 @@ export class SceneToolHandlersV1 {
     const parsed = SceneGetInputSchemaV1.safeParse(raw);
     if (!parsed.success) return validationFailureV1('board_scene_get', requestId, parsed.error);
     if (parsed.data.revisionId === null) {
-      const result = await this.gateway.call((client) =>
+      const result = await this.gateway.call('board_scene_get', 'board.get', (client) =>
         client.getBoard(
           {
             protocolVersion: 1,
@@ -108,7 +108,7 @@ export class SceneToolHandlersV1 {
             notConnectedV1() as unknown as Record<string, unknown>,
           );
     }
-    const result = await this.gateway.call((client) =>
+    const result = await this.gateway.call('board_scene_get', 'board.get', (client) =>
       client.getHistory(
         {
           protocolVersion: 1,
@@ -154,7 +154,7 @@ export class SceneToolHandlersV1 {
         'board',
         scene.error as unknown as Record<string, unknown>,
       );
-    const result = await this.gateway.call((client) =>
+    const result = await this.gateway.call('board_scene_replace', 'scene.replace', (client) =>
       client.mutateBoard(
         {
           protocolVersion: 1,
@@ -181,7 +181,7 @@ export class SceneToolHandlersV1 {
     const requestId = createRequestIdV1();
     const parsed = ScenePatchInputSchemaV1.safeParse(raw);
     if (!parsed.success) return validationFailureV1('board_scene_patch', requestId, parsed.error);
-    const head = await this.gateway.call((client) =>
+    const head = await this.gateway.call('board_scene_patch', 'scene.replace', (client) =>
       client.getBoard(
         {
           protocolVersion: 1,
@@ -214,7 +214,7 @@ export class SceneToolHandlersV1 {
         'board',
         transformed.error as unknown as Record<string, unknown>,
       );
-    const result = await this.gateway.call((client) =>
+    const result = await this.gateway.call('board_scene_patch', 'scene.replace', (client) =>
       client.mutateBoard(
         {
           protocolVersion: 1,
@@ -244,7 +244,7 @@ export class SceneToolHandlersV1 {
     const requestId = createRequestIdV1();
     const parsed = SceneClearInputSchemaV1.safeParse(raw);
     if (!parsed.success) return validationFailureV1('board_scene_clear', requestId, parsed.error);
-    const result = await this.gateway.call((client) =>
+    const result = await this.gateway.call('board_scene_clear', 'scene.clear', (client) =>
       client.mutateBoard(
         {
           protocolVersion: 1,

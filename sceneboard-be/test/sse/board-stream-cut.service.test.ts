@@ -5,6 +5,7 @@ import test from 'node:test';
 import {
   BoardEventEnvelopeParserV1,
   BoardEventEnvelopeParserV2,
+  BoardEventEnvelopeParserV3,
   DEFAULT_BOARD_CAPABILITIES_V2,
   type BoardId,
   type BoardSnapshotV1,
@@ -132,6 +133,19 @@ test('no cursor emits a negotiated v2 document snapshot cut without a legacy Sce
   assert.equal(frame.envelope.data.type, 'board.snapshot');
   if (frame.envelope.data.type === 'board.snapshot') {
     assert.equal('document' in frame.envelope.data.snapshot, true);
+  }
+  const v3Cut = await service.prepare(principal as never, snapshot.boardId, null, 3);
+  const v3Frame = v3Cut.frames[0];
+  assert.ok(v3Frame);
+  assert.equal(BoardEventEnvelopeParserV3.parseBytes(v3Frame.canonicalBytes).ok, true);
+  if (v3Frame.envelope.data.type === 'board.snapshot') {
+    const projected = v3Frame.envelope.data.snapshot;
+    assert.equal('document' in projected, true);
+    if ('document' in projected) {
+      assert.equal(projected.document.schemaVersion, 3);
+      if (projected.document.schemaVersion === 3)
+        assert.equal(projected.document.format, 'wide_16_9');
+    }
   }
 });
 

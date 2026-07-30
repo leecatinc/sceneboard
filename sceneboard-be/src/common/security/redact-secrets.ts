@@ -1,5 +1,7 @@
 const SENSITIVE_KEY_PATTERN =
   /(?:authorization|cookie|credential|csrf|password|passwd|proof|secret|sessiontoken|accesstoken|refreshtoken|tokenhash|token|verifier|pairingcode|rawcode|otp|code|challenge|hash)/i;
+const ACCOUNT_API_KEY_NAME_PATTERN = /^(?:apiKey|api_key)$/i;
+const ACCOUNT_API_KEY_VALUE_PATTERN = /^sbk_v1\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$/;
 const MAX_REDACTION_DEPTH = 32;
 const MAX_REDACTION_ENTRIES = 2_000;
 
@@ -9,13 +11,9 @@ interface RedactionState {
 }
 
 const redact = (value: unknown, state: RedactionState, depth: number): unknown => {
-  if (
-    value === null ||
-    typeof value === 'boolean' ||
-    typeof value === 'number' ||
-    typeof value === 'string'
-  )
-    return value;
+  if (value === null || typeof value === 'boolean' || typeof value === 'number') return value;
+  if (typeof value === 'string')
+    return ACCOUNT_API_KEY_VALUE_PATTERN.test(value) ? '[REDACTED]' : value;
   if (typeof value === 'undefined') return '[UNDEFINED]';
   if (typeof value === 'bigint') return value.toString(10);
   if (typeof value === 'symbol' || typeof value === 'function') return '[UNSUPPORTED]';
@@ -44,7 +42,7 @@ const redact = (value: unknown, state: RedactionState, depth: number): unknown =
       output.truncated = '[ENTRY_LIMIT]';
       break;
     }
-    if (SENSITIVE_KEY_PATTERN.test(key)) {
+    if (SENSITIVE_KEY_PATTERN.test(key) || ACCOUNT_API_KEY_NAME_PATTERN.test(key)) {
       output[key] = '[REDACTED]';
       continue;
     }

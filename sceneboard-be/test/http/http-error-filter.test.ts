@@ -9,6 +9,7 @@ import { HttpErrorFilter } from '../../src/common/filters/http-error.filter.js';
 import { ShareAnalyticsError } from '../../src/common/errors/share-analytics.error.js';
 import { BOARD_REQUEST_ID } from '../../src/common/http/board-request-correlation.js';
 import { CryptoService } from '../../src/common/security/crypto.service.js';
+import { EXPORT_FAILURE_DEFINITIONS_V1, ExportFailureV1 } from '../../src/exports/export-errors.js';
 
 const key = Buffer.alloc(32, 1);
 const crypto = new CryptoService(
@@ -178,4 +179,52 @@ test('keeps analytics errors in the closed non-enumerating envelope', () => {
   );
   assert.equal(unauthenticated.status, 401);
   assert.equal((unauthenticated.body as { error: { code: string } }).error.code, 'UNAUTHENTICATED');
+});
+
+test('projects every closed export failure tuple without inference or secret details', () => {
+  for (const [code, definition] of Object.entries(EXPORT_FAILURE_DEFINITIONS_V1)) {
+    const response = capture(new ExportFailureV1(code as never), {
+      url: '/api/v1/boards/board_fixture/exports',
+    });
+    assert.equal(response.status, definition.httpStatus);
+    assert.deepEqual(response.body, {
+      ok: false,
+      error: {
+        code,
+        message: definition.message,
+        retryable: definition.retryable,
+      },
+    });
+    assert.equal(JSON.stringify(response.body).includes('board_fixture'), false);
+  }
+});
+
+test('maps pre-controller guard failures into the same closed export envelope', () => {
+  const boardFailure = (
+    code: 'UNAUTHENTICATED' | 'FORBIDDEN' | 'BOARD_NOT_FOUND',
+    status: 401 | 403 | 404,
+  ): BoardContractError =>
+    new BoardContractError({
+      protocolVersion: 1,
+      type: 'board.error',
+      code,
+      message: 'fixture message',
+      category: code === 'BOARD_NOT_FOUND' ? 'not_found' : 'auth',
+      retryable: false,
+      httpStatusHint: status,
+      details: null,
+    } as never);
+  const cases: Array<[unknown, string, number]> = [
+    [boardFailure('UNAUTHENTICATED', 401), 'EXPORT_UNAUTHENTICATED', 401],
+    [boardFailure('FORBIDDEN', 403), 'EXPORT_FORBIDDEN', 403],
+    [boardFailure('BOARD_NOT_FOUND', 404), 'EXPORT_NOT_FOUND', 404],
+    [new AppError('INVALID_PAYLOAD'), 'EXPORT_INVALID_REQUEST', 400],
+    [new AppError('RATE_LIMITED'), 'EXPORT_RATE_LIMITED', 429],
+    [new AppError('SERVICE_UNAVAILABLE'), 'EXPORT_RENDERER_UNAVAILABLE', 503],
+  ];
+  for (const [failure, code, status] of cases) {
+    const response = capture(failure, { url: '/api/v1/boards/board_fixture/exports' });
+    assert.equal(response.status, status);
+    assert.equal((response.body as { error: { code: string } }).error.code, code);
+  }
 });

@@ -45,6 +45,19 @@ test('stream admission accepts only the exact browser fetch shape', () => {
       .boardStreamAdmission.documentSchemaVersion,
     2,
   );
+  for (const version of ['1', '3'] as const) {
+    const admitted = request();
+    admitted.query = { ...admitted.query, documentSchemaVersion: version } as never;
+    assert.equal(guard.canActivate(makeContext(admitted) as never), true);
+    assert.equal(
+      (
+        admitted as typeof admitted & {
+          boardStreamAdmission: { documentSchemaVersion: number };
+        }
+      ).boardStreamAdmission.documentSchemaVersion,
+      Number(version),
+    );
+  }
 
   for (const mutate of [
     (value: ReturnType<typeof request>) => {
@@ -60,7 +73,7 @@ test('stream admission accepts only the exact browser fetch shape', () => {
       value.query = { ...value.query, tabId: ['a', 'b'] } as never;
     },
     (value: ReturnType<typeof request>) => {
-      value.query = { ...value.query, documentSchemaVersion: '1' } as never;
+      value.query = { ...value.query, documentSchemaVersion: '4' } as never;
     },
     (value: ReturnType<typeof request>) => {
       value.query = { ...value.query, documentSchemaVersion: ['2', '2'] } as never;

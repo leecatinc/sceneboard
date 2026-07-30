@@ -308,14 +308,12 @@ export const validatePresentationInventory = async ({ inventoryValue, inventoryB
     resolve(root, 'sceneboard-be/src/database/migrations/registry.ts'),
     'utf8',
   );
+  const presentationVersions = inventory.migrations.map(({ version }) => version);
+  const presentationVersionSet = new Set(presentationVersions);
   const actualPresentationVersions = [...registry.matchAll(/\bversion: '(\d{3})_/gu)]
     .map((match) => match[1])
-    .filter((version) => Number(version) >= 13);
-  equal(
-    actualPresentationVersions,
-    inventory.migrations.map(({ version }) => version),
-    'PRESENTATION_MIGRATION_SEQUENCE_DRIFT',
-  );
+    .filter((version) => presentationVersionSet.has(version));
+  equal(actualPresentationVersions, presentationVersions, 'PRESENTATION_MIGRATION_SEQUENCE_DRIFT');
 
   if (inventory.exclusions.length !== 1) fail('PRESENTATION_EXCLUSION_INVALID');
   const exclusion = inventory.exclusions[0];

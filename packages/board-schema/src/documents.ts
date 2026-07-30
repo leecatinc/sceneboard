@@ -14,6 +14,60 @@ import { MAX_DOCUMENT_NODES, MAX_DOCUMENT_PAGES, MAX_TITLE_CHARS } from './limit
 import { collectSceneNodesV1, SceneSchemaV1, type BoardNodeV1, type SceneV1 } from './scene.js';
 
 export const PageDisplayModeSchemaV1 = z.enum(['fit-page', 'fit-width', 'actual-size']);
+export const PresentationFormatSchemaV1 = z.enum([
+  'wide_16_9',
+  'standard_4_3',
+  'a4_portrait',
+  'a4_landscape',
+]);
+
+export type PresentationFormatV1 = z.infer<typeof PresentationFormatSchemaV1>;
+
+export interface PresentationFormatDescriptorV1 {
+  format: PresentationFormatV1;
+  css: { width: number; height: number };
+  pdf: { widthMm: number; heightMm: number };
+  pptx: { widthIn: number; heightIn: number };
+}
+
+const PRESENTATION_FORMAT_DESCRIPTORS_V1 = {
+  wide_16_9: {
+    format: 'wide_16_9',
+    css: { width: 1600, height: 900 },
+    pdf: { widthMm: 338.67, heightMm: 190.5 },
+    pptx: { widthIn: 13.333, heightIn: 7.5 },
+  },
+  standard_4_3: {
+    format: 'standard_4_3',
+    css: { width: 1600, height: 1200 },
+    pdf: { widthMm: 254, heightMm: 190.5 },
+    pptx: { widthIn: 10, heightIn: 7.5 },
+  },
+  a4_portrait: {
+    format: 'a4_portrait',
+    css: { width: 794, height: 1123 },
+    pdf: { widthMm: 210, heightMm: 297 },
+    pptx: { widthIn: 8.2677, heightIn: 11.6929 },
+  },
+  a4_landscape: {
+    format: 'a4_landscape',
+    css: { width: 1123, height: 794 },
+    pdf: { widthMm: 297, heightMm: 210 },
+    pptx: { widthIn: 11.6929, heightIn: 8.2677 },
+  },
+} as const satisfies Readonly<Record<PresentationFormatV1, PresentationFormatDescriptorV1>>;
+
+export const presentationFormatDescriptorV1 = (
+  format: PresentationFormatV1,
+): PresentationFormatDescriptorV1 => {
+  const descriptor = PRESENTATION_FORMAT_DESCRIPTORS_V1[format];
+  return {
+    format: descriptor.format,
+    css: { ...descriptor.css },
+    pdf: { ...descriptor.pdf },
+    pptx: { ...descriptor.pptx },
+  };
+};
 
 export const BoardPageSchemaV2 = z
   .object({
@@ -43,6 +97,52 @@ const invalidDocument = (
     message: `[INVALID_DOCUMENT:${reason}] ${message}`,
   });
 
+const validateDocumentPages = (
+  document: { defaultPageId: PageId; pages: readonly BoardPageV2[] },
+  context: z.RefinementCtx,
+) => {
+  if (document.pages.length < 1 || document.pages.length > MAX_DOCUMENT_PAGES)
+    invalidDocument(context, ['pages'], 'page_count', 'document page count is invalid');
+
+  const pageIds = new Set<string>();
+  const nodeIds = new Map<string, Array<string | number>>();
+  let nodeCount = 0;
+  document.pages.forEach((page, pageIndex) => {
+    if (pageIds.has(page.pageId))
+      invalidDocument(
+        context,
+        ['pages', pageIndex, 'pageId'],
+        'duplicate_page_id',
+        'page IDs must be unique',
+      );
+    pageIds.add(page.pageId);
+
+    for (const item of collectSceneNodesV1(page.scene.root)) {
+      nodeCount += 1;
+      const path = ['pages', pageIndex, 'scene', ...item.path, 'id'] as Array<string | number>;
+      const firstPath = nodeIds.get(item.node.id);
+      if (firstPath)
+        invalidDocument(
+          context,
+          path,
+          'duplicate_node_id',
+          `duplicate node ID ${item.node.id}; first path ${JSON.stringify(firstPath)}`,
+        );
+      else nodeIds.set(item.node.id, path);
+    }
+  });
+
+  if (!pageIds.has(document.defaultPageId))
+    invalidDocument(
+      context,
+      ['defaultPageId'],
+      'default_page_missing',
+      'default page is not present',
+    );
+  if (nodeCount > MAX_DOCUMENT_NODES)
+    invalidDocument(context, ['pages'], 'limit', 'document node count exceeded');
+};
+
 export const BoardDocumentSchemaV2 = z
   .object({
     schemaVersion: z.literal(2),
@@ -50,52 +150,41 @@ export const BoardDocumentSchemaV2 = z
     pages: z.array(BoardPageSchemaV2).min(1).max(MAX_DOCUMENT_PAGES),
   })
   .strict()
-  .superRefine((document, context) => {
-    if (document.pages.length < 1 || document.pages.length > MAX_DOCUMENT_PAGES)
-      invalidDocument(context, ['pages'], 'page_count', 'document page count is invalid');
+  .superRefine(validateDocumentPages);
 
-    const pageIds = new Set<string>();
-    const nodeIds = new Map<string, Array<string | number>>();
-    let nodeCount = 0;
-    document.pages.forEach((page, pageIndex) => {
-      if (pageIds.has(page.pageId))
-        invalidDocument(
-          context,
-          ['pages', pageIndex, 'pageId'],
-          'duplicate_page_id',
-          'page IDs must be unique',
-        );
-      pageIds.add(page.pageId);
-
-      for (const item of collectSceneNodesV1(page.scene.root)) {
-        nodeCount += 1;
-        const path = ['pages', pageIndex, 'scene', ...item.path, 'id'] as Array<string | number>;
-        const firstPath = nodeIds.get(item.node.id);
-        if (firstPath)
-          invalidDocument(
-            context,
-            path,
-            'duplicate_node_id',
-            `duplicate node ID ${item.node.id}; first path ${JSON.stringify(firstPath)}`,
-          );
-        else nodeIds.set(item.node.id, path);
-      }
-    });
-
-    if (!pageIds.has(document.defaultPageId))
-      invalidDocument(
-        context,
-        ['defaultPageId'],
-        'default_page_missing',
-        'default page is not present',
-      );
-    if (nodeCount > MAX_DOCUMENT_NODES)
-      invalidDocument(context, ['pages'], 'limit', 'document node count exceeded');
-  });
+export const BoardDocumentSchemaV3 = z
+  .object({
+    schemaVersion: z.literal(3),
+    format: PresentationFormatSchemaV1,
+    defaultPageId: PageIdSchemaV1,
+    pages: z.array(BoardPageSchemaV2).min(1).max(MAX_DOCUMENT_PAGES),
+  })
+  .strict()
+  .superRefine(validateDocumentPages);
 
 export type PageDisplayModeV1 = z.infer<typeof PageDisplayModeSchemaV1>;
 export type BoardPageV2 = z.infer<typeof BoardPageSchemaV2>;
 export type BoardDocumentV2 = z.infer<typeof BoardDocumentSchemaV2>;
+export type BoardDocumentV3 = z.infer<typeof BoardDocumentSchemaV3>;
+export type BoardDocument = BoardDocumentV2 | BoardDocumentV3;
+
+export const projectDocumentV2ToV3 = (
+  document: BoardDocumentV2,
+  format: PresentationFormatV1 = 'wide_16_9',
+): BoardDocumentV3 =>
+  BoardDocumentSchemaV3.parse({
+    schemaVersion: 3,
+    format,
+    defaultPageId: document.defaultPageId,
+    pages: document.pages,
+  });
+
+export const projectDocumentV3ToV2 = (document: BoardDocumentV3): BoardDocumentV2 =>
+  BoardDocumentSchemaV2.parse({
+    schemaVersion: 2,
+    defaultPageId: document.defaultPageId,
+    pages: document.pages,
+  });
 
 export type DocumentSceneTraversalItemV2 = {
   page: BoardPageV2;
@@ -104,9 +193,7 @@ export type DocumentSceneTraversalItemV2 = {
   path: Array<string | number>;
 };
 
-export const collectDocumentNodesV2 = (
-  document: BoardDocumentV2,
-): DocumentSceneTraversalItemV2[] => {
+export const collectDocumentNodesV2 = (document: BoardDocument): DocumentSceneTraversalItemV2[] => {
   const output: DocumentSceneTraversalItemV2[] = [];
   document.pages.forEach((page, pageIndex) => {
     for (const item of collectSceneNodesV1(page.scene.root))
@@ -225,7 +312,7 @@ type SnapshotForArtifactTraversal =
   | {
       boardId: BoardId;
       revision: { revisionId: RevisionId };
-      document: BoardDocumentV2;
+      document: BoardDocument;
       artifacts: ReadonlyArray<{ artifact: ArtifactReferenceV1 }>;
     };
 

@@ -27,10 +27,10 @@ test('canonical plugin skill and downloadable archives are synchronized', () => 
       encoding: 'utf8',
     }),
   );
-  assert.deepEqual(result, { status: 'PASS', fileCount: 42 });
+  assert.deepEqual(result, { status: 'PASS', fileCount: 45 });
   assert.equal(
     collect(join(root, 'sceneboard-mcp/plugins/sceneboard/skills/sceneboard')).length,
-    42,
+    45,
   );
   for (const name of ['sceneboard.zip', 'sceneboard-codex-plugin.zip']) {
     assert.equal(

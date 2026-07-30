@@ -4,6 +4,11 @@ import { MIGRATION_REGISTRY } from '../src/database/migrations/registry.js';
 
 const sourceDirectory = new URL('../src/database/migrations/sql/', import.meta.url);
 const outputDirectory = new URL('../dist/database/migrations/sql/', import.meta.url);
+const exportSessionSource = new URL('../src/exports/export-render-session-v1.lua', import.meta.url);
+const exportSessionOutput = new URL(
+  '../dist/exports/export-render-session-v1.lua',
+  import.meta.url,
+);
 
 const expectedAssets = new Set<string>();
 for (const entry of MIGRATION_REGISTRY) {
@@ -44,6 +49,12 @@ const main = async (): Promise<void> => {
     if (!source.equals(copied)) throw new Error(`compiled SQL asset differs from source: ${asset}`);
   }
   assertExactSet('compiled', await listSqlFiles(outputDirectory));
+  const exportSessionBytes = await readFile(exportSessionSource);
+  new TextDecoder('utf-8', { fatal: true }).decode(exportSessionBytes);
+  await mkdir(new URL('../dist/exports/', import.meta.url), { recursive: true });
+  await writeFile(exportSessionOutput, exportSessionBytes, { flag: 'w' });
+  if (!exportSessionBytes.equals(await readFile(exportSessionOutput)))
+    throw new Error('compiled export render session asset differs from source');
 };
 
 await main();

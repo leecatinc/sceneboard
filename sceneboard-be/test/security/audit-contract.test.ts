@@ -86,6 +86,19 @@ test('owns a stable unique numeric audit catalog and event-specific metadata all
   );
   assert.throws(() => prepareAuditMetadata('media.ingested', { mediaId: 'media_secret' }));
   assert.throws(() => prepareAuditMetadata('login_success', { email: 'must-not-persist' }));
+  assert.deepEqual(
+    prepareAuditMetadata('api_key.auth.succeeded', {
+      authMethod: 'account_api_key',
+      keyPublicId: 'key_public_1',
+      correlationId: 'correlation_1',
+    }),
+    {
+      authMethod: 'account_api_key',
+      keyPublicId: 'key_public_1',
+      correlationId: 'correlation_1',
+    },
+  );
+  assert.throws(() => prepareAuditMetadata('api_key.auth.failed', { apiKey: 'must-not-persist' }));
 });
 
 test('redacts secret-shaped values before audit metadata serialization', () => {

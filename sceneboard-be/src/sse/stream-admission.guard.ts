@@ -1,4 +1,4 @@
-import { CanActivate, ExecutionContext, Injectable, SetMetadata } from '@nestjs/common';
+import { CanActivate, ExecutionContext, Inject, Injectable, SetMetadata } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { BoardIdParserV1, type BoardId, type TabId } from '@sceneboard/board-schema';
 
@@ -14,7 +14,7 @@ export type BrowserBoardStreamAdmissionV1 = {
   tabId: TabId;
   presenceState: 'online' | 'away';
   cursor: string | null;
-  documentSchemaVersion: 1 | 2;
+  documentSchemaVersion: 1 | 2 | 3;
 };
 
 export interface BrowserBoardStreamRequestV1 {
@@ -50,7 +50,7 @@ const includesEventStream = (accept: string): boolean =>
 
 @Injectable()
 export class StreamAdmissionGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+  constructor(@Inject(Reflector) private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
     const required = this.reflector.getAllAndOverride<boolean | undefined>(BROWSER_BOARD_STREAM, [
@@ -86,8 +86,13 @@ export class StreamAdmissionGuard implements CanActivate {
     if (query.presenceState !== 'online' && query.presenceState !== 'away') {
       throw invalid('invalid presenceState', ['presenceState']);
     }
-    if (Object.hasOwn(query, 'documentSchemaVersion') && query.documentSchemaVersion !== '2')
-      throw invalid('documentSchemaVersion must be exactly 2', ['documentSchemaVersion']);
+    if (
+      Object.hasOwn(query, 'documentSchemaVersion') &&
+      query.documentSchemaVersion !== '1' &&
+      query.documentSchemaVersion !== '2' &&
+      query.documentSchemaVersion !== '3'
+    )
+      throw invalid('documentSchemaVersion must be exactly 1, 2, or 3', ['documentSchemaVersion']);
     const cursorValue = request.headers['last-event-id'];
     if (
       Array.isArray(cursorValue) ||
@@ -100,7 +105,8 @@ export class StreamAdmissionGuard implements CanActivate {
       tabId: query.tabId as TabId,
       presenceState: query.presenceState,
       cursor: cursorValue ?? null,
-      documentSchemaVersion: query.documentSchemaVersion === '2' ? 2 : 1,
+      documentSchemaVersion:
+        query.documentSchemaVersion === '3' ? 3 : query.documentSchemaVersion === '2' ? 2 : 1,
     };
     return true;
   }

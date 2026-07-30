@@ -26,11 +26,25 @@ test('generates exact public IDs and separates HKDF purpose keys', () => {
   const session = crypto.hmac('session-token/v1', input);
   const grant = crypto.hmac('grant-token/v1', input);
   const cursor = crypto.hmac('grant-list-cursor/v1', input);
+  const apiKey = crypto.hmac('account-api-key/v1', input);
   assert.equal(session.byteLength, 32);
   assert.notDeepEqual(session, grant);
   assert.notDeepEqual(grant, cursor);
+  assert.notDeepEqual(grant, apiKey);
   assert.equal(crypto.constantTimeEqual(session, Buffer.from(session)), true);
   assert.equal(crypto.constantTimeEqual(session, grant), false);
+});
+
+test('redacts account API-key names and full token values while preserving publishable IDs', () => {
+  const token = `sbk_v1.${'A'.repeat(22)}.${'B'.repeat(43)}`;
+  assert.deepEqual(redactSecrets({ apiKey: token, apiKeyId: 'key_public_1' }), {
+    apiKey: '[REDACTED]',
+    apiKeyId: 'key_public_1',
+  });
+  assert.deepEqual(redactSecrets({ value: token, keyPublicId: 'key_public_1' }), {
+    value: '[REDACTED]',
+    keyPublicId: 'key_public_1',
+  });
 });
 
 test('recursively redacts secret-shaped values without invoking accessors', () => {

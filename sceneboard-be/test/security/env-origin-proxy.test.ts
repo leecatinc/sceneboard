@@ -56,20 +56,32 @@ test('parses the exact development environment and canonical same-host origins',
   assert.equal(environment.revisionRetentionCount, 32);
   assert.equal(environment.historyRetainedEmissionEnabled, false);
   assert.equal(environment.revisionReclamationEnabled, false);
+  assert.equal(environment.accountApiKeyIssuanceEnabled, false);
+  assert.equal(environment.accountApiKeyAuthEnabled, false);
+  assert.equal(environment.boardDocumentV3WriteEnabled, false);
 });
 
-test('accepts only exact lowercase retention feature booleans', () => {
+test('accepts only exact lowercase feature booleans', () => {
   const enabled = parseEnvironment({
     ...validEnvironment(),
     HISTORY_RETAINED_EMISSION_ENABLED: 'true',
     REVISION_RECLAMATION_ENABLED: 'true',
+    ACCOUNT_API_KEY_ISSUANCE_ENABLED: 'true',
+    ACCOUNT_API_KEY_AUTH_ENABLED: 'true',
+    BOARD_DOCUMENT_V3_WRITE_ENABLED: 'true',
   });
   assert.equal(enabled.historyRetainedEmissionEnabled, true);
   assert.equal(enabled.revisionReclamationEnabled, true);
+  assert.equal(enabled.accountApiKeyIssuanceEnabled, true);
+  assert.equal(enabled.accountApiKeyAuthEnabled, true);
+  assert.equal(enabled.boardDocumentV3WriteEnabled, true);
 
   for (const keyName of [
     'HISTORY_RETAINED_EMISSION_ENABLED',
     'REVISION_RECLAMATION_ENABLED',
+    'ACCOUNT_API_KEY_ISSUANCE_ENABLED',
+    'ACCOUNT_API_KEY_AUTH_ENABLED',
+    'BOARD_DOCUMENT_V3_WRITE_ENABLED',
   ] as const) {
     for (const source of ['TRUE', '1', 'yes', ' true', 'false ']) {
       assert.throws(

@@ -10,7 +10,7 @@ export interface RevisionPayloadCatalogBundleV1 {
   actorAccountPk: string | null;
   actorClass: 'owner' | 'editor' | 'system';
   checkpoint: {
-    schemaVersion: '1.0.0' | '2.0.0';
+    schemaVersion: '1.0.0' | '2.0.0' | '3.0.0';
     codec: 'B';
     canonicalBytes: number;
     storedBytes: number;

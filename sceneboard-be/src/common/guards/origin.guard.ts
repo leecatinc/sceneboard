@@ -3,6 +3,10 @@ import { Reflector } from '@nestjs/core';
 
 import { AppError } from '../errors/app-error.js';
 import { APP_ENVIRONMENT, type AppEnvironment } from '../../config/env.schema.js';
+import {
+  isBrowserBoardPrincipal,
+  type ResolvedBoardPrincipalV1,
+} from '../../grants/board-access.policy.js';
 
 const ORIGIN_REQUIRED = Symbol('ORIGIN_REQUIRED');
 type OriginMode = 'required' | 'browser-or-mcp';
@@ -31,7 +35,7 @@ export const assertAllowedOriginOrSameOriginFetch = (input: {
 
 interface OriginRequest {
   headers: Record<string, string | string[] | undefined>;
-  boardPrincipal?: { kind: 'user' | 'mcp' } | undefined;
+  boardPrincipal?: ResolvedBoardPrincipalV1 | undefined;
 }
 
 @Injectable()
@@ -48,7 +52,8 @@ export class OriginGuard implements CanActivate {
     ]);
     if (mode === undefined) return true;
     const request = context.switchToHttp().getRequest<OriginRequest>();
-    if (mode === 'browser-or-mcp' && request.boardPrincipal?.kind === 'mcp') return true;
+    if (request.boardPrincipal !== undefined && !isBrowserBoardPrincipal(request.boardPrincipal))
+      return true;
     const origin = request.headers.origin;
     const fetchSite = request.headers['sec-fetch-site'];
     const fetchMode = request.headers['sec-fetch-mode'];

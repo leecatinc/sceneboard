@@ -43,7 +43,7 @@ function AdmittedArtifactHost(input: ArtifactHostInputV1) {
   const sizeFrameRef = useRef<number | null>(null);
   const generationRef = useRef(0);
   const appliedResetEpochRef = useRef(0);
-  const priorModeRef = useRef(input.viewMode ?? 'fit-height');
+  const priorModeRef = useRef(input.viewMode ?? 'fit-page');
   const latestInputRef = useRef(input);
   latestInputRef.current = input;
 
@@ -107,7 +107,7 @@ function AdmittedArtifactHost(input: ArtifactHostInputV1) {
       const availableWidth = Math.max(1, container.clientWidth);
       const availableHeight = Math.max(1, container.clientHeight);
       const size = baseSizeRef.current;
-      const mode = latestInputRef.current.viewMode ?? 'fit-height';
+      const mode = latestInputRef.current.viewMode ?? 'fit-page';
       transformPlane.style.width = `${size.width}px`;
       transformPlane.style.height = `${size.height}px`;
       frame.style.width = `${size.width}px`;
@@ -177,8 +177,7 @@ function AdmittedArtifactHost(input: ArtifactHostInputV1) {
         if (!changesArtifactSizeV1(current, pending)) return;
         baseSizeRef.current = { width: pending.width, height: pending.height };
         applyLayout(
-          !hasInteractedRef.current &&
-            (latestInputRef.current.viewMode ?? 'fit-height') === 'actual',
+          !hasInteractedRef.current && (latestInputRef.current.viewMode ?? 'fit-page') === 'actual',
         );
       });
     },
@@ -199,7 +198,7 @@ function AdmittedArtifactHost(input: ArtifactHostInputV1) {
 
   const applyNavigationIntent = useCallback(
     (intent: ArtifactNavigationIntentV1) => {
-      if ((latestInputRef.current.viewMode ?? 'fit-height') !== 'actual') return;
+      if ((latestInputRef.current.viewMode ?? 'fit-page') !== 'actual') return;
       const container = containerElementRef.current;
       const frame = container?.querySelector<HTMLIFrameElement>('.artifact-runtime-frame');
       if (container === null || frame === null || frame === undefined) return;
@@ -306,7 +305,7 @@ function AdmittedArtifactHost(input: ArtifactHostInputV1) {
 
   const bridge = useArtifactBridgeV1({
     ...input,
-    viewMode: input.viewMode ?? 'fit-height',
+    viewMode: input.viewMode ?? 'fit-page',
     onNavigationIntent,
     onResizeRequest,
   });
@@ -319,7 +318,7 @@ function AdmittedArtifactHost(input: ArtifactHostInputV1) {
     containerElementRef.current = bridge.containerRef.current;
     const container = bridge.containerRef.current;
     if (container === null || bridge.phase !== 'active') return undefined;
-    const nextMode = input.viewMode ?? 'fit-height';
+    const nextMode = input.viewMode ?? 'fit-page';
     const modeChanged = priorModeRef.current !== nextMode;
     if (modeChanged) {
       container.scrollLeft = 0;
@@ -346,8 +345,7 @@ function AdmittedArtifactHost(input: ArtifactHostInputV1) {
   }, [bridge.phase, resetCanvasState]);
 
   useEffect(() => {
-    const isActiveActual =
-      bridge.phase === 'active' && (input.viewMode ?? 'fit-height') === 'actual';
+    const isActiveActual = bridge.phase === 'active' && (input.viewMode ?? 'fit-page') === 'actual';
     if (isActiveActual && !isRegisteredRef.current) {
       isRegisteredRef.current = true;
       emitViewState('register', transformRef.current.scale);
@@ -365,11 +363,7 @@ function AdmittedArtifactHost(input: ArtifactHostInputV1) {
 
   useEffect(() => {
     const reset = advanceArtifactResetEpochV1(appliedResetEpochRef.current, latestInputRef.current);
-    if (
-      !reset.advanced ||
-      bridge.phase !== 'active' ||
-      (input.viewMode ?? 'fit-height') !== 'actual'
-    )
+    if (!reset.advanced || bridge.phase !== 'active' || (input.viewMode ?? 'fit-page') !== 'actual')
       return;
     appliedResetEpochRef.current = reset.epoch;
     hasInteractedRef.current = false;

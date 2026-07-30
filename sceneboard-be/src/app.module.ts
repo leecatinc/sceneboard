@@ -10,6 +10,7 @@ import { StrictJsonBodyMiddleware } from './common/http/strict-json-body.middlew
 import { CsrfGuard } from './common/guards/csrf.guard.js';
 import { OriginGuard } from './common/guards/origin.guard.js';
 import { AuthenticationGuard } from './common/guards/authentication.guard.js';
+import { BoardOperationRateLimitGuard } from './rate-limit/board-operation-rate-limit.policy.js';
 import {
   D2PostAuthRateLimitGuard,
   D2PreAuthRateLimitGuard,
@@ -33,6 +34,8 @@ import { PersistenceCertificationModule } from './bootstrap/persistence-certific
 import { InvitationModule } from './invitations/invitation.module.js';
 import { ShareModule } from './shares/share.module.js';
 import { ShareAnalyticsModule } from './share-analytics/share-analytics.module.js';
+import { AccountApiKeyModule } from './api-keys/account-api-key.module.js';
+import { ExportsModule } from './exports/exports.module.js';
 
 @Module({
   imports: [
@@ -53,6 +56,8 @@ import { ShareAnalyticsModule } from './share-analytics/share-analytics.module.j
     InvitationModule,
     ShareModule,
     ShareAnalyticsModule,
+    AccountApiKeyModule,
+    ExportsModule,
   ],
   providers: [
     StrictJsonBodyMiddleware,
@@ -65,6 +70,7 @@ import { ShareAnalyticsModule } from './share-analytics/share-analytics.module.j
     { provide: APP_GUARD, useClass: BoardPrincipalGuard },
     { provide: APP_GUARD, useClass: PairingProofGuard },
     { provide: APP_GUARD, useClass: D2PostAuthRateLimitGuard },
+    { provide: APP_GUARD, useClass: BoardOperationRateLimitGuard },
     { provide: APP_GUARD, useClass: OriginGuard },
     { provide: APP_GUARD, useClass: CsrfGuard },
   ],

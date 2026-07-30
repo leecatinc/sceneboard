@@ -421,5 +421,32 @@ const BoardErrorSchemaV2Only = z.discriminatedUnion('code', [
   ),
 ]);
 
-export const BoardErrorSchema = z.union([BoardErrorSchemaV1, BoardErrorSchemaV2Only]);
+export const UpgradeRequiredErrorSchemaV3 = branch(
+  'UPGRADE_REQUIRED',
+  'conflict',
+  false,
+  409,
+  z.union([
+    z
+      .object({
+        headSchemaVersion: z.literal(3),
+        requestedDocumentSchemaVersion: z.union([z.literal(1), z.literal(2)]),
+        operationType: z.enum(BOARD_MUTATION_COMMAND_TYPES_V2),
+      })
+      .strict(),
+    z
+      .object({
+        headSchemaVersion: z.literal(3),
+        requestedDocumentSchemaVersion: z.union([z.literal(1), z.literal(2)]),
+        surface: z.enum(['board.get', 'board.stream', 'history']),
+      })
+      .strict(),
+  ]),
+);
+
+export const BoardErrorSchema = z.union([
+  BoardErrorSchemaV1,
+  BoardErrorSchemaV2Only,
+  UpgradeRequiredErrorSchemaV3,
+]);
 export type BoardError = z.infer<typeof BoardErrorSchema>;

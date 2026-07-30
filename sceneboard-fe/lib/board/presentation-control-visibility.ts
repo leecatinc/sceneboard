@@ -1,4 +1,4 @@
-export const PRESENTATION_CONTROL_IDLE_MS = 3_000;
+export const PRESENTATION_CONTROL_IDLE_MS = 2_000;
 
 export type PresentationControlVisibilityInputV1 = Readonly<{
   controlsFocusWithin: boolean;
@@ -16,7 +16,7 @@ export type PresentationControlVisibilityStateV1 = Readonly<{
 }>;
 
 export const createPresentationControlVisibilityV1 = (): PresentationControlVisibilityStateV1 => ({
-  phase: 'visible',
+  phase: 'hidden',
   generation: 0,
   deadlineMs: null,
 });

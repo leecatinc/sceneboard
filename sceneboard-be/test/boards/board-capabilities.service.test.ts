@@ -47,6 +47,7 @@ test('projects current authorized capabilities in one repeatable-read board cut'
       credentialPk: 3n,
       grantId,
       sourceFamilyPublicId: null,
+      isBrowserCredential: false,
     },
     requestId,
     boardId,
@@ -77,6 +78,7 @@ test('projects current authorized capabilities in one repeatable-read board cut'
         credentialPk: 3n,
         grantId,
         sourceFamilyPublicId: null,
+        isBrowserCredential: false,
       },
       operation: 'capabilities.get',
       boardId,
@@ -127,12 +129,14 @@ test('projects exact owner, editor, and viewer browser authorization ceilings', 
 
   assert.equal(owner.authorizationCapabilities.includes('board.admin'), true);
   assert.equal(owner.authorizationCapabilities.includes('board.members.manage'), true);
+  assert.equal(owner.authorizationCapabilities.includes('export.read'), true);
   assert.deepEqual(owner.connectionGrantCeiling.lifecyclePermissions, [
     'board.archive',
     'board.create',
   ]);
   assert.equal(editor.authorizationCapabilities.includes('connection.manage.own'), true);
   assert.equal(editor.authorizationCapabilities.includes('board.admin'), false);
+  assert.equal(editor.authorizationCapabilities.includes('export.read'), false);
   assert.deepEqual(editor.connectionGrantCeiling.lifecyclePermissions, []);
   assert.deepEqual(viewer.authorizationCapabilities, ['board.read']);
   assert.deepEqual(viewer.connectionGrantCeiling.scopes, []);

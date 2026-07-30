@@ -1,4 +1,4 @@
-import type { BoardDocumentV2, BoardNodeV1, SceneV1 } from '@sceneboard/board-schema';
+import type { BoardDocument, BoardNodeV1, SceneV1 } from '@sceneboard/board-schema';
 
 import { BoardPersistenceError } from '../common/errors/board-persistence.error.js';
 
@@ -63,7 +63,7 @@ export const extractSceneArtifactReferences = (scene: SceneV1): SceneArtifactRef
 };
 
 export const extractDocumentArtifactReferences = (
-  document: BoardDocumentV2,
+  document: BoardDocument,
 ): SceneArtifactReferenceRowV1[] => {
   const counts = new Map<string, SceneArtifactReferenceRowV1>();
   for (const page of document.pages) {
@@ -115,7 +115,7 @@ export const extractUniqueSceneArtifactPairs = (scene: SceneV1): SceneArtifactPa
 };
 
 export const extractUniqueDocumentArtifactPairs = (
-  document: BoardDocumentV2,
+  document: BoardDocument,
 ): SceneArtifactPairV1[] => {
   const pairs = new Map<string, SceneArtifactPairV1>();
   for (const page of document.pages) {

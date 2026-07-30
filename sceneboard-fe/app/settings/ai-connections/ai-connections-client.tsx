@@ -24,6 +24,7 @@ import { PairingRequestList } from './pairing-request-list';
 import { GrantList } from './grant-list';
 import { SkillInstallGuide } from './skill-install-guide';
 import { useI18n } from '../../../components/i18n/I18nProvider';
+import { ApiKeyList } from './api-key-list';
 
 export function AiConnectionsClient() {
   const { t } = useI18n();
@@ -302,6 +303,7 @@ export function AiConnectionsClient() {
         </div>
       </header>
       <SkillInstallGuide />
+      <ApiKeyList />
       {error && (
         <p className="error" role="alert">
           {error}

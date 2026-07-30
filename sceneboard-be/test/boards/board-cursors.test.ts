@@ -49,6 +49,33 @@ test('board cursor binds archive filter and opaque owner/grant access context', 
   );
 });
 
+test('board cursor cannot cross account API keys or reveal their database identities', () => {
+  const codec = new BoardListCursorCodec(createCursorMacKeyV1(Buffer.alloc(32, 7)));
+  const access = {
+    accessKind: 'account_api_key' as const,
+    ownerUserId: '20',
+    apiKeyId: '70',
+  };
+  const tuple = {
+    createdAt: '2026-07-16T12:00:00.000Z' as TimestampV1,
+    boardPk: '50',
+  };
+  const cursor = codec.issue({ includeArchived: false, access, tuple });
+  assert.deepEqual(codec.parse({ cursor, includeArchived: false, access }), tuple);
+  assert.equal(cursor.includes('20'), false);
+  assert.equal(cursor.includes('70'), false);
+  for (const changed of [
+    { ...access, ownerUserId: '21' },
+    { ...access, apiKeyId: '71' },
+    { accessKind: 'owner' as const, ownerUserId: '20' },
+  ]) {
+    assert.throws(
+      () => codec.parse({ cursor, includeArchived: false, access: changed }),
+      invalidCursor,
+    );
+  }
+});
+
 test('history cursor is signed, canonical, board-bound, and safe-integer bounded', () => {
   const codec = new HistoryCursorCodec(createCursorMacKeyV1(Buffer.alloc(48, 9)));
   const cursor = codec.issue(boardA, Number.MAX_SAFE_INTEGER);

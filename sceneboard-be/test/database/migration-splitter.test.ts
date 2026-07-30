@@ -225,5 +225,26 @@ test('freezes the exact terminal D2/D3/D7/D8/D9 checkpoint order and reversibili
       downAsset: null,
       postcondition: 'd2_scope_mask_capacity_v1',
     },
+    {
+      version: '025_d10_account_api_keys',
+      upAsset: '025_d10_account_api_keys.up.sql',
+      reversible: false,
+      downAsset: null,
+      postcondition: 'd10_account_api_keys_v1',
+    },
+    {
+      version: '026_d10_document_v3_checkpoint',
+      upAsset: '026_d10_document_v3_checkpoint.up.sql',
+      reversible: false,
+      downAsset: null,
+      postcondition: 'd10_document_v3_checkpoint_v1',
+    },
+    {
+      version: '027_d10_revision_export_hold',
+      upAsset: '027_d10_revision_export_hold.up.sql',
+      reversible: false,
+      downAsset: null,
+      postcondition: 'd10_revision_export_hold_v1',
+    },
   ]);
 });

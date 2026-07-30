@@ -1,6 +1,6 @@
 import {
   collectDocumentNodesV2,
-  type BoardDocumentV2,
+  type BoardDocument,
   type BoardId,
   type RevisionId,
 } from '@sceneboard/board-schema';
@@ -21,7 +21,7 @@ export class RevisionMediaReferenceExtractor {
   extract(input: {
     boardId: BoardId;
     revisionId: RevisionId;
-    document: BoardDocumentV2;
+    document: BoardDocument;
   }): readonly RevisionMediaReferenceRowV1[] {
     const output: RevisionMediaReferenceRowV1[] = [];
     const seen = new Set<string>();

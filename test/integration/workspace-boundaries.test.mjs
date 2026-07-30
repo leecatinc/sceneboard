@@ -20,8 +20,16 @@ const expectedDependencies = new Map([
   ['@sceneboard/artifact-runtime', ['@sceneboard/board-schema']],
   ['@sceneboard/board-ui', ['@sceneboard/artifact-runtime', '@sceneboard/board-schema']],
   ['sceneboard-mcp', ['@sceneboard/board-schema', '@sceneboard/board-sdk']],
-  ['sceneboard-be', ['@sceneboard/board-schema']],
-  ['sceneboard-fe', ['@sceneboard/board-schema', '@sceneboard/board-sdk', '@sceneboard/board-ui']],
+  ['sceneboard-be', ['@sceneboard/artifact-runtime', '@sceneboard/board-schema']],
+  [
+    'sceneboard-fe',
+    [
+      '@sceneboard/artifact-runtime',
+      '@sceneboard/board-schema',
+      '@sceneboard/board-sdk',
+      '@sceneboard/board-ui',
+    ],
+  ],
 ]);
 
 const readWorkspaceGraph = async () => {

@@ -1,4 +1,12 @@
-import type { EventId, RevisionId, TimestampV1 } from '@sceneboard/board-schema';
+import type {
+  EventId,
+  MutationRequestV2,
+  MutationRequestV3,
+  MutationResultV2,
+  MutationResultV3,
+  RevisionId,
+  TimestampV1,
+} from '@sceneboard/board-schema';
 import type { RowDataPacket } from 'mysql2/promise';
 
 import type { SceneArtifactReferenceRowV1 } from './scene-artifact-reference.extractor.js';
@@ -13,6 +21,9 @@ export type SceneMutationTypeV1 =
   | 'scene.clear'
   | 'scene.restore'
   | 'document.replace';
+
+export type CheckpointMutationRequest = MutationRequestV2 | MutationRequestV3;
+export type CheckpointMutationResult = MutationResultV2 | MutationResultV3;
 
 export interface MutationRuntime {
   now(): Date;

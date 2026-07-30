@@ -99,10 +99,13 @@ test('page tools read the V2 head, apply the shared transform, and send one whol
     },
   };
   const gateway = {
-    call: async <T>(operation: (value: typeof client) => Promise<T>) => ({
-      connected: true as const,
-      value: await operation(client),
-    }),
+    call: async <T>(...args: unknown[]) => {
+      const operation = args.at(-1) as (value: typeof client) => Promise<T>;
+      return {
+        connected: true as const,
+        value: await operation(client),
+      };
+    },
   };
   const handlers = new DocumentToolHandlersV2(gateway as never);
   const output = await handlers.add({
@@ -151,10 +154,13 @@ test('legacy scene get fails with the stable document mismatch on a V2 head', as
     }),
   };
   const gateway = {
-    call: async <T>(operation: (value: typeof client) => Promise<T>) => ({
-      connected: true as const,
-      value: await operation(client),
-    }),
+    call: async <T>(...args: unknown[]) => {
+      const operation = args.at(-1) as (value: typeof client) => Promise<T>;
+      return {
+        connected: true as const,
+        value: await operation(client),
+      };
+    },
   };
   const result = await new SceneToolHandlersV1(gateway as never).get({
     boardId: 'board_1',

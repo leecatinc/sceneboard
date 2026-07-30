@@ -5,7 +5,10 @@ import { CookieService } from '../../auth/cookie.service.js';
 import { CsrfService } from '../../auth/csrf.service.js';
 import { AppError, BoardContractError } from '../errors/app-error.js';
 import { APP_ENVIRONMENT, type AppEnvironment } from '../../config/env.schema.js';
-import type { ResolvedBoardPrincipalV1 } from '../../grants/board-access.policy.js';
+import {
+  isBrowserBoardPrincipal,
+  type ResolvedBoardPrincipalV1,
+} from '../../grants/board-access.policy.js';
 
 export type RequiredCsrfKind = 'anonymous' | 'session';
 const CSRF_KIND = Symbol('CSRF_KIND');
@@ -73,7 +76,8 @@ export class CsrfGuard implements CanActivate {
     ]);
     if (requiredKind === undefined) return true;
     const request = context.switchToHttp().getRequest<GuardRequest>();
-    if (request.boardPrincipal?.kind === 'mcp') return true;
+    if (request.boardPrincipal !== undefined && !isBrowserBoardPrincipal(request.boardPrincipal))
+      return true;
     try {
       assertOriginAndCsrf({
         requiredKind,

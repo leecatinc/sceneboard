@@ -13,6 +13,11 @@ import {
   type MigrationRegistryEntry,
 } from './registry.js';
 import { splitSqlStatements } from './sql-splitter.js';
+import {
+  verifyAccountApiKeyPostcondition,
+  verifyDocumentV3CheckpointPostcondition,
+  verifyRevisionExportHoldPostcondition,
+} from './postconditions.js';
 
 export interface MigrationChecksumEntry {
   version: string;
@@ -371,6 +376,12 @@ export const assessRevisionRetentionExpand = (
       ['actor_account_pk', 'actor_class'].includes(row.columnName),
   );
   const runtimeActorProjection = runtimeActorColumns.length > 0;
+  const exportHoldProjection = columnRows.some(
+    (row) =>
+      row.tableName === 'board_revision_holds' &&
+      row.columnName === 'kind' &&
+      row.columnType.toLowerCase().includes(",'export'"),
+  );
   if (runtimeActorProjection) {
     assertExactProjection(
       'revision retention runtime actor column',
@@ -401,13 +412,23 @@ export const assessRevisionRetentionExpand = (
         row.tableName !== 'board_revision_catalog' ||
         !['actor_account_pk', 'actor_class'].includes(row.columnName),
     )
-    .map((row) =>
-      runtimeActorProjection &&
-      row.tableName === 'board_revision_catalog' &&
-      row.columnName === 'created_at'
-        ? { ...row, ordinalPosition: 6 }
-        : row,
-    );
+    .map((row) => {
+      if (
+        runtimeActorProjection &&
+        row.tableName === 'board_revision_catalog' &&
+        row.columnName === 'created_at'
+      ) {
+        return { ...row, ordinalPosition: 6 };
+      }
+      if (
+        exportHoldProjection &&
+        row.tableName === 'board_revision_holds' &&
+        row.columnName === 'kind'
+      ) {
+        return { ...row, columnType: row.columnType.replace(",'export'", '') };
+      }
+      return row;
+    });
   assertExactProjection(
     'revision retention column',
     expectedRetentionColumns,
@@ -426,8 +447,7 @@ export const assessRevisionRetentionExpand = (
   }
   const runtimeActorIndexes = indexRows.filter(
     (row) =>
-      row.tableName === 'board_revision_catalog' &&
-      row.indexName === 'ix_revision_catalog_actor',
+      row.tableName === 'board_revision_catalog' && row.indexName === 'ix_revision_catalog_actor',
   );
   if (runtimeActorProjection) {
     assertExactProjection(
@@ -480,11 +500,11 @@ export const assessRevisionRetentionExpand = (
           ),
       )
       .map((row) => [
-      row.tableName,
-      row.indexName,
-      Number(row.nonUnique),
-      Number(row.sequence),
-      row.columnName,
+        row.tableName,
+        row.indexName,
+        Number(row.nonUnique),
+        Number(row.sequence),
+        row.columnName,
       ]),
   );
   const runtimeActorForeignKeys = foreignKeyRows.filter(
@@ -515,21 +535,27 @@ export const assessRevisionRetentionExpand = (
           row.constraintName !== 'fk_revision_catalog_actor',
       )
       .map((row) => [
-      row.tableName,
-      row.constraintName,
-      row.columnName,
-      row.referencedTableName,
-      row.referencedColumnName,
-      row.deleteRule,
-      Number(row.sequence),
+        row.tableName,
+        row.constraintName,
+        row.columnName,
+        row.referencedTableName,
+        row.referencedColumnName,
+        row.deleteRule,
+        Number(row.sequence),
       ]),
   );
 
   const checks = new Map(
-    checkRows.map((row) => [
-      `${row.tableName}.${row.constraintName}`,
-      normalizeCheckClause(row.checkClause),
-    ]),
+    checkRows.map((row) => {
+      const name = `${row.tableName}.${row.constraintName}`;
+      const clause = normalizeCheckClause(row.checkClause);
+      return [
+        name,
+        exportHoldProjection && name === 'board_revision_holds.chk_revision_holds_kind'
+          ? clause.replace(",'export'", '')
+          : clause,
+      ];
+    }),
   );
   const expectedNames = Object.keys(expectedRetentionChecks).sort();
   if (
@@ -611,8 +637,7 @@ export const assessV2CheckpointCapacity = (
     throw new MigrationStateError('v2 retained checkpoint null projection drift');
   }
   if (
-    (!retainedProjection &&
-      !constraints.get('chk_revisions_codec')?.includes("scene_codec='b'")) ||
+    (!retainedProjection && !constraints.get('chk_revisions_codec')?.includes("scene_codec='b'")) ||
     !constraints.get('chk_revisions_origin')?.includes("'d'")
   ) {
     throw new MigrationStateError('v2 checkpoint discriminator constraints are missing');
@@ -766,6 +791,18 @@ export class MigrationRunner {
     connection: PoolConnection,
     postcondition: string,
   ): Promise<void> {
+    if (postcondition === 'd10_revision_export_hold_v1') {
+      await verifyRevisionExportHoldPostcondition(connection);
+      return;
+    }
+    if (postcondition === 'd10_document_v3_checkpoint_v1') {
+      await verifyDocumentV3CheckpointPostcondition(connection);
+      return;
+    }
+    if (postcondition === 'd10_account_api_keys_v1') {
+      await verifyAccountApiKeyPostcondition(connection);
+      return;
+    }
     if (postcondition === 'd9_v2_checkpoint_capacity_v1') {
       await this.verifyV2CheckpointCapacity(connection);
       return;

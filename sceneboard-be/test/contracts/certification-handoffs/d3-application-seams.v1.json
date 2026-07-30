@@ -38,7 +38,7 @@
       "exportKind": "class",
       "memberName": "get",
       "memberKind": "method",
-      "signature": "async get(input: { principal: ResolvedBoardPrincipalV1; requestId: RequestId; boardId: BoardId; }): Promise<BoardOperationResultV1>",
+      "signature": "async get(input: { principal: ResolvedBoardPrincipalV1; requestId: RequestId; boardId: BoardId; documentSchemaVersion?: 1 | 2 | 3; }): Promise<BoardOperationResultV1>",
       "selector": "ClassDeclaration[name=BoardGetService]/MethodDeclaration[name=get]",
       "contractIds": [
         "board.get"
@@ -90,7 +90,7 @@
       "exportKind": "class",
       "memberName": "applySceneMutation",
       "memberKind": "method",
-      "signature": "async applySceneMutation(input: { principal: ResolvedBoardPrincipalV1; request: MutationRequestV1; }): Promise<MutationResultV1>",
+      "signature": "async applySceneMutation(input: { principal: ResolvedBoardPrincipalV1; request: MutationRequestV1 | MutationRequestV3; documentSchemaVersion?: 1 | 2 | 3; }): Promise<MutationResultV1 | MutationResultV2 | MutationResultV3>",
       "selector": "ClassDeclaration[name=BoardMutationService]/MethodDeclaration[name=applySceneMutation]",
       "contractIds": [
         "scene.replace",
@@ -105,7 +105,7 @@
       "exportKind": "class",
       "memberName": "applyDocumentMutation",
       "memberKind": "method",
-      "signature": "async applyDocumentMutation(input: { principal: ResolvedBoardPrincipalV1; request: MutationRequestV2; }): Promise<MutationResultV2>",
+      "signature": "async applyDocumentMutation(input: { principal: ResolvedBoardPrincipalV1; request: MutationRequestV2 | MutationRequestV3; }): Promise<MutationResultV2 | MutationResultV3>",
       "selector": "ClassDeclaration[name=BoardMutationService]/MethodDeclaration[name=applyDocumentMutation]",
       "contractIds": [
         "document.replace"
@@ -183,7 +183,7 @@
       "exportKind": "class",
       "memberName": "composeDocument",
       "memberKind": "method",
-      "signature": "async composeDocument( connection: PoolConnection, input: SnapshotCompositionInputV2, ): Promise<BoardSnapshotV2>",
+      "signature": "async composeDocument( connection: PoolConnection, input: SnapshotCompositionInputV2, ): Promise<BoardSnapshotV2 | BoardSnapshotV3>",
       "selector": "ClassDeclaration[name=SnapshotCompositionService]/MethodDeclaration[name=composeDocument]",
       "contractIds": [
         "snapshot.compose"
@@ -281,5 +281,5 @@
       ]
     }
   ],
-  "tupleListSha256": "c99595f783f3a8ed28351992556ef2f5a8a3afacd0d89f4eb231bde30e788434"
+  "tupleListSha256": "c5b0f1c5ed9fa8a29b5262812021ef45ca0f5836dc4c306c8bb1d21f4006b9d4"
 }

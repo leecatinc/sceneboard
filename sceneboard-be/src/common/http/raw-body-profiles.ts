@@ -54,6 +54,8 @@ const d2BodyRoutes = [
   '/api/v1/grants/:grantId/rotate',
   '/api/v1/public/shares/:shareId/view-contexts',
   '/api/v1/public/share-view-events',
+  '/api/v1/account/api-keys',
+  '/api/v1/boards/:boardId/exports',
 ] as const;
 
 const d2NoBodyRoutes: ReadonlyArray<readonly [HttpMethod, string]> = [
@@ -67,6 +69,8 @@ const d2NoBodyRoutes: ReadonlyArray<readonly [HttpMethod, string]> = [
   ['DELETE', '/api/v1/grants/:grantId'],
   ['GET', '/api/v1/public/shares/:shareToken'],
   ['GET', '/api/v1/public/share-contexts/:contextId'],
+  ['GET', '/api/v1/account/api-keys'],
+  ['DELETE', '/api/v1/account/api-keys/:apiKeyId'],
   [
     'GET',
     '/api/v1/public/shares/:shareId/revisions/:revisionId/g/:publicationGeneration/:accessGeneration/artifacts/:artifactId/versions/:versionId/package',

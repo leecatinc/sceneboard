@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import {
   BoardDocumentParserV2,
+  projectDocumentV2ToV3,
   type BoardDocumentV2,
   type ImageNodeV1,
   type BoardPageV2,
@@ -81,6 +82,22 @@ test('applies add, update, reorder, default, remove, and replace without mutatin
   });
   assert.equal(replaced.ok, true);
   if (replaced.ok) assert.deepEqual(replaced.data.value, source);
+  assert.deepEqual(source, before);
+});
+
+test('media placement preserves a V3 document format and leaves the source immutable', () => {
+  const source = projectDocumentV2ToV3(document(), 'a4_landscape');
+  const before = structuredClone(source);
+  const result = placeMediaImageOnPageV1({
+    document: source,
+    pageId: 'page_a' as never,
+    image: image(),
+    placement: { kind: 'page-end', wrapperNodeId: 'layout_media' as never },
+  });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.data.value.schemaVersion, 3);
+  assert.equal(result.data.value.format, 'a4_landscape');
   assert.deepEqual(source, before);
 });
 

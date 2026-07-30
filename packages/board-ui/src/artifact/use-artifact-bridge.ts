@@ -69,10 +69,10 @@ export const useArtifactBridgeV1 = (input: ArtifactHostInputV1): ArtifactBridgeV
   const sendNavigationControlRef = useRef<((enabled: boolean) => void) | null>(null);
   const onNavigationIntentRef = useRef(input.onNavigationIntent);
   const onResizeRequestRef = useRef(input.onResizeRequest);
-  const viewModeRef = useRef(input.viewMode ?? 'fit-height');
+  const viewModeRef = useRef(input.viewMode ?? 'fit-page');
   onNavigationIntentRef.current = input.onNavigationIntent;
   onResizeRequestRef.current = input.onResizeRequest;
-  viewModeRef.current = input.viewMode ?? 'fit-height';
+  viewModeRef.current = input.viewMode ?? 'fit-page';
 
   const stop = useCallback(() => {
     cleanupRef.current?.();

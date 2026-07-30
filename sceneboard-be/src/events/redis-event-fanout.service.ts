@@ -25,7 +25,7 @@ export class RedisEventFanoutService implements OnModuleDestroy {
 
   constructor(
     @Inject(REDIS_EVENT_TRANSPORT_V1) private readonly redis: RedisEventTransportPortV1,
-    private readonly keyspace: RedisStreamKeyspace,
+    @Inject(RedisStreamKeyspace) private readonly keyspace: RedisStreamKeyspace,
   ) {}
 
   async subscribeBoard(

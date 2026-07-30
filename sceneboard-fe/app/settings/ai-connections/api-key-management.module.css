@@ -1,0 +1,55 @@
+.section {
+  display: grid;
+  gap: 16px;
+}
+.form {
+  display: grid;
+  gap: 12px;
+  max-width: 720px;
+}
+.form label,
+.form fieldset {
+  display: grid;
+  gap: 7px;
+}
+.form fieldset label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.list {
+  display: grid;
+  gap: 10px;
+}
+.error {
+  color: var(--danger);
+}
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(15, 28, 27, 0.5);
+}
+.dialog {
+  display: grid;
+  width: min(560px, 100%);
+  gap: 14px;
+  border-radius: 12px;
+  background: var(--surface);
+  padding: 24px;
+  box-shadow: 0 28px 90px rgba(17, 36, 33, 0.28);
+}
+.dialog code {
+  overflow-wrap: anywhere;
+  border-radius: 8px;
+  background: var(--surface-muted);
+  padding: 14px;
+}
+@media (max-width: 320px) {
+  .dialog {
+    padding: 16px;
+  }
+}

@@ -413,7 +413,8 @@ export class BoardCreateService {
       retainedOrder: 1,
       createdAtSql: prepared.occurredAtSql,
       actorAccountPk: context.ownerUserPk.toString(),
-      actorClass: actorCode === 'S' ? 'system' : 'owner',
+      actorClass:
+        context.access.kind === 'api_key' ? 'owner' : actorCode === 'S' ? 'system' : 'owner',
       checkpoint: prepared.checkpoint,
     });
 

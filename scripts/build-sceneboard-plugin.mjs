@@ -13,10 +13,15 @@ const runtimeTarget = resolve(pluginRoot, 'runtime/index.js');
 const helperTarget = resolve(pluginRoot, 'native/profile-lease-helper');
 const digestTarget = resolve(pluginRoot, 'native/profile-lease-helper.sha256');
 const source = resolve(root, 'sceneboard-mcp/native/profile-lease-helper.c');
+const exportHelperTarget = resolve(pluginRoot, 'native/linux-x64-gnu/local-export-helper');
+const exportDigestTarget = resolve(pluginRoot, 'native/linux-x64-gnu/local-export-helper.sha256');
+const exportManifestTarget = resolve(pluginRoot, 'native/local-export-helper.manifest.json');
+const exportSource = resolve(root, 'sceneboard-mcp/native/local-export-helper.c');
 const checkOnly = process.argv.includes('--check');
 const temporaryRoot = await mkdtemp(resolve(tmpdir(), 'sceneboard-plugin-release-'));
 const runtimeCandidate = resolve(temporaryRoot, 'index.js');
 const helperCandidate = resolve(temporaryRoot, 'profile-lease-helper');
+const exportHelperCandidate = resolve(temporaryRoot, 'local-export-helper');
 
 const compileHelper = async () => {
   const child = spawn(
@@ -41,6 +46,32 @@ const compileHelper = async () => {
     child.once('exit', resolveExit);
   });
   if (exitCode !== 0) throw new Error('SceneBoard plugin native helper compilation failed');
+};
+
+const compileExportHelper = async () => {
+  const child = spawn(
+    'cc',
+    [
+      '-std=c17',
+      '-D_FORTIFY_SOURCE=2',
+      '-O2',
+      '-fPIE',
+      '-pie',
+      '-Wl,--build-id=none',
+      '-Wall',
+      '-Wextra',
+      '-Werror',
+      '-o',
+      exportHelperCandidate,
+      exportSource,
+    ],
+    { stdio: 'inherit', env: { PATH: process.env.PATH ?? '/usr/bin:/bin' } },
+  );
+  const exitCode = await new Promise((resolveExit, reject) => {
+    child.once('error', reject);
+    child.once('exit', resolveExit);
+  });
+  if (exitCode !== 0) throw new Error('SceneBoard plugin local export helper compilation failed');
 };
 
 const setExactMode = async (path, mode) => {
@@ -76,37 +107,70 @@ try {
       logLevel: 'silent',
     }),
     compileHelper(),
+    compileExportHelper(),
   ]);
   const helperBytes = await readFile(helperCandidate);
   const digest = `${createHash('sha256').update(helperBytes).digest('hex')}\n`;
+  const exportHelperBytes = await readFile(exportHelperCandidate);
+  const exportDigestValue = createHash('sha256').update(exportHelperBytes).digest('hex');
+  const exportDigest = `${exportDigestValue}\n`;
+  const exportManifest = `${JSON.stringify(
+    {
+      version: 1,
+      targets: {
+        'linux-x64-gnu': {
+          path: 'linux-x64-gnu/local-export-helper',
+          sha256: exportDigestValue,
+          mode: '0500',
+        },
+      },
+    },
+    null,
+    2,
+  )}\n`;
 
   if (checkOnly) {
     await Promise.all([
       assertEqualFile(runtimeCandidate, runtimeTarget, 'plugin runtime'),
       assertEqualFile(helperCandidate, helperTarget, 'plugin native helper'),
+      assertEqualFile(exportHelperCandidate, exportHelperTarget, 'plugin local export helper'),
     ]);
     if ((await readFile(digestTarget, 'utf8')) !== digest)
       throw new Error('plugin native helper digest is stale');
+    if ((await readFile(exportDigestTarget, 'utf8')) !== exportDigest)
+      throw new Error('plugin local export helper digest is stale');
+    if ((await readFile(exportManifestTarget, 'utf8')) !== exportManifest)
+      throw new Error('plugin local export helper manifest is stale');
     console.log(JSON.stringify({ status: 'PASS', runtime: 'runtime/index.js' }));
   } else {
     await Promise.all([
       mkdir(dirname(runtimeTarget), { recursive: true }),
       mkdir(dirname(helperTarget), { recursive: true }),
+      mkdir(dirname(exportHelperTarget), { recursive: true }),
     ]);
     await Promise.all([
       makeWritable(runtimeTarget),
       makeWritable(helperTarget),
       makeWritable(digestTarget),
+      makeWritable(exportHelperTarget),
+      makeWritable(exportDigestTarget),
+      makeWritable(exportManifestTarget),
     ]);
     await Promise.all([
       copyFile(runtimeCandidate, runtimeTarget),
       copyFile(helperCandidate, helperTarget),
       writeFile(digestTarget, digest, { mode: 0o400 }),
+      copyFile(exportHelperCandidate, exportHelperTarget),
+      writeFile(exportDigestTarget, exportDigest, { mode: 0o400 }),
+      writeFile(exportManifestTarget, exportManifest, { mode: 0o400 }),
     ]);
     await Promise.all([
       chmod(runtimeTarget, 0o644),
       setExactMode(helperTarget, 0o500),
       setExactMode(digestTarget, 0o400),
+      setExactMode(exportHelperTarget, 0o500),
+      setExactMode(exportDigestTarget, 0o400),
+      setExactMode(exportManifestTarget, 0o400),
     ]);
     console.log(JSON.stringify({ status: 'BUILT', runtime: 'runtime/index.js' }));
   }

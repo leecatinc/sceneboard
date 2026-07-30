@@ -13,7 +13,11 @@ import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import { BoardContractError } from '../common/errors/app-error.js';
 import { formatPublicUuidV4 } from '../common/ids/public-uuid.storage.js';
 import { parseMysqlTimestampUtc } from '../common/time/mysql-timestamp.js';
-import type { BoardAccessPolicy, ResolvedBoardPrincipalV1 } from '../grants/board-access.policy.js';
+import {
+  ACCOUNT_API_KEY_SNAPSHOT,
+  type BoardAccessPolicy,
+  type ResolvedBoardPrincipalV1,
+} from '../grants/board-access.policy.js';
 import { currentBoardCapabilitiesFromContext } from '../grants/current-board-capabilities.js';
 import type {
   AuthorizedBrowserPresencePortV1,
@@ -79,10 +83,60 @@ export class McpConnectionService {
   ) {}
 
   async get(input: {
+    principal: Extract<ResolvedBoardPrincipalV1, { kind: 'mcp' }>;
+    requestId: RequestId;
+    boardId: BoardId | null;
+  }): Promise<Extract<SafeAuthorizedConnectionV1, { grant: unknown }>>;
+  async get(input: {
+    principal: Extract<ResolvedBoardPrincipalV1, { kind: 'account_api_key' }>;
+    requestId: RequestId;
+    boardId: BoardId | null;
+  }): Promise<Extract<SafeAuthorizedConnectionV1, { credential: unknown }>>;
+  async get(input: {
+    principal: ResolvedBoardPrincipalV1;
+    requestId: RequestId;
+    boardId: BoardId | null;
+  }): Promise<SafeAuthorizedConnectionV1>;
+  async get(input: {
     principal: ResolvedBoardPrincipalV1;
     requestId: RequestId;
     boardId: BoardId | null;
   }): Promise<SafeAuthorizedConnectionV1> {
+    if (input.principal.kind === 'account_api_key') {
+      const snapshot = input.principal[ACCOUNT_API_KEY_SNAPSHOT];
+      const base = {
+        principal: {
+          principalKind: 'service' as const,
+          principalId: input.principal.actor.principalId as PrincipalId,
+          grantId: null,
+        },
+        credential: {
+          keyPublicId: snapshot.keyPublicId as PrincipalId,
+          scopes: snapshot.scopes,
+          status: 'active' as const,
+          expiresAt: new Date(snapshot.expiresAt).toISOString(),
+        },
+        versions: {
+          mcpServer: '0.0.0' as const,
+          boardProtocol: PROTOCOL_SEMVER,
+          api: 'v1' as const,
+        },
+      };
+      if (input.boardId === null) return { ...base, selectedBoard: null };
+      const selectedBoard = await this.accessPolicy.withAuthorizedBoardTransaction(
+        {
+          principal: input.principal,
+          operation: 'board.get',
+          boardId: input.boardId,
+          isolation: 'REPEATABLE_READ_CUT',
+        },
+        async (connection, context) => ({
+          board: await this.readBoardSummary(connection, input.requestId, input.boardId!),
+          capabilities: currentBoardCapabilitiesFromContext(context),
+        }),
+      );
+      return { ...base, selectedBoard };
+    }
     if (
       input.principal.kind !== 'mcp' ||
       input.principal.connectionGrant === undefined ||

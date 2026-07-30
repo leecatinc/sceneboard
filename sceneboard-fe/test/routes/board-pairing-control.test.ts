@@ -45,11 +45,14 @@ test('board pairing keeps one bounded same-tab code and polls only in a visible 
   );
 });
 
-test('board pairing approval defaults to an approval-time new board and remains matching-code gated', () => {
+test('board pairing approval prefers the current board and remains matching-code gated', () => {
   const control = source('components/board/BoardPairingControl.tsx');
   const modal = source('components/ai-connections/PairingRequestModal.tsx');
   assert.match(control, /api\.listBoards\(null, request\.controller\.signal\)/);
-  assert.match(modal, /useState<'create' \| 'existing'>\('create'\)/);
+  assert.match(control, /preferredBoardId=\{boardId\}/);
+  assert.match(modal, /useState<'create' \| 'existing'>\('existing'\)/);
+  assert.match(modal, /setDestinationMode\('existing'\)/);
+  assert.match(modal, /setSelectedBoardId\(availablePreferredBoardId\)/);
   assert.match(modal, /destination: PairingBoardDestination/);
   assert.match(modal, /matchingCode === null/);
   assert.match(modal, /approvedScopes\.includes\('board\.write'\)/);
@@ -60,6 +63,20 @@ test('board pairing approval defaults to an approval-time new board and remains 
   assert.match(modal, /t\('ai\.cancelCode'\)/);
   assert.match(modal, /onClick=\{onDismiss\}/);
   assert.match(modal, /onClick=\{onCancel\}/);
+});
+
+test('pairing requires an explicit choice before creating a new board', () => {
+  const modal = source('components/ai-connections/PairingRequestModal.tsx');
+  assert.doesNotMatch(modal, /setDestinationMode\(boardCreationRequested \? 'create'/);
+  assert.match(modal, /value="create"[\s\S]*onChange=\{\(\) => setDestinationMode\('create'\)\}/);
+  assert.match(modal, /destinationMode === 'create'.*!canCreateBoard/s);
+});
+
+test('header pairing carries the current detail board into the approval modal', () => {
+  const header = source('components/app/HeaderPairingAction.tsx');
+  assert.match(header, /usePathname\(\)/);
+  assert.match(header, /boardIdFromDetailPath\(pathname \?\? ''\)/);
+  assert.match(header, /preferredBoardId=\{preferredBoardId\}/);
 });
 
 test('AI connections redirects from the approved response board and falls back to the board list', () => {

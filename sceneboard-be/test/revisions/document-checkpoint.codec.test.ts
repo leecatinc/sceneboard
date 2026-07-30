@@ -20,17 +20,24 @@ const emptyDocument = {
     },
   ],
 };
+const emptyDocumentV3 = {
+  ...emptyDocument,
+  schemaVersion: 3 as const,
+  format: 'wide_16_9' as const,
+};
 
 const isCheckpointIntegrityError = (error: unknown): boolean =>
   error instanceof BoardPersistenceError && error.category === 'checkpoint_integrity';
 
-test('round-trips exact v1 scene and v2 document checkpoint branches', async () => {
+test('round-trips exact v1 scene, v2 document and v3 document checkpoint branches', async () => {
   const codec = new DocumentCheckpointCodec();
   const scene = await codec.encodeScene(emptyScene);
   const document = await codec.encodeDocument(emptyDocument);
+  const documentV3 = await codec.encodeDocumentV3(emptyDocumentV3);
 
   assert.equal(scene.schemaVersion, '1.0.0');
   assert.equal(document.schemaVersion, '2.0.0');
+  assert.equal(documentV3.schemaVersion, '3.0.0');
   assert.equal(scene.codec, 'B');
   assert.equal(document.codec, 'B');
   assert.deepEqual(await codec.decode(scene), {
@@ -43,6 +50,11 @@ test('round-trips exact v1 scene and v2 document checkpoint branches', async () 
     document: emptyDocument,
     canonicalBytes: document.canonicalPayload,
   });
+  assert.deepEqual(await codec.decode(documentV3), {
+    kind: 'document',
+    document: emptyDocumentV3,
+    canonicalBytes: documentV3.canonicalPayload,
+  });
 });
 
 test('enforces the discriminator-specific canonical and stored limits before decoding', async () => {
@@ -53,6 +65,7 @@ test('enforces the discriminator-specific canonical and stored limits before dec
   assert.deepEqual(CHECKPOINT_LIMITS, {
     '1.0.0': { canonicalBytes: 786_432, storedBytes: 800_000 },
     '2.0.0': { canonicalBytes: 20_971_520, storedBytes: 33_554_432 },
+    '3.0.0': { canonicalBytes: 20_971_520, storedBytes: 33_554_432 },
   });
   await assert.rejects(
     () =>

@@ -25,10 +25,11 @@ test('centers the actual-size artifact at 100 percent', () => {
   );
 });
 
-test('computes exact fit ratios and centers only the shorter axis', () => {
+test('fit-page contains the whole page while fit-width only fits the width axis', () => {
+  // 16:9 콘텐츠가 16:9 뷰포트에 들어갈 때 fit-page는 양축 모두 채우며 자르지 않는다.
   assert.deepEqual(
     fitArtifactViewV1({
-      mode: 'fit-height',
+      mode: 'fit-page',
       availableWidth: 1_600,
       availableHeight: 900,
       contentWidth: 1_200,
@@ -46,12 +47,47 @@ test('computes exact fit ratios and centers only the shorter axis', () => {
     }),
     { scale: 0.5, x: 0, y: 231.25 },
   );
+  // 높이가 제한인 뷰포트에서 fit-page는 세로에 맞추고 가로 여분을 중앙 정렬한다.
+  // 같은 입력의 fit-width는 세로가 넘쳐 잘리므로 두 모드 결과가 달라야 한다.
+  assert.deepEqual(
+    fitArtifactViewV1({
+      mode: 'fit-page',
+      availableWidth: 1_200,
+      availableHeight: 600,
+      contentWidth: 1_200,
+      contentHeight: 800,
+    }),
+    { scale: 0.75, x: 150, y: 0 },
+  );
+  assert.deepEqual(
+    fitArtifactViewV1({
+      mode: 'fit-width',
+      availableWidth: 1_200,
+      availableHeight: 600,
+      contentWidth: 1_200,
+      contentHeight: 800,
+    }),
+    { scale: 1, x: 0, y: 0 },
+  );
+});
+
+test('fit-page contains a 1920x1080 slide in a matching-aspect viewport without cropping', () => {
+  assert.deepEqual(
+    fitArtifactViewV1({
+      mode: 'fit-page',
+      availableWidth: 1_280,
+      availableHeight: 720,
+      contentWidth: 1_920,
+      contentHeight: 1_080,
+    }),
+    { scale: 2 / 3, x: 0, y: 0 },
+  );
 });
 
 test('sizes the layout plane from rendered bounds without scrolling the fitted axis', () => {
   assert.deepEqual(
     sizeArtifactStageV1({
-      mode: 'fit-height',
+      mode: 'fit-page',
       availableWidth: 900,
       availableHeight: 600,
       contentWidth: 1200,

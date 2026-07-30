@@ -17,15 +17,19 @@ test('the serialized SDK checkpoint resolves all six exact package targets', () 
   assert.deepEqual(Object.keys(sse).sort(), [
     'createBoardStreamClientV1',
     'createBoardStreamClientV2',
+    'createBoardStreamClientV3',
     'createBoardStreamTabIdV1',
     'createSseFrameParserV1',
     'createSseFrameParserV2',
+    'createSseFrameParserV3',
   ]);
   assert.deepEqual(Object.keys(http).sort(), [
     'BoardSdkHttpClient',
     'parseBoardDocumentHttpResultV2',
+    'parseBoardDocumentHttpResultV3',
     'parseBoardHttpResultV1',
     'parseBoardOperationHttpResultV2',
+    'parseBoardOperationHttpResultV3',
   ]);
   assert.deepEqual(Object.keys(sceneTransform).sort(), ['applySceneTransformV1']);
   assert.equal(Object.hasOwn(root, 'BoardSdkHttpClient'), false);

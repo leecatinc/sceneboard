@@ -39,7 +39,7 @@ const recipe = (template, motion = 'subtle') => ({
   placementKey: `${template}-visual`,
   title: 'Visual summary',
   fallbackText: 'The complete facts are listed in this visual.',
-  theme: 'light',
+  theme: template === 'slide-deck' ? 'dark' : 'light',
   size: descriptor(template).defaultSize,
   motion,
   content:
@@ -56,38 +56,58 @@ const recipe = (template, motion = 'subtle') => ({
         }
       : template === 'demo-showcase'
         ? { kind: 'illustration', selection: 'sunny-garden', phase: 'outline' }
-        : template === 'webgl-showcase' || template === 'threejs-showcase'
-          ? { scene: 'garden-cat', camera: 'orbit' }
-          : template === 'process-flow'
-            ? {
-                steps: [
-                  { label: 'Prepare', detail: null, status: 'complete' },
-                  { label: 'Review', detail: 'Check the evidence.', status: 'active' },
-                ],
-              }
-            : template === 'architecture-map'
-              ? {
-                  nodes: [
-                    { key: 'source', label: 'Source', role: 'source' },
-                    { key: 'service', label: 'Service', role: 'service' },
+        : template === 'slide-deck'
+          ? {
+              deckLabel: 'Visual summary',
+              slides: [
+                {
+                  key: 'summary',
+                  type: 'cover',
+                  eyebrow: null,
+                  title: 'Visual summary',
+                  subtitle: 'The complete facts are listed in this visual.',
+                  badges: ['PPT'],
+                  highlights: [
+                    {
+                      label: 'Complete',
+                      detail: 'The closed slide deck preserves accessible meaning.',
+                    },
                   ],
-                  edges: [{ from: 'source', to: 'service', label: 'Sends data' }],
+                },
+              ],
+            }
+          : template === 'webgl-showcase' || template === 'threejs-showcase'
+            ? { scene: 'garden-cat', camera: 'orbit' }
+            : template === 'process-flow'
+              ? {
+                  steps: [
+                    { label: 'Prepare', detail: null, status: 'complete' },
+                    { label: 'Review', detail: 'Check the evidence.', status: 'active' },
+                  ],
                 }
-              : template === 'timeline'
+              : template === 'architecture-map'
                 ? {
-                    events: [
-                      { date: 'First', label: 'Prepare', detail: null, status: 'past' },
-                      { date: 'Next', label: 'Review', detail: null, status: 'current' },
+                    nodes: [
+                      { key: 'source', label: 'Source', role: 'source' },
+                      { key: 'service', label: 'Service', role: 'service' },
                     ],
+                    edges: [{ from: 'source', to: 'service', label: 'Sends data' }],
                   }
-                : {
-                    seriesLabel: 'Completion',
-                    unit: '%',
-                    points: [
-                      { label: 'First', value: 25 },
-                      { label: 'Second', value: 75 },
-                    ],
-                  },
+                : template === 'timeline'
+                  ? {
+                      events: [
+                        { date: 'First', label: 'Prepare', detail: null, status: 'past' },
+                        { date: 'Next', label: 'Review', detail: null, status: 'current' },
+                      ],
+                    }
+                  : {
+                      seriesLabel: 'Completion',
+                      unit: '%',
+                      points: [
+                        { label: 'First', value: 25 },
+                        { label: 'Second', value: 75 },
+                      ],
+                    },
 });
 
 test('template catalog and motion catalog are exact', () => {
@@ -97,6 +117,7 @@ test('template catalog and motion catalog are exact', () => {
     'demo-showcase',
     'metric-story',
     'process-flow',
+    'slide-deck',
     'threejs-showcase',
     'timeline',
     'webgl-showcase',
@@ -115,10 +136,17 @@ test('every closed template compiles with accessible static meaning', () => {
       const draft = compileSceneArtifactDraft(recipe(template, motion), descriptor(template));
       assert.equal(draft.source.artifactId, null);
       assert.deepEqual(draft.source.requestedCapabilities, []);
-      assert.match(draft.source.html, /<h1>Visual summary<\/h1>/);
+      if (template === 'slide-deck')
+        assert.match(draft.source.html, /<h1 id="sb-slide-title-1">Visual summary<\/h1>/);
+      else assert.match(draft.source.html, /<h1>Visual summary<\/h1>/);
       assert.match(draft.source.html, /complete facts/);
       if (template === 'demo-showcase') assert.match(draft.source.css, /prefers-reduced-motion/);
-      else if (template === 'threejs-showcase') {
+      else if (template === 'slide-deck') {
+        assert.match(draft.source.html, /data-sb-slide-deck="v1"/);
+        assert.match(draft.source.javascript, /ArrowRight/);
+        assert.match(draft.source.javascript, /ResizeObserver/);
+        assert.match(draft.source.css, /prefers-reduced-motion/);
+      } else if (template === 'threejs-showcase') {
         assert.match(draft.source.html, /data-sb-threejs-showcase="v1"/);
         assert.match(draft.source.javascript, /SceneBoardThree/);
         assert.match(draft.source.javascript, /WebGLRenderer/);

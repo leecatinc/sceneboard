@@ -33,3 +33,11 @@ export const ActorReferenceSchemaV1 = z
 
 export type ActorContextV1 = z.infer<typeof ActorContextSchemaV1>;
 export type ActorReferenceV1 = z.infer<typeof ActorReferenceSchemaV1>;
+
+export const accountApiKeyActorContextV1 = (keyPublicId: string): ActorContextV1 =>
+  ActorContextSchemaV1.parse({
+    principalKind: 'service',
+    principalId: keyPublicId,
+    grantId: null,
+    scopes: [],
+  });

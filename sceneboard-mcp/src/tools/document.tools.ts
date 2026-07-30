@@ -114,7 +114,7 @@ export class DocumentToolHandlersV2 {
     if (!parsed.success) return validationFailureV1('board_document_get', requestId, parsed.error);
     const result =
       parsed.data.revisionId === null
-        ? await this.gateway.call((client) =>
+        ? await this.gateway.call('board_document_get', 'board.get', (client) =>
             client.getDocumentBoard(
               {
                 protocolVersion: 1,
@@ -125,7 +125,7 @@ export class DocumentToolHandlersV2 {
               signal,
             ),
           )
-        : await this.gateway.call((client) =>
+        : await this.gateway.call('board_document_get', 'board.get', (client) =>
             client.getDocumentHistory(
               {
                 protocolVersion: 1,
@@ -250,7 +250,7 @@ export class DocumentToolHandlersV2 {
     const parsed = schema.safeParse(raw);
     if (!parsed.success) return validationFailureV1(tool, requestId, parsed.error);
     const value = parsed.data as Record<string, unknown>;
-    const head = await this.gateway.call((client) =>
+    const head = await this.gateway.call(tool, 'document.replace', (client) =>
       client.getDocumentBoard(
         {
           protocolVersion: 1,
@@ -299,7 +299,7 @@ export class DocumentToolHandlersV2 {
         'board',
         transformed.error as unknown as Record<string, unknown>,
       );
-    const result = await this.gateway.call((client) =>
+    const result = await this.gateway.call(tool, 'document.replace', (client) =>
       client.mutateDocument(
         {
           protocolVersion: 1,

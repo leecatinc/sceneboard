@@ -17,11 +17,13 @@
     "sceneboard-mcp": "./dist/index.js"
   },
   "scripts": {
-    "build": "npm run build:native:profile-lease && tsc -p tsconfig.build.json && npm run verify:native:profile-lease",
+    "build": "npm run build:native:profile-lease && npm run build:native:local-export && tsc -p tsconfig.build.json && npm run verify:native:profile-lease && npm run verify:native:local-export",
+    "build:native:local-export": "node scripts/build-local-export-helper.mjs",
     "build:native:profile-lease": "node scripts/build-profile-lease-helper.mjs",
     "dev": "tsx src/index.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc -p tsconfig.test.json",
     "test": "tsx --test test/**/*.test.ts",
+    "verify:native:local-export": "node scripts/verify-local-export-helper.mjs",
     "verify:native:profile-lease": "node scripts/verify-profile-lease-helper.mjs"
   },
   "dependencies": {

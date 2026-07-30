@@ -62,6 +62,7 @@ const owner = access(
     'board.share.manage',
     'board.write',
     'connection.manage.own',
+    'export.read',
   ],
   ['board.archive', 'board.create'],
 );
@@ -79,6 +80,7 @@ test('literal server capabilities expose the exact viewer, editor, and owner out
     'membership.manage': false,
     'share.manage': false,
     'analytics.read': false,
+    'export.render': false,
     'board.archive': false,
     'board.delete': false,
   });
@@ -94,6 +96,7 @@ test('literal server capabilities expose the exact viewer, editor, and owner out
     'membership.manage': false,
     'share.manage': false,
     'analytics.read': false,
+    'export.render': false,
     'board.archive': false,
     'board.delete': false,
   });
@@ -109,6 +112,7 @@ test('literal server capabilities expose the exact viewer, editor, and owner out
     'membership.manage': true,
     'share.manage': true,
     'analytics.read': true,
+    'export.render': true,
     'board.archive': true,
     'board.delete': true,
   });
@@ -121,6 +125,7 @@ test('capability checks do not infer role names or expand capability prefixes', 
   assert.equal(affordances['history.read'], false);
   assert.equal(affordances['share.manage'], false);
   assert.equal(affordances['membership.manage'], false);
+  assert.equal(affordances['export.render'], false);
   assert.equal(affordances['board.delete'], false);
 });
 

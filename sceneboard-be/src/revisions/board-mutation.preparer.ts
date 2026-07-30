@@ -1,7 +1,7 @@
 import {
   adaptLegacySceneToDocumentV2,
+  projectDocumentV2ToV3,
   type EventId,
-  type MutationRequestV2,
   type RevisionId,
   type SceneV1,
   type TimestampV1,
@@ -11,7 +11,12 @@ import { generatePublicUuidV4, parsePublicUuidV4 } from '../common/ids/public-uu
 import { formatMysqlTimestampUtc } from '../common/time/mysql-timestamp.js';
 import type { ResolvedBoardPrincipalV1 } from '../grants/board-access.policy.js';
 import { canonicalBytes, digest, internalFailure } from './board-mutation.support.js';
-import type { CollisionKind, MutationRuntime, PreparedMutationV1 } from './board-mutation.types.js';
+import type {
+  CheckpointMutationRequest,
+  CollisionKind,
+  MutationRuntime,
+  PreparedMutationV1,
+} from './board-mutation.types.js';
 import { DocumentCheckpointCodec } from './document-checkpoint.codec.js';
 import {
   extractDocumentArtifactReferences,
@@ -37,7 +42,8 @@ export class BoardMutationPreparer {
 
   async prepare(input: {
     principal: ResolvedBoardPrincipalV1;
-    request: MutationRequestV2;
+    request: CheckpointMutationRequest;
+    documentSchemaVersion: 1 | 2 | 3;
   }): Promise<PreparedMutationV1> {
     const fingerprintPayload = canonicalBytes({
       protocolVersion: 1,
@@ -70,15 +76,27 @@ export class BoardMutationPreparer {
       input.request.command.type === 'document.replace' ? input.request.command.document : null;
     const checkpoint =
       scene !== null
-        ? await this.checkpoints.encodeScene(scene)
+        ? input.documentSchemaVersion === 3
+          ? await this.checkpoints.encodeDocumentV3(
+              projectDocumentV2ToV3(
+                adaptLegacySceneToDocumentV2({ boardId: input.request.boardId, scene }),
+              ),
+            )
+          : await this.checkpoints.encodeScene(scene)
         : document !== null
-          ? await this.checkpoints.encodeDocument(document)
+          ? document.schemaVersion === 3
+            ? await this.checkpoints.encodeDocumentV3(document)
+            : await this.checkpoints.encodeDocument(document)
           : null;
     const mediaDocument =
       document ??
       (scene === null
         ? null
-        : adaptLegacySceneToDocumentV2({ boardId: input.request.boardId, scene }));
+        : input.documentSchemaVersion === 3
+          ? projectDocumentV2ToV3(
+              adaptLegacySceneToDocumentV2({ boardId: input.request.boardId, scene }),
+            )
+          : adaptLegacySceneToDocumentV2({ boardId: input.request.boardId, scene }));
     return {
       revisionId: revisionUuid as RevisionId,
       revisionIdBytes: Buffer.from(parsePublicUuidV4(revisionUuid)),

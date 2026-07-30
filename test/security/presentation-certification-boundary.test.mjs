@@ -4,7 +4,7 @@ import test from 'node:test';
 
 const read = (path) => readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8');
 
-test('presentation migration slots are exact and collision free from 013 through 023', () => {
+test('presentation migration slots are exact and collision free from 013 through 027', () => {
   const registry = read('sceneboard-be/src/database/migrations/registry.ts');
   const versions = [...registry.matchAll(/\bversion: '(\d{3})_/gu)]
     .map((match) => match[1])
@@ -21,6 +21,10 @@ test('presentation migration slots are exact and collision free from 013 through
     '021',
     '022',
     '023',
+    '024',
+    '025',
+    '026',
+    '027',
   ]);
   assert.equal(new Set(versions).size, versions.length);
 });

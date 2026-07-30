@@ -11,6 +11,7 @@ import {
   BOARD_TOOL_ERROR_CODES_V1,
   BOARD_TOOL_NAMES_V1,
   CORE_TOOL_NAMES_V1,
+  API_KEY_TOOL_NAMES_V1,
   registerCoreToolsV1,
   SAFE_TOOL_NAMES_V1,
 } from '../../src/tools/register-tools.js';
@@ -113,6 +114,35 @@ test('registry activation changes discovery without registering aliases or stubs
     assert.deepEqual(
       (await client.listTools()).tools.map((tool) => tool.name).sort(),
       [...SAFE_TOOL_NAMES_V1].sort(),
+    );
+  } finally {
+    await client.close();
+    await server.close();
+  }
+});
+
+test('API-key mode registers only connection status and the exact owner-tool cover', async () => {
+  const server = new McpServer({ name: 'SceneBoard', version: '0.0.0' });
+  const registry = registerCoreToolsV1(server, {
+    gateway: {
+      call: async () => ({ connected: false }),
+      renameBoard: async () => ({ connected: false }),
+    } as unknown as ProtectedBoardGatewayV1,
+    pairing: {} as PairingSessionOwnerV1,
+    connections: { status: async () => ({ ok: true, value: {} }) },
+    authenticated: true,
+    downstreamReady: true,
+    credentialMode: 'api_key',
+  });
+  const client = new Client({ name: 'test-client', version: '1.0.0' });
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  await server.connect(serverTransport);
+  await client.connect(clientTransport);
+  try {
+    assert.deepEqual(registry.names, API_KEY_TOOL_NAMES_V1);
+    assert.deepEqual(
+      (await client.listTools()).tools.map((tool) => tool.name).sort(),
+      [...API_KEY_TOOL_NAMES_V1].sort(),
     );
   } finally {
     await client.close();

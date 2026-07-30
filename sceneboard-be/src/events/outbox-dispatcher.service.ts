@@ -34,7 +34,7 @@ export class OutboxDispatcherService implements OnApplicationBootstrap, OnModule
   constructor(
     @Inject(BOARD_EVENT_DELIVERY_PORT_V1) private readonly delivery: BoardEventDeliveryPortV1,
     @Inject(REDIS_EVENT_TRANSPORT_V1) private readonly redis: RedisEventTransportPortV1,
-    private readonly keyspace: RedisStreamKeyspace,
+    @Inject(RedisStreamKeyspace) private readonly keyspace: RedisStreamKeyspace,
   ) {}
 
   onApplicationBootstrap(): void {

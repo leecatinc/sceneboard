@@ -27,7 +27,7 @@ export interface ArtifactLoadPortV1 {
   }): Promise<Uint8Array>;
 }
 
-export type ArtifactViewModeV1 = 'fit-height' | 'fit-width' | 'actual';
+export type ArtifactViewModeV1 = 'fit-page' | 'fit-width' | 'actual';
 export type ArtifactHostInstanceIdV1 = string;
 export type ArtifactViewStateEventV1 = Readonly<{
   hostInstanceId: ArtifactHostInstanceIdV1;

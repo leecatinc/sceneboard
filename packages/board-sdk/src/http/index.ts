@@ -1,8 +1,10 @@
 export { BoardSdkHttpClient } from './board-sdk-http.client.js';
 export {
   parseBoardDocumentHttpResultV2,
+  parseBoardDocumentHttpResultV3,
   parseBoardHttpResultV1,
   parseBoardOperationHttpResultV2,
+  parseBoardOperationHttpResultV3,
 } from './http-result.parser.js';
 export type {
   BoardArtifactPutSourceV1,
@@ -11,6 +13,7 @@ export type {
   BoardSdkHttpLogEventV1,
   BoardSdkHttpResultV1,
   BoardSdkDocumentHttpResultV2,
+  BoardSdkDocumentHttpResultV3,
   BoardSdkDocumentReadHttpResultV2,
 } from './board-sdk-http.client.js';
 export type {
@@ -21,7 +24,9 @@ export type {
   BoardHttpResultParseV1,
   BoardHttpSuccessEnvelopeV1,
   BoardDocumentHttpResultParseV2,
+  BoardDocumentHttpResultParseV3,
   BoardDocumentHttpSuccessEnvelopeV2,
+  BoardDocumentHttpSuccessEnvelopeV3,
   BoardOperationHttpResultParseV2,
   HistoryAdapterMetadataV1,
   HistoryHttpMetadataV1,

@@ -10,6 +10,7 @@ import {
   BOARD_OPERATION_TYPES_V1,
   BoardCapabilitiesParserV1,
   BoardCapabilitiesParserV2,
+  BoardCapabilitiesParserV3,
   BoardSessionAccessParserV1,
   CLIENT_GRANT_CAPABILITIES_V1,
   HITL_KINDS_V1,
@@ -18,6 +19,7 @@ import {
   type BoardCapabilities,
   type BoardCapabilitiesV1,
   type BoardCapabilitiesV2,
+  type BoardCapabilitiesV3,
   type BoardSessionAccessV1,
 } from '@sceneboard/board-schema';
 
@@ -82,7 +84,11 @@ export function currentBoardCapabilitiesFromContext(
 ): BoardCapabilitiesV2;
 export function currentBoardCapabilitiesFromContext(
   context: Pick<AuthorizedBoardContextV1, 'actor' | 'artifactCapabilityPolicy' | 'membership'>,
-  schemaVersion: 1 | 2 = 1,
+  schemaVersion: 3,
+): BoardCapabilitiesV3;
+export function currentBoardCapabilitiesFromContext(
+  context: Pick<AuthorizedBoardContextV1, 'actor' | 'artifactCapabilityPolicy' | 'membership'>,
+  schemaVersion: 1 | 2 | 3 = 1,
 ): BoardCapabilities {
   const common = {
     protocolVersion: 1,
@@ -111,15 +117,25 @@ export function currentBoardCapabilitiesFromContext(
           },
           limits: { ...BOARD_LIMITS_V1 },
         })
-      : BoardCapabilitiesParserV2.parse({
-          ...common,
-          schemaVersion: '1.1.0',
-          supported: {
-            ...common.supported,
-            commandTypes: [...BOARD_MUTATION_COMMAND_TYPES_V2],
-          },
-          limits: { ...BOARD_DOCUMENT_LIMITS_V2 },
-        });
+      : schemaVersion === 2
+        ? BoardCapabilitiesParserV2.parse({
+            ...common,
+            schemaVersion: '1.1.0',
+            supported: {
+              ...common.supported,
+              commandTypes: [...BOARD_MUTATION_COMMAND_TYPES_V2],
+            },
+            limits: { ...BOARD_DOCUMENT_LIMITS_V2 },
+          })
+        : BoardCapabilitiesParserV3.parse({
+            ...common,
+            schemaVersion: '1.2.0',
+            supported: {
+              ...common.supported,
+              commandTypes: [...BOARD_MUTATION_COMMAND_TYPES_V2],
+            },
+            limits: { ...BOARD_DOCUMENT_LIMITS_V2 },
+          });
   if (!parsed.ok) throw new BoardPersistenceError('row_integrity');
   return parsed.data.value;
 }

@@ -14,6 +14,7 @@ import {
 import {
   createBoardStreamClientV1,
   createBoardStreamClientV2,
+  createBoardStreamClientV3,
   createBoardStreamTabIdV1,
   type BoardStreamDispatchPortV1,
   type BoardStreamStateV1,
@@ -147,6 +148,20 @@ test('passes the negotiated document parser discriminator to every stream dispat
   });
   await client.start();
   assert.equal(negotiated, 2);
+
+  const v3 = createBoardStreamClientV3({
+    apiOrigin: 'https://sceneboard.dev',
+    boardId: BOARD_ID,
+    tabId: TAB_ID,
+    initialPresenceState: 'online',
+    documentSchemaVersion: 3,
+    minimumSnapshotSequence: 1,
+    dispatch,
+    callbacks: callbacks(states),
+    routeSignal: new AbortController().signal,
+  });
+  await v3.start();
+  assert.equal(negotiated, 3);
 });
 
 test('preserves a pre-header V1-to-V2 stream mismatch as a terminal error', async () => {

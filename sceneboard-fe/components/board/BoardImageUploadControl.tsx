@@ -3,7 +3,7 @@
 import type { ChangeEvent, DragEvent } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type {
-  BoardDocumentV2,
+  BoardDocument,
   MediaIngestResultV1,
   NodeId,
   PageId,
@@ -21,7 +21,10 @@ import {
   BoardMediaUploadApi,
   type PreparedMediaUploadV1,
 } from '../../lib/api/board-media-upload-api';
-import type { DocumentMutationRequest } from '../../lib/api/board-api-types';
+import type {
+  DocumentMutationRequest,
+  DocumentMutationRequestV3,
+} from '../../lib/api/board-api-types';
 import type { SessionRequestCoordinator } from '../../lib/auth/renewal-singleflight';
 import type { PageCanvasTransformV1, PageRectV1 } from '../../lib/board/page-display-mode.types';
 import {
@@ -74,7 +77,7 @@ export function BoardImageUploadControl({
 }: {
   coordinator: SessionRequestCoordinator;
   boardId: string;
-  document: BoardDocumentV2;
+  document: BoardDocument;
   pageId: PageId;
   expectedRevisionId: RevisionId;
   onRefresh: () => Promise<void>;
@@ -100,7 +103,7 @@ export function BoardImageUploadControl({
   const epoch = useRef(0);
   const abort = useRef<AbortController | null>(null);
   const placementIntent = useRef<PlacementIntent | null>(null);
-  const placementAttempt = useRef<DocumentMutationRequest | null>(null);
+  const placementAttempt = useRef<DocumentMutationRequest | DocumentMutationRequestV3 | null>(null);
 
   const revokePreview = useCallback(() => {
     setPreview((current) => {
@@ -212,17 +215,24 @@ export function BoardImageUploadControl({
   );
 
   const dispatchPlacement = useCallback(
-    async (request: DocumentMutationRequest, ownedEpoch: number) => {
+    async (request: DocumentMutationRequest | DocumentMutationRequestV3, ownedEpoch: number) => {
       if (prepared === null) return;
       const controller = new AbortController();
       abort.current = controller;
       setPhase('placing');
       setMessageKey('mediaAuthoring.placing');
-      const result = await documentApi.replaceForGeneration(
-        prepared.attempt.binding,
-        request,
-        controller.signal,
-      );
+      const result =
+        request.command.document.schemaVersion === 3
+          ? await documentApi.replaceV3ForGeneration(
+              prepared.attempt.binding,
+              request as DocumentMutationRequestV3,
+              controller.signal,
+            )
+          : await documentApi.replaceForGeneration(
+              prepared.attempt.binding,
+              request as DocumentMutationRequest,
+              controller.signal,
+            );
       if (epoch.current !== ownedEpoch) return;
       abort.current = null;
       if (result.kind === 'ok') {
@@ -319,14 +329,24 @@ export function BoardImageUploadControl({
         return;
       }
       const identity = createBoardRequestIdentity();
-      const request: DocumentMutationRequest = {
-        protocolVersion: 1,
-        requestId: identity.requestId,
-        idempotencyKey: identity.idempotencyKey,
-        boardId: boardId as never,
-        expectedRevisionId,
-        command: { type: 'document.replace', document: transformed.data.value },
-      };
+      const request: DocumentMutationRequest | DocumentMutationRequestV3 =
+        transformed.data.value.schemaVersion === 3
+          ? {
+              protocolVersion: 1,
+              requestId: identity.requestId,
+              idempotencyKey: identity.idempotencyKey,
+              boardId: boardId as never,
+              expectedRevisionId,
+              command: { type: 'document.replace', document: transformed.data.value },
+            }
+          : {
+              protocolVersion: 1,
+              requestId: identity.requestId,
+              idempotencyKey: identity.idempotencyKey,
+              boardId: boardId as never,
+              expectedRevisionId,
+              command: { type: 'document.replace', document: transformed.data.value },
+            };
       placementAttempt.current = request;
       await dispatchPlacement(request, ownedEpoch);
     },

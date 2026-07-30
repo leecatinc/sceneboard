@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import type { BoardSessionAccessV1, PageId } from '@sceneboard/board-schema';
+import type { BoardNodeV1, BoardSessionAccessV1, PageId } from '@sceneboard/board-schema';
 import {
   BoardRenderer,
   type DrawingViewStateV1,
@@ -30,13 +30,18 @@ import { PageDisplayModeControls } from '../../../components/board/PageDisplayMo
 import { PageMoveModeControls } from '../../../components/board/PageMoveModeControls';
 import { PresentationStage } from '../../../components/board/PresentationStage';
 import { PresentationModeControls } from '../../../components/board/PresentationModeControls';
+import { PresentationFormatControls } from '../../../components/board/PresentationFormatControls';
 import { PresentationControlOverlay } from '../../../components/board/PresentationControlOverlay';
 import { HitlDecisionWorkspace } from '../../../components/board/HitlDecisionWorkspace';
 import { StatusRail } from '../../../components/board/StatusRail';
+import { BoardUtilityRail } from '../../../components/board/BoardUtilityRail';
+import { BoardViewModeControls } from '../../../components/board/BoardViewModeControls';
+import { HistoryControls } from '../../../components/board/HistoryControls';
 import { ResponsiveBoardChrome } from '../../../components/board/ResponsiveBoardChrome';
 import type { MobileBoardDrawerSlotsV1 } from '../../../components/board/MobileBoardDrawer';
 import { useBoardSession } from '../../../lib/board/use-board-session';
 import { BoardApiClient } from '../../../lib/api/board-api';
+import { BoardExportApi } from '../../../lib/api/board-export-api';
 import { InvitationApi } from '../../../lib/api/invitation-api';
 import { ShareApi } from '../../../lib/api/share-api';
 import { ShareAnalyticsApi } from '../../../lib/share-analytics/share-analytics-api';
@@ -93,6 +98,24 @@ function ArtifactLoading() {
     </div>
   );
 }
+
+// 화면(scene) 트리가 제어할 아티팩트를 포함하는지 확인한다. 네이티브 캔버스가 없는
+// 아티팩트 페이지에서 아티팩트 보기 컨트롤만 노출하기 위한 콘텐츠 인식 판단에 쓰인다.
+const pageRootContainsArtifactV1 = (root: BoardNodeV1 | null): boolean => {
+  if (root === null) return false;
+  switch (root.type) {
+    case 'content.artifact':
+      return true;
+    case 'layout.split':
+    case 'layout.grid':
+    case 'layout.canvas':
+      return root.children.some((child) => pageRootContainsArtifactV1(child.node));
+    case 'layout.tabs':
+      return root.tabs.some((tab) => pageRootContainsArtifactV1(tab.node));
+    default:
+      return false;
+  }
+};
 
 const IsolatedArtifactHost = dynamic(
   () => import('@sceneboard/board-ui/artifact').then((module) => module.ArtifactHost),
@@ -204,7 +227,7 @@ export function BoardClient({ boardId }: { boardId: string }) {
   const router = useRouter();
   const session = useBoardSession(boardId);
   const [selectedTabs, setSelectedTabs] = useState<Record<string, string>>({});
-  const [artifactViewMode, setArtifactViewMode] = useState<ArtifactViewModeV1>('fit-height');
+  const [artifactViewMode, setArtifactViewMode] = useState<ArtifactViewModeV1>('fit-page');
   const [artifactStopSignal, setArtifactStopSignal] = useState(0);
   const [artifactViews, dispatchArtifactView] = useReducer(
     reduceArtifactViewRegistryV1,
@@ -219,6 +242,7 @@ export function BoardClient({ boardId }: { boardId: string }) {
   const [drawingResetSignal, setDrawingResetSignal] = useState(0);
   const [coordinator] = useState(() => authSessionClient().sharedCoordinator());
   const [api] = useState(() => new BoardApiClient(coordinator));
+  const [exportApi] = useState(() => new BoardExportApi(coordinator));
   const [invitationApi] = useState(() => new InvitationApi(coordinator));
   const [shareApi] = useState(() => new ShareApi(coordinator));
   const [shareAnalyticsApi] = useState(() => new ShareAnalyticsApi(coordinator));
@@ -293,6 +317,7 @@ export function BoardClient({ boardId }: { boardId: string }) {
       lost.includes('membership.manage') ||
       lost.includes('share.manage') ||
       lost.includes('analytics.read') ||
+      lost.includes('export.render') ||
       lost.includes('board.archive') ||
       lost.includes('board.delete')
     )
@@ -738,6 +763,8 @@ export function BoardClient({ boardId }: { boardId: string }) {
           height: pageRender.page.scene.root.height,
         }
       : null;
+  const hasArtifact = pageRootContainsArtifactV1(pageRender.page.scene.root);
+  const showArtifactControls = hasArtifact || rootIsDrawing;
   const selectedZoom = rootIsDrawing ? drawingView.scale : selectedArtifactZoomV1(artifactViews);
   const canResetView = rootIsDrawing ? drawingView.canReset : canResetArtifactViewV1(artifactViews);
   const resetView = () => {
@@ -748,38 +775,125 @@ export function BoardClient({ boardId }: { boardId: string }) {
     setPageDisplaySelection({ routeBoardId: boardId, mode });
     setMoveToggle(false);
   };
+  // 네이티브 페이지 컨트롤은 실제 캔버스가 있을 때만 의미가 있다. 아티팩트 전용 페이지에서는
+  // 동작하지 않는 중복 버튼이 되므로 루트 캔버스가 없으면 렌더하지 않는다.
+  const nativePageControls =
+    rootCanvas !== null ? (
+      <>
+        <PageDisplayModeControls value={pageDisplayMode} onChange={selectPageDisplayMode} />
+        <PageMoveModeControls
+          available={moveAvailable}
+          active={moveToggle && moveAvailable}
+          onChange={setMoveToggle}
+        />
+      </>
+    ) : null;
+  // 아티팩트/드로잉 보기 컨트롤은 해당 콘텐츠가 있을 때만 노출한다.
+  const artifactViewControls = showArtifactControls ? (
+    <BoardViewModeControls
+      value={artifactViewMode}
+      zoom={selectedZoom}
+      canReset={canResetView}
+      onChange={setArtifactViewMode}
+      onReset={resetView}
+    />
+  ) : null;
+  const presentationControls = (
+    <PresentationModeControls
+      active={presentationActive}
+      disabled={presentationState.mode === 'requesting'}
+      buttonRef={presentationButtonRef}
+      onEnter={enterPresentation}
+      onExit={exitPresentation}
+    />
+  );
+  const presentationRailControl = (
+    <PresentationModeControls
+      active={presentationActive}
+      disabled={presentationState.mode === 'requesting'}
+      buttonRef={presentationButtonRef}
+      onEnter={enterPresentation}
+      onExit={exitPresentation}
+      variant="rail"
+    />
+  );
+  const pageNavigationControls = (
+    <PageNavigationControls
+      current={resolvedPageIndex + 1}
+      total={navigationDocument.pages.length}
+      previousLabel={t('presentation.previousPage')}
+      nextLabel={t('presentation.nextPage')}
+      statusLabel={t('presentation.pageNavigation')}
+      onPrevious={() => selectPage('previous')}
+      onNext={() => selectPage('next')}
+    />
+  );
   const pageDisplayControls = (
     <div className="board-page-display-actions">
-      <PageDisplayModeControls value={pageDisplayMode} onChange={selectPageDisplayMode} />
-      <PageMoveModeControls
-        available={moveAvailable}
-        active={moveToggle && moveAvailable}
-        onChange={setMoveToggle}
-      />
-      <PresentationModeControls
-        active={presentationActive}
-        disabled={presentationState.mode === 'requesting'}
-        buttonRef={presentationButtonRef}
-        onEnter={enterPresentation}
-        onExit={exitPresentation}
-      />
+      {nativePageControls}
+      {presentationControls}
     </div>
   );
+  const sidebarViewControls = (
+    <>
+      {'document' in visibleSnapshot && (
+        <PresentationFormatControls
+          value={
+            visibleSnapshot.document.schemaVersion === 3
+              ? visibleSnapshot.document.format
+              : 'wide_16_9'
+          }
+          canEdit={state.mode.kind === 'live' && affordances['board.write']}
+          onChange={session.changePresentationFormat}
+        />
+      )}
+      {nativePageControls !== null && (
+        <div className="board-page-display-actions">{nativePageControls}</div>
+      )}
+      {artifactViewControls}
+    </>
+  );
+  const desktopRevisionControls = affordances['history.read'] ? (
+    <HistoryControls
+      state={state}
+      liveUpdated={session.liveUpdated}
+      history={session.historyDropdown}
+      onOpen={session.openHistory}
+      onClose={session.closeHistory}
+      onLoadMore={session.loadMoreHistory}
+      onRetry={session.retryHistory}
+      onSelectRevision={(revisionId) => void session.selectHistoryRevision(revisionId)}
+      onSelectLatest={() => void session.selectLatestHistory()}
+    />
+  ) : null;
   const canManageShares = affordances['share.manage'];
   const canManageMembers = affordances['membership.manage'];
   const canReadShareAnalytics = affordances['analytics.read'];
+  const canExport = affordances['export.render'];
   const canAdministerBoard = affordances['board.archive'] && affordances['board.delete'];
   const ownerAdmin =
-    canManageShares && canManageMembers && canReadShareAnalytics && canAdministerBoard ? (
+    canManageShares &&
+    canManageMembers &&
+    canReadShareAnalytics &&
+    canAdministerBoard &&
+    canExport ? (
       <OwnerAdminControls
         ref={ownerAdminRef}
         api={api}
+        exportApi={exportApi}
         invitationApi={invitationApi}
         shareApi={shareApi}
         analyticsApi={shareAnalyticsApi}
         boardId={boardId}
         boardTitle={session.title}
         revisionId={visibleSnapshot.revision.revisionId}
+        revisionNumber={visibleSnapshot.revision.revisionNumber}
+        documentFormat={
+          'document' in visibleSnapshot && visibleSnapshot.document.schemaVersion === 3
+            ? visibleSnapshot.document.format
+            : 'wide_16_9'
+        }
+        exportEnabled={canExport}
         analyticsEnabled={canReadShareAnalytics}
         routeKey={routeEpoch}
         onArchived={() => router.replace('/boards')}
@@ -841,6 +955,7 @@ export function BoardClient({ boardId }: { boardId: string }) {
         artifactZoom={selectedZoom}
         canResetArtifactView={canResetView}
         onResetArtifactView={resetView}
+        showArtifactView={showArtifactControls}
         history={session.historyDropdown}
         onOpenHistory={session.openHistory}
         onCloseHistory={session.closeHistory}
@@ -874,6 +989,27 @@ export function BoardClient({ boardId }: { boardId: string }) {
     ) : null,
     ownerAdmin,
   };
+  const desktopBoardIdentity = (
+    <BoardIdentitySlot
+      compact
+      title={session.title}
+      state={state}
+      onRename={session.rename}
+      canRename={affordances['board.write']}
+    />
+  );
+  // Desktop right utility rail — a thin icon column with an overlay flyout that never permanently consumes canvas.
+  // Owner-management controls route to the rail's access panel (mobile uses a separate drawer slot).
+  const utilityRail = (
+    <BoardUtilityRail
+      snapshot={visibleSnapshot}
+      presence={state.presence}
+      onStopRendering={() => setArtifactStopSignal((value) => value + 1)}
+      presentationControl={presentationRailControl}
+      viewControls={sidebarViewControls}
+      ownerAdmin={ownerAdmin}
+    />
+  );
   const navigationNotice = state.navigationError ? (
     <div className="notice notice-error" role="alert">
       {state.navigationError.message}
@@ -889,6 +1025,10 @@ export function BoardClient({ boardId }: { boardId: string }) {
         presentationActive={presentationActive}
         notice={navigationNotice}
         surfaceClassName={styles.surface ?? ''}
+        utilityRail={utilityRail}
+        desktopBoardIdentity={desktopBoardIdentity}
+        pageNavigation={pageNavigationControls}
+        revisionControls={desktopRevisionControls}
       >
         {capabilityAnnouncement !== null && (
           <span
@@ -911,17 +1051,7 @@ export function BoardClient({ boardId }: { boardId: string }) {
           onMoveCaptureActiveChange={setMoveCaptureActive}
           onCanvasTransformChange={bindPageCanvasTransform}
           label={t('board.sceneCanvas')}
-          toolbar={
-            <PageNavigationControls
-              current={resolvedPageIndex + 1}
-              total={navigationDocument.pages.length}
-              previousLabel={t('presentation.previousPage')}
-              nextLabel={t('presentation.nextPage')}
-              statusLabel={t('presentation.pageNavigation')}
-              onPrevious={() => selectPage('previous')}
-              onNext={() => selectPage('next')}
-            />
-          }
+          toolbar={<div className="board-stage-page-navigation">{pageNavigationControls}</div>}
           overlay={
             <PresentationControlOverlay
               active={presentationActive}
@@ -934,15 +1064,8 @@ export function BoardClient({ boardId }: { boardId: string }) {
               moveCaptureActive={moveCaptureActive}
               additionalControls={
                 <>
-                  <PageDisplayModeControls
-                    value={pageDisplayMode}
-                    onChange={selectPageDisplayMode}
-                  />
-                  <PageMoveModeControls
-                    available={moveAvailable}
-                    active={moveToggle && moveAvailable}
-                    onChange={setMoveToggle}
-                  />
+                  {nativePageControls}
+                  {artifactViewControls}
                 </>
               }
               onPrevious={() => {

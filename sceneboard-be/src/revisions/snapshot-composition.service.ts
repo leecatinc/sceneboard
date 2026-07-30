@@ -2,12 +2,14 @@ import {
   BoardSnapshotParser,
   BoardSnapshotParserV1,
   BoardSnapshotParserV2,
+  BoardSnapshotParserV3,
   type ActorContextV1,
   type BoardCapabilities,
   type BoardId,
   type BoardSnapshot,
   type BoardSnapshotV1,
   type BoardSnapshotV2,
+  type BoardSnapshotV3,
   type RevisionSummaryV1,
 } from '@sceneboard/board-schema';
 import type { PoolConnection } from 'mysql2/promise';
@@ -43,7 +45,7 @@ export interface CurrentBoardCapabilitiesPort {
   readAuthorizedAtCut(
     connection: PoolConnection,
     input: Pick<SnapshotCompositionInput, 'actor' | 'boardId' | 'lastEventSequence'> & {
-      checkpointSchemaVersion: 1 | 2;
+      checkpointSchemaVersion: 1 | 2 | 3;
     },
   ): Promise<BoardCapabilities>;
 }
@@ -68,9 +70,12 @@ export class SnapshotCompositionService {
   async composeDocument(
     connection: PoolConnection,
     input: SnapshotCompositionInputV2,
-  ): Promise<BoardSnapshotV2> {
+  ): Promise<BoardSnapshotV2 | BoardSnapshotV3> {
     const snapshot = await this.composeCheckpoint(connection, input);
-    const parsed = BoardSnapshotParserV2.parse(snapshot);
+    const parsed =
+      input.checkpoint.document.schemaVersion === 3
+        ? BoardSnapshotParserV3.parse(snapshot)
+        : BoardSnapshotParserV2.parse(snapshot);
     if (!parsed.ok) throw new BoardPersistenceError('row_integrity');
     return parsed.data.value;
   }
@@ -85,7 +90,8 @@ export class SnapshotCompositionService {
       actor: input.actor,
       boardId: input.boardId,
       lastEventSequence: input.lastEventSequence,
-      checkpointSchemaVersion: input.checkpoint.kind === 'scene' ? 1 : 2,
+      checkpointSchemaVersion:
+        input.checkpoint.kind === 'scene' ? 1 : input.checkpoint.document.schemaVersion,
     });
     const parsed = BoardSnapshotParser.parse({
       protocolVersion: 1,

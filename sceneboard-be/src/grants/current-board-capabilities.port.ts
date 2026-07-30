@@ -22,7 +22,7 @@ export class MysqlCurrentBoardCapabilitiesPort {
       actor: ActorContextV1;
       boardId: BoardId;
       lastEventSequence: number;
-      checkpointSchemaVersion?: 1 | 2;
+      checkpointSchemaVersion?: 1 | 2 | 3;
     },
   ): Promise<BoardCapabilities> {
     if (!Number.isSafeInteger(input.lastEventSequence) || input.lastEventSequence < 1) {
@@ -68,8 +68,10 @@ export class MysqlCurrentBoardCapabilitiesPort {
         policyEpoch: epoch.toString('base64url'),
       },
     };
-    return input.checkpointSchemaVersion === 2
-      ? currentBoardCapabilitiesFromContext(context, 2)
-      : currentBoardCapabilitiesFromContext(context, 1);
+    return input.checkpointSchemaVersion === 3
+      ? currentBoardCapabilitiesFromContext(context, 3)
+      : input.checkpointSchemaVersion === 2
+        ? currentBoardCapabilitiesFromContext(context, 2)
+        : currentBoardCapabilitiesFromContext(context, 1);
   }
 }

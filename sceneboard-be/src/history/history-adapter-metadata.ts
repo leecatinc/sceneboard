@@ -76,7 +76,7 @@ export const historyGetMetadata = (input: {
 export interface RetainedHistoryMetadataEntrySourceV1 {
   entry: HistoryEntryV1;
   actorLabel: RetainedHistoryActorLabelV1;
-  schemaVersion: '1.0.0' | '2.0.0';
+  schemaVersion: '1.0.0' | '2.0.0' | '3.0.0';
 }
 
 const summaries = {

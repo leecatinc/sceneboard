@@ -117,3 +117,30 @@ test('protected board responses are private and vary across both auth transports
   assert.equal(headers.get('Pragma'), 'no-cache');
   assert.equal(headers.get('Vary'), 'Origin, Cookie, Authorization');
 });
+
+test('account API-key management responses are private and vary only by browser carriers', async () => {
+  for (const url of [
+    '/api/v1/account/api-keys',
+    '/api/v1/account/api-keys?limit=20',
+    '/api/v1/account/api-keys/key_public_1',
+  ]) {
+    const headers = new Map<string, string>();
+    const context = {
+      switchToHttp: () => ({
+        getRequest: () => ({ url }),
+        getResponse: () => ({
+          setHeader: (name: string, value: string) => headers.set(name, value),
+        }),
+      }),
+    } as unknown as ExecutionContext;
+    const next = { handle: () => of({ ok: true }) } as CallHandler;
+    await new Promise<void>((resolve, reject) => {
+      new ResponseHeadersInterceptor(crypto)
+        .intercept(context, next)
+        .subscribe({ complete: resolve, error: reject });
+    });
+    assert.equal(headers.get('Cache-Control'), 'no-store, private');
+    assert.equal(headers.get('Pragma'), 'no-cache');
+    assert.equal(headers.get('Vary'), 'Origin, Cookie');
+  }
+});

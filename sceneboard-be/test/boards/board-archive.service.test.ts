@@ -43,6 +43,7 @@ const principal = (): Extract<ResolvedBoardPrincipalV1, { kind: 'user' }> => ({
   userPk: 20n,
   sessionPk: 21n,
   familyPublicId: 'family_1',
+  isBrowserCredential: true,
 });
 
 const request = (requestId: string): BoardArchiveRequestV1 => {

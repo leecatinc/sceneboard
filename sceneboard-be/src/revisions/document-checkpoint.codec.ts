@@ -8,8 +8,9 @@ import {
 
 import {
   BoardDocumentParserV2,
+  BoardDocumentParserV3,
   SceneParserV1,
-  type BoardDocumentV2,
+  type BoardDocument,
   type SceneV1,
 } from '@sceneboard/board-schema';
 
@@ -19,6 +20,7 @@ import { BoardPersistenceError } from '../common/errors/board-persistence.error.
 export const CHECKPOINT_LIMITS = {
   '1.0.0': { canonicalBytes: 786_432, storedBytes: 800_000 },
   '2.0.0': { canonicalBytes: 20_971_520, storedBytes: 33_554_432 },
+  '3.0.0': { canonicalBytes: 20_971_520, storedBytes: 33_554_432 },
 } as const;
 
 type CheckpointSchemaVersion = keyof typeof CHECKPOINT_LIMITS;
@@ -35,7 +37,11 @@ interface EncodedCheckpointBase<Version extends CheckpointSchemaVersion> {
 
 export type EncodedSceneCheckpoint = EncodedCheckpointBase<'1.0.0'>;
 export type EncodedDocumentCheckpoint = EncodedCheckpointBase<'2.0.0'>;
-export type EncodedBoardCheckpoint = EncodedSceneCheckpoint | EncodedDocumentCheckpoint;
+export type EncodedDocumentCheckpointV3 = EncodedCheckpointBase<'3.0.0'>;
+export type EncodedBoardCheckpoint =
+  | EncodedSceneCheckpoint
+  | EncodedDocumentCheckpoint
+  | EncodedDocumentCheckpointV3;
 
 export interface StoredBoardCheckpoint {
   schemaVersion: string;
@@ -49,7 +55,7 @@ export interface StoredBoardCheckpoint {
 
 export type DecodedBoardCheckpoint =
   | { kind: 'scene'; scene: SceneV1; canonicalBytes: Buffer }
-  | { kind: 'document'; document: BoardDocumentV2; canonicalBytes: Buffer };
+  | { kind: 'document'; document: BoardDocument; canonicalBytes: Buffer };
 
 const compress = (input: Buffer, options: BrotliOptions): Promise<Buffer> =>
   new Promise((resolve, reject) => {
@@ -71,7 +77,7 @@ const integrityFailure = (cause?: unknown): BoardPersistenceError =>
   new BoardPersistenceError('checkpoint_integrity', cause);
 
 const isVersion = (value: string): value is CheckpointSchemaVersion =>
-  value === '1.0.0' || value === '2.0.0';
+  value === '1.0.0' || value === '2.0.0' || value === '3.0.0';
 
 export class DocumentCheckpointCodec {
   async encodeScene(input: unknown): Promise<EncodedSceneCheckpoint> {
@@ -84,6 +90,12 @@ export class DocumentCheckpointCodec {
     const parsed = BoardDocumentParserV2.parse(input);
     if (!parsed.ok) throw new BoardContractError(parsed.error);
     return this.encodeCanonical('2.0.0', Buffer.from(parsed.data.canonicalBytes));
+  }
+
+  async encodeDocumentV3(input: unknown): Promise<EncodedDocumentCheckpointV3> {
+    const parsed = BoardDocumentParserV3.parse(input);
+    if (!parsed.ok) throw new BoardContractError(parsed.error);
+    return this.encodeCanonical('3.0.0', Buffer.from(parsed.data.canonicalBytes));
   }
 
   async decode(input: StoredBoardCheckpoint): Promise<DecodedBoardCheckpoint> {
@@ -124,7 +136,10 @@ export class DocumentCheckpointCodec {
         throw integrityFailure();
       return { kind: 'scene', scene: parsed.data.value, canonicalBytes };
     }
-    const parsed = BoardDocumentParserV2.parseBytes(canonicalBytes);
+    const parsed =
+      input.schemaVersion === '3.0.0'
+        ? BoardDocumentParserV3.parseBytes(canonicalBytes)
+        : BoardDocumentParserV2.parseBytes(canonicalBytes);
     if (!parsed.ok || !Buffer.from(parsed.data.canonicalBytes).equals(canonicalBytes))
       throw integrityFailure();
     return { kind: 'document', document: parsed.data.value, canonicalBytes };

@@ -3,7 +3,7 @@
 import type { ArtifactViewModeV1 } from '@sceneboard/board-ui/artifact';
 import { useI18n } from '../i18n/I18nProvider';
 
-const MODES: readonly ArtifactViewModeV1[] = ['fit-height', 'fit-width', 'actual'];
+const MODES: readonly ArtifactViewModeV1[] = ['fit-page', 'fit-width', 'actual'];
 
 export function BoardViewModeControls({
   value,
@@ -20,9 +20,9 @@ export function BoardViewModeControls({
 }) {
   const { t } = useI18n();
   const labels: Readonly<Record<ArtifactViewModeV1, string>> = {
-    'fit-height': t('board.fitHeight'),
-    'fit-width': t('board.fitWidth'),
-    actual: t('board.actualSize'),
+    'fit-page': t('presentation.fitPage'),
+    'fit-width': t('presentation.fitWidth'),
+    actual: t('presentation.actualSize'),
   };
   return (
     <div className="board-view-modes" role="group" aria-label={t('board.viewMode')}>

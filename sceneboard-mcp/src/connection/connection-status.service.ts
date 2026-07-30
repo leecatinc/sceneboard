@@ -144,6 +144,103 @@ export class ConnectionStatusServiceV1 implements ConnectionStatusPortV1 {
   }
 }
 
+export class ApiKeyConnectionStatusServiceV1 implements ConnectionStatusPortV1 {
+  constructor(
+    private readonly loaded: LoadedBoardConfigV1,
+    private readonly tokens: TokenProviderV1,
+    private readonly client: ConnectionHttpClientV1,
+  ) {}
+
+  private config(referenceConfigured: boolean): Record<string, unknown> {
+    return {
+      source:
+        this.loaded.config.accessTokenRef === 'env://SCENEBOARD_API_KEY' ? 'env' : 'private_store',
+      referenceConfigured,
+    };
+  }
+
+  private state(
+    state: 'credential_missing' | 'credential_invalid' | 'backend_unavailable',
+    referenceConfigured: boolean,
+    lastErrorCode:
+      | 'API_KEY_CREDENTIAL_MISSING'
+      | 'API_KEY_CREDENTIAL_INVALID'
+      | 'API_KEY_BACKEND_UNAVAILABLE'
+      | 'API_KEY_BACKEND_RESPONSE_INVALID',
+    retryable: boolean,
+  ): ConnectionStatusPortResultV1 {
+    return {
+      ok: true,
+      value: {
+        credentialMode: 'api_key',
+        state,
+        config: this.config(referenceConfigured),
+        connection: null,
+        lastErrorCode,
+        retryable,
+      },
+    };
+  }
+
+  async status(
+    boardId: string | null,
+    requestId: string,
+    signal?: AbortSignal,
+  ): Promise<ConnectionStatusPortResultV1> {
+    let snapshot;
+    try {
+      snapshot = await this.tokens.snapshot();
+    } catch {
+      return this.state('credential_invalid', true, 'API_KEY_CREDENTIAL_INVALID', false);
+    }
+    if (
+      snapshot === null &&
+      'credentialInvalidated' in this.tokens &&
+      typeof this.tokens.credentialInvalidated === 'function' &&
+      this.tokens.credentialInvalidated()
+    )
+      return this.state('credential_invalid', true, 'API_KEY_CREDENTIAL_INVALID', false);
+    if (snapshot === null)
+      return this.state('credential_missing', false, 'API_KEY_CREDENTIAL_MISSING', false);
+    const result = await this.client.get(boardId, requestId, snapshot.accessToken, signal);
+    if (result.ok) {
+      if (!('credential' in result.value))
+        return this.state('backend_unavailable', true, 'API_KEY_BACKEND_RESPONSE_INVALID', true);
+      return {
+        ok: true,
+        value: {
+          credentialMode: 'api_key',
+          state: 'connected',
+          config: this.config(true),
+          connection: result.value,
+          lastErrorCode: null,
+          retryable: false,
+        },
+      };
+    }
+    if (result.source === 'board') {
+      if (result.error.code !== 'UNAUTHENTICATED')
+        return {
+          ok: false,
+          source: 'board',
+          value: result.error as unknown as Record<string, unknown>,
+        };
+      await this.tokens.invalidate(snapshot).catch(() => undefined);
+      return this.state('credential_invalid', true, 'API_KEY_CREDENTIAL_INVALID', false);
+    }
+    if (result.error.code === 'CANCELLED')
+      return { ok: false, source: 'mcp', value: localValue(result.error) };
+    return this.state(
+      'backend_unavailable',
+      true,
+      result.error.code === 'RESPONSE_INVALID'
+        ? 'API_KEY_BACKEND_RESPONSE_INVALID'
+        : 'API_KEY_BACKEND_UNAVAILABLE',
+      true,
+    );
+  }
+}
+
 export class UnconfiguredConnectionStatusServiceV1 implements ConnectionStatusPortV1 {
   async status(
     _boardId: string | null,

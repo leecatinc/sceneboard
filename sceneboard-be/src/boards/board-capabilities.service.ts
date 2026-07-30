@@ -19,6 +19,7 @@ export class BoardCapabilitiesService {
     principal: ResolvedBoardPrincipalV1;
     requestId: RequestId;
     boardId: BoardId;
+    documentSchemaVersion?: 1 | 2 | 3;
   }): Promise<BoardOperationResultV1> {
     return this.accessPolicy.withAuthorizedBoardTransaction(
       {
@@ -35,7 +36,12 @@ export class BoardCapabilitiesService {
           replayed: false,
           result: {
             type: 'capabilities.get',
-            capabilities: currentBoardCapabilitiesFromContext(context),
+            capabilities:
+              input.documentSchemaVersion === 3
+                ? currentBoardCapabilitiesFromContext(context, 3)
+                : input.documentSchemaVersion === 2
+                  ? currentBoardCapabilitiesFromContext(context, 2)
+                  : currentBoardCapabilitiesFromContext(context, 1),
             sessionAccess: currentBoardSessionAccessFromContext(context),
           },
         });

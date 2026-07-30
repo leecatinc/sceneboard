@@ -1,9 +1,4 @@
-import type {
-  BoardDocumentV2,
-  BoardNodeV1,
-  HitlRequestId,
-  SceneV1,
-} from '@sceneboard/board-schema';
+import type { BoardDocument, BoardNodeV1, HitlRequestId, SceneV1 } from '@sceneboard/board-schema';
 
 const childrenOf = (node: BoardNodeV1): BoardNodeV1[] => {
   if (
@@ -36,7 +31,7 @@ export const extractUniqueSceneHitlRequestIds = (scene: SceneV1): HitlRequestId[
   return [...result.values()];
 };
 
-export const extractUniqueDocumentHitlRequestIds = (document: BoardDocumentV2): HitlRequestId[] => {
+export const extractUniqueDocumentHitlRequestIds = (document: BoardDocument): HitlRequestId[] => {
   const result = new Map<string, HitlRequestId>();
   for (const page of document.pages) {
     for (const id of extractUniqueSceneHitlRequestIds(page.scene)) {

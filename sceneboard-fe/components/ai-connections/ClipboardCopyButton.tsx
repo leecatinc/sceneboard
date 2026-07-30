@@ -10,9 +10,11 @@ const TOAST_DURATION_MS = 2_000;
 export function ClipboardCopyButton({
   value,
   className = 'button',
+  onCopied,
 }: {
   value: string;
   className?: string;
+  onCopied?: () => void;
 }) {
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
@@ -31,6 +33,7 @@ export function ClipboardCopyButton({
     } catch {
       return;
     }
+    onCopied?.();
     setCopied(true);
     if (timeoutRef.current !== null) window.clearTimeout(timeoutRef.current);
     timeoutRef.current = window.setTimeout(() => {

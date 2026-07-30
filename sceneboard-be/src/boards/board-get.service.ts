@@ -1,7 +1,12 @@
 import {
   BoardIdParserV1,
   BoardOperationResultParserV1,
+  BoardOperationResultParserV2,
+  BoardOperationResultParserV3,
   PrincipalIdParserV1,
+  adaptLegacySceneToDocumentV2,
+  projectDocumentV2ToV3,
+  projectDocumentV3ToV2,
   type BoardId,
   type BoardOperationResultV1,
   type PrincipalId,
@@ -68,6 +73,39 @@ const boardNotFound = (): BoardContractError =>
     details: null,
   });
 
+const upgradeRequired = (requestedDocumentSchemaVersion: 1 | 2): BoardContractError =>
+  new BoardContractError({
+    protocolVersion: 1,
+    type: 'board.error',
+    code: 'UPGRADE_REQUIRED',
+    message: 'A newer document client is required',
+    category: 'conflict',
+    retryable: false,
+    httpStatusHint: 409,
+    details: {
+      headSchemaVersion: 3,
+      requestedDocumentSchemaVersion,
+      surface: 'board.get',
+    },
+  });
+
+const legacyDocumentUnsupported = (): BoardContractError =>
+  new BoardContractError({
+    protocolVersion: 1,
+    type: 'board.error',
+    code: 'PROTOCOL_VERSION_MISMATCH',
+    message: 'Document snapshots require a document-capable client',
+    category: 'protocol',
+    retryable: false,
+    httpStatusHint: 409,
+    details: {
+      reason: 'schema_revision',
+      supportedMajor: 1,
+      receivedMajor: 1,
+      field: 'documentSchemaVersion',
+    },
+  });
+
 const safePositive = (value: string): number => {
   if (!/^[1-9][0-9]{0,15}$/.test(value)) throw new BoardPersistenceError('row_integrity');
   const parsed = Number(value);
@@ -121,6 +159,7 @@ export class BoardGetService {
     principal: ResolvedBoardPrincipalV1;
     requestId: RequestId;
     boardId: BoardId;
+    documentSchemaVersion?: 1 | 2 | 3;
   }): Promise<BoardOperationResultV1> {
     return this.accessPolicy.withAuthorizedBoardTransaction(
       {
@@ -144,6 +183,21 @@ export class BoardGetService {
           sha256: row.sceneSha256,
         });
         await this.assertReferences(connection, row.revisionPk, checkpoint);
+        const requested = input.documentSchemaVersion;
+        if (
+          checkpoint.kind === 'document' &&
+          checkpoint.document.schemaVersion === 3 &&
+          (requested === undefined || requested === 1)
+        ) {
+          throw upgradeRequired(requested ?? 2);
+        }
+        if (
+          checkpoint.kind === 'document' &&
+          checkpoint.document.schemaVersion === 2 &&
+          requested === 1
+        ) {
+          throw legacyDocumentUnsupported();
+        }
         const revision = {
           revisionId: parsedRevisionId(row.revisionId),
           revisionNumber,
@@ -158,23 +212,61 @@ export class BoardGetService {
             principalId: parsedPrincipalId(row.actorPrincipalId),
           },
         } as const;
+        const composition = {
+          actor: context.actor,
+          boardId,
+          revision,
+          lastEventSequence,
+        };
         const snapshot =
-          checkpoint.kind === 'scene'
-            ? await this.snapshots.compose(connection, {
-                actor: context.actor,
-                boardId,
-                revision,
-                checkpoint,
-                lastEventSequence,
+          requested === 3
+            ? await this.snapshots.composeDocument(connection, {
+                ...composition,
+                checkpoint: {
+                  kind: 'document',
+                  document:
+                    checkpoint.kind === 'scene'
+                      ? projectDocumentV2ToV3(
+                          adaptLegacySceneToDocumentV2({ boardId, scene: checkpoint.scene }),
+                        )
+                      : checkpoint.document.schemaVersion === 2
+                        ? projectDocumentV2ToV3(checkpoint.document)
+                        : checkpoint.document,
+                  canonicalBytes: checkpoint.canonicalBytes,
+                },
               })
-            : await this.snapshots.composeDocument(connection, {
-                actor: context.actor,
-                boardId,
-                revision,
-                checkpoint,
-                lastEventSequence,
-              });
-        const parsed = BoardOperationResultParserV1.parse({
+            : requested === 2 ||
+                (requested === undefined &&
+                  checkpoint.kind === 'document' &&
+                  checkpoint.document.schemaVersion === 2)
+              ? await this.snapshots.composeDocument(connection, {
+                  ...composition,
+                  checkpoint: {
+                    kind: 'document',
+                    document:
+                      checkpoint.kind === 'scene'
+                        ? adaptLegacySceneToDocumentV2({ boardId, scene: checkpoint.scene })
+                        : checkpoint.document.schemaVersion === 3
+                          ? projectDocumentV3ToV2(checkpoint.document)
+                          : checkpoint.document,
+                    canonicalBytes: checkpoint.canonicalBytes,
+                  },
+                })
+              : checkpoint.kind === 'scene'
+                ? await this.snapshots.compose(connection, {
+                    ...composition,
+                    checkpoint,
+                  })
+                : (() => {
+                    throw new BoardPersistenceError('row_integrity');
+                  })();
+        const parser =
+          'document' in snapshot
+            ? snapshot.document.schemaVersion === 3
+              ? BoardOperationResultParserV3
+              : BoardOperationResultParserV2
+            : BoardOperationResultParserV1;
+        const parsed = parser.parse({
           protocolVersion: 1,
           type: 'board.operation.result',
           requestId: input.requestId,

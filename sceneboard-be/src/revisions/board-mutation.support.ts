@@ -3,7 +3,6 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import {
   canonicalizeJsonV1,
   type EventId,
-  type MutationRequestV2,
   type RevisionId,
   type TimestampV1,
 } from '@sceneboard/board-schema';
@@ -16,6 +15,7 @@ import { parseMysqlTimestampUtc } from '../common/time/mysql-timestamp.js';
 import type { AuthorizedBoardContextV1 } from '../grants/board-access.policy.js';
 import type { SceneArtifactReferenceRowV1 } from './scene-artifact-reference.extractor.js';
 import type { SceneMutationTypeV1 } from './board-mutation.types.js';
+import type { CheckpointMutationRequest } from './board-mutation.types.js';
 
 export const digest = (value: Uint8Array): Buffer => createHash('sha256').update(value).digest();
 
@@ -64,7 +64,10 @@ export const revisionNotFound = (_revisionId: RevisionId): BoardContractError =>
     details: null,
   });
 
-export const boardArchived = (request: MutationRequestV2, archivedAt: string): BoardContractError =>
+export const boardArchived = (
+  request: CheckpointMutationRequest,
+  archivedAt: string,
+): BoardContractError =>
   new BoardContractError({
     protocolVersion: 1,
     type: 'board.error',
@@ -80,7 +83,7 @@ export const boardArchived = (request: MutationRequestV2, archivedAt: string): B
   });
 
 export const revisionConflict = (
-  request: MutationRequestV2,
+  request: CheckpointMutationRequest,
   actualRevisionId: RevisionId,
   actualRevisionNumber: number,
 ): BoardContractError =>
@@ -102,7 +105,7 @@ export const revisionConflict = (
   });
 
 export const idempotencyReuse = (
-  request: MutationRequestV2,
+  request: CheckpointMutationRequest,
   reason: 'grant_changed' | 'scopes_changed' | 'expected_revision_changed' | 'payload_changed',
 ): BoardContractError =>
   new BoardContractError({

@@ -20,7 +20,7 @@ They resolve `assets/visual-presets/` and `assets/artifact-templates/` relative 
 | Route                   | Use when                                                                                                                                                                                                                                        | Do not use when                                                                                                         |
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | Native recipe or preset | `layout.split`, `layout.grid`, `layout.tabs`, `layout.canvas`, `content.markdown`, `content.code`, `content.table`, `content.chart`, `content.map`, `content.drawing`, `content.status`, or `content.progress` faithfully expresses the result. | Do not escalate ordinary architecture, flow, drawing, canvas, table, chart, or presentation work merely for decoration. |
-| Artifact composer       | Custom SVG, Canvas, HTML/CSS/JavaScript, accessible animation, or specialized behavior is materially necessary and unavailable in trusted nodes.                                                                                                | Do not use an artifact where native content and layouts preserve the same meaning.                                      |
+| Artifact composer       | Custom SVG, Canvas, HTML/CSS/JavaScript, accessible animation, specialized behavior, or the exact `발표자료`/case-insensitive `ppt` slide-deck exception is required.                                                                           | Do not use an artifact where native content and layouts preserve the same meaning.                                      |
 
 Never use a content delivery network, external font/script/resource, invented identifier, unpublished placement, capability self-approval, or a mutation without an observed head and explicit key.
 
@@ -59,7 +59,13 @@ scene-artifact.mjs place [FILE|-]
 scene-artifact.mjs --help
 ```
 
-Templates are `animated-data-story`, `architecture-map`, `demo-showcase`, `metric-story`, `process-flow`, `threejs-showcase`, `timeline`, and `webgl-showcase`. Motion is one of `none`, `subtle`, `staged`, or `focus`.
+Templates are `animated-data-story`, `architecture-map`, `demo-showcase`, `metric-story`, `process-flow`, `slide-deck`, `threejs-showcase`, `timeline`, and `webgl-showcase`. Motion is one of `none`, `subtle`, `staged`, or `focus`.
+
+`slide-deck` is the closed 1920×1080 PPT-style deck. It is an explicit routing
+exception only for requests containing `발표자료` or case-insensitive `ppt`; ordinary
+presentation and document work remains native-first. Its schema, content limits,
+navigation, accessibility, and verification contract are in
+[slide-deck.md](slide-deck.md).
 
 `demo-showcase` is the closed recording template for SceneBoard's richer local demonstrations. Its exact content is `{kind,selection,phase}`. Supported combinations are:
 

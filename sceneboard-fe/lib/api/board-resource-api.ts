@@ -70,11 +70,15 @@ export class BoardResourceApi extends BoardApiTransport {
       type: 'board.get',
       boardId,
     });
-    const query = new URLSearchParams({ requestId: request.requestId });
+    const query = new URLSearchParams({
+      requestId: request.requestId,
+      documentSchemaVersion: '3',
+    });
     return this.readOperation(
       `/api/v1/boards/${encodeURIComponent(boardId)}?${query.toString()}`,
       request,
       signal,
+      3,
     );
   }
 
@@ -89,7 +93,10 @@ export class BoardResourceApi extends BoardApiTransport {
       type: 'capabilities.get',
       boardId,
     });
-    const query = new URLSearchParams({ requestId: request.requestId });
+    const query = new URLSearchParams({
+      requestId: request.requestId,
+      documentSchemaVersion: '3',
+    });
     return this.readOperation(
       `/api/v1/boards/${encodeURIComponent(boardId)}/capabilities?${query.toString()}`,
       request,
@@ -188,12 +195,14 @@ export class BoardResourceApi extends BoardApiTransport {
     const query = new URLSearchParams({
       requestId: request.requestId,
       limit: String(request.limit),
+      documentSchemaVersion: '3',
     });
     if (request.cursor !== null) query.set('cursor', request.cursor);
     const result = await this.readOperation(
       `/api/v1/boards/${encodeURIComponent(boardId)}/revisions?${query.toString()}`,
       request,
       signal,
+      3,
     );
     if (result.kind !== 'ok') return result;
     if (result.value.metadata === null) return { kind: 'corrupt_response' };
@@ -214,11 +223,15 @@ export class BoardResourceApi extends BoardApiTransport {
       boardId,
       revisionId,
     });
-    const query = new URLSearchParams({ requestId: request.requestId });
+    const query = new URLSearchParams({
+      requestId: request.requestId,
+      documentSchemaVersion: '3',
+    });
     const result = await this.readOperation(
       `/api/v1/boards/${encodeURIComponent(boardId)}/revisions/${encodeURIComponent(revisionId)}?${query.toString()}`,
       request,
       signal,
+      3,
     );
     if (result.kind !== 'ok') return result;
     if (result.value.metadata === null) return { kind: 'corrupt_response' };

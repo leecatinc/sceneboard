@@ -2,6 +2,7 @@ import type {
   ArtifactReferenceV1,
   BoardError,
   BoardDocumentV2,
+  BoardDocumentV3,
   BoardId,
   BoardOperationRequestV1,
   BoardOperationResultDataV1,
@@ -10,8 +11,10 @@ import type {
   IdempotencyKey,
   MutationRequestV1,
   MutationRequestV2,
+  MutationRequestV3,
   MutationResultV1,
   MutationResultV2,
+  MutationResultV3,
   RequestId,
   RevisionId,
   TimestampV1,
@@ -109,6 +112,15 @@ export type DocumentMutationRequest = MutationRequestV2 & {
 };
 export type DocumentMutationResult = MutationResultV2 & {
   result: Extract<MutationResultV2['result'], { type: 'document.replace' }>;
+};
+export type DocumentMutationRequestV3 = MutationRequestV3 & {
+  command: Extract<MutationRequestV3['command'], { type: 'document.replace' }>;
+};
+export type DocumentMutationResultV3 = MutationResultV3 & {
+  result: Extract<MutationResultV3['result'], { type: 'document.replace' }>;
+};
+export type FormatDocumentMutationInput = Omit<DocumentMutationRequestV3, 'command'> & {
+  document: BoardDocumentV3;
 };
 export type DocumentMutationBase = Omit<DocumentMutationRequest, 'command'>;
 export type BrowserDocumentMutationInput = {

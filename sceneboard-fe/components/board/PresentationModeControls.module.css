@@ -8,3 +8,41 @@
   font-size: 12px;
   font-weight: 750;
 }
+
+.railControls {
+  display: flex;
+  justify-content: center;
+}
+
+.railControls button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--primary);
+  border-radius: 8px;
+  background: var(--primary);
+  color: #fff;
+  cursor: pointer;
+}
+
+.railControls button:hover {
+  background: var(--primary-active);
+}
+
+.railControls button:focus-visible {
+  outline: 2px solid var(--secondary);
+  outline-offset: 2px;
+}
+
+.railControls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.railControls svg {
+  width: 19px;
+  height: 19px;
+}

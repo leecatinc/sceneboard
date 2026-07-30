@@ -65,6 +65,73 @@ Register a locally built SceneBoard server beside other project MCP servers. Kee
 
 Start a new Codex thread after changing MCP or plugin configuration; tool discovery for an already-running model session is not hot-reloaded. The environment fallback is secret-free and supports both writable `store://<profile>` pairing and the legacy read-only `env://SCENEBOARD_ACCESS_TOKEN` reference. `BOARD_ACCESS_TOKEN_REF` must equal `store://BOARD_PROFILE` in store mode.
 
+## Explicit account API-key mode
+
+Pairing remains the default and primary connection mode. Use account API-key mode only when the
+owner intentionally wants asynchronous board management without a live pairing session. Set the
+exact discriminator `BOARD_CREDENTIAL_MODE=api_key`; existing configurations without it remain
+pairing configurations.
+
+Never put an API-key literal in `.mcp.json`, command arguments, documentation, or logs. Reference an
+environment value instead:
+
+```json
+{
+  "mcpServers": {
+    "sceneboard": {
+      "command": "node",
+      "args": ["/absolute/path/to/sceneboard-mcp/dist/index.js"],
+      "env": {
+        "BOARD_API_URL": "https://sceneboard.dev",
+        "BOARD_CREDENTIAL_MODE": "api_key",
+        "BOARD_ACCESS_TOKEN_REF": "env://SCENEBOARD_API_KEY",
+        "BOARD_PROFILE": "sceneboard",
+        "BOARD_TIMEOUT_MS": "30000"
+      },
+      "env_vars": ["SCENEBOARD_API_KEY"]
+    }
+  }
+}
+```
+
+For an owner-only private file, use matching
+`BOARD_ACCESS_TOKEN_REF=store://BOARD_PROFILE`, then provide the key through a non-echoing terminal
+or stdin. The secret is never accepted on argv:
+
+```bash
+sceneboard-mcp api-key set --config=/absolute/path/to/api-key.board.json
+sceneboard-mcp api-key remove --config=/absolute/path/to/api-key.board.json
+```
+
+The API-key file is `api-key.credential.json`, separate from the pairing `credential.json`, so the
+two records can coexist. A `401` invalidates only this process's in-memory API-key snapshot; it does
+not delete the private record. Explicit `set` and `remove` are the only storage mutations. Private
+file API-key storage fails closed on Windows; use `env://SCENEBOARD_API_KEY` there.
+
+API-key scopes are selected when the owner issues the key. Board CRUD and rename use the matching
+board scopes; `board_export` additionally requires `export:read`. Pairing credentials and API-key
+credentials remain separate, so switching to explicit API-key mode does not revoke or alter an
+existing pairing connection.
+
+The file form is also exact:
+
+```json
+{
+  "version": 1,
+  "baseUrl": "https://sceneboard.dev",
+  "accessTokenRef": "env://SCENEBOARD_API_KEY",
+  "authScheme": "bearer",
+  "timeoutMs": 30000,
+  "profile": "sceneboard",
+  "credentialMode": "api_key"
+}
+```
+
+`board_connection_status` identifies API-key mode with
+`credentialMode:"api_key"` and returns only
+`credentialMode,state,config,connection,lastErrorCode,retryable`. Pairing status payloads and the
+pre-configuration `not_configured` payload remain unchanged.
+
 ## `.board.json` v1 compatibility
 
 ```json

@@ -56,6 +56,7 @@ const userPrincipal = (): Extract<ResolvedBoardPrincipalV1, { kind: 'user' }> =>
   userPk: 20n,
   sessionPk: 21n,
   familyPublicId: 'family_1',
+  isBrowserCredential: true,
 });
 
 const mcpPrincipal = (): Extract<ResolvedBoardPrincipalV1, { kind: 'mcp' }> => ({
@@ -71,16 +72,19 @@ const mcpPrincipal = (): Extract<ResolvedBoardPrincipalV1, { kind: 'mcp' }> => (
   credentialPk: 40n,
   grantId: 'grant_1' as GrantId,
   sourceFamilyPublicId: null,
+  isBrowserCredential: false,
 });
 
 interface SetupOptions {
   mcp?: boolean;
+  apiKey?: boolean;
   boardCollisionOnce?: boolean;
 }
 
 const setup = (options: SetupOptions = {}) => {
   const calls: string[] = [];
   const insertedBoardIds: string[] = [];
+  let revisionCatalogBinds: unknown[] | null = null;
   let stored: Record<string, unknown> | null = null;
   let boardCollisionPending = options.boardCollisionOnce === true;
   const connection = {
@@ -141,6 +145,7 @@ const setup = (options: SetupOptions = {}) => {
         return [{ affectedRows: 0, insertId: 0 } as ResultSetHeader, []];
       }
       if (normalized.startsWith('INSERT INTO board_revision_catalog')) {
+        revisionCatalogBinds = binds;
         return [{ affectedRows: 1, insertId: 0 } as ResultSetHeader, []];
       }
       if (normalized.startsWith('INSERT INTO board_heads')) {
@@ -184,16 +189,33 @@ const setup = (options: SetupOptions = {}) => {
           policyEpoch: 'AAAAAAAAAAAAAAAAAAAAAA',
         },
       }
-    : {
-        actor: userPrincipal().actor,
-        ownerUserPk: 20n,
-        access: { kind: 'owner', ownerUserPk: 20n },
-        createBinding: null,
-        artifactCapabilityPolicy: {
-          allowedArtifactRequestCapabilities: [],
-          policyEpoch: 'AAAAAAAAAAAAAAAAAAAAAA',
-        },
-      };
+    : options.apiKey
+      ? {
+          actor: parseActor({
+            principalKind: 'service',
+            principalId: 'key_public_1',
+            grantId: null,
+            scopes: [],
+          }),
+          ownerUserPk: 20n,
+          accountUserPk: 20n,
+          access: { kind: 'api_key', ownerUserPk: 20n, apiKeyPk: 70n },
+          createBinding: null,
+          artifactCapabilityPolicy: {
+            allowedArtifactRequestCapabilities: [],
+            policyEpoch: 'AAAAAAAAAAAAAAAAAAAAAA',
+          },
+        }
+      : {
+          actor: userPrincipal().actor,
+          ownerUserPk: 20n,
+          access: { kind: 'owner', ownerUserPk: 20n },
+          createBinding: null,
+          artifactCapabilityPolicy: {
+            allowedArtifactRequestCapabilities: [],
+            policyEpoch: 'AAAAAAAAAAAAAAAAAAAAAA',
+          },
+        };
   const policy: BoardAccessPolicy = {
     async withAuthorizedBoardTransaction<T>(
       input: AuthorizedBoardTransactionInputV1,
@@ -231,7 +253,15 @@ const setup = (options: SetupOptions = {}) => {
         throw new Error('unexpected UUID request');
       })(),
   });
-  return { service, connection, context, calls, insertedBoardIds, bindCount: () => bindCount };
+  return {
+    service,
+    connection,
+    context,
+    calls,
+    insertedBoardIds,
+    bindCount: () => bindCount,
+    revisionCatalogBinds: () => revisionCatalogBinds,
+  };
 };
 
 test('creates an initial empty head and canonical result with zero user binding calls', async () => {
@@ -277,6 +307,16 @@ test('binds a newly inserted MCP board exactly once before revision 1', async ()
   );
   assert.ok(boardInsert >= 0 && boardInsert < binding && binding < revisionInsert);
   assert.equal(value.calls.at(-1)?.startsWith('UPDATE board_idempotency_records'), true);
+});
+
+test('attributes API-key board creation to the owner account without classifying it as system', async () => {
+  const value = setup({ apiKey: true });
+  await value.service.createInTransaction({
+    connection: value.connection,
+    context: value.context,
+    request: parseCreate('request_key_create_1'),
+  });
+  assert.deepEqual(value.revisionCatalogBinds()?.slice(0, 5), ['50', '70', 1, '20', 'owner']);
 });
 
 test('replays one validated stored create with a fresh request ID and no domain write', async () => {

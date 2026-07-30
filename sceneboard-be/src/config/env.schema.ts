@@ -55,6 +55,9 @@ export interface AppEnvironment {
   revisionRetentionCount: number;
   historyRetainedEmissionEnabled: boolean;
   revisionReclamationEnabled: boolean;
+  accountApiKeyIssuanceEnabled: boolean;
+  accountApiKeyAuthEnabled: boolean;
+  boardDocumentV3WriteEnabled: boolean;
 }
 
 export type PersistenceEnvironment = Pick<AppEnvironment, 'mysql' | 'redis'>;
@@ -369,5 +372,16 @@ export const parseEnvironment = (input: EnvironmentInput): AppEnvironment => {
       false,
     ),
     revisionReclamationEnabled: parseOptionalBoolean(input, 'REVISION_RECLAMATION_ENABLED', false),
+    accountApiKeyIssuanceEnabled: parseOptionalBoolean(
+      input,
+      'ACCOUNT_API_KEY_ISSUANCE_ENABLED',
+      false,
+    ),
+    accountApiKeyAuthEnabled: parseOptionalBoolean(input, 'ACCOUNT_API_KEY_AUTH_ENABLED', false),
+    boardDocumentV3WriteEnabled: parseOptionalBoolean(
+      input,
+      'BOARD_DOCUMENT_V3_WRITE_ENABLED',
+      false,
+    ),
   };
 };

@@ -3,11 +3,14 @@
 import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from 'react';
 
 import type { BoardApiClient } from '../../lib/api/board-api';
+import type { BoardExportApi } from '../../lib/api/board-export-api';
+import type { PresentationFormatV1 } from '@sceneboard/board-schema';
 import type { InvitationApi } from '../../lib/api/invitation-api';
 import type { ShareApi } from '../../lib/api/share-api';
 import type { ShareAnalyticsApi } from '../../lib/share-analytics/share-analytics-api';
 import styles from '../../app/boards/[boardId]/board.module.css';
 import { BoardArchiveControl } from './BoardArchiveControl';
+import { BoardExportControl } from './BoardExportControl';
 import { MemberManagementSheet } from './MemberManagementSheet';
 import { ShareManagementSheet } from './ShareManagementSheet';
 
@@ -21,12 +24,16 @@ export const OwnerAdminControls = forwardRef<
   OwnerAdminControlsHandle,
   {
     api: BoardApiClient;
+    exportApi: BoardExportApi;
     invitationApi: InvitationApi;
     shareApi: ShareApi;
     analyticsApi: ShareAnalyticsApi;
     boardId: string;
     boardTitle: string;
     revisionId: string;
+    revisionNumber: number;
+    documentFormat: PresentationFormatV1;
+    exportEnabled: boolean;
     analyticsEnabled: boolean;
     routeKey: string;
     onArchived: () => void;
@@ -34,12 +41,16 @@ export const OwnerAdminControls = forwardRef<
 >(function OwnerAdminControls(
   {
     api,
+    exportApi,
     invitationApi,
     shareApi,
     analyticsApi,
     boardId,
     boardTitle,
     revisionId,
+    revisionNumber,
+    documentFormat,
+    exportEnabled,
     analyticsEnabled,
     routeKey,
     onArchived,
@@ -68,6 +79,18 @@ export const OwnerAdminControls = forwardRef<
 
   return (
     <div className={styles.ownerAdmin}>
+      <BoardExportControl
+        api={exportApi}
+        boardId={boardId}
+        boardTitle={boardTitle}
+        revisionId={revisionId}
+        revisionNumber={revisionNumber}
+        documentFormat={documentFormat}
+        enabled={exportEnabled}
+        routeKey={routeKey}
+        forcedCloseEpoch={forcedCloseEpoch}
+        registerClose={registerClose}
+      />
       <ShareManagementSheet
         api={shareApi}
         analyticsApi={analyticsApi}

@@ -1,11 +1,14 @@
 export { PROTOCOL_SEMVER, PROTOCOL_VERSION } from './protocol-version.js';
 export {
   ARTIFACT_REQUEST_CAPABILITIES_V1,
+  ACCOUNT_API_KEY_SCOPES_V1,
+  ACCOUNT_API_KEY_SCOPE_BITS_V1,
   BOARD_AUTHORIZATION_CAPABILITIES_V1,
   BOARD_AUTHORIZATION_OPERATION_TYPES_V1,
   BOARD_AUTHORIZATION_SURFACES_V1,
   BOARD_ERROR_CODES_V1,
   BOARD_ERROR_CODES_V2,
+  BOARD_ERROR_CODES_V3,
   BOARD_EVENT_TYPES_V1,
   BOARD_MUTATION_COMMAND_TYPES_V1,
   BOARD_MUTATION_COMMAND_TYPES_V2,
@@ -22,12 +25,14 @@ export {
   SHARE_STATUSES_V1,
 } from './catalogs.js';
 export type {
+  AccountApiKeyScopeV1,
   ArtifactRequestCapabilityV1,
   BoardAuthorizationCapabilityV1,
   BoardAuthorizationOperationTypeV1,
   BoardAuthorizationSurfaceV1,
   BoardErrorCodeV1,
   BoardErrorCodeV2,
+  BoardErrorCodeV3,
   BoardEventTypeV1,
   BoardMutationCommandTypeV1,
   BoardMutationCommandTypeV2,
@@ -41,6 +46,7 @@ export type {
   ShareManagementOperationTypeV1,
   ShareStatusV1,
 } from './catalogs.js';
+export { accountApiKeyActorContextV1 } from './actors.js';
 export {
   BOARD_DOCUMENT_LIMITS_V2,
   BOARD_LIMITS_V1,
@@ -202,17 +208,29 @@ export {
 export type { MediaIngestResultV1, MediaMimeV1, MediaSourceV1 } from './media.js';
 export { ImageNodeSchemaV1 } from './nodes/content.js';
 export type {
+  BoardDocument,
   BoardDocumentV2,
+  BoardDocumentV3,
   BoardPageV2,
   DocumentSceneTraversalItemV2,
   PageDisplayModeV1,
+  PresentationFormatDescriptorV1,
+  PresentationFormatV1,
   SnapshotArtifactReferenceV2,
 } from './documents.js';
 export {
   adaptLegacySceneToDocumentV2,
+  BoardDocumentSchemaV2,
+  BoardDocumentSchemaV3,
+  BoardPageSchemaV2,
   collectArtifactReferencesAcrossSnapshotV2,
   collectDocumentNodesV2,
   deriveLegacyPageIdV2,
+  PageDisplayModeSchemaV1,
+  presentationFormatDescriptorV1,
+  PresentationFormatSchemaV1,
+  projectDocumentV2ToV3,
+  projectDocumentV3ToV2,
 } from './documents.js';
 export type { ActorContextV1, ActorReferenceV1 } from './actors.js';
 export type { RetainedHistoryActorLabelV1, RetainedHistoryMetadataV1 } from './history.js';
@@ -258,9 +276,18 @@ export type {
   BoardCapabilities,
   BoardCapabilitiesV1,
   BoardCapabilitiesV2,
+  BoardCapabilitiesV3,
   BoardSessionAccessV1,
 } from './capabilities.js';
-export { DEFAULT_BOARD_CAPABILITIES_V1, DEFAULT_BOARD_CAPABILITIES_V2 } from './capabilities.js';
+export {
+  BoardCapabilitiesSchema,
+  BoardCapabilitiesSchemaV1,
+  BoardCapabilitiesSchemaV2,
+  BoardCapabilitiesSchemaV3,
+  DEFAULT_BOARD_CAPABILITIES_V1,
+  DEFAULT_BOARD_CAPABILITIES_V2,
+  DEFAULT_BOARD_CAPABILITIES_V3,
+} from './capabilities.js';
 export {
   BoardAuthorizationCapabilitySchemaV1,
   BoardSessionAccessSchemaV1,
@@ -268,16 +295,36 @@ export {
 export type {
   BoardMutationCommandV1,
   BoardMutationCommandV2,
+  BoardMutationCommandV3,
   BoardMutationResultDataV1,
   BoardMutationResultDataV2,
+  BoardMutationResultDataV3,
   MutationEnvelopeV1,
   MutationEnvelopeV2,
+  MutationEnvelopeV3,
   MutationFingerprintInputV1,
   MutationFingerprintInputV2,
+  MutationFingerprintInputV3,
   MutationRequestV1,
   MutationRequestV2,
+  MutationRequestV3,
   MutationResultV1,
   MutationResultV2,
+  MutationResultV3,
+} from './commands.js';
+export {
+  BoardMutationCommandSchemaV1,
+  BoardMutationCommandSchemaV2,
+  BoardMutationCommandSchemaV3,
+  MutationEnvelopeSchemaV1,
+  MutationEnvelopeSchemaV2,
+  MutationEnvelopeSchemaV3,
+  MutationRequestSchemaV1,
+  MutationRequestSchemaV2,
+  MutationRequestSchemaV3,
+  MutationResultSchemaV1,
+  MutationResultSchemaV2,
+  MutationResultSchemaV3,
 } from './commands.js';
 export type {
   BoardLifecycleIdempotencyEnvelopeV1,
@@ -296,7 +343,18 @@ export {
   BoardOperationAuthorizationMatrixSchemaV1,
   BoardOperationAuthorizationPolicySchemaV1,
 } from './operations.js';
-export type { BoardSnapshot, BoardSnapshotV1, BoardSnapshotV2 } from './snapshots.js';
+export type {
+  BoardSnapshot,
+  BoardSnapshotV1,
+  BoardSnapshotV2,
+  BoardSnapshotV3,
+} from './snapshots.js';
+export {
+  BoardSnapshotSchema,
+  BoardSnapshotSchemaV1,
+  BoardSnapshotSchemaV2,
+  BoardSnapshotSchemaV3,
+} from './snapshots.js';
 export type {
   BoardEventDataV1,
   BoardEventDataV2,
@@ -318,6 +376,7 @@ export {
   ArtifactRuntimeSummaryParserV1,
   BoardCapabilitiesParserV1,
   BoardCapabilitiesParserV2,
+  BoardCapabilitiesParserV3,
   BoardCapabilitiesParser,
   BoardSessionAccessParserV1,
   BoardAuthorizationCapabilityParserV1,
@@ -328,6 +387,7 @@ export {
   BoardOperationAuthorizationMatrixParserV1,
   BoardOperationAuthorizationPolicyParserV1,
   BoardDocumentParserV2,
+  BoardDocumentParserV3,
   BoardIdParserV1,
   MediaIdParserV1,
   MediaIngestResultParserV1,
@@ -335,13 +395,16 @@ export {
   BoardErrorParser,
   BoardEventEnvelopeParserV1,
   BoardEventEnvelopeParserV2,
+  BoardEventEnvelopeParserV3,
   BoardNodeParserV1,
   BoardOperationEnvelopeParserV1,
   BoardOperationRequestParserV1,
   BoardOperationResultParserV1,
   BoardOperationResultParserV2,
+  BoardOperationResultParserV3,
   BoardSnapshotParserV1,
   BoardSnapshotParserV2,
+  BoardSnapshotParserV3,
   BoardSnapshotParser,
   HitlInteractionParserV1,
   HitlRequestDefinitionParserV1,
@@ -351,10 +414,13 @@ export {
   GrantIdParserV1,
   MutationEnvelopeParserV1,
   MutationEnvelopeParserV2,
+  MutationEnvelopeParserV3,
   MutationRequestParserV1,
   MutationRequestParserV2,
+  MutationRequestParserV3,
   MutationResultParserV1,
   MutationResultParserV2,
+  MutationResultParserV3,
   ManagedMembershipEnvelopeParserV1,
   MemberCandidateListParserV1,
   MemberCandidateParserV1,

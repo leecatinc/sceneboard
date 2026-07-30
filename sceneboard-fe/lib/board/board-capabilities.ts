@@ -15,6 +15,7 @@ export const BOARD_UI_OPERATION_CAPABILITIES_V1 = {
   'membership.manage': ['board.members.manage'],
   'share.manage': ['board.share.manage'],
   'analytics.read': ['board.analytics.read'],
+  'export.render': ['export.read'],
   'board.archive': ['board.admin'],
   'board.delete': ['board.admin'],
 } as const satisfies Readonly<Record<string, readonly BoardAuthorizationCapabilityV1[]>>;

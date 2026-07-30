@@ -49,6 +49,50 @@ test('store resolution is profile-bound and conflicts with environment credentia
   );
 });
 
+test('explicit API-key mode accepts only its environment reference or matching private store', () => {
+  const apiKey = parseBoardConfigV1(
+    {
+      ...config,
+      accessTokenRef: 'env://SCENEBOARD_API_KEY',
+      credentialMode: 'api_key',
+    },
+    'environment',
+  );
+  assert.equal(apiKey.credentialMode, 'api_key');
+  assert.deepEqual(resolveSecretReferenceV1(apiKey, {}), {
+    kind: 'environment',
+    variable: 'SCENEBOARD_API_KEY',
+  });
+  const stored = parseBoardConfigV1(
+    {
+      ...config,
+      accessTokenRef: 'store://owner',
+      profile: 'owner',
+      credentialMode: 'api_key',
+    },
+    'environment',
+  );
+  assert.deepEqual(resolveSecretReferenceV1(stored, { XDG_STATE_HOME: '/tmp/state' }), {
+    kind: 'store',
+    profile: 'owner',
+    stateDirectory: '/tmp/state/leecat-board/credentials/owner',
+  });
+  for (const invalid of [
+    {
+      ...config,
+      accessTokenRef: 'env://SCENEBOARD_ACCESS_TOKEN',
+      credentialMode: 'api_key',
+    },
+    {
+      ...config,
+      accessTokenRef: 'env://SCENEBOARD_API_KEY',
+      credentialMode: 'pairing',
+    },
+    { ...config, credentialMode: 'unknown' },
+  ])
+    assert.throws(() => parseBoardConfigV1(invalid, 'environment'), BoardConfigError);
+});
+
 test('redaction recursively removes credential, proof, code, and path fields', () => {
   const token = `lcbg_v1.${'a'.repeat(22)}.${'b'.repeat(43)}`;
   const redacted = redactSecretsV1({

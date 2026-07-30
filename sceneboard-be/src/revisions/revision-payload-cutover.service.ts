@@ -8,7 +8,7 @@ import {
 
 interface InlineRow extends RowDataPacket {
   revisionPk: string;
-  schemaVersion: '1.0.0' | '2.0.0';
+  schemaVersion: '1.0.0' | '2.0.0' | '3.0.0';
   codec: 'B';
   payload: Buffer;
   canonicalBytes: number;

@@ -14,6 +14,7 @@ import {
   notConnectedV1,
   sdkToolResultV1,
   toolFailureV1,
+  toolSuccessV1,
   validationFailureV1,
 } from './tool-result.js';
 
@@ -32,6 +33,9 @@ export const BoardListInputSchemaV1 = z
 export const BoardGetInputSchemaV1 = z.object({ boardId: GlobalIdSchemaV1 }).strict();
 export const BoardCreateInputSchemaV1 = z
   .object({ title: ShortTextSchemaV1, idempotencyKey: IdempotencyKeySchemaV1 })
+  .strict();
+export const BoardRenameInputSchemaV1 = z
+  .object({ boardId: GlobalIdSchemaV1, title: ShortTextSchemaV1 })
   .strict();
 export const BoardArchiveInputSchemaV1 = z
   .object({
@@ -61,7 +65,7 @@ export class BoardToolHandlersV1 {
     const requestId = createRequestIdV1();
     const parsed = BoardListInputSchemaV1.safeParse(raw);
     if (!parsed.success) return invalid('board_list', requestId, parsed);
-    const result = await this.gateway.call((client) =>
+    const result = await this.gateway.call('board_list', 'board.list', (client) =>
       client.listBoards(
         {
           protocolVersion: 1,
@@ -83,7 +87,7 @@ export class BoardToolHandlersV1 {
     const requestId = createRequestIdV1();
     const parsed = BoardGetInputSchemaV1.safeParse(raw);
     if (!parsed.success) return invalid('board_get', requestId, parsed);
-    const result = await this.gateway.call((client) =>
+    const result = await this.gateway.call('board_get', 'board.get', (client) =>
       client.getBoard(
         {
           protocolVersion: 1,
@@ -103,7 +107,7 @@ export class BoardToolHandlersV1 {
     const requestId = createRequestIdV1();
     const parsed = BoardCreateInputSchemaV1.safeParse(raw);
     if (!parsed.success) return invalid('board_create', requestId, parsed);
-    const result = await this.gateway.call((client) =>
+    const result = await this.gateway.call('board_create', 'board.create', (client) =>
       client.createBoard(
         {
           protocolVersion: 1,
@@ -120,11 +124,43 @@ export class BoardToolHandlersV1 {
       : disconnected('board_create', requestId);
   }
 
+  async rename(raw: unknown, signal?: AbortSignal): Promise<CallToolResult> {
+    const requestId = createRequestIdV1();
+    const parsed = BoardRenameInputSchemaV1.safeParse(raw);
+    if (!parsed.success) return invalid('board_rename', requestId, parsed);
+    const result = await this.gateway.renameBoard({
+      boardId: parsed.data.boardId,
+      title: parsed.data.title,
+      ...(signal === undefined ? {} : { signal }),
+    });
+    if (!result.connected) return disconnected('board_rename', requestId);
+    if (result.value.ok) return toolSuccessV1('board_rename', requestId, result.value.value, null);
+    if (result.value.source === 'board')
+      return toolFailureV1(
+        'board_rename',
+        requestId,
+        'board',
+        result.value.error as unknown as Record<string, unknown>,
+      );
+    return toolFailureV1('board_rename', requestId, 'mcp', {
+      code:
+        result.value.error.code === 'TRANSPORT_ERROR'
+          ? 'BOARD_MCP_TRANSPORT_ERROR'
+          : 'BOARD_MCP_RESPONSE_INVALID',
+      message:
+        result.value.error.code === 'TRANSPORT_ERROR'
+          ? 'SceneBoard transport is unavailable'
+          : 'SceneBoard response is invalid',
+      retryable: result.value.error.code === 'TRANSPORT_ERROR',
+      details: null,
+    });
+  }
+
   async archive(raw: unknown, signal?: AbortSignal): Promise<CallToolResult> {
     const requestId = createRequestIdV1();
     const parsed = BoardArchiveInputSchemaV1.safeParse(raw);
     if (!parsed.success) return invalid('board_archive', requestId, parsed);
-    const result = await this.gateway.call((client) =>
+    const result = await this.gateway.call('board_archive', 'board.archive', (client) =>
       client.archiveBoard(
         {
           protocolVersion: 1,
@@ -146,7 +182,7 @@ export class BoardToolHandlersV1 {
     const requestId = createRequestIdV1();
     const parsed = BoardCapabilitiesInputSchemaV1.safeParse(raw);
     if (!parsed.success) return invalid('board_capabilities_get', requestId, parsed);
-    const result = await this.gateway.call((client) =>
+    const result = await this.gateway.call('board_capabilities_get', 'capabilities.get', (client) =>
       client.getCapabilities(
         {
           protocolVersion: 1,

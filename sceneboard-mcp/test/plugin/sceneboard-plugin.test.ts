@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import test from 'node:test';
@@ -88,8 +89,28 @@ test('falls back to the sceneboard.dev production contract without credentials',
     });
     assert.equal(selected.source, 'production_default');
     assert.equal(selected.server.env.BOARD_API_URL, PRODUCTION_API_URL);
+    assert.equal(selected.server.env.BOARD_CREDENTIAL_MODE, 'pairing');
     assert.equal(selected.server.env.BOARD_ACCESS_TOKEN_REF, 'store://sceneboard');
     assert.equal('SCENEBOARD_ACCESS_TOKEN' in selected.server.env, false);
+  });
+});
+
+test('production plugin forwards only an explicit API-key mode and reference', async () => {
+  await withProject(async (projectRoot) => {
+    const selected = await resolveSceneBoardServer({
+      cwd: projectRoot,
+      pluginRoot,
+      environment: {
+        BOARD_CREDENTIAL_MODE: 'api_key',
+        BOARD_ACCESS_TOKEN_REF: 'env://SCENEBOARD_API_KEY',
+        SCENEBOARD_API_KEY: `sbk_v1.${'A'.repeat(22)}.${'B'.repeat(43)}`,
+      },
+      run: () => ({ status: 1, stdout: '' }),
+    });
+    assert.equal(selected.source, 'production_default');
+    assert.equal(selected.server.env.BOARD_CREDENTIAL_MODE, 'api_key');
+    assert.equal(selected.server.env.BOARD_ACCESS_TOKEN_REF, 'env://SCENEBOARD_API_KEY');
+    assert.equal('SCENEBOARD_API_KEY' in selected.server.env, false);
   });
 });
 
@@ -135,6 +156,34 @@ test('fails closed on an invalid project SceneBoard entry', async () => {
   });
 });
 
+test('rejects an API-key literal in project .mcp.json env', async () => {
+  await withProject(async (projectRoot) => {
+    await writeFile(
+      join(projectRoot, '.mcp.json'),
+      JSON.stringify({
+        mcpServers: {
+          sceneboard: {
+            command: 'node',
+            args: ['/trusted/runtime.js'],
+            env: {
+              BOARD_CREDENTIAL_MODE: 'api_key',
+              SCENEBOARD_API_KEY: `sbk_v1.${'A'.repeat(22)}.${'B'.repeat(43)}`,
+            },
+          },
+        },
+      }),
+    );
+    await assert.rejects(
+      resolveSceneBoardServer({
+        cwd: projectRoot,
+        pluginRoot,
+        run: () => ({ status: 1, stdout: '' }),
+      }),
+      /invalid_sceneboard_project_raw_api_key/,
+    );
+  });
+});
+
 test('rejects a symlinked project-root MCP configuration', async () => {
   await withProject(async (projectRoot) => {
     const target = join(projectRoot, 'linked-mcp.json');
@@ -149,4 +198,25 @@ test('rejects a symlinked project-root MCP configuration', async () => {
       /invalid_sceneboard_project_config_file/,
     );
   });
+});
+
+test('production plugin carries exactly the verified linux-x64-gnu local export helper', async () => {
+  const manifestPath = resolve(pluginRoot, 'native/local-export-helper.manifest.json');
+  const helperPath = resolve(pluginRoot, 'native/linux-x64-gnu/local-export-helper');
+  const digestPath = resolve(pluginRoot, 'native/linux-x64-gnu/local-export-helper.sha256');
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+  assert.deepEqual(Object.keys(manifest.targets), ['linux-x64-gnu']);
+  assert.deepEqual(Object.keys(manifest.targets['linux-x64-gnu']).sort(), [
+    'mode',
+    'path',
+    'sha256',
+  ]);
+  assert.equal(manifest.targets['linux-x64-gnu'].path, 'linux-x64-gnu/local-export-helper');
+  assert.equal(manifest.targets['linux-x64-gnu'].mode, '0500');
+  const helperBytes = await readFile(helperPath);
+  const digest = createHash('sha256').update(helperBytes).digest('hex');
+  assert.equal(manifest.targets['linux-x64-gnu'].sha256, digest);
+  assert.equal(await readFile(digestPath, 'utf8'), `${digest}\n`);
+  assert.equal((await lstat(helperPath)).mode & 0o777, 0o500);
+  assert.equal((await lstat(manifestPath)).mode & 0o777, 0o400);
 });

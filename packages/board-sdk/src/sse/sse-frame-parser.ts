@@ -3,6 +3,7 @@ import {
   BOARD_LIMITS_V1,
   BoardEventEnvelopeParserV1,
   BoardEventEnvelopeParserV2,
+  BoardEventEnvelopeParserV3,
   type BoardEventEnvelopeV2,
   type BoardError,
 } from '@sceneboard/board-schema';
@@ -72,7 +73,7 @@ const joinData = (parts: readonly Uint8Array[], maximumBytes: number): Uint8Arra
 
 const parseRecord = (
   lines: readonly Uint8Array[],
-  documentSchemaVersion: 1 | 2,
+  documentSchemaVersion: 1 | 2 | 3,
 ): ParsedSseRecordV1 | null => {
   if (lines.length === 0) return null;
   let commentCount = 0;
@@ -82,7 +83,7 @@ const parseRecord = (
   let cursor: string | null = null;
   const dataParts: Uint8Array[] = [];
   const maximumEnvelopeBytes =
-    documentSchemaVersion === 2
+    documentSchemaVersion === 2 || documentSchemaVersion === 3
       ? BOARD_DOCUMENT_LIMITS_V2.maxDocumentEnvelopeBytes
       : BOARD_LIMITS_V1.maxEnvelopeBytes;
   const maximumDataLineBytes = 6 + maximumEnvelopeBytes;
@@ -151,9 +152,11 @@ const parseRecord = (
   if (!eventSeen || !dataSeen) throw new SseProtocolErrorV1('SSE board record is incomplete');
   const dataBytes = joinData(dataParts, maximumEnvelopeBytes);
   const parsed =
-    documentSchemaVersion === 2
-      ? BoardEventEnvelopeParserV2.parseBytes(dataBytes)
-      : BoardEventEnvelopeParserV1.parseBytes(dataBytes);
+    documentSchemaVersion === 3
+      ? BoardEventEnvelopeParserV3.parseBytes(dataBytes)
+      : documentSchemaVersion === 2
+        ? BoardEventEnvelopeParserV2.parseBytes(dataBytes)
+        : BoardEventEnvelopeParserV1.parseBytes(dataBytes);
   if (!parsed.ok)
     throw new SseProtocolErrorV1('invalid negotiated board event envelope', parsed.error);
   const durable =
@@ -174,14 +177,14 @@ const parseRecord = (
   };
 };
 
-const createSseFrameParser = (documentSchemaVersion: 1 | 2): SseFrameParserV1 => {
+const createSseFrameParser = (documentSchemaVersion: 1 | 2 | 3): SseFrameParserV1 => {
   let pending = new Uint8Array(0);
   let recordLines: Uint8Array[] = [];
   let recordBytes = 0;
   let delimiter: 'lf' | 'crlf' | null = null;
   let firstBytesChecked = false;
   const maximumEnvelopeBytes =
-    documentSchemaVersion === 2
+    documentSchemaVersion === 2 || documentSchemaVersion === 3
       ? BOARD_DOCUMENT_LIMITS_V2.maxDocumentEnvelopeBytes
       : BOARD_LIMITS_V1.maxEnvelopeBytes;
   const maximumRecordBytesLf = maximumEnvelopeBytes + 547;
@@ -250,3 +253,4 @@ const createSseFrameParser = (documentSchemaVersion: 1 | 2): SseFrameParserV1 =>
 
 export const createSseFrameParserV1 = (): SseFrameParserV1 => createSseFrameParser(1);
 export const createSseFrameParserV2 = (): SseFrameParserV1 => createSseFrameParser(2);
+export const createSseFrameParserV3 = (): SseFrameParserV1 => createSseFrameParser(3);

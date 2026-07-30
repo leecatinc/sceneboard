@@ -25,6 +25,7 @@ import {
   BoardCreateInputSchemaV1,
   BoardGetInputSchemaV1,
   BoardListInputSchemaV1,
+  BoardRenameInputSchemaV1,
 } from './board.tools.js';
 import {
   ConnectionStatusInputSchemaV1,
@@ -39,6 +40,7 @@ import {
   HistoryRestoreInputSchemaV1,
   HistoryToolHandlersV1,
 } from './history.tools.js';
+import { BoardExportInputSchemaV1, ExportToolHandlersV1 } from './export.tools.js';
 import {
   InteractionRequestInputSchemaV1,
   InteractionRespondInputSchemaV1,
@@ -66,6 +68,7 @@ import {
   type CoreToolNameV1,
 } from './tool-result.js';
 import type { PairingCoordinatorPortV1 } from '../pairing/pairing-session.owner.js';
+import type { LocalExportFileV1 } from '../exports/local-export-file.js';
 
 export const CORE_TOOL_NAMES_V1 = [
   'board_connection_status',
@@ -111,6 +114,31 @@ export const BOARD_TOOL_NAMES_V1 = [
   ...DOWNSTREAM_TOOL_NAMES_V1.slice(0, 3),
   ...CORE_TOOL_NAMES_V1.slice(21),
   ...DOWNSTREAM_TOOL_NAMES_V1.slice(3),
+] as const satisfies readonly BoardToolNameV1[];
+
+export const API_KEY_TOOL_NAMES_V1 = [
+  'board_connection_status',
+  'board_list',
+  'board_get',
+  'board_create',
+  'board_rename',
+  'board_archive',
+  'board_capabilities_get',
+  'board_scene_get',
+  'board_scene_replace',
+  'board_scene_patch',
+  'board_scene_clear',
+  'board_document_get',
+  'board_document_replace',
+  'board_page_add',
+  'board_page_remove',
+  'board_page_reorder',
+  'board_page_update',
+  'board_page_default_set',
+  'board_history_list',
+  'board_history_get',
+  'board_history_restore',
+  'board_export',
 ] as const satisfies readonly BoardToolNameV1[];
 
 export const BOARD_TOOL_ERROR_CODES_V1 = {
@@ -162,6 +190,15 @@ export const BOARD_TOOL_ERROR_CODES_V1 = {
     'UNAUTHENTICATED',
     'FORBIDDEN',
     'IDEMPOTENCY_KEY_REUSED',
+    'RATE_LIMITED',
+    'SERVICE_UNAVAILABLE',
+    'INTERNAL_ERROR',
+  ],
+  board_rename: [
+    'INVALID_PAYLOAD',
+    'UNAUTHENTICATED',
+    'FORBIDDEN',
+    'BOARD_NOT_FOUND',
     'RATE_LIMITED',
     'SERVICE_UNAVAILABLE',
     'INTERNAL_ERROR',
@@ -444,6 +481,19 @@ export const BOARD_TOOL_ERROR_CODES_V1 = {
     'SERVICE_UNAVAILABLE',
     'INTERNAL_ERROR',
   ],
+  board_export: [
+    'EXPORT_INVALID_REQUEST',
+    'EXPORT_UNAUTHENTICATED',
+    'EXPORT_FORBIDDEN',
+    'EXPORT_NOT_FOUND',
+    'EXPORT_REQUIRED_CONTENT_UNSUPPORTED',
+    'EXPORT_BOUNDS_EXCEEDED',
+    'EXPORT_RATE_LIMITED',
+    'EXPORT_RENDERER_UNAVAILABLE',
+    'EXPORT_RENDER_TIMEOUT',
+    'EXPORT_ENCODE_FAILED',
+    'EXPORT_INTERNAL_ERROR',
+  ],
   board_artifact_get: [
     'INVALID_PAYLOAD',
     'PROTOCOL_VERSION_MISMATCH',
@@ -533,6 +583,8 @@ export type CoreToolRegistryOptionsV1 = {
   connections: ConnectionStatusPortV1;
   authenticated: boolean;
   downstreamReady?: boolean;
+  credentialMode?: 'pairing' | 'api_key';
+  localExports?: LocalExportFileV1;
 };
 
 export type CoreToolRegistryV1 = {
@@ -552,7 +604,14 @@ export const registerCoreToolsV1 = (
   const artifacts = new ArtifactToolHandlersV1(options.gateway);
   const interactions = new InteractionToolHandlersV1(options.gateway);
   const media = new MediaToolHandlersV1(options.gateway);
-  const names = options.downstreamReady === true ? BOARD_TOOL_NAMES_V1 : CORE_TOOL_NAMES_V1;
+  const exports = new ExportToolHandlersV1(options.gateway, options.localExports ?? null);
+  const credentialMode = options.credentialMode ?? 'pairing';
+  const names =
+    credentialMode === 'api_key'
+      ? API_KEY_TOOL_NAMES_V1
+      : options.downstreamReady === true
+        ? BOARD_TOOL_NAMES_V1
+        : CORE_TOOL_NAMES_V1;
   const protectedNames = names.filter(
     (name) => !SAFE_TOOL_NAMES_V1.includes(name as (typeof SAFE_TOOL_NAMES_V1)[number]),
   );
@@ -616,18 +675,20 @@ export const registerCoreToolsV1 = (
     ConnectionStatusInputSchemaV1,
     (raw, signal) => connection.status(raw, signal),
   );
-  add(
-    'board_pair_request',
-    'Claim a human-created pairing code using the configured private credential sink.',
-    PairRequestInputSchemaV1,
-    (raw, signal) => connection.pairRequest(raw, signal),
-  );
-  add(
-    'board_pair_status',
-    'Wait for or read the current proof-authenticated pairing state.',
-    PairStatusInputSchemaV1,
-    (raw, signal) => connection.pairStatus(raw, signal),
-  );
+  if (credentialMode === 'pairing') {
+    add(
+      'board_pair_request',
+      'Claim a human-created pairing code using the configured private credential sink.',
+      PairRequestInputSchemaV1,
+      (raw, signal) => connection.pairRequest(raw, signal),
+    );
+    add(
+      'board_pair_status',
+      'Wait for or read the current proof-authenticated pairing state.',
+      PairStatusInputSchemaV1,
+      (raw, signal) => connection.pairStatus(raw, signal),
+    );
+  }
   add(
     'board_list',
     'List authorized SceneBoard boards.',
@@ -649,6 +710,15 @@ export const registerCoreToolsV1 = (
     (raw, signal) => boards.create(raw, signal),
     true,
   );
+  if (credentialMode === 'api_key') {
+    add(
+      'board_rename',
+      'Rename one owner board.',
+      BoardRenameInputSchemaV1,
+      (raw, signal) => boards.rename(raw, signal),
+      true,
+    );
+  }
   add(
     'board_archive',
     'Archive one board with explicit confirmation.',
@@ -740,21 +810,23 @@ export const registerCoreToolsV1 = (
     (raw, signal) => documents.defaultSet(raw, signal),
     true,
   );
-  add(
-    'sceneboard_media_upload',
-    'Upload one explicitly authorized local PNG, JPEG, or WebP file.',
-    MediaUploadInputSchemaV1,
-    (raw, signal) => media.upload(raw, signal),
-    true,
-  );
-  add(
-    'sceneboard_media_place',
-    'Place one immutable media image in an exact V2 document revision.',
-    MediaPlaceInputSchemaV1,
-    (raw, signal) => media.place(raw, signal),
-    true,
-  );
-  if (options.downstreamReady === true) {
+  if (credentialMode === 'pairing') {
+    add(
+      'sceneboard_media_upload',
+      'Upload one explicitly authorized local PNG, JPEG, or WebP file.',
+      MediaUploadInputSchemaV1,
+      (raw, signal) => media.upload(raw, signal),
+      true,
+    );
+    add(
+      'sceneboard_media_place',
+      'Place one immutable media image in an exact V2 document revision.',
+      MediaPlaceInputSchemaV1,
+      (raw, signal) => media.place(raw, signal),
+      true,
+    );
+  }
+  if (credentialMode === 'pairing' && options.downstreamReady === true) {
     add(
       'board_artifact_get',
       'Read one exact immutable artifact/version manifest and runtime state.',
@@ -799,8 +871,17 @@ export const registerCoreToolsV1 = (
     (raw, signal) => history.restore(raw, signal),
     true,
   );
+  if (credentialMode === 'api_key') {
+    add(
+      'board_export',
+      'Export one current or retained board revision to a new no-clobber local PDF or PPTX file.',
+      BoardExportInputSchemaV1,
+      (raw, signal) => exports.export(raw, signal),
+      true,
+    );
+  }
 
-  if (options.downstreamReady === true) {
+  if (credentialMode === 'pairing' && options.downstreamReady === true) {
     add(
       'board_interaction_request',
       'Create an exact human interaction, then immediately await it with board_interaction_status.',

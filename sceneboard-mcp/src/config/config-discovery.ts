@@ -117,10 +117,17 @@ export const discoverBoardConfigV1 = async (
     {
       version: 1,
       baseUrl: options.env.BOARD_API_URL,
-      accessTokenRef: options.env.BOARD_ACCESS_TOKEN_REF ?? 'env://SCENEBOARD_ACCESS_TOKEN',
+      accessTokenRef:
+        options.env.BOARD_ACCESS_TOKEN_REF ??
+        (options.env.BOARD_CREDENTIAL_MODE === 'api_key'
+          ? 'env://SCENEBOARD_API_KEY'
+          : 'env://SCENEBOARD_ACCESS_TOKEN'),
       authScheme: 'bearer',
       timeoutMs: environmentTimeout(options.env.BOARD_TIMEOUT_MS),
       profile: options.env.BOARD_PROFILE ?? 'default',
+      ...(options.env.BOARD_CREDENTIAL_MODE === undefined
+        ? {}
+        : { credentialMode: options.env.BOARD_CREDENTIAL_MODE }),
     },
     'environment',
   );

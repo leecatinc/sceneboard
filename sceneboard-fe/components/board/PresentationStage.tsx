@@ -338,6 +338,9 @@ export function PresentationStage({
   const stageProperties: StagePropertiesV1 =
     transform === null
       ? {
+          // 측정된 스테이지 높이를 아티팩트 호스트가 상속받아 55vh 캡 없이 스테이지를 채우도록 노출한다.
+          // useLayoutEffect가 페인트 전에 측정하므로 측정 전 0px 값은 화면에 그려지지 않는다.
+          '--page-stage-viewport-height': `${viewport.height}px`,
           '--mobile-page-controls-height': `${navigationHeight}px`,
         }
       : {
@@ -346,6 +349,7 @@ export function PresentationStage({
           '--page-canvas-move-x': `${transform.moveX}px`,
           '--page-canvas-reserved-width': `${transform.reservedWidth}px`,
           '--page-canvas-reserved-height': `${transform.reservedHeight}px`,
+          '--page-stage-viewport-height': `${viewport.height}px`,
           '--mobile-page-controls-height': `${navigationHeight}px`,
         };
   useEffect(() => {

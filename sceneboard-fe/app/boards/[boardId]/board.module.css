@@ -34,17 +34,10 @@
   min-height: 0;
   grid-row: 3;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 228px;
+  grid-template-columns: minmax(0, 1fr) auto;
   overflow: clip;
   gap: 1px;
   background: var(--border);
-}
-
-@media (max-width: 1180px) {
-  .surface {
-    grid-template-columns: 1fr;
-    grid-template-rows: minmax(0, 1fr) auto;
-  }
 }
 
 @media (max-width: 760px) {

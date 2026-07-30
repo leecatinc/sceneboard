@@ -4,15 +4,17 @@ Run this matrix only after `npm run check` passes in the same immutable
 attempt. Use a fresh context for each principal and share generation. A manual
 observation cannot override an automated failure.
 
-| Case           |             Viewport | Required observations                                                                                                                                                                    |
-| -------------- | -------------------: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| PAGES-DESKTOP  |             1440×900 | Latest is the first revision option; retained selection stays pinned; PageUp/PageDown, arrows, Home, and End honor editable/excluded targets; page change resets PAGE to top.            |
-| PAGES-MOBILE-P |              320×568 | Fit width is readable, content stacks, bottom controls remain reachable, owner tools use the drawer, and the document has no horizontal scrollbar.                                       |
-| PAGES-MOBILE-L |              568×320 | Explicit actual-size Move is clamped; vertical intent still scrolls PAGE/browser; back/forward navigation is not hijacked.                                                               |
-| PRESENTATION   |             1440×900 | Fullscreen hides chrome, controls auto-hide and return, Escape/forced exit resync state, and focus fallback behaves equivalently when the API rejects.                                   |
-| SHARING        |             1440×900 | Unlisted and password links show the pinned revision only; update, rotate, and revoke invalidate old access; public state never gains editor controls.                                   |
-| MEDIA          | 1440×900 and 320×568 | Picker/drop upload places the same immutable image contract, decorative/meaningful fields are accessible, and failed upload leaves the document unchanged.                               |
-| ANALYTICS      |             1440×900 | Only two-paint visible public/password content sends first-visible/page-visible; gates, hidden documents, errors, and authenticated Live Board send zero; no public count badge appears. |
+| Case            |             Viewport | Required observations                                                                                                                                                                                                                                             |
+| --------------- | -------------------: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PAGES-DESKTOP   |             1440×900 | Latest is the first revision option; retained selection stays pinned; PageUp/PageDown, arrows, Home, and End honor editable/excluded targets; page change resets PAGE to top.                                                                                     |
+| PAGES-MOBILE-P  |              320×568 | Fit width is readable, content stacks, bottom controls remain reachable, owner tools use the drawer, and the document has no horizontal scrollbar.                                                                                                                |
+| PAGES-MOBILE-L  |              568×320 | Explicit actual-size Move is clamped; vertical intent still scrolls PAGE/browser; back/forward navigation is not hijacked.                                                                                                                                        |
+| PRESENTATION    |             1440×900 | Fullscreen hides chrome, controls auto-hide and return, Escape/forced exit resync state, and focus fallback behaves equivalently when the API rejects.                                                                                                            |
+| SHARING         |             1440×900 | Unlisted and password links show the pinned revision only; update, rotate, and revoke invalidate old access; public state never gains editor controls.                                                                                                            |
+| MEDIA           | 1440×900 and 320×568 | Picker/drop upload places the same immutable image contract, decorative/meaningful fields are accessible, and failed upload leaves the document unchanged.                                                                                                        |
+| ANALYTICS       |             1440×900 | Only two-paint visible public/password content sends first-visible/page-visible; gates, hidden documents, errors, and authenticated Live Board send zero; no public count badge appears.                                                                          |
+| EXPORT          | 1440×900 and 320×568 | Owner confirms the selected retained revision, logical page format and PDF/PPTX; only complete binary success downloads; cancel aborts; focus returns; retry appears only for server `retryable:true`; viewer/editor/public/cross-account controls remain absent. |
+| API-KEY/PAIRING |             1440×900 | Explicit API-key mode can perform only its scoped owner CRUD/export tools without a live pairing session; default pairing still claims, approves, redeems and drives its unchanged terminal tool surface.                                                         |
 
 For all rows verify one vertical scroll owner named `PAGE`, zero document X
 overflow, visible focus, localized accessible names and announcements, and no
@@ -22,6 +24,11 @@ Record browser build hash, source commit, presentation manifest hash, case ID,
 viewport, safe verdict, sanitized evidence hash, owner, and cleanup result.
 Screenshots/traces/video default to off for password, token, analytics identity,
 and local-file rows.
+
+For EXPORT, hash the board, head and retained revision payload rows before and after success,
+failure, retry and cancel. They must remain unchanged; only the documented temporary export hold,
+audit and evidence writes are allowed. Verify PDF and PPTX signatures, page order and selected
+revision without recording a real board/revision identifier in evidence.
 
 The I-44 source-contract smoke files under `e2e/` are deterministic and run in
 CI. They do not impersonate this supervised browser matrix. When an installed

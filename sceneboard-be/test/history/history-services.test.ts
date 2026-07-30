@@ -4,6 +4,8 @@ import { test } from 'node:test';
 import {
   BoardOperationRequestParserV1,
   BoardOperationResultParserV1,
+  BoardOperationResultParserV2,
+  BoardOperationResultParserV3,
   normalizeActorContextV1,
   type ActorContextV1,
   type BoardId,
@@ -58,6 +60,7 @@ const principal = (): Extract<ResolvedBoardPrincipalV1, { kind: 'user' }> => ({
   userPk: 20n,
   sessionPk: 21n,
   familyPublicId: 'family_1',
+  isBrowserCredential: true,
 });
 
 const context = (): AuthorizedBoardContextV1 => ({
@@ -187,9 +190,10 @@ test('history list uses one narrow newest-first page and cursors from the last r
   assert.deepEqual(calls[0]?.binds, [boardId]);
 });
 
-test('history get composes an immutable selected v2 document with current response-cut capabilities and watermark', async () => {
-  const checkpoint = await new DocumentCheckpointCodec().encodeDocument({
-    schemaVersion: 2,
+test('history get projects V3 history for V2 readers and preserves format for explicit V3 readers', async () => {
+  const checkpoint = await new DocumentCheckpointCodec().encodeDocumentV3({
+    schemaVersion: 3,
+    format: 'a4_landscape',
     defaultPageId: 'page_1',
     pages: [
       {
@@ -256,18 +260,19 @@ test('history get composes an immutable selected v2 document with current respon
     new InactiveCurrentArtifactRuntimeSummaryProvider(),
     new MysqlCurrentBoardCapabilitiesPort(),
   );
-  const response = await new HistoryGetService(
-    policy,
-    new DocumentCheckpointCodec(),
-    snapshots,
-  ).getWithMetadata({ principal: principal(), request: parseGet() });
+  const service = new HistoryGetService(policy, new DocumentCheckpointCodec(), snapshots);
+  const response = await service.getWithMetadata({
+    principal: principal(),
+    request: { ...parseGet(), documentSchemaVersion: 2 },
+  });
   const result = response.result;
-  assert.equal(BoardOperationResultParserV1.parse(result).ok, true);
+  assert.equal(BoardOperationResultParserV2.parse(result).ok, true);
   assert.equal(result.result.type, 'history.get');
   if (result.result.type !== 'history.get') return;
   assert.equal(result.result.entry.revision.revisionNumber, 2);
   assert.equal('document' in result.result.snapshot, true);
   if (!('document' in result.result.snapshot)) return;
+  assert.equal(result.result.snapshot.document.schemaVersion, 2);
   assert.equal(result.result.snapshot.document.defaultPageId, 'page_1');
   assert.equal(result.result.snapshot.capabilities.schemaVersion, '1.1.0');
   assert.equal(result.result.snapshot.lastEventSequence, 3);
@@ -287,4 +292,16 @@ test('history get composes an immutable selected v2 document with current respon
     },
   });
   assert.equal(calls.length, 4);
+
+  const native = await service.getWithMetadata({
+    principal: principal(),
+    request: { ...parseGet(), documentSchemaVersion: 3 },
+  });
+  assert.equal(BoardOperationResultParserV3.parse(native.result).ok, true);
+  if (native.result.result.type !== 'history.get' || !('document' in native.result.result.snapshot))
+    return;
+  assert.equal(native.result.result.snapshot.document.schemaVersion, 3);
+  if (native.result.result.snapshot.document.schemaVersion === 3)
+    assert.equal(native.result.result.snapshot.document.format, 'a4_landscape');
+  assert.equal(calls.length, 8);
 });

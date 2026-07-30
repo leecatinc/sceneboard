@@ -6,6 +6,7 @@ import test from 'node:test';
 import { MESSAGES, SUPPORTED_LOCALES, messageKeys } from '../../lib/i18n/catalog';
 import { AI_CONNECTIONS_CATALOG } from '../../lib/i18n/catalogs/ai-connections';
 import { AI_PAIRING_CATALOG } from '../../lib/i18n/catalogs/ai-pairing';
+import { API_KEY_MANAGEMENT_CATALOG } from '../../lib/i18n/catalogs/api-key-management';
 import { ANALYTICS_CATALOG } from '../../lib/i18n/catalogs/analytics';
 import { AUTH_CATALOG } from '../../lib/i18n/catalogs/auth';
 import { BOARD_CATALOG } from '../../lib/i18n/catalogs/board';
@@ -39,6 +40,7 @@ test('catalog baseline freezes ordered locale values and the AI topic partition'
   const keys = messageKeys().filter(
     (key) =>
       !key.startsWith('presentation.') &&
+      !key.startsWith('apiKey.') &&
       !key.startsWith('sharing.') &&
       !key.startsWith('analytics.') &&
       !key.startsWith('mediaAuthoring.'),
@@ -69,9 +71,17 @@ test('presentation messages are isolated from the frozen catalog baseline', () =
   assert.deepEqual(
     messageKeys().filter((key) => key.startsWith('presentation.')),
     [
+      'presentation.documentFormat',
+      'presentation.formatWide',
+      'presentation.formatStandard',
+      'presentation.formatA4Portrait',
+      'presentation.formatA4Landscape',
+      'presentation.formatSaving',
+      'presentation.formatSaveFailed',
       'presentation.boardControls',
       'presentation.closeBoardControls',
       'presentation.movePage',
+      'presentation.movePageDescription',
       'presentation.stopMoving',
       'presentation.enterPresentation',
       'presentation.exitPresentation',
@@ -85,8 +95,38 @@ test('presentation messages are isolated from the frozen catalog baseline', () =
       'presentation.previousPage',
       'presentation.nextPage',
       'presentation.pageAnnouncement',
+      'presentation.goToLatest',
+      'presentation.exportAction',
+      'presentation.exportDialogTitle',
+      'presentation.exportDialogDescription',
+      'presentation.exportBoard',
+      'presentation.exportRevision',
+      'presentation.exportDocumentFormat',
+      'presentation.exportFormatLegend',
+      'presentation.exportPdf',
+      'presentation.exportPptx',
+      'presentation.exportConfirm',
+      'presentation.exportGenerating',
+      'presentation.exportRetrying',
+      'presentation.exportCompleted',
+      'presentation.exportClose',
+      'presentation.exportContentUnsupported',
+      'presentation.exportTooLarge',
+      'presentation.exportTemporaryFailed',
+      'presentation.exportFailed',
     ],
   );
+});
+
+test('API-key management messages are one complete localized topic', () => {
+  const keys = messageKeys().filter((key) => key.startsWith('apiKey.'));
+  assert.deepEqual(
+    keys,
+    API_KEY_MANAGEMENT_CATALOG.map((row) => row[0]),
+  );
+  assert.equal(new Set(keys).size, keys.length);
+  for (const locale of SUPPORTED_LOCALES)
+    for (const key of keys) assert.ok(MESSAGES[locale][key].trim().length > 0);
 });
 
 test('media authoring messages are one complete localized topic', () => {
@@ -109,6 +149,7 @@ test('topic catalogs have one owner per key and stay below the physical line cap
     ['settings', SETTINGS_CATALOG],
     ['ai-pairing', AI_PAIRING_CATALOG],
     ['ai-connections', AI_CONNECTIONS_CATALOG],
+    ['api-key-management', API_KEY_MANAGEMENT_CATALOG],
     ['codex', CODEX_CATALOG],
     ['presentation', PRESENTATION_CATALOG],
     ['media-authoring', MEDIA_AUTHORING_CATALOG],

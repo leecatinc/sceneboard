@@ -22,6 +22,13 @@ type RouteProfileV1 = {
 };
 
 const DEFAULT_HEADERS = ['Content-Type', 'X-CSRF-Token'] as const;
+const DEFAULT_EXPOSED_HEADERS_V1 = ['X-Request-Id', 'X-Auth-Generation', 'Retry-After'] as const;
+const EXPORT_EXPOSED_HEADERS_V1 = [
+  ...DEFAULT_EXPOSED_HEADERS_V1,
+  'Content-Disposition',
+  'Content-Length',
+  'X-Content-Type-Options',
+] as const;
 const ROUTES: readonly RouteProfileV1[] = [
   { pattern: /^\/api\/v1\/boards\/[^/]+\/events$/u, methods: ['GET'], headers: ['Last-Event-ID'] },
   { pattern: /^\/api\/v1\/auth\/(?:csrf|session)$/u, methods: ['GET'], headers: DEFAULT_HEADERS },
@@ -32,6 +39,16 @@ const ROUTES: readonly RouteProfileV1[] = [
     headers: DEFAULT_HEADERS,
   },
   { pattern: /^\/api\/v1\/pairings$/u, methods: ['POST'], headers: DEFAULT_HEADERS },
+  {
+    pattern: /^\/api\/v1\/account\/api-keys$/u,
+    methods: ['GET', 'POST'],
+    headers: DEFAULT_HEADERS,
+  },
+  {
+    pattern: /^\/api\/v1\/account\/api-keys\/[^/]+$/u,
+    methods: ['DELETE'],
+    headers: DEFAULT_HEADERS,
+  },
   { pattern: /^\/api\/v1\/pairings\/claim$/u, methods: ['POST'], headers: DEFAULT_HEADERS },
   { pattern: /^\/api\/v1\/pairings\/active$/u, methods: ['GET'], headers: DEFAULT_HEADERS },
   {
@@ -63,6 +80,11 @@ const ROUTES: readonly RouteProfileV1[] = [
   },
   {
     pattern: /^\/api\/v1\/boards\/[^/]+\/(?:archive|mutations)$/u,
+    methods: ['POST'],
+    headers: DEFAULT_HEADERS,
+  },
+  {
+    pattern: /^\/api\/v1\/boards\/[^/]+\/exports$/u,
     methods: ['POST'],
     headers: DEFAULT_HEADERS,
   },
@@ -159,25 +181,27 @@ export const evaluateCorsPreflightV1 = (
   };
 };
 
+export const corsExposedHeadersV1 = (path: string): readonly string[] =>
+  /^\/api\/v1\/boards\/[^/]+\/exports$/u.test(path)
+    ? EXPORT_EXPOSED_HEADERS_V1
+    : DEFAULT_EXPOSED_HEADERS_V1;
+
 @Injectable()
 export class CorsPolicyMiddleware implements NestMiddleware {
   constructor(@Inject(APP_ENVIRONMENT) private readonly environment: AppEnvironment) {}
 
   use(request: CorsRequestV1, response: CorsResponseV1, next: () => void): void {
     const origin = singleton(request.headers.origin);
+    const path = (request.originalUrl ?? request.url ?? '').split('?', 1)[0] ?? '';
     if (request.method !== 'OPTIONS') {
       if (origin === this.environment.browserOrigin) {
         response.setHeader('Access-Control-Allow-Origin', origin);
         response.setHeader('Access-Control-Allow-Credentials', 'true');
-        response.setHeader(
-          'Access-Control-Expose-Headers',
-          'X-Request-Id, X-Auth-Generation, Retry-After',
-        );
+        response.setHeader('Access-Control-Expose-Headers', corsExposedHeadersV1(path).join(', '));
       }
       next();
       return;
     }
-    const path = (request.originalUrl ?? request.url ?? '').split('?', 1)[0] ?? '';
     const method = singleton(request.headers['access-control-request-method']);
     const headers = singleton(request.headers['access-control-request-headers']);
     const decision =

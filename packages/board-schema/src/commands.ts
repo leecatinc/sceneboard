@@ -6,7 +6,7 @@ import {
   ArtifactReferenceSchemaV1,
   ArtifactRuntimeSummarySchemaV1,
 } from './artifacts.js';
-import { BoardDocumentSchemaV2 } from './documents.js';
+import { BoardDocumentSchemaV2, BoardDocumentSchemaV3 } from './documents.js';
 import {
   EventIdSchemaV1,
   HitlRequestIdSchemaV1,
@@ -59,6 +59,9 @@ const ArtifactStopCommandSchemaV1 = z
 const DocumentReplaceCommandSchemaV2 = z
   .object({ type: z.literal('document.replace'), document: BoardDocumentSchemaV2 })
   .strict();
+const DocumentReplaceCommandSchemaV3 = z
+  .object({ type: z.literal('document.replace'), document: BoardDocumentSchemaV3 })
+  .strict();
 
 export const BoardMutationCommandSchemaV1 = z.discriminatedUnion('type', [
   SceneReplaceCommandSchemaV1,
@@ -79,6 +82,16 @@ export const BoardMutationCommandSchemaV2 = z.discriminatedUnion('type', [
   ArtifactStopCommandSchemaV1,
   DocumentReplaceCommandSchemaV2,
 ]);
+export const BoardMutationCommandSchemaV3 = z.discriminatedUnion('type', [
+  SceneReplaceCommandSchemaV1,
+  SceneClearCommandSchemaV1,
+  SceneRestoreCommandSchemaV1,
+  HitlRequestCommandSchemaV1,
+  HitlRespondCommandSchemaV1,
+  ArtifactPublishCommandSchemaV1,
+  ArtifactStopCommandSchemaV1,
+  DocumentReplaceCommandSchemaV3,
+]);
 
 const MutationRequestShapeV1 = {
   protocolVersion: z.literal(1),
@@ -92,6 +105,10 @@ const MutationRequestShapeV2 = {
   ...MutationRequestShapeV1,
   command: BoardMutationCommandSchemaV2,
 };
+const MutationRequestShapeV3 = {
+  ...MutationRequestShapeV1,
+  command: BoardMutationCommandSchemaV3,
+};
 
 export const MutationRequestSchemaV1 = z.object(MutationRequestShapeV1).strict();
 export const MutationEnvelopeSchemaV1 = z
@@ -100,6 +117,10 @@ export const MutationEnvelopeSchemaV1 = z
 export const MutationRequestSchemaV2 = z.object(MutationRequestShapeV2).strict();
 export const MutationEnvelopeSchemaV2 = z
   .object({ ...MutationRequestShapeV2, actor: ActorContextSchemaV1 })
+  .strict();
+export const MutationRequestSchemaV3 = z.object(MutationRequestShapeV3).strict();
+export const MutationEnvelopeSchemaV3 = z
+  .object({ ...MutationRequestShapeV3, actor: ActorContextSchemaV1 })
   .strict();
 
 const MutationResultDataSchemaV1 = z.discriminatedUnion('type', [
@@ -132,6 +153,19 @@ const MutationResultDataSchemaV2 = z.discriminatedUnion('type', [
   ...MutationResultDataSchemaV1.options,
   DocumentReplaceResultDataSchemaV2,
 ]);
+const DocumentReplaceResultDataSchemaV3 = z
+  .object({
+    type: z.literal('document.replace'),
+    revision: RevisionSummarySchemaV1,
+    originType: z.literal('document.replace'),
+    sourceRevisionId: z.null(),
+    document: BoardDocumentSchemaV3,
+  })
+  .strict();
+const MutationResultDataSchemaV3 = z.discriminatedUnion('type', [
+  ...MutationResultDataSchemaV1.options,
+  DocumentReplaceResultDataSchemaV3,
+]);
 
 const mutationResultSchema = <Result extends z.ZodTypeAny>(result: Result) =>
   z
@@ -156,17 +190,23 @@ const mutationResultSchema = <Result extends z.ZodTypeAny>(result: Result) =>
 
 export const MutationResultSchemaV1 = mutationResultSchema(MutationResultDataSchemaV1);
 export const MutationResultSchemaV2 = mutationResultSchema(MutationResultDataSchemaV2);
+export const MutationResultSchemaV3 = mutationResultSchema(MutationResultDataSchemaV3);
 
 export type BoardMutationCommandV1 = z.infer<typeof BoardMutationCommandSchemaV1>;
 export type BoardMutationCommandV2 = z.infer<typeof BoardMutationCommandSchemaV2>;
+export type BoardMutationCommandV3 = z.infer<typeof BoardMutationCommandSchemaV3>;
 export type BoardMutationResultDataV1 = z.infer<typeof MutationResultDataSchemaV1>;
 export type BoardMutationResultDataV2 = z.infer<typeof MutationResultDataSchemaV2>;
+export type BoardMutationResultDataV3 = z.infer<typeof MutationResultDataSchemaV3>;
 export type MutationRequestV1 = z.infer<typeof MutationRequestSchemaV1>;
 export type MutationRequestV2 = z.infer<typeof MutationRequestSchemaV2>;
+export type MutationRequestV3 = z.infer<typeof MutationRequestSchemaV3>;
 export type MutationEnvelopeV1 = z.infer<typeof MutationEnvelopeSchemaV1>;
 export type MutationEnvelopeV2 = z.infer<typeof MutationEnvelopeSchemaV2>;
+export type MutationEnvelopeV3 = z.infer<typeof MutationEnvelopeSchemaV3>;
 export type MutationResultV1 = z.infer<typeof MutationResultSchemaV1>;
 export type MutationResultV2 = z.infer<typeof MutationResultSchemaV2>;
+export type MutationResultV3 = z.infer<typeof MutationResultSchemaV3>;
 export type MutationFingerprintInputV1 = {
   protocolVersion: 1;
   boardId: MutationEnvelopeV1['boardId'];
@@ -179,5 +219,12 @@ export type MutationFingerprintInputV2 = {
   boardId: MutationEnvelopeV2['boardId'];
   expectedRevisionId: MutationEnvelopeV2['expectedRevisionId'];
   command: BoardMutationCommandV2;
+  actor: ActorContextV1;
+};
+export type MutationFingerprintInputV3 = {
+  protocolVersion: 1;
+  boardId: MutationEnvelopeV3['boardId'];
+  expectedRevisionId: MutationEnvelopeV3['expectedRevisionId'];
+  command: BoardMutationCommandV3;
   actor: ActorContextV1;
 };

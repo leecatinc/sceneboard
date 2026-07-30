@@ -23,8 +23,10 @@ test('D6 HTTP and scene-transform leaf barrels expose only their closed runtimes
   assert.deepEqual(Object.keys(http).sort(), [
     'BoardSdkHttpClient',
     'parseBoardDocumentHttpResultV2',
+    'parseBoardDocumentHttpResultV3',
     'parseBoardHttpResultV1',
     'parseBoardOperationHttpResultV2',
+    'parseBoardOperationHttpResultV3',
   ]);
   assert.deepEqual(Object.keys(documentTransform).sort(), [
     'applyDocumentTransformV2',

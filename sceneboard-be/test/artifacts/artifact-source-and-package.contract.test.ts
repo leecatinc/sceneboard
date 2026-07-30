@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+import { dirname, join } from 'node:path';
 import { test } from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import { BoardArtifactPutSourceV1Parser } from '../../src/artifacts/artifact-http.dto.js';
+import { ArtifactSanitizerV1 } from '../../src/artifacts/artifact-sanitizer.js';
 import { ArtifactSourceNormalizerV1 } from '../../src/artifacts/artifact-source-normalizer.js';
 import type { ResolvedBoardPrincipalV1 } from '../../src/grants/board-access.policy.js';
 
@@ -88,4 +92,27 @@ test('builds deterministic one-to-three resource manifests and LCARTV1 packages'
     }),
   });
   assert.equal(minimal.manifest.resources.length, 1);
+});
+
+test('accepts the compiler-owned KitCatHub slide deck through the production sanitizer', () => {
+  const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+  const cli = join(
+    root,
+    'sceneboard-mcp/plugins/sceneboard/skills/sceneboard/scripts/scene-artifact.mjs',
+  );
+  const fixture = join(root, 'test/fixtures/kitcathub-slide-deck.json');
+  const draft = JSON.parse(
+    execFileSync(process.execPath, [cli, 'compile', fixture], { encoding: 'utf8' }),
+  ) as {
+    source: {
+      html: string;
+      css: string;
+      javascript: string;
+      requestedCapabilities: string[];
+    };
+  };
+  const sanitized = new ArtifactSanitizerV1().sanitize(draft.source);
+  assert.match(sanitized.html, /data-sb-slide-deck="v1"/u);
+  assert.deepEqual(draft.source.requestedCapabilities, []);
+  assert.equal(sanitized.javascript, draft.source.javascript);
 });

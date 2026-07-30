@@ -171,10 +171,39 @@ export const DEFAULT_BOARD_CAPABILITIES_V2 = {
   allowedArtifactRequestCapabilities: [],
 } as const;
 
+export const BoardCapabilitiesSchemaV3 = z
+  .object({
+    protocolVersion: z.literal(PROTOCOL_VERSION),
+    type: z.literal('board.capabilities'),
+    schemaVersion: z.literal('1.2.0'),
+    compatibilityMode: z.literal('frozen-major'),
+    supported: z
+      .object({
+        nodeTypes: exactCatalog(NODE_TYPES_V1),
+        commandTypes: exactCatalog(BOARD_MUTATION_COMMAND_TYPES_V2),
+        operationTypes: exactCatalog(BOARD_OPERATION_TYPES_V1),
+        eventTypes: exactCatalog(BOARD_EVENT_TYPES_V1),
+        hitlKinds: exactCatalog(HITL_KINDS_V1),
+        artifactRequestCapabilities: exactCatalog(ARTIFACT_REQUEST_CAPABILITIES_V1),
+      })
+      .strict(),
+    limits: BoardLimitsSchemaV2,
+    grantedCapabilities: sortedSubset(CLIENT_GRANT_CAPABILITIES_V1),
+    allowedArtifactRequestCapabilities: sortedSubset(ARTIFACT_REQUEST_CAPABILITIES_V1),
+  })
+  .strict();
+
+export const DEFAULT_BOARD_CAPABILITIES_V3 = {
+  ...DEFAULT_BOARD_CAPABILITIES_V2,
+  schemaVersion: '1.2.0',
+} as const;
+
 export const BoardCapabilitiesSchema = z.union([
   BoardCapabilitiesSchemaV1,
   BoardCapabilitiesSchemaV2,
+  BoardCapabilitiesSchemaV3,
 ]);
 
 export type BoardCapabilitiesV2 = z.infer<typeof BoardCapabilitiesSchemaV2>;
+export type BoardCapabilitiesV3 = z.infer<typeof BoardCapabilitiesSchemaV3>;
 export type BoardCapabilities = z.infer<typeof BoardCapabilitiesSchema>;

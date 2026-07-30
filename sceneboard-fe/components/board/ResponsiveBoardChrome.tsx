@@ -23,6 +23,10 @@ export function ResponsiveBoardChrome({
   presentationActive,
   notice,
   surfaceClassName,
+  utilityRail,
+  desktopBoardIdentity,
+  pageNavigation,
+  revisionControls,
   children,
 }: {
   slots: MobileBoardDrawerSlotsV1;
@@ -30,6 +34,10 @@ export function ResponsiveBoardChrome({
   presentationActive: boolean;
   notice: ReactNode;
   surfaceClassName: string;
+  utilityRail: ReactNode;
+  desktopBoardIdentity: ReactNode;
+  pageNavigation: ReactNode;
+  revisionControls: ReactNode;
   children: ReactNode;
 }) {
   const mobile = useSyncExternalStore(subscribeMobile, getMobileSnapshot, getMobileServerSnapshot);
@@ -55,18 +63,17 @@ export function ResponsiveBoardChrome({
     <>
       {!presentationActive && (
         <BoardTopBar
-          boardIdentity={slots.boardIdentity}
-          pageDisplay={slots.pageDisplay}
+          boardIdentity={desktopBoardIdentity}
           mediaAuthoring={slots.mediaAuthoring}
-          history={slots.history}
+          pageNavigation={pageNavigation}
+          revision={revisionControls}
           connections={slots.connections}
-          ownerAdmin={slots.ownerAdmin}
         />
       )}
       {!presentationActive && notice}
       <div key="board-surface" className={`board-surface ${surfaceClassName}`}>
         {children}
-        {!presentationActive && slots.status}
+        {!presentationActive && utilityRail}
       </div>
     </>
   );

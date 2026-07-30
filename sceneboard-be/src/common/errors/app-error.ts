@@ -30,6 +30,7 @@ export const D2_ERROR_CATALOG = {
   PAIRING_NOT_READY: { status: 409, message: 'Pairing is not ready' },
   PAIRING_TERMINAL: { status: 410, message: 'Pairing has reached a terminal state' },
   GRANT_NOT_FOUND: { status: 404, message: 'Grant was not found' },
+  API_KEY_NOT_FOUND: { status: 404, message: 'API key was not found' },
   GRANT_NOT_ACTIVE: { status: 409, message: 'Grant is not active' },
   INVITATION_NOT_FOUND: { status: 404, message: 'Invitation was not found' },
   INVITATION_CONFLICT: { status: 409, message: 'Invitation state does not allow this operation' },

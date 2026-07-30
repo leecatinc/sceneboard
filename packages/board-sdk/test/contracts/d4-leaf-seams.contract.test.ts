@@ -22,8 +22,10 @@ test('D4 event and SSE leaf barrels expose only their frozen runtimes', () => {
   assert.deepEqual(Object.keys(sse).sort(), [
     'createBoardStreamClientV1',
     'createBoardStreamClientV2',
+    'createBoardStreamClientV3',
     'createBoardStreamTabIdV1',
     'createSseFrameParserV1',
     'createSseFrameParserV2',
+    'createSseFrameParserV3',
   ]);
 });

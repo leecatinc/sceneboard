@@ -9,10 +9,33 @@
     "baseUrl": { "type": "string", "maxLength": 2048 },
     "accessTokenRef": {
       "type": "string",
-      "pattern": "^(?:env://SCENEBOARD_ACCESS_TOKEN|store://[A-Za-z0-9][A-Za-z0-9_-]{0,63})$"
+      "pattern": "^(?:env://SCENEBOARD_(?:ACCESS_TOKEN|API_KEY)|store://[A-Za-z0-9][A-Za-z0-9_-]{0,63})$"
     },
     "authScheme": { "const": "bearer" },
     "timeoutMs": { "type": "integer", "minimum": 1000, "maximum": 120000 },
-    "profile": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$" }
-  }
+    "profile": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$" },
+    "credentialMode": { "enum": ["pairing", "api_key"] }
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["credentialMode"],
+        "properties": { "credentialMode": { "const": "api_key" } }
+      },
+      "then": {
+        "properties": {
+          "accessTokenRef": {
+            "pattern": "^(?:env://SCENEBOARD_API_KEY|store://[A-Za-z0-9][A-Za-z0-9_-]{0,63})$"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "accessTokenRef": {
+            "pattern": "^(?:env://SCENEBOARD_ACCESS_TOKEN|store://[A-Za-z0-9][A-Za-z0-9_-]{0,63})$"
+          }
+        }
+      }
+    }
+  ]
 }

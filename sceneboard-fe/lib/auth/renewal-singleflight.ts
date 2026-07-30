@@ -74,8 +74,10 @@ export interface SharedCookieRequest {
   csrfToken?: string;
   idempotencyKey?: string;
   signal?: AbortSignal;
-  responseKind?: 'json' | 'document-json' | 'artifact-package' | 'artifact-network';
-  contentType?: 'application/vnd.sceneboard.document+json;version=2';
+  responseKind?: 'json' | 'document-json' | 'artifact-package' | 'artifact-network' | 'export';
+  contentType?:
+    | 'application/vnd.sceneboard.document+json;version=2'
+    | 'application/vnd.sceneboard.document+json;version=3';
 }
 
 export interface ConsumedResponse {
@@ -454,7 +456,7 @@ export class SessionRequestCoordinator implements BoardStreamDispatchPortV1 {
         ...(request.signal === undefined ? {} : { signal: request.signal }),
       });
       const consumed = await consume(response, request.signal, request.responseKind);
-      if (response.status === 401 || response.status === 503)
+      if (request.responseKind !== 'export' && (response.status === 401 || response.status === 503))
         return { kind: 'reconciliation_required' as const };
       return { kind: 'ok' as const, value: consumed };
     }).catch(() => ({ kind: 'reconciliation_required' as const }));
@@ -481,7 +483,8 @@ export class SessionRequestCoordinator implements BoardStreamDispatchPortV1 {
       const headers = new Headers({ Accept: 'text/event-stream' });
       if (input.cursor !== null) headers.set('Last-Event-ID', input.cursor);
       const query = new URLSearchParams({ tabId: input.tabId, presenceState: input.presenceState });
-      if (input.documentSchemaVersion === 2) query.set('documentSchemaVersion', '2');
+      if (input.documentSchemaVersion === 2 || input.documentSchemaVersion === 3)
+        query.set('documentSchemaVersion', String(input.documentSchemaVersion));
       const response = await this.dependencies.fetcher(
         `${this.apiOrigin}/api/v1/boards/${encodeURIComponent(input.boardId)}/events?${query.toString()}`,
         { method: 'GET', credentials: 'include', headers, signal: input.signal },
@@ -892,13 +895,15 @@ const consume = async (
   responseKind: SharedCookieRequest['responseKind'] = 'json',
 ): Promise<ConsumedResponse> => {
   const maximumBytes =
-    responseKind === 'artifact-package'
-      ? BOARD_LIMITS_V1.maxArtifactTotalBytes + 262_144
-      : responseKind === 'artifact-network'
-        ? 1_048_640
-        : responseKind === 'document-json'
-          ? BOARD_DOCUMENT_LIMITS_V2.maxDocumentEnvelopeBytes
-          : 2_097_152;
+    responseKind === 'export' && response.ok
+      ? 536_870_912
+      : responseKind === 'artifact-package'
+        ? BOARD_LIMITS_V1.maxArtifactTotalBytes + 262_144
+        : responseKind === 'artifact-network'
+          ? 1_048_640
+          : responseKind === 'document-json'
+            ? BOARD_DOCUMENT_LIMITS_V2.maxDocumentEnvelopeBytes
+            : 2_097_152;
   const read =
     response.status === 204 && response.body === null
       ? new Uint8Array()

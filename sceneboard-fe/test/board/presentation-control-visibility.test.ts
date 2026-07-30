@@ -19,15 +19,29 @@ const clear: PresentationControlVisibilityInputV1 = {
   prefersReducedMotion: false,
 };
 
-test('controls hide at exactly 3000 ms and stale generations are inert', () => {
+test('controls start hidden, hide at the configured idle deadline, and ignore stale generations', () => {
+  assert.equal(createPresentationControlVisibilityV1().phase, 'hidden');
   const pending = activityPresentationControlsV1(
     createPresentationControlVisibilityV1(),
     clear,
     100,
   );
   assert.equal(pending.deadlineMs, 100 + PRESENTATION_CONTROL_IDLE_MS);
-  assert.equal(elapsePresentationControlsV1(pending, clear, pending.generation, 3_099), pending);
-  const hidden = elapsePresentationControlsV1(pending, clear, pending.generation, 3_100);
+  assert.equal(
+    elapsePresentationControlsV1(
+      pending,
+      clear,
+      pending.generation,
+      100 + PRESENTATION_CONTROL_IDLE_MS - 1,
+    ),
+    pending,
+  );
+  const hidden = elapsePresentationControlsV1(
+    pending,
+    clear,
+    pending.generation,
+    100 + PRESENTATION_CONTROL_IDLE_MS,
+  );
   assert.equal(hidden.phase, 'hidden');
   assert.equal(elapsePresentationControlsV1(hidden, clear, pending.generation, 10_000), hidden);
 });
@@ -42,6 +56,6 @@ test('every hold reveals immediately and release starts a fresh full timeout', (
     assert.equal(visible.deadlineMs, null, key);
     const released = updatePresentationControlHoldsV1(visible, held, clear, 900);
     assert.equal(released.phase, 'pending-hide', key);
-    assert.equal(released.deadlineMs, 3_900, key);
+    assert.equal(released.deadlineMs, 900 + PRESENTATION_CONTROL_IDLE_MS, key);
   }
 });

@@ -19,6 +19,7 @@ import {
 } from '../../shares/share-response-policy.js';
 import { applyAccountMediaErrorHeaders } from '../../media/media-response-policy.js';
 import { ShareAnalyticsError } from '../errors/share-analytics.error.js';
+import { ExportFailureV1 } from '../../exports/export-errors.js';
 
 interface HttpResponse {
   headersSent?: boolean;
@@ -56,6 +57,41 @@ const isAccountMediaPath = (url: string): boolean =>
 const isShareAnalyticsPath = (url: string): boolean =>
   /^\/api\/v1\/public\/(?:shares\/[^/?]+\/view-contexts|share-view-events)(?:\?|$)/u.test(url) ||
   /^\/api\/v1\/boards\/[^/?]+\/share-analytics(?:\?|$)/u.test(url);
+
+const isExportPath = (url: string): boolean =>
+  /^\/api\/v1\/boards\/[^/?]+\/exports(?:\?|$)/u.test(url);
+
+const exportFailure = (exception: unknown): ExportFailureV1 => {
+  if (exception instanceof ExportFailureV1) return exception;
+  if (exception instanceof BoardContractError) {
+    if (exception.boardError.code === 'UNAUTHENTICATED')
+      return new ExportFailureV1('EXPORT_UNAUTHENTICATED');
+    if (exception.boardError.code === 'FORBIDDEN') return new ExportFailureV1('EXPORT_FORBIDDEN');
+    if (exception.boardError.code === 'BOARD_NOT_FOUND')
+      return new ExportFailureV1('EXPORT_NOT_FOUND');
+    if (exception.boardError.code === 'RATE_LIMITED')
+      return new ExportFailureV1('EXPORT_RATE_LIMITED');
+    if (exception.boardError.code === 'SERVICE_UNAVAILABLE')
+      return new ExportFailureV1('EXPORT_RENDERER_UNAVAILABLE');
+    return new ExportFailureV1('EXPORT_INTERNAL_ERROR');
+  }
+  if (exception instanceof AppError) {
+    if (
+      exception.code === 'UNAUTHENTICATED' ||
+      exception.code === 'AUTH_SESSION_EXPIRED' ||
+      exception.code === 'AUTH_SESSION_REVOKED' ||
+      exception.code === 'AUTH_SESSION_REUSED' ||
+      exception.code === 'AUTH_INVALID_CREDENTIALS'
+    )
+      return new ExportFailureV1('EXPORT_UNAUTHENTICATED');
+    if (exception.code === 'CSRF_INVALID') return new ExportFailureV1('EXPORT_FORBIDDEN');
+    if (exception.code === 'INVALID_PAYLOAD') return new ExportFailureV1('EXPORT_INVALID_REQUEST');
+    if (exception.code === 'RATE_LIMITED') return new ExportFailureV1('EXPORT_RATE_LIMITED');
+    if (exception.code === 'SERVICE_UNAVAILABLE')
+      return new ExportFailureV1('EXPORT_RENDERER_UNAVAILABLE');
+  }
+  return new ExportFailureV1('EXPORT_INTERNAL_ERROR');
+};
 
 const boardInternalError = (): BoardErrorV1 => ({
   protocolVersion: 1,
@@ -168,6 +204,13 @@ export class HttpErrorFilter implements ExceptionFilter {
     if (exception instanceof ArtifactBrokerError) {
       response.setHeader('X-Request-Id', exception.requestId);
       response.status(exception.status).json(exception.toPayload());
+      return;
+    }
+
+    if (isExportPath(request.url ?? '')) {
+      const failure = exportFailure(exception);
+      if (failure.code === 'EXPORT_RATE_LIMITED') response.setHeader('Retry-After', '1');
+      response.status(failure.httpStatus).json(failure.toPayload());
       return;
     }
 

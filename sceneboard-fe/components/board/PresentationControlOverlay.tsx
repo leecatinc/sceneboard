@@ -47,6 +47,7 @@ export function PresentationControlOverlay({
   const visibilityRef = useRef(visibility);
   const inputRef = useRef<PresentationControlVisibilityInputV1 | null>(null);
   const priorInputRef = useRef<PresentationControlVisibilityInputV1 | null>(null);
+  const priorActivitySignalRef = useRef(activitySignal);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const firstControlRef = useRef<HTMLButtonElement | null>(null);
   const input = useMemo<PresentationControlVisibilityInputV1>(
@@ -131,12 +132,9 @@ export function PresentationControlOverlay({
     if (next !== visibilityRef.current) commit(next);
   }, [active, clearTimer, commit, input]);
   useEffect(() => {
-    if (!active) return;
-    recordActivity();
-    return clearTimer;
-  }, [active, clearTimer, recordActivity]);
-  useEffect(() => {
-    if (active) recordActivity();
+    const previous = priorActivitySignalRef.current;
+    priorActivitySignalRef.current = activitySignal;
+    if (active && previous !== activitySignal) recordActivity();
   }, [active, activitySignal, recordActivity]);
   useEffect(() => {
     if (!active || visibility.phase !== 'hidden') return;
@@ -149,25 +147,16 @@ export function PresentationControlOverlay({
     window.addEventListener('keydown', revealOnFirstTab, true);
     return () => window.removeEventListener('keydown', revealOnFirstTab, true);
   }, [active, recordActivity, visibility.phase]);
-  useEffect(() => {
-    if (!active) return;
-    window.addEventListener('pointermove', recordActivity, { passive: true });
-    return () => window.removeEventListener('pointermove', recordActivity);
-  }, [active, recordActivity]);
   useEffect(() => clearTimer, [clearTimer]);
 
   if (!active) return null;
   return (
-    <div
-      className={styles.overlay}
-      data-presentation-controls={visibility.phase}
-      onPointerMove={recordActivity}
-      onPointerLeave={recordActivity}
-    >
+    <div className={styles.overlay} data-presentation-controls={visibility.phase}>
       <div
         className={styles.panel}
         role="group"
         aria-label={t('presentation.presentationControls')}
+        onPointerMove={recordActivity}
         onFocusCapture={() => setControlsFocusWithin(true)}
         onBlurCapture={(event) => {
           if (!event.currentTarget.contains(event.relatedTarget)) setControlsFocusWithin(false);
@@ -205,9 +194,12 @@ export function PresentationControlOverlay({
         </button>
       </div>
       {visibility.phase === 'hidden' && (
-        <button type="button" className={styles.show} onClick={recordActivity}>
-          {t('presentation.showControls')}
-        </button>
+        <div
+          className={styles.revealZone}
+          aria-hidden="true"
+          onPointerEnter={recordActivity}
+          onPointerDown={recordActivity}
+        />
       )}
     </div>
   );

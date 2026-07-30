@@ -15,27 +15,49 @@ const fail = (code) => {
   process.exitCode = 78;
 };
 
-const normalizeProductionHelper = async () => {
+const normalizeProductionHelpers = async () => {
   if (process.platform !== 'linux') return;
   const helper = resolve(pluginRoot, 'native/profile-lease-helper');
   const digest = resolve(pluginRoot, 'native/profile-lease-helper.sha256');
-  const [helperStatus, digestStatus] = await Promise.all([lstat(helper), lstat(digest)]);
+  const exportHelper = resolve(pluginRoot, 'native/linux-x64-gnu/local-export-helper');
+  const exportDigest = resolve(pluginRoot, 'native/linux-x64-gnu/local-export-helper.sha256');
+  const exportManifest = resolve(pluginRoot, 'native/local-export-helper.manifest.json');
+  const [helperStatus, digestStatus, exportHelperStatus, exportDigestStatus, manifestStatus] =
+    await Promise.all([
+      lstat(helper),
+      lstat(digest),
+      lstat(exportHelper),
+      lstat(exportDigest),
+      lstat(exportManifest),
+    ]);
   if (
     !helperStatus.isFile() ||
     helperStatus.isSymbolicLink() ||
     !digestStatus.isFile() ||
-    digestStatus.isSymbolicLink()
+    digestStatus.isSymbolicLink() ||
+    !exportHelperStatus.isFile() ||
+    exportHelperStatus.isSymbolicLink() ||
+    !exportDigestStatus.isFile() ||
+    exportDigestStatus.isSymbolicLink() ||
+    !manifestStatus.isFile() ||
+    manifestStatus.isSymbolicLink()
   ) {
     throw new TypeError('production_native_invalid');
   }
-  await Promise.all([chmod(helper, 0o500), chmod(digest, 0o400)]);
+  await Promise.all([
+    chmod(helper, 0o500),
+    chmod(digest, 0o400),
+    chmod(exportHelper, 0o500),
+    chmod(exportDigest, 0o400),
+    chmod(exportManifest, 0o400),
+  ]);
 };
 
 try {
   const selected = await resolveSceneBoardServer({ pluginRoot });
   if (selected.source === 'production_default') {
     try {
-      await Promise.all([access(selected.server.args[0]), normalizeProductionHelper()]);
+      await Promise.all([access(selected.server.args[0]), normalizeProductionHelpers()]);
     } catch {
       fail('production_runtime_unavailable');
       process.exit();

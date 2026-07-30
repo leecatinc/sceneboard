@@ -4,7 +4,7 @@ import {
   collectArtifactReferencesAcrossSnapshotV2,
   type ArtifactRuntimeSummaryV1,
   type ArtifactReferenceV1,
-  type BoardDocumentV2,
+  type BoardDocument,
   type PublicBoardProjectionV1,
   type PublicArtifactSummaryV1,
 } from '@sceneboard/board-schema';
@@ -77,7 +77,7 @@ export class PublicShareProjectionRepository {
       storedBytes: revision.storedBytes,
       sha256: revision.sha256,
     });
-    const document: BoardDocumentV2 =
+    const document: BoardDocument =
       decoded.kind === 'document'
         ? decoded.document
         : adaptLegacySceneToDocumentV2({ boardId: resolved.boardId, scene: decoded.scene });
@@ -170,7 +170,7 @@ export class PublicShareProjectionRepository {
 
   private async readArtifactInventory(
     resolved: ResolvedPublicShare,
-    document: BoardDocumentV2,
+    document: BoardDocument,
   ): Promise<ArtifactRuntimeSummaryV1[]> {
     const pairs = new Map<string, ArtifactReferenceV1>();
     const stack = document.pages.flatMap((page) =>

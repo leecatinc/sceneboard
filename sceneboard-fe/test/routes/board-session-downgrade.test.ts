@@ -24,6 +24,7 @@ const owner: BoardSessionAccessV1 = {
     'board.share.manage',
     'board.write',
     'connection.manage.own',
+    'export.read',
   ],
 };
 
@@ -46,6 +47,7 @@ test('owner downgrade detects every newly forbidden surface before slot replacem
     'membership.manage',
     'share.manage',
     'analytics.read',
+    'export.render',
     'board.archive',
     'board.delete',
   ]);

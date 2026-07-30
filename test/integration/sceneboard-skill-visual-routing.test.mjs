@@ -7,6 +7,7 @@ import { SCENE_RECIPE_BLOCK_KINDS_V1 } from '../../sceneboard-mcp/plugins/sceneb
 import {
   SCENE_ARTIFACT_MOTION_LEVELS_V1,
   SCENE_ARTIFACT_TEMPLATE_NAMES_V1,
+  shouldUseSceneSlideDeck,
 } from '../../sceneboard-mcp/plugins/sceneboard/skills/sceneboard/scripts/scene-artifact-core.mjs';
 
 const root = join(
@@ -18,6 +19,7 @@ const root = join(
 const skill = readFileSync(join(root, 'SKILL.md'), 'utf8');
 const reference = readFileSync(join(root, 'references/visual-composer.md'), 'utf8');
 const sceneContract = readFileSync(join(root, 'references/scene-contract.md'), 'utf8');
+const slideDeck = readFileSync(join(root, 'references/slide-deck.md'), 'utf8');
 
 test('router remains concise and links one progressive-disclosure reference', () => {
   assert.ok(skill.split('\n').length < 500);
@@ -67,6 +69,24 @@ test('native-first and safe two-stage routing remain explicit', () => {
   assert.match(reference, /WebGL/);
   assert.match(reference, /Three\.js r184/);
   assert.match(reference, /trusted runtime asset/i);
+});
+
+test('slide-deck routing is limited to the exact presentation-material and PPT triggers', () => {
+  for (const request of ['발표자료로 만들어줘', 'PPT로 만들어줘', 'ppt 자료', 'PpT deck'])
+    assert.equal(shouldUseSceneSlideDeck(request), true);
+  for (const request of [
+    '일반 보드 작성 요청',
+    'Markdown 문서로 정리해줘',
+    'presentation으로 만들어줘',
+    '프레젠테이션 개요를 만들어줘',
+    '탭으로 구분해줘',
+  ])
+    assert.equal(shouldUseSceneSlideDeck(request), false);
+  assert.match(skill, /If and only if/);
+  assert.match(skill, /발표자료/);
+  assert.match(skill, /case|letter case/i);
+  assert.match(skill, /presentation.*do not activate|do not activate.*presentation/is);
+  assert.match(slideDeck, /Exact routing contract/);
 });
 
 test('transport and browser truth contracts are preserved', () => {

@@ -1,6 +1,6 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import {
   BoardIdParserV1,
   BoardEventEnvelopeParserV2,
@@ -80,7 +80,7 @@ export class BoardEventOutboxRepository
 {
   #quarantinedCorruptPending = false;
 
-  constructor(private readonly mysql: MysqlService) {}
+  constructor(@Inject(MysqlService) private readonly mysql: MysqlService) {}
 
   async listPendingCandidates(limit = 100): Promise<readonly PendingBoardEventCandidateV1[]> {
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100)

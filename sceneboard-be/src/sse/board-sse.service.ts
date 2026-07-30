@@ -55,7 +55,7 @@ export class BoardSseService {
     allowedOrigin: string;
     request: BoardSseRequestLifecycleV1;
     response: BoardSseResponseV1;
-    documentSchemaVersion?: 1 | 2;
+    documentSchemaVersion?: 1 | 2 | 3;
   }): Promise<void> {
     const documentSchemaVersion = input.documentSchemaVersion ?? 1;
     let cut = await this.cuts.prepare(

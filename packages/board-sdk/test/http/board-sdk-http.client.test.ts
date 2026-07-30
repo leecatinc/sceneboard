@@ -6,6 +6,7 @@ import {
   BoardOperationRequestParserV1,
   DEFAULT_BOARD_CAPABILITIES_V2,
   adaptLegacySceneToDocumentV2,
+  projectDocumentV2ToV3,
   type ArtifactReferenceV1,
   type BoardErrorV1,
   type BoardId,
@@ -15,7 +16,9 @@ import {
   type BoardOperationResultV1,
   type RequestId,
   type MutationRequestV2,
+  type MutationRequestV3,
   type MutationResultV2,
+  type MutationResultV3,
 } from '@sceneboard/board-schema';
 
 import {
@@ -26,6 +29,7 @@ import {
 
 const fixtureRoot = new URL('../../../board-schema/test/fixtures/valid/', import.meta.url);
 const TOKEN = `lcbg_v1.${'a'.repeat(22)}.${'b'.repeat(43)}`;
+const API_KEY = `sbk_v1.${'c'.repeat(22)}.${'d'.repeat(43)}`;
 const encoder = new TextEncoder();
 
 const fixture = <T>(name: string): T =>
@@ -106,6 +110,26 @@ test('sends a closed Bearer GET with exact query fields and parses the shared su
       },
     ],
   );
+});
+
+test('accepts the account API-key bearer family without changing request bytes', async () => {
+  const request = operationRequest('operation-request-board-list.v1.json', 'board.list');
+  const result = fixture<BoardOperationResultV1>('operation-result-board-list.v1.json');
+  let calls = 0;
+  const sdk = new BoardSdkHttpClient({
+    baseUrl: 'https://sceneboard.dev',
+    fetch: async (_input, init) => {
+      calls += 1;
+      assert.equal(new Headers(init?.headers).get('authorization'), `Bearer ${API_KEY}`);
+      return successResponse(result);
+    },
+    bearerTokenProvider: () => API_KEY,
+    timeoutPolicy: { timeoutMs: 2_000 },
+    logger: { log: () => undefined },
+  });
+  const response = await sdk.listBoards(request);
+  assert.equal(response.ok, true);
+  assert.equal(calls, 1);
 });
 
 test('artifact put preserves the finalized eight-key D7 source body and request correlation', async () => {
@@ -236,6 +260,73 @@ test('document mutation binds the V2 media profile, 201/200 replay status, and n
     assert.equal(result.result.result.type, 'document.replace');
     assert.deepEqual(result.result.result.document, document);
   }
+});
+
+test('document V3 mutation sends the explicit selector and preserves the format-bearing result', async () => {
+  const document = projectDocumentV2ToV3(
+    fixture<Extract<MutationRequestV2['command'], { type: 'document.replace' }>['document']>(
+      'document-basic.v2.json',
+    ),
+    'a4_portrait',
+  );
+  const request = {
+    protocolVersion: 1,
+    requestId: 'request_v3_1',
+    idempotencyKey: 'idempotency-key-v3-1',
+    boardId: 'board_1',
+    expectedRevisionId: 'revision_1',
+    command: { type: 'document.replace', document },
+  } as unknown as MutationRequestV3 & {
+    command: Extract<MutationRequestV3['command'], { type: 'document.replace' }>;
+  };
+  const responseResult = {
+    protocolVersion: 1,
+    type: 'mutation.result',
+    requestId: request.requestId,
+    boardId: request.boardId,
+    replayed: false,
+    eventIds: [],
+    result: {
+      type: 'document.replace',
+      revision: {
+        revisionId: 'revision_2',
+        revisionNumber: 2,
+        createdAt: '2026-07-16T00:01:00.000Z',
+      },
+      originType: 'document.replace',
+      sourceRevisionId: null,
+      document,
+    },
+  } as unknown as MutationResultV3;
+  const fetchValue: typeof fetch = async (input, init) => {
+    const url = new URL(input.toString());
+    assert.equal(url.pathname, '/api/v1/boards/board_1/mutations');
+    assert.equal(url.searchParams.get('documentSchemaVersion'), '3');
+    assert.equal(
+      new Headers(init?.headers).get('content-type'),
+      'application/vnd.sceneboard.document+json;version=3',
+    );
+    return new Response(
+      JSON.stringify({
+        protocolVersion: 1,
+        type: 'board.http.success',
+        requestId: request.requestId,
+        result: responseResult,
+        metadata: { history: null },
+      }),
+      {
+        status: 201,
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'X-Request-Id': request.requestId,
+        },
+      },
+    );
+  };
+  const result = await client(fetchValue).mutateDocumentV3(request);
+  assert.equal(result.ok, true);
+  if (result.ok && result.result.result.type === 'document.replace')
+    assert.equal(result.result.result.document.format, 'a4_portrait');
 });
 
 test('document read uses the 32 MiB parser profile and preserves the snapshot branch', async () => {

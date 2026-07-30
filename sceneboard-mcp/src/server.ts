@@ -6,6 +6,7 @@ import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 
 import { ConnectionHttpClientV1 } from './connection/connection-http.client.js';
 import {
+  ApiKeyConnectionStatusServiceV1,
   ConnectionStatusServiceV1,
   UnconfiguredConnectionStatusServiceV1,
 } from './connection/connection-status.service.js';
@@ -15,9 +16,11 @@ import { resolveSecretReferenceV1 } from './config/secret-reference.js';
 import { InstallationIdentityStoreV1 } from './credentials/installation-identity.store.js';
 import { LinuxProfileLeaseHelperAdapterV1 } from './credentials/linux-profile-lease-helper.adapter.js';
 import { PrivateFileCredentialStoreV1 } from './credentials/private-file-credential.store.js';
+import { PrivateFileApiKeyStoreV1 } from './credentials/private-file-api-key.store.js';
 import { ProfileLeaseProviderV1 } from './credentials/profile-lease.provider.js';
 import {
   EnvironmentTokenProviderV1,
+  ApiKeyTokenProviderV1,
   StoredTokenProviderV1,
   type CredentialSnapshotV1,
   type TokenProviderV1,
@@ -32,6 +35,7 @@ import { UnavailablePairingCoordinatorV1 } from './pairing/unavailable-pairing.c
 import { ProtectedBoardGatewayV1 } from './tools/protected-board.gateway.js';
 import { registerCoreToolsV1, type CoreToolRegistryV1 } from './tools/register-tools.js';
 import type { ConnectionStatusPortV1 } from './tools/connection.tools.js';
+import { LocalExportFileV1 } from './exports/local-export-file.js';
 
 class MissingTokenProviderV1 implements TokenProviderV1 {
   async snapshot(): Promise<CredentialSnapshotV1 | null> {
@@ -61,7 +65,8 @@ type ConfiguredRuntimeParts = {
   loaded: LoadedBoardConfigV1;
   tokens: TokenProviderV1;
   pairing: PairingCoordinatorPortV1;
-  connections: ConnectionStatusServiceV1;
+  connections: ConnectionStatusPortV1;
+  credentialMode: 'pairing' | 'api_key';
 };
 
 const configuredParts = async (
@@ -71,6 +76,7 @@ const configuredParts = async (
   logger: SafeStderrLoggerV1,
 ): Promise<ConfiguredRuntimeParts> => {
   const reference = resolveSecretReferenceV1(loaded.config, env);
+  const credentialMode = loaded.config.credentialMode ?? 'pairing';
   let tokens: TokenProviderV1;
   let pairing: PairingCoordinatorPortV1;
   const connectionClient = new ConnectionHttpClientV1({
@@ -79,6 +85,25 @@ const configuredParts = async (
     timeoutMs: loaded.config.timeoutMs,
     logger,
   });
+  if (credentialMode === 'api_key') {
+    if (reference.kind === 'environment') {
+      tokens = new ApiKeyTokenProviderV1({
+        kind: 'environment',
+        apiKey: env.SCENEBOARD_API_KEY,
+      });
+    } else {
+      const store = new PrivateFileApiKeyStoreV1(reference.stateDirectory);
+      tokens = new ApiKeyTokenProviderV1({ kind: 'store', store });
+    }
+    pairing = new UnavailablePairingCoordinatorV1('read_only');
+    return {
+      loaded,
+      tokens,
+      pairing,
+      connections: new ApiKeyConnectionStatusServiceV1(loaded, tokens, connectionClient),
+      credentialMode,
+    };
+  }
   if (reference.kind === 'environment') {
     tokens = new EnvironmentTokenProviderV1(env.SCENEBOARD_ACCESS_TOKEN);
     pairing = new UnavailablePairingCoordinatorV1('read_only');
@@ -122,7 +147,7 @@ const configuredParts = async (
       );
       const connections = new ConnectionStatusServiceV1(loaded, tokens, connectionClient);
       connectionProbe = (accessToken, signal) => connections.probeWithToken(accessToken, signal);
-      return { loaded, tokens, pairing, connections };
+      return { loaded, tokens, pairing, connections, credentialMode };
     }
   }
   return {
@@ -130,6 +155,7 @@ const configuredParts = async (
     tokens,
     pairing,
     connections: new ConnectionStatusServiceV1(loaded, tokens, connectionClient),
+    credentialMode,
   };
 };
 
@@ -151,6 +177,7 @@ export const createBoardMcpServerV1 = async (
     logger,
   });
   let authenticated = false;
+  let credentialMode: 'pairing' | 'api_key' = 'pairing';
   try {
     const loaded = await discoverBoardConfigV1({
       argv: options.argv ?? process.argv.slice(2),
@@ -158,6 +185,7 @@ export const createBoardMcpServerV1 = async (
       env,
     });
     const parts = await configuredParts(loaded, env, fetchImplementation, logger);
+    credentialMode = parts.credentialMode;
     pairing = parts.pairing;
     connections = parts.connections;
     gateway = new ProtectedBoardGatewayV1({
@@ -166,6 +194,7 @@ export const createBoardMcpServerV1 = async (
       timeoutMs: parts.loaded.config.timeoutMs,
       tokens: parts.tokens,
       logger,
+      credentialMode,
     });
     if (options.probeOnStart !== false) {
       const probe = await parts.connections.status(null, randomBytes(16).toString('base64url'));
@@ -188,6 +217,12 @@ export const createBoardMcpServerV1 = async (
     connections,
     authenticated,
     downstreamReady: true,
+    credentialMode,
+    localExports: new LocalExportFileV1({
+      manifestPath: fileURLToPath(
+        new URL('../native/local-export-helper.manifest.json', import.meta.url),
+      ),
+    }),
   });
   let closed = false;
   return {

@@ -54,6 +54,17 @@ interface StoredVersionRow extends RowDataPacket {
   updatedAt: string;
 }
 
+type ImmutableStoredVersionRow = Pick<
+  StoredVersionRow,
+  | 'boardPk'
+  | 'versionPk'
+  | 'manifestPayload'
+  | 'manifestCanonicalBytes'
+  | 'manifestSha256'
+  | 'resourceCount'
+  | 'resourceTotalBytes'
+>;
+
 interface StoredResourceRow extends RowDataPacket {
   resourceOrdinal: number;
   resourcePath: string;
@@ -72,6 +83,14 @@ export type CertifiedArtifactVersionV1 = {
   manifestBytes: Buffer;
   runtime: ArtifactRuntimeSummaryV1;
   lastEventSequence: number;
+  resources: readonly PreparedArtifactResourceV1[];
+};
+
+export type ImmutableArtifactPackageV1 = {
+  boardPk: string;
+  versionPk: string;
+  manifest: ArtifactManifestV1;
+  manifestBytes: Buffer;
   resources: readonly PreparedArtifactResourceV1[];
 };
 
@@ -416,6 +435,43 @@ export class ArtifactRepository {
     return this.certify(row, resourceRows, artifact, includeBytes);
   }
 
+  async readImmutablePackage(
+    connection: PoolConnection,
+    boardId: string,
+    artifact: ArtifactReferenceV1,
+  ): Promise<ImmutableArtifactPackageV1> {
+    const [rows] = await connection.execute<Array<RowDataPacket & ImmutableStoredVersionRow>>(
+      `SELECT CAST(b.board_pk AS CHAR) AS boardPk,
+              CAST(v.version_pk AS CHAR) AS versionPk,
+              v.manifest_payload AS manifestPayload,
+              v.manifest_canonical_bytes AS manifestCanonicalBytes,
+              v.manifest_sha256 AS manifestSha256,
+              v.resource_count AS resourceCount,
+              v.resource_total_bytes AS resourceTotalBytes
+       FROM boards b
+       JOIN artifacts a ON a.board_pk = b.board_pk
+       JOIN artifact_versions v
+         ON v.artifact_pk = a.artifact_pk AND v.board_pk = a.board_pk
+       WHERE b.public_id = ? AND a.artifact_id = ? AND v.version_id = ?
+       LIMIT 1`,
+      [boardId, artifact.artifactId, artifact.versionId],
+    );
+    const row = rows[0];
+    if (rows.length === 0) throw artifactNotFound(artifact);
+    if (rows.length !== 1 || row === undefined) throw internalFailure();
+    const [resourceRows] = await connection.execute<StoredResourceRow[]>(
+      `SELECT resource_ordinal AS resourceOrdinal,
+              CONVERT(resource_path USING utf8mb4) AS resourcePath,
+              media_type AS mediaType, resource_sha256 AS resourceSha256,
+              resource_bytes AS resourceBytes, resource_payload AS resourcePayload
+       FROM artifact_resources
+       WHERE version_pk = ?
+       ORDER BY resource_ordinal ASC`,
+      [row.versionPk],
+    );
+    return this.certifyPackage(row, resourceRows, artifact, true);
+  }
+
   async lockRuntime(
     connection: PoolConnection,
     boardPk: string,
@@ -484,6 +540,34 @@ export class ArtifactRepository {
     artifact: ArtifactReferenceV1,
     includeBytes: boolean,
   ): CertifiedArtifactVersionV1 {
+    const immutable = this.certifyPackage(row, resourceRows, artifact, includeBytes);
+    const runtime = ArtifactRuntimeSummaryParserV1.parse({
+      artifact,
+      status: statusValue(row.statusCode),
+      updatedAt: parseMysqlTimestampUtc(row.updatedAt).toISOString() as TimestampV1,
+      failure:
+        row.failureCode === null || row.failureMessage === null
+          ? null
+          : { code: row.failureCode as BoardErrorCodeV1, message: row.failureMessage },
+    });
+    if (!runtime.ok) throw internalFailure();
+    const lastEventSequence = Number(
+      parseUnsigned(row.lastEventSequence, BigInt(Number.MAX_SAFE_INTEGER)),
+    );
+    if (lastEventSequence < 1) throw internalFailure();
+    return {
+      ...immutable,
+      runtime: runtime.data.value,
+      lastEventSequence,
+    };
+  }
+
+  private certifyPackage(
+    row: ImmutableStoredVersionRow,
+    resourceRows: readonly StoredResourceRow[],
+    artifact: ArtifactReferenceV1,
+    includeBytes: boolean,
+  ): ImmutableArtifactPackageV1 {
     if (
       row.manifestCanonicalBytes !== row.manifestPayload.byteLength ||
       !equalDigest(row.manifestSha256, digest(row.manifestPayload))
@@ -522,27 +606,11 @@ export class ArtifactRepository {
       return { ...descriptor, bytes };
     });
     if (totalBytes !== row.resourceTotalBytes) throw internalFailure();
-    const runtime = ArtifactRuntimeSummaryParserV1.parse({
-      artifact,
-      status: statusValue(row.statusCode),
-      updatedAt: parseMysqlTimestampUtc(row.updatedAt).toISOString() as TimestampV1,
-      failure:
-        row.failureCode === null || row.failureMessage === null
-          ? null
-          : { code: row.failureCode as BoardErrorCodeV1, message: row.failureMessage },
-    });
-    if (!runtime.ok) throw internalFailure();
-    const lastEventSequence = Number(
-      parseUnsigned(row.lastEventSequence, BigInt(Number.MAX_SAFE_INTEGER)),
-    );
-    if (lastEventSequence < 1) throw internalFailure();
     return {
       boardPk: row.boardPk,
       versionPk: row.versionPk,
       manifest: manifest.data.value,
       manifestBytes: Buffer.from(row.manifestPayload),
-      runtime: runtime.data.value,
-      lastEventSequence,
       resources,
     };
   }

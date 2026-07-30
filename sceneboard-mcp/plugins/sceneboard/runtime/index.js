@@ -405,11 +405,11 @@ var require_codegen = __commonJS({
         const rhs = this.rhs === void 0 ? "" : ` = ${this.rhs}`;
         return `${varKind} ${this.name}${rhs};` + _n;
       }
-      optimizeNames(names, constants5) {
+      optimizeNames(names, constants6) {
         if (!names[this.name.str])
           return;
         if (this.rhs)
-          this.rhs = optimizeExpr(this.rhs, names, constants5);
+          this.rhs = optimizeExpr(this.rhs, names, constants6);
         return this;
       }
       get names() {
@@ -426,10 +426,10 @@ var require_codegen = __commonJS({
       render({ _n }) {
         return `${this.lhs} = ${this.rhs};` + _n;
       }
-      optimizeNames(names, constants5) {
+      optimizeNames(names, constants6) {
         if (this.lhs instanceof code_1.Name && !names[this.lhs.str] && !this.sideEffects)
           return;
-        this.rhs = optimizeExpr(this.rhs, names, constants5);
+        this.rhs = optimizeExpr(this.rhs, names, constants6);
         return this;
       }
       get names() {
@@ -468,9 +468,9 @@ var require_codegen = __commonJS({
       }
     };
     var Throw = class extends Node {
-      constructor(error2) {
+      constructor(error3) {
         super();
-        this.error = error2;
+        this.error = error3;
       }
       render({ _n }) {
         return `throw ${this.error};` + _n;
@@ -490,8 +490,8 @@ var require_codegen = __commonJS({
       optimizeNodes() {
         return `${this.code}` ? this : void 0;
       }
-      optimizeNames(names, constants5) {
-        this.code = optimizeExpr(this.code, names, constants5);
+      optimizeNames(names, constants6) {
+        this.code = optimizeExpr(this.code, names, constants6);
         return this;
       }
       get names() {
@@ -520,12 +520,12 @@ var require_codegen = __commonJS({
         }
         return nodes.length > 0 ? this : void 0;
       }
-      optimizeNames(names, constants5) {
+      optimizeNames(names, constants6) {
         const { nodes } = this;
         let i = nodes.length;
         while (i--) {
           const n = nodes[i];
-          if (n.optimizeNames(names, constants5))
+          if (n.optimizeNames(names, constants6))
             continue;
           subtractNames(names, n.names);
           nodes.splice(i, 1);
@@ -578,12 +578,12 @@ var require_codegen = __commonJS({
           return void 0;
         return this;
       }
-      optimizeNames(names, constants5) {
+      optimizeNames(names, constants6) {
         var _a;
-        this.else = (_a = this.else) === null || _a === void 0 ? void 0 : _a.optimizeNames(names, constants5);
-        if (!(super.optimizeNames(names, constants5) || this.else))
+        this.else = (_a = this.else) === null || _a === void 0 ? void 0 : _a.optimizeNames(names, constants6);
+        if (!(super.optimizeNames(names, constants6) || this.else))
           return;
-        this.condition = optimizeExpr(this.condition, names, constants5);
+        this.condition = optimizeExpr(this.condition, names, constants6);
         return this;
       }
       get names() {
@@ -606,10 +606,10 @@ var require_codegen = __commonJS({
       render(opts) {
         return `for(${this.iteration})` + super.render(opts);
       }
-      optimizeNames(names, constants5) {
-        if (!super.optimizeNames(names, constants5))
+      optimizeNames(names, constants6) {
+        if (!super.optimizeNames(names, constants6))
           return;
-        this.iteration = optimizeExpr(this.iteration, names, constants5);
+        this.iteration = optimizeExpr(this.iteration, names, constants6);
         return this;
       }
       get names() {
@@ -645,10 +645,10 @@ var require_codegen = __commonJS({
       render(opts) {
         return `for(${this.varKind} ${this.name} ${this.loop} ${this.iterable})` + super.render(opts);
       }
-      optimizeNames(names, constants5) {
-        if (!super.optimizeNames(names, constants5))
+      optimizeNames(names, constants6) {
+        if (!super.optimizeNames(names, constants6))
           return;
-        this.iterable = optimizeExpr(this.iterable, names, constants5);
+        this.iterable = optimizeExpr(this.iterable, names, constants6);
         return this;
       }
       get names() {
@@ -690,11 +690,11 @@ var require_codegen = __commonJS({
         (_b = this.finally) === null || _b === void 0 ? void 0 : _b.optimizeNodes();
         return this;
       }
-      optimizeNames(names, constants5) {
+      optimizeNames(names, constants6) {
         var _a, _b;
-        super.optimizeNames(names, constants5);
-        (_a = this.catch) === null || _a === void 0 ? void 0 : _a.optimizeNames(names, constants5);
-        (_b = this.finally) === null || _b === void 0 ? void 0 : _b.optimizeNames(names, constants5);
+        super.optimizeNames(names, constants6);
+        (_a = this.catch) === null || _a === void 0 ? void 0 : _a.optimizeNames(names, constants6);
+        (_b = this.finally) === null || _b === void 0 ? void 0 : _b.optimizeNames(names, constants6);
         return this;
       }
       get names() {
@@ -707,9 +707,9 @@ var require_codegen = __commonJS({
       }
     };
     var Catch = class extends BlockNode {
-      constructor(error2) {
+      constructor(error3) {
         super();
-        this.error = error2;
+        this.error = error3;
       }
       render(opts) {
         return `catch(${this.error})` + super.render(opts);
@@ -900,9 +900,9 @@ var require_codegen = __commonJS({
         this._blockNode(node);
         this.code(tryBody);
         if (catchCode) {
-          const error2 = this.name("e");
-          this._currNode = node.catch = new Catch(error2);
-          catchCode(error2);
+          const error3 = this.name("e");
+          this._currNode = node.catch = new Catch(error3);
+          catchCode(error3);
         }
         if (finallyCode) {
           this._currNode = node.finally = new Finally();
@@ -911,8 +911,8 @@ var require_codegen = __commonJS({
         return this._endBlockNode(Catch, Finally);
       }
       // `throw` statement
-      throw(error2) {
-        return this._leafNode(new Throw(error2));
+      throw(error3) {
+        return this._leafNode(new Throw(error3));
       }
       // start self-balancing block
       block(body, nodeCount) {
@@ -995,7 +995,7 @@ var require_codegen = __commonJS({
     function addExprNames(names, from) {
       return from instanceof code_1._CodeOrName ? addNames(names, from.names) : names;
     }
-    function optimizeExpr(expr, names, constants5) {
+    function optimizeExpr(expr, names, constants6) {
       if (expr instanceof code_1.Name)
         return replaceName(expr);
       if (!canOptimize(expr))
@@ -1010,14 +1010,14 @@ var require_codegen = __commonJS({
         return items;
       }, []));
       function replaceName(n) {
-        const c = constants5[n.str];
+        const c = constants6[n.str];
         if (c === void 0 || names[n.str] !== 1)
           return n;
         delete names[n.str];
         return c;
       }
       function canOptimize(e) {
-        return e instanceof code_1._Code && e._items.some((c) => c instanceof code_1.Name && names[c.str] === 1 && constants5[c.str] !== void 0);
+        return e instanceof code_1._Code && e._items.some((c) => c instanceof code_1.Name && names[c.str] === 1 && constants6[c.str] !== void 0);
       }
     }
     function subtractNames(names, from) {
@@ -1268,10 +1268,10 @@ var require_errors = __commonJS({
     exports.keyword$DataError = {
       message: ({ keyword, schemaType }) => schemaType ? (0, codegen_1.str)`"${keyword}" keyword must be ${schemaType} ($data)` : (0, codegen_1.str)`"${keyword}" keyword is invalid ($data)`
     };
-    function reportError(cxt, error2 = exports.keywordError, errorPaths, overrideAllErrors) {
+    function reportError(cxt, error3 = exports.keywordError, errorPaths, overrideAllErrors) {
       const { it } = cxt;
       const { gen, compositeRule, allErrors } = it;
-      const errObj = errorObjectCode(cxt, error2, errorPaths);
+      const errObj = errorObjectCode(cxt, error3, errorPaths);
       if (overrideAllErrors !== null && overrideAllErrors !== void 0 ? overrideAllErrors : compositeRule || allErrors) {
         addError(gen, errObj);
       } else {
@@ -1279,10 +1279,10 @@ var require_errors = __commonJS({
       }
     }
     exports.reportError = reportError;
-    function reportExtraError(cxt, error2 = exports.keywordError, errorPaths) {
+    function reportExtraError(cxt, error3 = exports.keywordError, errorPaths) {
       const { it } = cxt;
       const { gen, compositeRule, allErrors } = it;
-      const errObj = errorObjectCode(cxt, error2, errorPaths);
+      const errObj = errorObjectCode(cxt, error3, errorPaths);
       addError(gen, errObj);
       if (!(compositeRule || allErrors)) {
         returnErrors(it, names_1.default.vErrors);
@@ -1333,19 +1333,19 @@ var require_errors = __commonJS({
       schema: new codegen_1.Name("schema"),
       parentSchema: new codegen_1.Name("parentSchema")
     };
-    function errorObjectCode(cxt, error2, errorPaths) {
+    function errorObjectCode(cxt, error3, errorPaths) {
       const { createErrors } = cxt.it;
       if (createErrors === false)
         return (0, codegen_1._)`{}`;
-      return errorObject(cxt, error2, errorPaths);
+      return errorObject(cxt, error3, errorPaths);
     }
-    function errorObject(cxt, error2, errorPaths = {}) {
+    function errorObject(cxt, error3, errorPaths = {}) {
       const { gen, it } = cxt;
       const keyValues = [
         errorInstancePath(it, errorPaths),
         errorSchemaPath(cxt, errorPaths)
       ];
-      extraErrorProps(cxt, error2, keyValues);
+      extraErrorProps(cxt, error3, keyValues);
       return gen.object(...keyValues);
     }
     function errorInstancePath({ errorPath }, { instancePath }) {
@@ -2230,8 +2230,8 @@ var require_resolve = __commonJS({
       }
       return count;
     }
-    function getFullPath(resolver, id = "", normalize2) {
-      if (normalize2 !== false)
+    function getFullPath(resolver, id = "", normalize3) {
+      if (normalize3 !== false)
         id = normalizeId(id);
       const p = resolver.parse(id);
       return _getFullPath(resolver, p);
@@ -2979,7 +2979,7 @@ var require_compile = __commonJS({
       const schOrFunc = root.refs[ref];
       if (schOrFunc)
         return schOrFunc;
-      let _sch = resolve2.call(this, root, ref);
+      let _sch = resolve3.call(this, root, ref);
       if (_sch === void 0) {
         const schema = (_a = root.localRefs) === null || _a === void 0 ? void 0 : _a[ref];
         const { schemaId } = this.opts;
@@ -3006,7 +3006,7 @@ var require_compile = __commonJS({
     function sameSchemaEnv(s1, s2) {
       return s1.schema === s2.schema && s1.root === s2.root && s1.baseId === s2.baseId;
     }
-    function resolve2(root, ref) {
+    function resolve3(root, ref) {
       let sch;
       while (typeof (sch = this.refs[ref]) == "string")
         ref = sch;
@@ -3627,7 +3627,7 @@ var require_fast_uri = __commonJS({
     "use strict";
     var { normalizeIPv6, removeDotSegments, recomposeAuthority, normalizePercentEncoding, normalizePathEncoding, escapePreservingEscapes, reescapeHostDelimiters, isIPv4, nonSimpleDomain } = require_utils();
     var { SCHEMES, getSchemeHandler } = require_schemes();
-    function normalize2(uri, options) {
+    function normalize3(uri, options) {
       if (typeof uri === "string") {
         uri = /** @type {T} */
         normalizeString(uri, options);
@@ -3637,7 +3637,7 @@ var require_fast_uri = __commonJS({
       }
       return uri;
     }
-    function resolve2(baseURI, relativeURI, options) {
+    function resolve3(baseURI, relativeURI, options) {
       const schemelessOptions = options ? Object.assign({ scheme: "null" }, options) : { scheme: "null" };
       const resolved = resolveComponent(parse5(baseURI, schemelessOptions), parse5(relativeURI, schemelessOptions), schemelessOptions, true);
       schemelessOptions.skipEscape = true;
@@ -3894,8 +3894,8 @@ var require_fast_uri = __commonJS({
     }
     var fastUri = {
       SCHEMES,
-      normalize: normalize2,
-      resolve: resolve2,
+      normalize: normalize3,
+      resolve: resolve3,
       resolveComponent,
       equal,
       serialize,
@@ -4700,7 +4700,7 @@ var require_limitNumber = __commonJS({
       exclusiveMaximum: { okStr: "<", ok: ops.LT, fail: ops.GTE },
       exclusiveMinimum: { okStr: ">", ok: ops.GT, fail: ops.LTE }
     };
-    var error2 = {
+    var error3 = {
       message: ({ keyword, schemaCode }) => (0, codegen_1.str)`must be ${KWDs[keyword].okStr} ${schemaCode}`,
       params: ({ keyword, schemaCode }) => (0, codegen_1._)`{comparison: ${KWDs[keyword].okStr}, limit: ${schemaCode}}`
     };
@@ -4709,7 +4709,7 @@ var require_limitNumber = __commonJS({
       type: "number",
       schemaType: "number",
       $data: true,
-      error: error2,
+      error: error3,
       code(cxt) {
         const { keyword, data, schemaCode } = cxt;
         cxt.fail$data((0, codegen_1._)`${data} ${KWDs[keyword].fail} ${schemaCode} || isNaN(${data})`);
@@ -4725,7 +4725,7 @@ var require_multipleOf = __commonJS({
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     var codegen_1 = require_codegen();
-    var error2 = {
+    var error3 = {
       message: ({ schemaCode }) => (0, codegen_1.str)`must be multiple of ${schemaCode}`,
       params: ({ schemaCode }) => (0, codegen_1._)`{multipleOf: ${schemaCode}}`
     };
@@ -4734,7 +4734,7 @@ var require_multipleOf = __commonJS({
       type: "number",
       schemaType: "number",
       $data: true,
-      error: error2,
+      error: error3,
       code(cxt) {
         const { gen, data, schemaCode, it } = cxt;
         const prec = it.opts.multipleOfPrecision;
@@ -4781,7 +4781,7 @@ var require_limitLength = __commonJS({
     var codegen_1 = require_codegen();
     var util_1 = require_util();
     var ucs2length_1 = require_ucs2length();
-    var error2 = {
+    var error3 = {
       message({ keyword, schemaCode }) {
         const comp = keyword === "maxLength" ? "more" : "fewer";
         return (0, codegen_1.str)`must NOT have ${comp} than ${schemaCode} characters`;
@@ -4793,7 +4793,7 @@ var require_limitLength = __commonJS({
       type: "string",
       schemaType: "number",
       $data: true,
-      error: error2,
+      error: error3,
       code(cxt) {
         const { keyword, data, schemaCode, it } = cxt;
         const op = keyword === "maxLength" ? codegen_1.operators.GT : codegen_1.operators.LT;
@@ -4813,7 +4813,7 @@ var require_pattern = __commonJS({
     var code_1 = require_code2();
     var util_1 = require_util();
     var codegen_1 = require_codegen();
-    var error2 = {
+    var error3 = {
       message: ({ schemaCode }) => (0, codegen_1.str)`must match pattern "${schemaCode}"`,
       params: ({ schemaCode }) => (0, codegen_1._)`{pattern: ${schemaCode}}`
     };
@@ -4822,7 +4822,7 @@ var require_pattern = __commonJS({
       type: "string",
       schemaType: "string",
       $data: true,
-      error: error2,
+      error: error3,
       code(cxt) {
         const { gen, data, $data, schema, schemaCode, it } = cxt;
         const u = it.opts.unicodeRegExp ? "u" : "";
@@ -4848,7 +4848,7 @@ var require_limitProperties = __commonJS({
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     var codegen_1 = require_codegen();
-    var error2 = {
+    var error3 = {
       message({ keyword, schemaCode }) {
         const comp = keyword === "maxProperties" ? "more" : "fewer";
         return (0, codegen_1.str)`must NOT have ${comp} than ${schemaCode} properties`;
@@ -4860,7 +4860,7 @@ var require_limitProperties = __commonJS({
       type: "object",
       schemaType: "number",
       $data: true,
-      error: error2,
+      error: error3,
       code(cxt) {
         const { keyword, data, schemaCode } = cxt;
         const op = keyword === "maxProperties" ? codegen_1.operators.GT : codegen_1.operators.LT;
@@ -4879,7 +4879,7 @@ var require_required = __commonJS({
     var code_1 = require_code2();
     var codegen_1 = require_codegen();
     var util_1 = require_util();
-    var error2 = {
+    var error3 = {
       message: ({ params: { missingProperty } }) => (0, codegen_1.str)`must have required property '${missingProperty}'`,
       params: ({ params: { missingProperty } }) => (0, codegen_1._)`{missingProperty: ${missingProperty}}`
     };
@@ -4888,7 +4888,7 @@ var require_required = __commonJS({
       type: "object",
       schemaType: "array",
       $data: true,
-      error: error2,
+      error: error3,
       code(cxt) {
         const { gen, schema, schemaCode, data, $data, it } = cxt;
         const { opts } = it;
@@ -4959,7 +4959,7 @@ var require_limitItems = __commonJS({
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     var codegen_1 = require_codegen();
-    var error2 = {
+    var error3 = {
       message({ keyword, schemaCode }) {
         const comp = keyword === "maxItems" ? "more" : "fewer";
         return (0, codegen_1.str)`must NOT have ${comp} than ${schemaCode} items`;
@@ -4971,7 +4971,7 @@ var require_limitItems = __commonJS({
       type: "array",
       schemaType: "number",
       $data: true,
-      error: error2,
+      error: error3,
       code(cxt) {
         const { keyword, data, schemaCode } = cxt;
         const op = keyword === "maxItems" ? codegen_1.operators.GT : codegen_1.operators.LT;
@@ -5002,7 +5002,7 @@ var require_uniqueItems = __commonJS({
     var codegen_1 = require_codegen();
     var util_1 = require_util();
     var equal_1 = require_equal();
-    var error2 = {
+    var error3 = {
       message: ({ params: { i, j } }) => (0, codegen_1.str)`must NOT have duplicate items (items ## ${j} and ${i} are identical)`,
       params: ({ params: { i, j } }) => (0, codegen_1._)`{i: ${i}, j: ${j}}`
     };
@@ -5011,7 +5011,7 @@ var require_uniqueItems = __commonJS({
       type: "array",
       schemaType: "boolean",
       $data: true,
-      error: error2,
+      error: error3,
       code(cxt) {
         const { gen, data, $data, schema, parentSchema, schemaCode, it } = cxt;
         if (!$data && !schema)
@@ -5068,14 +5068,14 @@ var require_const = __commonJS({
     var codegen_1 = require_codegen();
     var util_1 = require_util();
     var equal_1 = require_equal();
-    var error2 = {
+    var error3 = {
       message: "must be equal to constant",
       params: ({ schemaCode }) => (0, codegen_1._)`{allowedValue: ${schemaCode}}`
     };
     var def = {
       keyword: "const",
       $data: true,
-      error: error2,
+      error: error3,
       code(cxt) {
         const { gen, data, $data, schemaCode, schema } = cxt;
         if ($data || schema && typeof schema == "object") {
@@ -5097,7 +5097,7 @@ var require_enum = __commonJS({
     var codegen_1 = require_codegen();
     var util_1 = require_util();
     var equal_1 = require_equal();
-    var error2 = {
+    var error3 = {
       message: "must be equal to one of the allowed values",
       params: ({ schemaCode }) => (0, codegen_1._)`{allowedValues: ${schemaCode}}`
     };
@@ -5105,7 +5105,7 @@ var require_enum = __commonJS({
       keyword: "enum",
       schemaType: "array",
       $data: true,
-      error: error2,
+      error: error3,
       code(cxt) {
         const { gen, data, $data, schema, schemaCode, it } = cxt;
         if (!$data && schema.length === 0)
@@ -5184,7 +5184,7 @@ var require_additionalItems = __commonJS({
     exports.validateAdditionalItems = void 0;
     var codegen_1 = require_codegen();
     var util_1 = require_util();
-    var error2 = {
+    var error3 = {
       message: ({ params: { len } }) => (0, codegen_1.str)`must NOT have more than ${len} items`,
       params: ({ params: { len } }) => (0, codegen_1._)`{limit: ${len}}`
     };
@@ -5193,7 +5193,7 @@ var require_additionalItems = __commonJS({
       type: "array",
       schemaType: ["boolean", "object"],
       before: "uniqueItems",
-      error: error2,
+      error: error3,
       code(cxt) {
         const { parentSchema, it } = cxt;
         const { items } = parentSchema;
@@ -5312,7 +5312,7 @@ var require_items2020 = __commonJS({
     var util_1 = require_util();
     var code_1 = require_code2();
     var additionalItems_1 = require_additionalItems();
-    var error2 = {
+    var error3 = {
       message: ({ params: { len } }) => (0, codegen_1.str)`must NOT have more than ${len} items`,
       params: ({ params: { len } }) => (0, codegen_1._)`{limit: ${len}}`
     };
@@ -5321,7 +5321,7 @@ var require_items2020 = __commonJS({
       type: "array",
       schemaType: ["object", "boolean"],
       before: "uniqueItems",
-      error: error2,
+      error: error3,
       code(cxt) {
         const { schema, parentSchema, it } = cxt;
         const { prefixItems } = parentSchema;
@@ -5345,7 +5345,7 @@ var require_contains = __commonJS({
     Object.defineProperty(exports, "__esModule", { value: true });
     var codegen_1 = require_codegen();
     var util_1 = require_util();
-    var error2 = {
+    var error3 = {
       message: ({ params: { min, max } }) => max === void 0 ? (0, codegen_1.str)`must contain at least ${min} valid item(s)` : (0, codegen_1.str)`must contain at least ${min} and no more than ${max} valid item(s)`,
       params: ({ params: { min, max } }) => max === void 0 ? (0, codegen_1._)`{minContains: ${min}}` : (0, codegen_1._)`{minContains: ${min}, maxContains: ${max}}`
     };
@@ -5355,7 +5355,7 @@ var require_contains = __commonJS({
       schemaType: ["object", "boolean"],
       before: "uniqueItems",
       trackErrors: true,
-      error: error2,
+      error: error3,
       code(cxt) {
         const { gen, schema, parentSchema, data, it } = cxt;
         let min;
@@ -5533,7 +5533,7 @@ var require_propertyNames = __commonJS({
     Object.defineProperty(exports, "__esModule", { value: true });
     var codegen_1 = require_codegen();
     var util_1 = require_util();
-    var error2 = {
+    var error3 = {
       message: "property name must be valid",
       params: ({ params }) => (0, codegen_1._)`{propertyName: ${params.propertyName}}`
     };
@@ -5541,7 +5541,7 @@ var require_propertyNames = __commonJS({
       keyword: "propertyNames",
       type: "object",
       schemaType: ["object", "boolean"],
-      error: error2,
+      error: error3,
       code(cxt) {
         const { gen, schema, data, it } = cxt;
         if ((0, util_1.alwaysValidSchema)(it, schema))
@@ -5578,7 +5578,7 @@ var require_additionalProperties = __commonJS({
     var codegen_1 = require_codegen();
     var names_1 = require_names();
     var util_1 = require_util();
-    var error2 = {
+    var error3 = {
       message: "must NOT have additional properties",
       params: ({ params }) => (0, codegen_1._)`{additionalProperty: ${params.additionalProperty}}`
     };
@@ -5588,7 +5588,7 @@ var require_additionalProperties = __commonJS({
       schemaType: ["boolean", "object"],
       allowUndefined: true,
       trackErrors: true,
-      error: error2,
+      error: error3,
       code(cxt) {
         const { gen, schema, parentSchema, data, errsCount, it } = cxt;
         if (!errsCount)
@@ -5862,7 +5862,7 @@ var require_oneOf = __commonJS({
     Object.defineProperty(exports, "__esModule", { value: true });
     var codegen_1 = require_codegen();
     var util_1 = require_util();
-    var error2 = {
+    var error3 = {
       message: "must match exactly one schema in oneOf",
       params: ({ params }) => (0, codegen_1._)`{passingSchemas: ${params.passing}}`
     };
@@ -5870,7 +5870,7 @@ var require_oneOf = __commonJS({
       keyword: "oneOf",
       schemaType: "array",
       trackErrors: true,
-      error: error2,
+      error: error3,
       code(cxt) {
         const { gen, schema, parentSchema, it } = cxt;
         if (!Array.isArray(schema))
@@ -5947,7 +5947,7 @@ var require_if = __commonJS({
     Object.defineProperty(exports, "__esModule", { value: true });
     var codegen_1 = require_codegen();
     var util_1 = require_util();
-    var error2 = {
+    var error3 = {
       message: ({ params }) => (0, codegen_1.str)`must match "${params.ifClause}" schema`,
       params: ({ params }) => (0, codegen_1._)`{failingKeyword: ${params.ifClause}}`
     };
@@ -5955,7 +5955,7 @@ var require_if = __commonJS({
       keyword: "if",
       schemaType: ["object", "boolean"],
       trackErrors: true,
-      error: error2,
+      error: error3,
       code(cxt) {
         const { gen, parentSchema, it } = cxt;
         if (parentSchema.then === void 0 && parentSchema.else === void 0) {
@@ -6081,7 +6081,7 @@ var require_format = __commonJS({
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
     var codegen_1 = require_codegen();
-    var error2 = {
+    var error3 = {
       message: ({ schemaCode }) => (0, codegen_1.str)`must match format "${schemaCode}"`,
       params: ({ schemaCode }) => (0, codegen_1._)`{format: ${schemaCode}}`
     };
@@ -6090,7 +6090,7 @@ var require_format = __commonJS({
       type: ["number", "string"],
       schemaType: "string",
       $data: true,
-      error: error2,
+      error: error3,
       code(cxt, ruleType) {
         const { gen, data, $data, schema, schemaCode, it } = cxt;
         const { opts, errSchemaPath, schemaEnv, self } = it;
@@ -6245,7 +6245,7 @@ var require_discriminator = __commonJS({
     var compile_1 = require_compile();
     var ref_error_1 = require_ref_error();
     var util_1 = require_util();
-    var error2 = {
+    var error3 = {
       message: ({ params: { discrError, tagName } }) => discrError === types_1.DiscrError.Tag ? `tag "${tagName}" must be string` : `value of tag "${tagName}" must be in oneOf`,
       params: ({ params: { discrError, tag, tagName } }) => (0, codegen_1._)`{error: ${discrError}, tag: ${tagName}, tagValue: ${tag}}`
     };
@@ -6253,7 +6253,7 @@ var require_discriminator = __commonJS({
       keyword: "discriminator",
       type: "object",
       schemaType: "object",
-      error: error2,
+      error: error3,
       code(cxt) {
         const { gen, data, schema, parentSchema, it } = cxt;
         const { oneOf } = parentSchema;
@@ -6785,7 +6785,7 @@ var require_limit = __commonJS({
       formatExclusiveMaximum: { okStr: "<", ok: ops.LT, fail: ops.GTE },
       formatExclusiveMinimum: { okStr: ">", ok: ops.GT, fail: ops.LTE }
     };
-    var error2 = {
+    var error3 = {
       message: ({ keyword, schemaCode }) => (0, codegen_1.str)`should be ${KWDs[keyword].okStr} ${schemaCode}`,
       params: ({ keyword, schemaCode }) => (0, codegen_1._)`{comparison: ${KWDs[keyword].okStr}, limit: ${schemaCode}}`
     };
@@ -6794,7 +6794,7 @@ var require_limit = __commonJS({
       type: "string",
       schemaType: "string",
       $data: true,
-      error: error2,
+      error: error3,
       code(cxt) {
         const { gen, data, schemaCode, keyword, it } = cxt;
         const { opts, self } = it;
@@ -7493,10 +7493,10 @@ var initializer = (inst, def) => {
 };
 var $ZodError = $constructor("$ZodError", initializer);
 var $ZodRealError = $constructor("$ZodError", initializer, { Parent: Error });
-function flattenError(error2, mapper = (issue2) => issue2.message) {
+function flattenError(error3, mapper = (issue2) => issue2.message) {
   const fieldErrors = {};
   const formErrors = [];
-  for (const sub of error2.issues) {
+  for (const sub of error3.issues) {
     if (sub.path.length > 0) {
       fieldErrors[sub.path[0]] = fieldErrors[sub.path[0]] || [];
       fieldErrors[sub.path[0]].push(mapper(sub));
@@ -7506,13 +7506,13 @@ function flattenError(error2, mapper = (issue2) => issue2.message) {
   }
   return { formErrors, fieldErrors };
 }
-function formatError(error2, _mapper) {
+function formatError(error3, _mapper) {
   const mapper = _mapper || function(issue2) {
     return issue2.message;
   };
   const fieldErrors = { _errors: [] };
-  const processError = (error3) => {
-    for (const issue2 of error3.issues) {
+  const processError = (error4) => {
+    for (const issue2 of error4.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
         issue2.errors.map((issues) => processError({ issues }));
       } else if (issue2.code === "invalid_key") {
@@ -7539,7 +7539,7 @@ function formatError(error2, _mapper) {
       }
     }
   };
-  processError(error2);
+  processError(error3);
   return fieldErrors;
 }
 
@@ -12945,8 +12945,8 @@ var StdioServerTransport = class {
       this._readBuffer.append(chunk);
       this.processReadBuffer();
     };
-    this._onerror = (error2) => {
-      this.onerror?.(error2);
+    this._onerror = (error3) => {
+      this.onerror?.(error3);
     };
   }
   /**
@@ -12968,8 +12968,8 @@ var StdioServerTransport = class {
           break;
         }
         this.onmessage?.(message);
-      } catch (error2) {
-        this.onerror?.(error2);
+      } catch (error3) {
+        this.onerror?.(error3);
       }
     }
   }
@@ -12984,19 +12984,672 @@ var StdioServerTransport = class {
     this.onclose?.();
   }
   send(message) {
-    return new Promise((resolve2) => {
+    return new Promise((resolve3) => {
       const json = serializeMessage(message);
       if (this._stdout.write(json)) {
-        resolve2();
+        resolve3();
       } else {
-        this._stdout.once("drain", resolve2);
+        this._stdout.once("drain", resolve3);
       }
     });
   }
 };
 
+// sceneboard-mcp/src/cli/api-key-credential.command.ts
+import { Writable } from "node:stream";
+import { createInterface } from "node:readline/promises";
+
+// sceneboard-mcp/src/config/config-discovery.ts
+import { access, lstat } from "node:fs/promises";
+import { constants } from "node:fs";
+import { dirname, isAbsolute, join, parse as parse3, resolve } from "node:path";
+
+// sceneboard-mcp/src/config/board-config.ts
+import { readFile } from "node:fs/promises";
+var BOARD_CONFIG_MAX_BYTES_V1 = 65536;
+var BOARD_PROFILE_PATTERN_V1 = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
+var BoardConfigError = class extends Error {
+  source;
+  field;
+  constructor(source, field) {
+    super("Board configuration is invalid");
+    this.name = "BoardConfigError";
+    this.source = source;
+    this.field = field;
+  }
+};
+var isRecord = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+var hasExactKeys = (value, keys) => {
+  const actual = Object.keys(value).sort();
+  const expected = [...keys].sort();
+  return actual.length === expected.length && actual.every((key, index) => key === expected[index]);
+};
+var hasDuplicateJsonMember = (source) => {
+  const objectKeySets = [];
+  const containers = [];
+  let expectingKey = false;
+  let index = 0;
+  while (index < source.length) {
+    const character = source[index];
+    if (character === '"') {
+      const start = index;
+      index += 1;
+      while (index < source.length) {
+        const current = source[index];
+        if (current === "\\") {
+          index += 2;
+          continue;
+        }
+        if (current === '"') break;
+        index += 1;
+      }
+      if (index >= source.length) return false;
+      if (expectingKey && containers.at(-1) === "object") {
+        let key;
+        try {
+          key = JSON.parse(source.slice(start, index + 1));
+        } catch {
+          return false;
+        }
+        const keys = objectKeySets.at(-1);
+        if (typeof key !== "string" || keys === void 0) return false;
+        if (keys.has(key)) return true;
+        keys.add(key);
+        expectingKey = false;
+      }
+      index += 1;
+      continue;
+    }
+    if (character === "{") {
+      containers.push("object");
+      objectKeySets.push(/* @__PURE__ */ new Set());
+      expectingKey = true;
+    } else if (character === "[") {
+      containers.push("array");
+    } else if (character === "}" || character === "]") {
+      const removed = containers.pop();
+      if (removed === "object") objectKeySets.pop();
+      expectingKey = false;
+    } else if (character === "," && containers.at(-1) === "object") {
+      expectingKey = true;
+    } else if (character === ":" && containers.at(-1) === "object") {
+      expectingKey = false;
+    }
+    index += 1;
+  }
+  return false;
+};
+var parseJsonBytes = (bytes, source) => {
+  if (bytes.byteLength === 0 || bytes.byteLength > BOARD_CONFIG_MAX_BYTES_V1) {
+    throw new BoardConfigError(source, null);
+  }
+  let text;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    throw new BoardConfigError(source, null);
+  }
+  if (hasDuplicateJsonMember(text)) throw new BoardConfigError(source, null);
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new BoardConfigError(source, null);
+  }
+};
+var canonicalBaseUrl = (value, source) => {
+  if (typeof value !== "string" || value.length === 0 || value.length > 2048 || /[<>${}\s]/.test(value) || /example\.(?:com|org|net)$/i.test(value)) {
+    throw new BoardConfigError(source, "baseUrl");
+  }
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new BoardConfigError(source, "baseUrl");
+  }
+  const loopback = url.hostname === "127.0.0.1" || url.hostname === "[::1]" || url.hostname === "::1";
+  if (url.origin !== value || url.pathname !== "/" || url.username !== "" || url.password !== "" || url.search !== "" || url.hash !== "" || url.protocol !== "https:" && !(url.protocol === "http:" && loopback)) {
+    throw new BoardConfigError(source, "baseUrl");
+  }
+  return url.origin;
+};
+var parseBoardConfigV1 = (value, source) => {
+  const legacyKeys = ["version", "baseUrl", "accessTokenRef", "authScheme", "timeoutMs", "profile"];
+  const discriminatedKeys = [...legacyKeys, "credentialMode"];
+  if (!isRecord(value) || !hasExactKeys(value, legacyKeys) && !hasExactKeys(value, discriminatedKeys))
+    throw new BoardConfigError(source, null);
+  if (value.version !== 1) throw new BoardConfigError(source, "version");
+  if (value.authScheme !== "bearer") throw new BoardConfigError(source, "authScheme");
+  if (value.credentialMode !== void 0 && value.credentialMode !== "pairing" && value.credentialMode !== "api_key")
+    throw new BoardConfigError(source, "credentialMode");
+  if (!Number.isSafeInteger(value.timeoutMs) || Number(value.timeoutMs) < 1e3 || Number(value.timeoutMs) > 12e4) {
+    throw new BoardConfigError(source, "timeoutMs");
+  }
+  if (typeof value.profile !== "string" || !BOARD_PROFILE_PATTERN_V1.test(value.profile)) {
+    throw new BoardConfigError(source, "profile");
+  }
+  const credentialMode = value.credentialMode ?? "pairing";
+  const environmentReference = credentialMode === "api_key" ? "env://SCENEBOARD_API_KEY" : "env://SCENEBOARD_ACCESS_TOKEN";
+  if (value.accessTokenRef !== environmentReference && value.accessTokenRef !== `store://${value.profile}`)
+    throw new BoardConfigError(source, "accessTokenRef");
+  const base = {
+    version: 1,
+    baseUrl: canonicalBaseUrl(value.baseUrl, source),
+    authScheme: "bearer",
+    timeoutMs: Number(value.timeoutMs),
+    profile: value.profile
+  };
+  if (credentialMode === "api_key")
+    return {
+      ...base,
+      accessTokenRef: value.accessTokenRef === "env://SCENEBOARD_API_KEY" ? value.accessTokenRef : `store://${value.profile}`,
+      credentialMode: "api_key"
+    };
+  const pairing = {
+    ...base,
+    accessTokenRef: value.accessTokenRef === "env://SCENEBOARD_ACCESS_TOKEN" ? value.accessTokenRef : `store://${value.profile}`
+  };
+  return value.credentialMode === "pairing" ? { ...pairing, credentialMode: "pairing" } : pairing;
+};
+var readBoardConfigFileV1 = async (path, source) => {
+  let bytes;
+  try {
+    bytes = await readFile(path);
+  } catch {
+    throw new BoardConfigError(source, null);
+  }
+  return parseBoardConfigV1(parseJsonBytes(bytes, source), source);
+};
+
+// sceneboard-mcp/src/config/config-discovery.ts
+var processConfigPath = (argv) => {
+  const entries = argv.filter((argument) => argument.startsWith("--config="));
+  if (entries.length > 1) throw new BoardConfigError("process_option", null);
+  if (entries.length === 0) return null;
+  const path = entries[0]?.slice("--config=".length) ?? "";
+  if (!isAbsolute(path)) throw new BoardConfigError("process_option", null);
+  return path;
+};
+var nearestBoardFile = async (cwd) => {
+  let current = resolve(cwd);
+  while (true) {
+    const candidate = join(current, ".board.json");
+    try {
+      await access(candidate, constants.F_OK);
+      return candidate;
+    } catch {
+      const parent = dirname(current);
+      if (parent === current || current === parse3(current).root) return null;
+      current = parent;
+    }
+  }
+};
+var userConfigPath = (env) => {
+  if (env.XDG_CONFIG_HOME !== void 0 && env.XDG_CONFIG_HOME !== "") {
+    if (!isAbsolute(env.XDG_CONFIG_HOME)) throw new BoardConfigError("user_config_file", null);
+    return join(env.XDG_CONFIG_HOME, "leecat-board", "board.json");
+  }
+  if (env.HOME === void 0 || env.HOME === "" || !isAbsolute(env.HOME)) return null;
+  return join(env.HOME, ".config", "leecat-board", "board.json");
+};
+var existing = async (path) => {
+  try {
+    await access(path, constants.F_OK);
+    return true;
+  } catch {
+    return false;
+  }
+};
+var environmentTimeout = (value) => {
+  if (value === void 0 || value === "") return 3e4;
+  return /^\d+$/u.test(value) ? Number(value) : Number.NaN;
+};
+var assertSafeFile = async (path, source, effectiveUserId) => {
+  let status;
+  try {
+    status = await lstat(path);
+  } catch {
+    throw new BoardConfigError(source, null);
+  }
+  if (!status.isFile() || status.isSymbolicLink() || (status.mode & 18) !== 0) {
+    throw new BoardConfigError(source, null);
+  }
+  if (effectiveUserId !== void 0 && status.uid !== effectiveUserId)
+    throw new BoardConfigError(source, null);
+};
+var loadFile = async (path, source, effectiveUserId) => {
+  await assertSafeFile(path, source, effectiveUserId);
+  return { config: await readBoardConfigFileV1(path, source), source, path };
+};
+var discoverBoardConfigV1 = async (options) => {
+  const effectiveUserId = options.effectiveUserId ?? process.geteuid?.();
+  const processPath = processConfigPath(options.argv);
+  if (processPath !== null) return loadFile(processPath, "process_option", effectiveUserId);
+  if (options.env.BOARD_CONFIG !== void 0 && options.env.BOARD_CONFIG !== "") {
+    if (!isAbsolute(options.env.BOARD_CONFIG)) throw new BoardConfigError("board_config_env", null);
+    return loadFile(options.env.BOARD_CONFIG, "board_config_env", effectiveUserId);
+  }
+  const nearest = await nearestBoardFile(options.cwd);
+  if (nearest !== null) return loadFile(nearest, "nearest_board_file", effectiveUserId);
+  const userPath = userConfigPath(options.env);
+  if (userPath !== null && await existing(userPath))
+    return loadFile(userPath, "user_config_file", effectiveUserId);
+  if (options.env.BOARD_API_URL === void 0 || options.env.BOARD_API_URL === "") {
+    throw new BoardConfigError("environment", "baseUrl");
+  }
+  const config2 = parseBoardConfigV1(
+    {
+      version: 1,
+      baseUrl: options.env.BOARD_API_URL,
+      accessTokenRef: options.env.BOARD_ACCESS_TOKEN_REF ?? (options.env.BOARD_CREDENTIAL_MODE === "api_key" ? "env://SCENEBOARD_API_KEY" : "env://SCENEBOARD_ACCESS_TOKEN"),
+      authScheme: "bearer",
+      timeoutMs: environmentTimeout(options.env.BOARD_TIMEOUT_MS),
+      profile: options.env.BOARD_PROFILE ?? "default",
+      ...options.env.BOARD_CREDENTIAL_MODE === void 0 ? {} : { credentialMode: options.env.BOARD_CREDENTIAL_MODE }
+    },
+    "environment"
+  );
+  return { config: config2, source: "environment", path: null };
+};
+
+// sceneboard-mcp/src/config/secret-reference.ts
+import { isAbsolute as isAbsolute2, join as join2 } from "node:path";
+var resolveSecretReferenceV1 = (config2, env) => {
+  const credentialMode = config2.credentialMode ?? "pairing";
+  if (config2.accessTokenRef === "env://SCENEBOARD_ACCESS_TOKEN" || config2.accessTokenRef === "env://SCENEBOARD_API_KEY") {
+    return {
+      kind: "environment",
+      variable: credentialMode === "api_key" ? "SCENEBOARD_API_KEY" : "SCENEBOARD_ACCESS_TOKEN"
+    };
+  }
+  const conflictingEnvironmentVariable = credentialMode === "api_key" ? env.SCENEBOARD_API_KEY : env.SCENEBOARD_ACCESS_TOKEN;
+  if (conflictingEnvironmentVariable !== void 0 && conflictingEnvironmentVariable !== "") {
+    throw new BoardConfigError(null, "accessTokenRef");
+  }
+  let root;
+  if (env.XDG_STATE_HOME !== void 0 && env.XDG_STATE_HOME !== "") {
+    if (!isAbsolute2(env.XDG_STATE_HOME)) throw new BoardConfigError(null, "accessTokenRef");
+    root = env.XDG_STATE_HOME;
+  } else {
+    if (env.HOME === void 0 || env.HOME === "" || !isAbsolute2(env.HOME)) {
+      throw new BoardConfigError(null, "accessTokenRef");
+    }
+    root = join2(env.HOME, ".local", "state");
+  }
+  return {
+    kind: "store",
+    profile: config2.profile,
+    stateDirectory: join2(root, "leecat-board", "credentials", config2.profile)
+  };
+};
+
+// sceneboard-mcp/src/credentials/api-key-credential-record.ts
+import { timingSafeEqual as timingSafeEqual2 } from "node:crypto";
+
+// sceneboard-mcp/src/credentials/credential-record.ts
+import { timingSafeEqual } from "node:crypto";
+var ACCESS_TOKEN_PATTERN_V1 = /^lcbg_v1\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$/;
+var GENERATION_PATTERN_V1 = /^[A-Za-z0-9_-]{22}$/;
+var parseCredentialRecordV1 = (bytes) => {
+  if (bytes.byteLength === 0 || bytes.byteLength > 512) throw new Error("credential record is invalid");
+  let source;
+  try {
+    source = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    throw new Error("credential record is invalid");
+  }
+  let value;
+  try {
+    value = JSON.parse(source);
+  } catch {
+    throw new Error("credential record is invalid");
+  }
+  if (value === null || typeof value !== "object" || Array.isArray(value)) throw new Error("credential record is invalid");
+  const record2 = value;
+  const keys = Object.keys(record2).sort();
+  if (keys.join("\0") !== ["accessToken", "generation", "version"].join("\0") || record2.version !== 1 || typeof record2.generation !== "string" || !GENERATION_PATTERN_V1.test(record2.generation) || typeof record2.accessToken !== "string" || !ACCESS_TOKEN_PATTERN_V1.test(record2.accessToken) || JSON.stringify(record2) !== source) throw new Error("credential record is invalid");
+  return { version: 1, generation: record2.generation, accessToken: record2.accessToken };
+};
+var sameCredentialV1 = (left, right) => {
+  if (left.generation !== right.generation) return false;
+  const leftToken = Buffer.from(left.accessToken, "ascii");
+  const rightToken = Buffer.from(right.accessToken, "ascii");
+  return leftToken.byteLength === rightToken.byteLength && timingSafeEqual(leftToken, rightToken);
+};
+
+// sceneboard-mcp/src/credentials/api-key-credential-record.ts
+var ACCOUNT_API_KEY_PATTERN_V1 = /^sbk_v1\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$/;
+var parseApiKeyCredentialRecordV1 = (bytes) => {
+  if (bytes.byteLength === 0 || bytes.byteLength > 512)
+    throw new Error("API key credential record is invalid");
+  let source;
+  try {
+    source = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    throw new Error("API key credential record is invalid");
+  }
+  let value;
+  try {
+    value = JSON.parse(source);
+  } catch {
+    throw new Error("API key credential record is invalid");
+  }
+  if (value === null || typeof value !== "object" || Array.isArray(value))
+    throw new Error("API key credential record is invalid");
+  const record2 = value;
+  if (Object.keys(record2).sort().join("\0") !== ["apiKey", "generation", "version"].join("\0") || record2.version !== 1 || typeof record2.generation !== "string" || !GENERATION_PATTERN_V1.test(record2.generation) || typeof record2.apiKey !== "string" || !ACCOUNT_API_KEY_PATTERN_V1.test(record2.apiKey) || JSON.stringify(record2) !== source)
+    throw new Error("API key credential record is invalid");
+  return {
+    version: 1,
+    generation: record2.generation,
+    apiKey: record2.apiKey
+  };
+};
+var sameApiKeyCredentialV1 = (left, right) => {
+  if (left.generation !== right.generation) return false;
+  const leftToken = Buffer.from(left.apiKey, "ascii");
+  const rightToken = Buffer.from(right.apiKey, "ascii");
+  return leftToken.byteLength === rightToken.byteLength && timingSafeEqual2(leftToken, rightToken);
+};
+
+// sceneboard-mcp/src/credentials/private-file-api-key.store.ts
+import { randomBytes as randomBytes2 } from "node:crypto";
+import { constants as constants3 } from "node:fs";
+import { lstat as lstat3, open as open2, readFile as readFile3, unlink as unlink2 } from "node:fs/promises";
+import { join as join4 } from "node:path";
+
+// sceneboard-mcp/src/credentials/private-file-credential.store.ts
+import { randomBytes } from "node:crypto";
+import { constants as constants2 } from "node:fs";
+import { lstat as lstat2, mkdir, open, readFile as readFile2, rename, unlink } from "node:fs/promises";
+import { join as join3 } from "node:path";
+var CREDENTIAL_FILE = "credential.json";
+var assertPrivateStateDirectoryV1 = async (stateDirectory) => {
+  await mkdir(stateDirectory, { recursive: true, mode: 448 });
+  const status = await lstat2(stateDirectory);
+  if (!status.isDirectory() || status.isSymbolicLink() || status.uid !== process.geteuid?.()) {
+    throw new Error("private state directory is invalid");
+  }
+  if ((status.mode & 511) !== 448) {
+    const handle = await open(stateDirectory, constants2.O_RDONLY | constants2.O_DIRECTORY | constants2.O_NOFOLLOW);
+    try {
+      await handle.chmod(448);
+    } finally {
+      await handle.close();
+    }
+  }
+  const confirmed = await lstat2(stateDirectory);
+  if ((confirmed.mode & 511) !== 448) throw new Error("private state directory permissions are invalid");
+};
+var assertPrivateFile = async (path) => {
+  const status = await lstat2(path);
+  if (!status.isFile() || status.isSymbolicLink() || status.uid !== process.geteuid?.() || (status.mode & 511) !== 384 || status.nlink !== 1) throw new Error("private record is invalid");
+};
+var atomicPrivateWriteV1 = async (stateDirectory, fileName, bytes) => {
+  await assertPrivateStateDirectoryV1(stateDirectory);
+  const temporaryName = `.${fileName}.${randomBytes(16).toString("base64url")}.tmp`;
+  const temporaryPath = join3(stateDirectory, temporaryName);
+  const targetPath = join3(stateDirectory, fileName);
+  const handle = await open(temporaryPath, constants2.O_CREAT | constants2.O_EXCL | constants2.O_WRONLY | constants2.O_NOFOLLOW, 384);
+  try {
+    await handle.chmod(384);
+    await handle.writeFile(bytes);
+    await handle.sync();
+  } catch (error3) {
+    await handle.close().catch(() => void 0);
+    await unlink(temporaryPath).catch(() => void 0);
+    throw error3;
+  }
+  await handle.close();
+  await assertPrivateFile(temporaryPath);
+  await rename(temporaryPath, targetPath);
+  const directory = await open(stateDirectory, constants2.O_RDONLY | constants2.O_DIRECTORY | constants2.O_NOFOLLOW);
+  try {
+    await directory.sync();
+  } finally {
+    await directory.close();
+  }
+};
+var PrivateFileCredentialStoreV1 = class {
+  constructor(stateDirectory) {
+    this.stateDirectory = stateDirectory;
+  }
+  async preflight() {
+    await assertPrivateStateDirectoryV1(this.stateDirectory);
+  }
+  async read() {
+    const path = join3(this.stateDirectory, CREDENTIAL_FILE);
+    try {
+      await assertPrivateFile(path);
+      return parseCredentialRecordV1(await readFile2(path));
+    } catch (error3) {
+      if (error3.code === "ENOENT") return null;
+      throw error3;
+    }
+  }
+  async replace(accessToken) {
+    const record2 = parseCredentialRecordV1(new TextEncoder().encode(JSON.stringify({
+      version: 1,
+      generation: randomBytes(16).toString("base64url"),
+      accessToken
+    })));
+    const bytes = new TextEncoder().encode(JSON.stringify(record2));
+    try {
+      await atomicPrivateWriteV1(this.stateDirectory, CREDENTIAL_FILE, bytes);
+    } finally {
+      bytes.fill(0);
+    }
+    return record2;
+  }
+  async deleteIfCurrent(snapshot) {
+    const current = await this.read();
+    if (current === null || !sameCredentialV1(current, snapshot)) return false;
+    await unlink(join3(this.stateDirectory, CREDENTIAL_FILE));
+    const directory = await open(this.stateDirectory, constants2.O_RDONLY | constants2.O_DIRECTORY | constants2.O_NOFOLLOW);
+    try {
+      await directory.sync();
+    } finally {
+      await directory.close();
+    }
+    return true;
+  }
+};
+
+// sceneboard-mcp/src/credentials/private-file-api-key.store.ts
+var API_KEY_CREDENTIAL_FILE_V1 = "api-key.credential.json";
+var assertPrivateFile2 = async (path) => {
+  const status = await lstat3(path);
+  if (!status.isFile() || status.isSymbolicLink() || status.uid !== process.geteuid?.() || (status.mode & 511) !== 384 || status.nlink !== 1)
+    throw new Error("private API key record is invalid");
+};
+var PrivateFileApiKeyStoreV1 = class {
+  constructor(stateDirectory, platform = process.platform) {
+    this.stateDirectory = stateDirectory;
+    this.platform = platform;
+  }
+  async preflight() {
+    if (this.platform === "win32")
+      throw new Error("private API key storage is unsupported on Windows");
+    await assertPrivateStateDirectoryV1(this.stateDirectory);
+  }
+  async read() {
+    await this.preflight();
+    const path = join4(this.stateDirectory, API_KEY_CREDENTIAL_FILE_V1);
+    try {
+      await assertPrivateFile2(path);
+      return parseApiKeyCredentialRecordV1(await readFile3(path));
+    } catch (error3) {
+      if (error3.code === "ENOENT") return null;
+      throw error3;
+    }
+  }
+  async replace(apiKey) {
+    const record2 = parseApiKeyCredentialRecordV1(
+      new TextEncoder().encode(
+        JSON.stringify({
+          version: 1,
+          generation: randomBytes2(16).toString("base64url"),
+          apiKey
+        })
+      )
+    );
+    const bytes = new TextEncoder().encode(JSON.stringify(record2));
+    try {
+      await atomicPrivateWriteV1(
+        this.stateDirectory,
+        API_KEY_CREDENTIAL_FILE_V1,
+        bytes
+      );
+    } finally {
+      bytes.fill(0);
+    }
+    return record2;
+  }
+  async delete() {
+    await this.preflight();
+    try {
+      await unlink2(join4(this.stateDirectory, API_KEY_CREDENTIAL_FILE_V1));
+    } catch (error3) {
+      if (error3.code === "ENOENT") return false;
+      throw error3;
+    }
+    const directory = await open2(
+      this.stateDirectory,
+      constants3.O_RDONLY | constants3.O_DIRECTORY | constants3.O_NOFOLLOW
+    );
+    try {
+      await directory.sync();
+    } finally {
+      await directory.close();
+    }
+    return true;
+  }
+  async deleteIfCurrent(snapshot) {
+    const current = await this.read();
+    if (current === null || !sameApiKeyCredentialV1(current, snapshot)) return false;
+    return this.delete();
+  }
+};
+
+// sceneboard-mcp/src/cli/api-key-credential.command.ts
+var MAX_SECRET_BYTES_V1 = 512;
+var safeWrite = (writer, value) => {
+  writer?.(`${JSON.stringify(value)}
+`);
+};
+var readBoundedStream = async (stream) => {
+  const chunks = [];
+  let length = 0;
+  for await (const chunk of stream) {
+    const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    length += bytes.byteLength;
+    if (length > MAX_SECRET_BYTES_V1) {
+      for (const item of chunks) item.fill(0);
+      bytes.fill(0);
+      throw new Error("API key input is too large");
+    }
+    chunks.push(bytes);
+  }
+  const combined = Buffer.concat(chunks);
+  for (const item of chunks) item.fill(0);
+  try {
+    const value = new TextDecoder("utf-8", { fatal: true }).decode(combined);
+    return value.endsWith("\r\n") ? value.slice(0, -2) : value.endsWith("\n") ? value.slice(0, -1) : value;
+  } finally {
+    combined.fill(0);
+  }
+};
+var readHiddenTtyLine = async (stdin, stderr) => {
+  stderr("SceneBoard API key: ");
+  const muted = new Writable({
+    write(_chunk, _encoding, callback) {
+      callback();
+    }
+  });
+  const readline = createInterface({
+    input: stdin,
+    output: muted,
+    terminal: true,
+    historySize: 0
+  });
+  try {
+    const value = await readline.question("");
+    stderr("\n");
+    if (Buffer.byteLength(value, "utf8") > MAX_SECRET_BYTES_V1)
+      throw new Error("API key input is too large");
+    return value;
+  } finally {
+    readline.close();
+    muted.destroy();
+  }
+};
+var commandArguments = (argv) => {
+  if (argv[0] !== "api-key") return null;
+  if (argv[1] !== "set" && argv[1] !== "remove") return null;
+  const configArgv = argv.slice(2);
+  if (configArgv.some((argument) => !argument.startsWith("--config=")) || configArgv.length > 1)
+    return null;
+  return { action: argv[1], configArgv };
+};
+var runApiKeyCredentialCommandV1 = async (options) => {
+  const command2 = commandArguments(options.argv);
+  if (command2 === null) {
+    if (options.argv[0] === "api-key") {
+      safeWrite(options.stderr, {
+        ok: false,
+        code: "CLI_USAGE",
+        message: "Usage: sceneboard-mcp api-key set|remove [--config=/absolute/path]"
+      });
+      return { handled: true, exitCode: 64 };
+    }
+    return { handled: false };
+  }
+  try {
+    const loaded = await discoverBoardConfigV1({
+      argv: command2.configArgv,
+      cwd: options.cwd,
+      env: options.env
+    });
+    if ((loaded.config.credentialMode ?? "pairing") !== "api_key")
+      throw new Error("API key credential mode is not configured");
+    const reference = resolveSecretReferenceV1(loaded.config, options.env);
+    if (reference.kind !== "store")
+      throw new Error("API key command requires a private-store reference");
+    const store = new PrivateFileApiKeyStoreV1(reference.stateDirectory);
+    if (command2.action === "remove") {
+      const removed = await store.delete();
+      safeWrite(options.stdout, {
+        ok: true,
+        action: "remove",
+        removed,
+        profile: reference.profile
+      });
+      return { handled: true, exitCode: 0 };
+    }
+    const stdin = options.stdin ?? process.stdin;
+    const secret = options.readSecret !== void 0 ? await options.readSecret() : stdin.isTTY ? await readHiddenTtyLine(
+      stdin,
+      options.stderr ?? ((value) => process.stderr.write(value))
+    ) : await readBoundedStream(stdin);
+    if (!ACCOUNT_API_KEY_PATTERN_V1.test(secret)) throw new Error("API key credential is invalid");
+    await store.replace(secret);
+    safeWrite(options.stdout, {
+      ok: true,
+      action: "set",
+      profile: reference.profile
+    });
+    return { handled: true, exitCode: 0 };
+  } catch {
+    safeWrite(options.stderr, {
+      ok: false,
+      code: "API_KEY_CREDENTIAL_COMMAND_FAILED",
+      message: "API key credential command failed"
+    });
+    return { handled: true, exitCode: 74 };
+  }
+};
+
 // sceneboard-mcp/src/server.ts
-import { randomBytes as randomBytes9 } from "node:crypto";
+import { randomBytes as randomBytes11 } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 // node_modules/@modelcontextprotocol/sdk/node_modules/zod/v3/helpers/util.js
@@ -13179,8 +13832,8 @@ var ZodError2 = class _ZodError extends Error {
       return issue2.message;
     };
     const fieldErrors = { _errors: [] };
-    const processError = (error2) => {
-      for (const issue2 of error2.issues) {
+    const processError = (error3) => {
+      for (const issue2 of error3.issues) {
         if (issue2.code === "invalid_union") {
           issue2.unionErrors.map(processError);
         } else if (issue2.code === "invalid_return_type") {
@@ -13243,8 +13896,8 @@ var ZodError2 = class _ZodError extends Error {
   }
 };
 ZodError2.create = (issues) => {
-  const error2 = new ZodError2(issues);
-  return error2;
+  const error3 = new ZodError2(issues);
+  return error3;
 };
 
 // node_modules/@modelcontextprotocol/sdk/node_modules/zod/v3/locales/en.js
@@ -13504,8 +14157,8 @@ var handleResult = (ctx, result) => {
       get error() {
         if (this._error)
           return this._error;
-        const error2 = new ZodError2(ctx.common.issues);
-        this._error = error2;
+        const error3 = new ZodError2(ctx.common.issues);
+        this._error = error3;
         return this._error;
       }
     };
@@ -16160,25 +16813,25 @@ var ZodFunction = class _ZodFunction extends ZodType2 {
       });
       return INVALID;
     }
-    function makeArgsIssue(args, error2) {
+    function makeArgsIssue(args, error3) {
       return makeIssue({
         data: args,
         path: ctx.path,
         errorMaps: [ctx.common.contextualErrorMap, ctx.schemaErrorMap, getErrorMap(), en_default2].filter((x) => !!x),
         issueData: {
           code: ZodIssueCode.invalid_arguments,
-          argumentsError: error2
+          argumentsError: error3
         }
       });
     }
-    function makeReturnsIssue(returns, error2) {
+    function makeReturnsIssue(returns, error3) {
       return makeIssue({
         data: returns,
         path: ctx.path,
         errorMaps: [ctx.common.contextualErrorMap, ctx.schemaErrorMap, getErrorMap(), en_default2].filter((x) => !!x),
         issueData: {
           code: ZodIssueCode.invalid_return_type,
-          returnTypeError: error2
+          returnTypeError: error3
         }
       });
     }
@@ -16187,15 +16840,15 @@ var ZodFunction = class _ZodFunction extends ZodType2 {
     if (this._def.returns instanceof ZodPromise) {
       const me = this;
       return OK(async function(...args) {
-        const error2 = new ZodError2([]);
+        const error3 = new ZodError2([]);
         const parsedArgs = await me._def.args.parseAsync(args, params).catch((e) => {
-          error2.addIssue(makeArgsIssue(args, e));
-          throw error2;
+          error3.addIssue(makeArgsIssue(args, e));
+          throw error3;
         });
         const result = await Reflect.apply(fn, this, parsedArgs);
         const parsedReturns = await me._def.returns._def.type.parseAsync(result, params).catch((e) => {
-          error2.addIssue(makeReturnsIssue(result, e));
-          throw error2;
+          error3.addIssue(makeReturnsIssue(result, e));
+          throw error3;
         });
         return parsedReturns;
       });
@@ -17006,24 +17659,24 @@ function normalizeObjectSchema(schema) {
   }
   return void 0;
 }
-function getParseErrorMessage(error2) {
-  if (error2 && typeof error2 === "object") {
-    if ("message" in error2 && typeof error2.message === "string") {
-      return error2.message;
+function getParseErrorMessage(error3) {
+  if (error3 && typeof error3 === "object") {
+    if ("message" in error3 && typeof error3.message === "string") {
+      return error3.message;
     }
-    if ("issues" in error2 && Array.isArray(error2.issues) && error2.issues.length > 0) {
-      const firstIssue = error2.issues[0];
+    if ("issues" in error3 && Array.isArray(error3.issues) && error3.issues.length > 0) {
+      const firstIssue = error3.issues[0];
       if (firstIssue && typeof firstIssue === "object" && "message" in firstIssue) {
         return String(firstIssue.message);
       }
     }
     try {
-      return JSON.stringify(error2);
+      return JSON.stringify(error3);
     } catch {
-      return String(error2);
+      return String(error3);
     }
   }
-  return String(error2);
+  return String(error3);
 }
 function getSchemaDescription(schema) {
   return schema.description;
@@ -18451,8 +19104,8 @@ var Protocol = class {
                     resolver(message);
                   } else {
                     const errorMessage = message;
-                    const error2 = new McpError(errorMessage.error.code, errorMessage.error.message, errorMessage.error.data);
-                    resolver(error2);
+                    const error3 = new McpError(errorMessage.error.code, errorMessage.error.message, errorMessage.error.data);
+                    resolver(error3);
                   }
                 } else {
                   const messageType = queuedMessage.type === "response" ? "Response" : "Error";
@@ -18496,8 +19149,8 @@ var Protocol = class {
             nextCursor,
             _meta: {}
           };
-        } catch (error2) {
-          throw new McpError(ErrorCode.InvalidParams, `Failed to list tasks: ${error2 instanceof Error ? error2.message : String(error2)}`);
+        } catch (error3) {
+          throw new McpError(ErrorCode.InvalidParams, `Failed to list tasks: ${error3 instanceof Error ? error3.message : String(error3)}`);
         }
       });
       this.setRequestHandler(CancelTaskRequestSchema, async (request, extra) => {
@@ -18519,11 +19172,11 @@ var Protocol = class {
             _meta: {},
             ...cancelledTask
           };
-        } catch (error2) {
-          if (error2 instanceof McpError) {
-            throw error2;
+        } catch (error3) {
+          if (error3 instanceof McpError) {
+            throw error3;
           }
-          throw new McpError(ErrorCode.InvalidRequest, `Failed to cancel task: ${error2 instanceof Error ? error2.message : String(error2)}`);
+          throw new McpError(ErrorCode.InvalidRequest, `Failed to cancel task: ${error3 instanceof Error ? error3.message : String(error3)}`);
         }
       });
     }
@@ -18573,20 +19226,20 @@ var Protocol = class {
    *
    * The Protocol object assumes ownership of the Transport, replacing any callbacks that have already been set, and expects that it is the only user of the Transport instance going forward.
    */
-  async connect(transport2) {
+  async connect(transport) {
     if (this._transport) {
       throw new Error("Already connected to a transport. Call close() before connecting to a new transport, or use a separate Protocol instance per connection.");
     }
-    this._transport = transport2;
+    this._transport = transport;
     const _onclose = this.transport?.onclose;
     this._transport.onclose = () => {
       _onclose?.();
       this._onclose();
     };
     const _onerror = this.transport?.onerror;
-    this._transport.onerror = (error2) => {
-      _onerror?.(error2);
-      this._onerror(error2);
+    this._transport.onerror = (error3) => {
+      _onerror?.(error3);
+      this._onerror(error3);
     };
     const _onmessage = this._transport?.onmessage;
     this._transport.onmessage = (message, extra) => {
@@ -18617,22 +19270,22 @@ var Protocol = class {
       controller.abort();
     }
     this._requestHandlerAbortControllers.clear();
-    const error2 = McpError.fromError(ErrorCode.ConnectionClosed, "Connection closed");
+    const error3 = McpError.fromError(ErrorCode.ConnectionClosed, "Connection closed");
     this._transport = void 0;
     this.onclose?.();
     for (const handler of responseHandlers.values()) {
-      handler(error2);
+      handler(error3);
     }
   }
-  _onerror(error2) {
-    this.onerror?.(error2);
+  _onerror(error3) {
+    this.onerror?.(error3);
   }
   _onnotification(notification) {
     const handler = this._notificationHandlers.get(notification.method) ?? this.fallbackNotificationHandler;
     if (handler === void 0) {
       return;
     }
-    Promise.resolve().then(() => handler(notification)).catch((error2) => this._onerror(new Error(`Uncaught error in notification handler: ${error2}`)));
+    Promise.resolve().then(() => handler(notification)).catch((error3) => this._onerror(new Error(`Uncaught error in notification handler: ${error3}`)));
   }
   _onrequest(request, extra) {
     const handler = this._requestHandlers.get(request.method) ?? this.fallbackRequestHandler;
@@ -18652,9 +19305,9 @@ var Protocol = class {
           type: "error",
           message: errorResponse,
           timestamp: Date.now()
-        }, capturedTransport?.sessionId).catch((error2) => this._onerror(new Error(`Failed to enqueue error response: ${error2}`)));
+        }, capturedTransport?.sessionId).catch((error3) => this._onerror(new Error(`Failed to enqueue error response: ${error3}`)));
       } else {
-        capturedTransport?.send(errorResponse).catch((error2) => this._onerror(new Error(`Failed to send an error response: ${error2}`)));
+        capturedTransport?.send(errorResponse).catch((error3) => this._onerror(new Error(`Failed to send an error response: ${error3}`)));
       }
       return;
     }
@@ -18720,7 +19373,7 @@ var Protocol = class {
       } else {
         await capturedTransport?.send(response);
       }
-    }, async (error2) => {
+    }, async (error3) => {
       if (abortController.signal.aborted) {
         return;
       }
@@ -18728,9 +19381,9 @@ var Protocol = class {
         jsonrpc: "2.0",
         id: request.id,
         error: {
-          code: Number.isSafeInteger(error2["code"]) ? error2["code"] : ErrorCode.InternalError,
-          message: error2.message ?? "Internal error",
-          ...error2["data"] !== void 0 && { data: error2["data"] }
+          code: Number.isSafeInteger(error3["code"]) ? error3["code"] : ErrorCode.InternalError,
+          message: error3.message ?? "Internal error",
+          ...error3["data"] !== void 0 && { data: error3["data"] }
         }
       };
       if (relatedTaskId && this._taskMessageQueue) {
@@ -18742,7 +19395,7 @@ var Protocol = class {
       } else {
         await capturedTransport?.send(errorResponse);
       }
-    }).catch((error2) => this._onerror(new Error(`Failed to send response: ${error2}`))).finally(() => {
+    }).catch((error3) => this._onerror(new Error(`Failed to send response: ${error3}`))).finally(() => {
       if (this._requestHandlerAbortControllers.get(request.id) === abortController) {
         this._requestHandlerAbortControllers.delete(request.id);
       }
@@ -18761,11 +19414,11 @@ var Protocol = class {
     if (timeoutInfo && responseHandler && timeoutInfo.resetTimeoutOnProgress) {
       try {
         this._resetTimeout(messageId);
-      } catch (error2) {
+      } catch (error3) {
         this._responseHandlers.delete(messageId);
         this._progressHandlers.delete(messageId);
         this._cleanupTimeout(messageId);
-        responseHandler(error2);
+        responseHandler(error3);
         return;
       }
     }
@@ -18779,8 +19432,8 @@ var Protocol = class {
       if (isJSONRPCResultResponse(response)) {
         resolver(response);
       } else {
-        const error2 = new McpError(response.error.code, response.error.message, response.error.data);
-        resolver(error2);
+        const error3 = new McpError(response.error.code, response.error.message, response.error.data);
+        resolver(error3);
       }
       return;
     }
@@ -18808,8 +19461,8 @@ var Protocol = class {
     if (isJSONRPCResultResponse(response)) {
       handler(response);
     } else {
-      const error2 = McpError.fromError(response.error.code, response.error.message, response.error.data);
-      handler(error2);
+      const error3 = McpError.fromError(response.error.code, response.error.message, response.error.data);
+      handler(error3);
     }
   }
   get transport() {
@@ -18854,10 +19507,10 @@ var Protocol = class {
       try {
         const result = await this.request(request, resultSchema, options);
         yield { type: "result", result };
-      } catch (error2) {
+      } catch (error3) {
         yield {
           type: "error",
-          error: error2 instanceof McpError ? error2 : new McpError(ErrorCode.InternalError, String(error2))
+          error: error3 instanceof McpError ? error3 : new McpError(ErrorCode.InternalError, String(error3))
         };
       }
       return;
@@ -18897,13 +19550,13 @@ var Protocol = class {
           return;
         }
         const pollInterval = task2.pollInterval ?? this._options?.defaultTaskPollInterval ?? 1e3;
-        await new Promise((resolve2) => setTimeout(resolve2, pollInterval));
+        await new Promise((resolve3) => setTimeout(resolve3, pollInterval));
         options?.signal?.throwIfAborted();
       }
-    } catch (error2) {
+    } catch (error3) {
       yield {
         type: "error",
-        error: error2 instanceof McpError ? error2 : new McpError(ErrorCode.InternalError, String(error2))
+        error: error3 instanceof McpError ? error3 : new McpError(ErrorCode.InternalError, String(error3))
       };
     }
   }
@@ -18914,9 +19567,9 @@ var Protocol = class {
    */
   request(request, resultSchema, options) {
     const { relatedRequestId, resumptionToken, onresumptiontoken, task, relatedTask } = options ?? {};
-    return new Promise((resolve2, reject) => {
-      const earlyReject = (error2) => {
-        reject(error2);
+    return new Promise((resolve3, reject) => {
+      const earlyReject = (error3) => {
+        reject(error3);
       };
       if (!this._transport) {
         earlyReject(new Error("Not connected"));
@@ -18976,9 +19629,9 @@ var Protocol = class {
             requestId: messageId,
             reason: String(reason)
           }
-        }, { relatedRequestId, resumptionToken, onresumptiontoken }).catch((error3) => this._onerror(new Error(`Failed to send cancellation: ${error3}`)));
-        const error2 = reason instanceof McpError ? reason : new McpError(ErrorCode.RequestTimeout, String(reason));
-        reject(error2);
+        }, { relatedRequestId, resumptionToken, onresumptiontoken }).catch((error4) => this._onerror(new Error(`Failed to send cancellation: ${error4}`)));
+        const error3 = reason instanceof McpError ? reason : new McpError(ErrorCode.RequestTimeout, String(reason));
+        reject(error3);
       };
       this._responseHandlers.set(messageId, (response) => {
         if (options?.signal?.aborted) {
@@ -18992,10 +19645,10 @@ var Protocol = class {
           if (!parseResult.success) {
             reject(parseResult.error);
           } else {
-            resolve2(parseResult.data);
+            resolve3(parseResult.data);
           }
-        } catch (error2) {
-          reject(error2);
+        } catch (error3) {
+          reject(error3);
         }
       });
       options?.signal?.addEventListener("abort", () => {
@@ -19019,14 +19672,14 @@ var Protocol = class {
           type: "request",
           message: jsonrpcRequest,
           timestamp: Date.now()
-        }).catch((error2) => {
+        }).catch((error3) => {
           this._cleanupTimeout(messageId);
-          reject(error2);
+          reject(error3);
         });
       } else {
-        this._transport.send(jsonrpcRequest, { relatedRequestId, resumptionToken, onresumptiontoken }).catch((error2) => {
+        this._transport.send(jsonrpcRequest, { relatedRequestId, resumptionToken, onresumptiontoken }).catch((error3) => {
           this._cleanupTimeout(messageId);
-          reject(error2);
+          reject(error3);
         });
       }
     });
@@ -19119,7 +19772,7 @@ var Protocol = class {
             }
           };
         }
-        this._transport?.send(jsonrpcNotification2, options).catch((error2) => this._onerror(error2));
+        this._transport?.send(jsonrpcNotification2, options).catch((error3) => this._onerror(error3));
       });
       return;
     }
@@ -19253,12 +19906,12 @@ var Protocol = class {
       }
     } catch {
     }
-    return new Promise((resolve2, reject) => {
+    return new Promise((resolve3, reject) => {
       if (signal.aborted) {
         reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
         return;
       }
-      const timeoutId = setTimeout(resolve2, interval);
+      const timeoutId = setTimeout(resolve3, interval);
       signal.addEventListener("abort", () => {
         clearTimeout(timeoutId);
         reject(new McpError(ErrorCode.InvalidRequest, "Request cancelled"));
@@ -19981,11 +20634,11 @@ var Server = class extends Protocol {
             if (!validationResult.valid) {
               throw new McpError(ErrorCode.InvalidParams, `Elicitation response content does not match requested schema: ${validationResult.errorMessage}`);
             }
-          } catch (error2) {
-            if (error2 instanceof McpError) {
-              throw error2;
+          } catch (error3) {
+            if (error3 instanceof McpError) {
+              throw error3;
             }
-            throw new McpError(ErrorCode.InternalError, `Error validating elicitation response: ${error2 instanceof Error ? error2.message : String(error2)}`);
+            throw new McpError(ErrorCode.InternalError, `Error validating elicitation response: ${error3 instanceof Error ? error3.message : String(error3)}`);
           }
         }
         return result;
@@ -20167,8 +20820,8 @@ var McpServer = class {
    *
    * The `server` object assumes ownership of the Transport, replacing any callbacks that have already been set, and expects that it is the only user of the Transport instance going forward.
    */
-  async connect(transport2) {
-    return await this.server.connect(transport2);
+  async connect(transport) {
+    return await this.server.connect(transport);
   }
   /**
    * Closes the connection.
@@ -20244,13 +20897,13 @@ var McpServer = class {
         }
         await this.validateToolOutput(tool, result, request.params.name);
         return result;
-      } catch (error2) {
-        if (error2 instanceof McpError) {
-          if (error2.code === ErrorCode.UrlElicitationRequired) {
-            throw error2;
+      } catch (error3) {
+        if (error3 instanceof McpError) {
+          if (error3.code === ErrorCode.UrlElicitationRequired) {
+            throw error3;
           }
         }
-        return this.createToolError(error2 instanceof Error ? error2.message : String(error2));
+        return this.createToolError(error3 instanceof Error ? error3.message : String(error3));
       }
     });
     this._toolHandlersInitialized = true;
@@ -20283,8 +20936,8 @@ var McpServer = class {
     const schemaToParse = inputObj ?? tool.inputSchema;
     const parseResult = await safeParseAsync3(schemaToParse, args);
     if (!parseResult.success) {
-      const error2 = "error" in parseResult ? parseResult.error : "Unknown error";
-      const errorMessage = getParseErrorMessage(error2);
+      const error3 = "error" in parseResult ? parseResult.error : "Unknown error";
+      const errorMessage = getParseErrorMessage(error3);
       throw new McpError(ErrorCode.InvalidParams, `Input validation error: Invalid arguments for tool ${toolName}: ${errorMessage}`);
     }
     return parseResult.data;
@@ -20308,8 +20961,8 @@ var McpServer = class {
     const outputObj = normalizeObjectSchema(tool.outputSchema);
     const parseResult = await safeParseAsync3(outputObj, result.structuredContent);
     if (!parseResult.success) {
-      const error2 = "error" in parseResult ? parseResult.error : "Unknown error";
-      const errorMessage = getParseErrorMessage(error2);
+      const error3 = "error" in parseResult ? parseResult.error : "Unknown error";
+      const errorMessage = getParseErrorMessage(error3);
       throw new McpError(ErrorCode.InvalidParams, `Output validation error: Invalid structured content for tool ${toolName}: ${errorMessage}`);
     }
   }
@@ -20358,7 +21011,7 @@ var McpServer = class {
     let task = createTaskResult.task;
     const pollInterval = task.pollInterval ?? 5e3;
     while (task.status !== "completed" && task.status !== "failed" && task.status !== "cancelled") {
-      await new Promise((resolve2) => setTimeout(resolve2, pollInterval));
+      await new Promise((resolve3) => setTimeout(resolve3, pollInterval));
       const updatedTask = await extra.taskStore.getTask(taskId);
       if (!updatedTask) {
         throw new McpError(ErrorCode.InternalError, `Task ${taskId} not found during polling`);
@@ -20521,8 +21174,8 @@ var McpServer = class {
         const argsObj = normalizeObjectSchema(prompt.argsSchema);
         const parseResult = await safeParseAsync3(argsObj, request.params.arguments);
         if (!parseResult.success) {
-          const error2 = "error" in parseResult ? parseResult.error : "Unknown error";
-          const errorMessage = getParseErrorMessage(error2);
+          const error3 = "error" in parseResult ? parseResult.error : "Unknown error";
+          const errorMessage = getParseErrorMessage(error3);
           throw new McpError(ErrorCode.InvalidParams, `Invalid arguments for prompt ${request.params.name}: ${errorMessage}`);
         }
         const args = parseResult.data;
@@ -21107,8 +21760,8 @@ var ZodError3 = class _ZodError extends Error {
       return issue2.message;
     };
     const fieldErrors = { _errors: [] };
-    const processError = (error2) => {
-      for (const issue2 of error2.issues) {
+    const processError = (error3) => {
+      for (const issue2 of error3.issues) {
         if (issue2.code === "invalid_union") {
           issue2.unionErrors.map(processError);
         } else if (issue2.code === "invalid_return_type") {
@@ -21170,8 +21823,8 @@ var ZodError3 = class _ZodError extends Error {
   }
 };
 ZodError3.create = (issues) => {
-  const error2 = new ZodError3(issues);
-  return error2;
+  const error3 = new ZodError3(issues);
+  return error3;
 };
 var errorMap2 = (issue2, _ctx) => {
   let message;
@@ -21432,8 +22085,8 @@ var handleResult2 = (ctx, result) => {
       get error() {
         if (this._error)
           return this._error;
-        const error2 = new ZodError3(ctx.common.issues);
-        this._error = error2;
+        const error3 = new ZodError3(ctx.common.issues);
+        this._error = error3;
         return this._error;
       }
     };
@@ -23961,7 +24614,7 @@ var ZodFunction2 = class _ZodFunction extends ZodType3 {
       });
       return INVALID2;
     }
-    function makeArgsIssue(args, error2) {
+    function makeArgsIssue(args, error3) {
       return makeIssue2({
         data: args,
         path: ctx.path,
@@ -23973,11 +24626,11 @@ var ZodFunction2 = class _ZodFunction extends ZodType3 {
         ].filter((x) => !!x),
         issueData: {
           code: ZodIssueCode2.invalid_arguments,
-          argumentsError: error2
+          argumentsError: error3
         }
       });
     }
-    function makeReturnsIssue(returns, error2) {
+    function makeReturnsIssue(returns, error3) {
       return makeIssue2({
         data: returns,
         path: ctx.path,
@@ -23989,7 +24642,7 @@ var ZodFunction2 = class _ZodFunction extends ZodType3 {
         ].filter((x) => !!x),
         issueData: {
           code: ZodIssueCode2.invalid_return_type,
-          returnTypeError: error2
+          returnTypeError: error3
         }
       });
     }
@@ -23998,15 +24651,15 @@ var ZodFunction2 = class _ZodFunction extends ZodType3 {
     if (this._def.returns instanceof ZodPromise2) {
       const me = this;
       return OK2(async function(...args) {
-        const error2 = new ZodError3([]);
+        const error3 = new ZodError3([]);
         const parsedArgs = await me._def.args.parseAsync(args, params).catch((e) => {
-          error2.addIssue(makeArgsIssue(args, e));
-          throw error2;
+          error3.addIssue(makeArgsIssue(args, e));
+          throw error3;
         });
         const result = await Reflect.apply(fn, this, parsedArgs);
         const parsedReturns = await me._def.returns._def.type.parseAsync(result, params).catch((e) => {
-          error2.addIssue(makeReturnsIssue(result, e));
-          throw error2;
+          error3.addIssue(makeReturnsIssue(result, e));
+          throw error3;
         });
         return parsedReturns;
       });
@@ -24907,6 +25560,22 @@ var CLIENT_GRANT_CAPABILITIES_V1 = [
   "board.read",
   "board.write"
 ];
+var ACCOUNT_API_KEY_SCOPES_V1 = [
+  "board:archive",
+  "board:create",
+  "board:read",
+  "board:write",
+  "export:read",
+  "history:read"
+];
+var ACCOUNT_API_KEY_SCOPE_BITS_V1 = {
+  "board:archive": 1 << 0,
+  "board:create": 1 << 1,
+  "board:read": 1 << 2,
+  "board:write": 1 << 3,
+  "export:read": 1 << 4,
+  "history:read": 1 << 5
+};
 var CLIENT_GRANT_SCOPE_ORDER_V1 = [
   "board.read",
   "board.write",
@@ -24931,7 +25600,8 @@ var BOARD_AUTHORIZATION_CAPABILITIES_V1 = [
   "board.read",
   "board.share.manage",
   "board.write",
-  "connection.manage.own"
+  "connection.manage.own",
+  "export.read"
 ];
 var BOARD_AUTHORIZATION_OPERATION_TYPES_V1 = [
   "board.list",
@@ -24975,7 +25645,8 @@ var BOARD_AUTHORIZATION_OPERATION_TYPES_V1 = [
   "share.password.regenerate",
   "share.password.disable",
   "media.upload",
-  "analytics.report.get"
+  "analytics.report.get",
+  "export.render"
 ];
 var SHARE_STATUSES_V1 = ["active", "revoked", "archived"];
 var SHARE_ACCESS_POLICIES_V1 = ["L", "P"];
@@ -25002,7 +25673,7 @@ var SHARE_ERROR_CODES_V1 = [
   "RATE_LIMITED",
   "SERVICE_UNAVAILABLE"
 ];
-var BOARD_AUTHORIZATION_SURFACES_V1 = ["browser", "mcp"];
+var BOARD_AUTHORIZATION_SURFACES_V1 = ["browser", "mcp", "account_api_key"];
 var BOARD_MEMBERSHIP_ROLES_V1 = ["owner", "editor", "viewer"];
 var BOARD_MEMBERSHIP_STATES_V1 = ["active", "inactive"];
 var ARTIFACT_REQUEST_CAPABILITIES_V1 = [
@@ -25050,6 +25721,35 @@ var BOARD_ERROR_CODES_V2 = [
   "METHOD_NOT_ALLOWED",
   "RANGE_NOT_SATISFIABLE"
 ];
+var BOARD_ERROR_CODES_V3 = [...BOARD_ERROR_CODES_V2, "UPGRADE_REQUIRED"];
+
+// packages/board-schema/src/json.ts
+var hasLoneSurrogateV1 = (value) => {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code >= 55296 && code <= 56319) {
+      const next = value.charCodeAt(index + 1);
+      if (!Number.isInteger(next) || next < 56320 || next > 57343) return true;
+      index += 1;
+    } else if (code >= 56320 && code <= 57343) {
+      return true;
+    }
+  }
+  return false;
+};
+var scalarLengthV1 = (value) => Array.from(value).length;
+var compareUnicodeScalarsV1 = (left, right) => {
+  const leftScalars = Array.from(left, (value) => value.codePointAt(0) ?? 0);
+  const rightScalars = Array.from(right, (value) => value.codePointAt(0) ?? 0);
+  const count = Math.min(leftScalars.length, rightScalars.length);
+  for (let index = 0; index < count; index += 1) {
+    const difference = (leftScalars[index] ?? 0) - (rightScalars[index] ?? 0);
+    if (difference !== 0) return difference;
+  }
+  return leftScalars.length - rightScalars.length;
+};
+var serializeJsonStringV1 = (value) => JSON.stringify(value);
+var serializeJsonNumberV1 = (value) => Object.is(value, -0) ? "0" : JSON.stringify(value);
 
 // packages/board-schema/src/limits.ts
 var MAX_ENVELOPE_BYTES = 1048576;
@@ -25152,34 +25852,6 @@ var BOARD_DOCUMENT_LIMITS_V2 = {
   maxMediaReferences: MAX_MEDIA_REFERENCES
 };
 
-// packages/board-schema/src/json.ts
-var hasLoneSurrogateV1 = (value) => {
-  for (let index = 0; index < value.length; index += 1) {
-    const code = value.charCodeAt(index);
-    if (code >= 55296 && code <= 56319) {
-      const next = value.charCodeAt(index + 1);
-      if (!Number.isInteger(next) || next < 56320 || next > 57343) return true;
-      index += 1;
-    } else if (code >= 56320 && code <= 57343) {
-      return true;
-    }
-  }
-  return false;
-};
-var scalarLengthV1 = (value) => Array.from(value).length;
-var compareUnicodeScalarsV1 = (left, right) => {
-  const leftScalars = Array.from(left, (value) => value.codePointAt(0) ?? 0);
-  const rightScalars = Array.from(right, (value) => value.codePointAt(0) ?? 0);
-  const count = Math.min(leftScalars.length, rightScalars.length);
-  for (let index = 0; index < count; index += 1) {
-    const difference = (leftScalars[index] ?? 0) - (rightScalars[index] ?? 0);
-    if (difference !== 0) return difference;
-  }
-  return leftScalars.length - rightScalars.length;
-};
-var serializeJsonStringV1 = (value) => JSON.stringify(value);
-var serializeJsonNumberV1 = (value) => Object.is(value, -0) ? "0" : JSON.stringify(value);
-
 // packages/board-schema/src/identifiers.ts
 var GLOBAL_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 var LOCAL_ID_PATTERN = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
@@ -25228,6 +25900,27 @@ var RevisionSummarySchemaV1 = z.object({
   revisionId: RevisionIdSchemaV1,
   revisionNumber: z.number().int().safe().positive(),
   createdAt: TimestampSchemaV1
+}).strict();
+
+// packages/board-schema/src/actors.ts
+var ClientGrantCapabilitySchemaV1 = z.enum(CLIENT_GRANT_CAPABILITIES_V1);
+var isSortedUniqueScopesV1 = (scopes) => scopes.every((scope, index) => index === 0 || (scopes[index - 1] ?? "") < scope);
+var ActorContextSchemaV1 = z.object({
+  principalKind: z.enum(["user", "mcp_client", "service"]),
+  principalId: PrincipalIdSchemaV1,
+  grantId: GrantIdSchemaV1.nullable(),
+  scopes: z.array(ClientGrantCapabilitySchemaV1).superRefine((scopes, context) => {
+    if (!isSortedUniqueScopesV1(scopes)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "scopes must be sorted and unique"
+      });
+    }
+  })
+}).strict();
+var ActorReferenceSchemaV1 = z.object({
+  principalKind: z.enum(["user", "mcp_client", "service"]),
+  principalId: PrincipalIdSchemaV1
 }).strict();
 
 // packages/board-schema/src/memberships.ts
@@ -25941,6 +26634,12 @@ var SceneSchemaV1 = z.object({
 
 // packages/board-schema/src/documents.ts
 var PageDisplayModeSchemaV1 = z.enum(["fit-page", "fit-width", "actual-size"]);
+var PresentationFormatSchemaV1 = z.enum([
+  "wide_16_9",
+  "standard_4_3",
+  "a4_portrait",
+  "a4_landscape"
+]);
 var BoardPageSchemaV2 = z.object({
   pageId: PageIdSchemaV1,
   title: createScalarTextSchemaV1(0, MAX_TITLE_CHARS),
@@ -25952,11 +26651,7 @@ var invalidDocument = (context, path, reason, message) => context.addIssue({
   path,
   message: `[INVALID_DOCUMENT:${reason}] ${message}`
 });
-var BoardDocumentSchemaV2 = z.object({
-  schemaVersion: z.literal(2),
-  defaultPageId: PageIdSchemaV1,
-  pages: z.array(BoardPageSchemaV2).min(1).max(MAX_DOCUMENT_PAGES)
-}).strict().superRefine((document, context) => {
+var validateDocumentPages = (document, context) => {
   if (document.pages.length < 1 || document.pages.length > MAX_DOCUMENT_PAGES)
     invalidDocument(context, ["pages"], "page_count", "document page count is invalid");
   const pageIds = /* @__PURE__ */ new Set();
@@ -25994,6 +26689,28 @@ var BoardDocumentSchemaV2 = z.object({
     );
   if (nodeCount > MAX_DOCUMENT_NODES)
     invalidDocument(context, ["pages"], "limit", "document node count exceeded");
+};
+var BoardDocumentSchemaV2 = z.object({
+  schemaVersion: z.literal(2),
+  defaultPageId: PageIdSchemaV1,
+  pages: z.array(BoardPageSchemaV2).min(1).max(MAX_DOCUMENT_PAGES)
+}).strict().superRefine(validateDocumentPages);
+var BoardDocumentSchemaV3 = z.object({
+  schemaVersion: z.literal(3),
+  format: PresentationFormatSchemaV1,
+  defaultPageId: PageIdSchemaV1,
+  pages: z.array(BoardPageSchemaV2).min(1).max(MAX_DOCUMENT_PAGES)
+}).strict().superRefine(validateDocumentPages);
+var projectDocumentV2ToV3 = (document, format = "wide_16_9") => BoardDocumentSchemaV3.parse({
+  schemaVersion: 3,
+  format,
+  defaultPageId: document.defaultPageId,
+  pages: document.pages
+});
+var projectDocumentV3ToV2 = (document) => BoardDocumentSchemaV2.parse({
+  schemaVersion: 2,
+  defaultPageId: document.defaultPageId,
+  pages: document.pages
 });
 var collectDocumentNodesV2 = (document) => {
   const output = [];
@@ -26072,7 +26789,7 @@ var PublicBoardProjectionSchemaV1 = z.object({
   publicationGeneration: z.number().int().safe().positive(),
   accessGeneration: z.number().int().safe().positive(),
   title: ShortTextSchemaV1,
-  document: BoardDocumentSchemaV2,
+  document: z.union([BoardDocumentSchemaV2, BoardDocumentSchemaV3]),
   artifacts: z.array(PublicArtifactSummarySchemaV1).max(MAX_MEDIA_REFERENCES),
   media: z.array(PublicMediaResourceSchemaV1).max(MAX_MEDIA_REFERENCES)
 }).strict().superRefine((projection, context) => {
@@ -26409,31 +27126,32 @@ var DEFAULT_BOARD_CAPABILITIES_V2 = {
   grantedCapabilities: [],
   allowedArtifactRequestCapabilities: []
 };
+var BoardCapabilitiesSchemaV3 = z.object({
+  protocolVersion: z.literal(PROTOCOL_VERSION),
+  type: z.literal("board.capabilities"),
+  schemaVersion: z.literal("1.2.0"),
+  compatibilityMode: z.literal("frozen-major"),
+  supported: z.object({
+    nodeTypes: exactCatalog(NODE_TYPES_V1),
+    commandTypes: exactCatalog(BOARD_MUTATION_COMMAND_TYPES_V2),
+    operationTypes: exactCatalog(BOARD_OPERATION_TYPES_V1),
+    eventTypes: exactCatalog(BOARD_EVENT_TYPES_V1),
+    hitlKinds: exactCatalog(HITL_KINDS_V1),
+    artifactRequestCapabilities: exactCatalog(ARTIFACT_REQUEST_CAPABILITIES_V1)
+  }).strict(),
+  limits: BoardLimitsSchemaV2,
+  grantedCapabilities: sortedSubset(CLIENT_GRANT_CAPABILITIES_V1),
+  allowedArtifactRequestCapabilities: sortedSubset(ARTIFACT_REQUEST_CAPABILITIES_V1)
+}).strict();
+var DEFAULT_BOARD_CAPABILITIES_V3 = {
+  ...DEFAULT_BOARD_CAPABILITIES_V2,
+  schemaVersion: "1.2.0"
+};
 var BoardCapabilitiesSchema = z.union([
   BoardCapabilitiesSchemaV1,
-  BoardCapabilitiesSchemaV2
+  BoardCapabilitiesSchemaV2,
+  BoardCapabilitiesSchemaV3
 ]);
-
-// packages/board-schema/src/actors.ts
-var ClientGrantCapabilitySchemaV1 = z.enum(CLIENT_GRANT_CAPABILITIES_V1);
-var isSortedUniqueScopesV1 = (scopes) => scopes.every((scope, index) => index === 0 || (scopes[index - 1] ?? "") < scope);
-var ActorContextSchemaV1 = z.object({
-  principalKind: z.enum(["user", "mcp_client", "service"]),
-  principalId: PrincipalIdSchemaV1,
-  grantId: GrantIdSchemaV1.nullable(),
-  scopes: z.array(ClientGrantCapabilitySchemaV1).superRefine((scopes, context) => {
-    if (!isSortedUniqueScopesV1(scopes)) {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "scopes must be sorted and unique"
-      });
-    }
-  })
-}).strict();
-var ActorReferenceSchemaV1 = z.object({
-  principalKind: z.enum(["user", "mcp_client", "service"]),
-  principalId: PrincipalIdSchemaV1
-}).strict();
 
 // packages/board-schema/src/hitl.ts
 var HitlContentSchemaV1 = ContentTextSchemaV1.refine(
@@ -26737,6 +27455,134 @@ var HitlRespondSuccessSchemaV1 = HitlInteractionSchemaV1.refine(
   { path: ["state"], message: "respond success must be answered" }
 );
 
+// packages/board-schema/src/commands.ts
+var SceneReplaceCommandSchemaV1 = z.object({ type: z.literal("scene.replace"), scene: SceneSchemaV1 }).strict();
+var SceneClearCommandSchemaV1 = z.object({ type: z.literal("scene.clear") }).strict();
+var SceneRestoreCommandSchemaV1 = z.object({ type: z.literal("scene.restore"), sourceRevisionId: RevisionIdSchemaV1 }).strict();
+var HitlRequestCommandSchemaV1 = z.object({
+  type: z.literal("hitl.request"),
+  hitlRequestId: HitlRequestIdSchemaV1,
+  request: HitlRequestDefinitionSchemaV1
+}).strict();
+var HitlRespondCommandSchemaV1 = z.object({
+  type: z.literal("hitl.respond"),
+  hitlRequestId: HitlRequestIdSchemaV1,
+  response: HitlResponseSchemaV1
+}).strict();
+var ArtifactPublishCommandSchemaV1 = z.object({ type: z.literal("artifact.publish"), manifest: ArtifactManifestSchemaV1 }).strict();
+var ArtifactStopCommandSchemaV1 = z.object({
+  type: z.literal("artifact.stop"),
+  artifact: ArtifactReferenceSchemaV1,
+  reason: ShortTextSchemaV1.optional()
+}).strict();
+var DocumentReplaceCommandSchemaV2 = z.object({ type: z.literal("document.replace"), document: BoardDocumentSchemaV2 }).strict();
+var DocumentReplaceCommandSchemaV3 = z.object({ type: z.literal("document.replace"), document: BoardDocumentSchemaV3 }).strict();
+var BoardMutationCommandSchemaV1 = z.discriminatedUnion("type", [
+  SceneReplaceCommandSchemaV1,
+  SceneClearCommandSchemaV1,
+  SceneRestoreCommandSchemaV1,
+  HitlRequestCommandSchemaV1,
+  HitlRespondCommandSchemaV1,
+  ArtifactPublishCommandSchemaV1,
+  ArtifactStopCommandSchemaV1
+]);
+var BoardMutationCommandSchemaV2 = z.discriminatedUnion("type", [
+  SceneReplaceCommandSchemaV1,
+  SceneClearCommandSchemaV1,
+  SceneRestoreCommandSchemaV1,
+  HitlRequestCommandSchemaV1,
+  HitlRespondCommandSchemaV1,
+  ArtifactPublishCommandSchemaV1,
+  ArtifactStopCommandSchemaV1,
+  DocumentReplaceCommandSchemaV2
+]);
+var BoardMutationCommandSchemaV3 = z.discriminatedUnion("type", [
+  SceneReplaceCommandSchemaV1,
+  SceneClearCommandSchemaV1,
+  SceneRestoreCommandSchemaV1,
+  HitlRequestCommandSchemaV1,
+  HitlRespondCommandSchemaV1,
+  ArtifactPublishCommandSchemaV1,
+  ArtifactStopCommandSchemaV1,
+  DocumentReplaceCommandSchemaV3
+]);
+var MutationRequestShapeV1 = {
+  protocolVersion: z.literal(1),
+  requestId: RequestIdSchemaV1,
+  idempotencyKey: IdempotencyKeySchemaV1,
+  boardId: BoardIdSchemaV1,
+  expectedRevisionId: RevisionIdSchemaV1,
+  command: BoardMutationCommandSchemaV1
+};
+var MutationRequestShapeV2 = {
+  ...MutationRequestShapeV1,
+  command: BoardMutationCommandSchemaV2
+};
+var MutationRequestShapeV3 = {
+  ...MutationRequestShapeV1,
+  command: BoardMutationCommandSchemaV3
+};
+var MutationRequestSchemaV1 = z.object(MutationRequestShapeV1).strict();
+var MutationEnvelopeSchemaV1 = z.object({ ...MutationRequestShapeV1, actor: ActorContextSchemaV1 }).strict();
+var MutationRequestSchemaV2 = z.object(MutationRequestShapeV2).strict();
+var MutationEnvelopeSchemaV2 = z.object({ ...MutationRequestShapeV2, actor: ActorContextSchemaV1 }).strict();
+var MutationRequestSchemaV3 = z.object(MutationRequestShapeV3).strict();
+var MutationEnvelopeSchemaV3 = z.object({ ...MutationRequestShapeV3, actor: ActorContextSchemaV1 }).strict();
+var MutationResultDataSchemaV1 = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("scene.replace"), revision: RevisionSummarySchemaV1 }).strict(),
+  z.object({ type: z.literal("scene.clear"), revision: RevisionSummarySchemaV1 }).strict(),
+  z.object({
+    type: z.literal("scene.restore"),
+    sourceRevisionId: RevisionIdSchemaV1,
+    revision: RevisionSummarySchemaV1
+  }).strict(),
+  z.object({ type: z.literal("hitl.request"), hitl: HitlRequestSuccessSchemaV1 }).strict(),
+  z.object({ type: z.literal("hitl.respond"), hitl: HitlRespondSuccessSchemaV1 }).strict(),
+  z.object({ type: z.literal("artifact.publish"), artifact: ArtifactRuntimeSummarySchemaV1 }).strict(),
+  z.object({ type: z.literal("artifact.stop"), artifact: ArtifactRuntimeSummarySchemaV1 }).strict()
+]);
+var DocumentReplaceResultDataSchemaV2 = z.object({
+  type: z.literal("document.replace"),
+  revision: RevisionSummarySchemaV1,
+  originType: z.literal("document.replace"),
+  sourceRevisionId: z.null(),
+  document: BoardDocumentSchemaV2
+}).strict();
+var MutationResultDataSchemaV2 = z.discriminatedUnion("type", [
+  ...MutationResultDataSchemaV1.options,
+  DocumentReplaceResultDataSchemaV2
+]);
+var DocumentReplaceResultDataSchemaV3 = z.object({
+  type: z.literal("document.replace"),
+  revision: RevisionSummarySchemaV1,
+  originType: z.literal("document.replace"),
+  sourceRevisionId: z.null(),
+  document: BoardDocumentSchemaV3
+}).strict();
+var MutationResultDataSchemaV3 = z.discriminatedUnion("type", [
+  ...MutationResultDataSchemaV1.options,
+  DocumentReplaceResultDataSchemaV3
+]);
+var mutationResultSchema = (result) => z.object({
+  protocolVersion: z.literal(1),
+  type: z.literal("mutation.result"),
+  requestId: RequestIdSchemaV1,
+  boardId: BoardIdSchemaV1,
+  replayed: z.boolean(),
+  eventIds: z.array(EventIdSchemaV1),
+  result
+}).strict().superRefine((envelope, context) => {
+  if (new Set(envelope.eventIds).size !== envelope.eventIds.length)
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["eventIds"],
+      message: "event IDs must be unique"
+    });
+});
+var MutationResultSchemaV1 = mutationResultSchema(MutationResultDataSchemaV1);
+var MutationResultSchemaV2 = mutationResultSchema(MutationResultDataSchemaV2);
+var MutationResultSchemaV3 = mutationResultSchema(MutationResultDataSchemaV3);
+
 // packages/board-schema/src/snapshots.ts
 var SnapshotRevisionSchemaV1 = RevisionSummarySchemaV1.extend({
   previousRevisionId: RevisionIdSchemaV1.nullable(),
@@ -26780,8 +27626,8 @@ var BoardSnapshotSchemaV1 = z.object({
     hitlIds.add(interaction.hitlRequestId);
   });
   const artifactKeys = /* @__PURE__ */ new Set();
-  snapshot.artifacts.forEach((runtime2, index) => {
-    const key = artifactKey(runtime2.artifact);
+  snapshot.artifacts.forEach((runtime, index) => {
+    const key = artifactKey(runtime.artifact);
     if (artifactKeys.has(key))
       context.addIssue({
         code: z.ZodIssueCode.custom,
@@ -26845,8 +27691,72 @@ var BoardSnapshotSchemaV2 = z.object({
     hitlIds.add(interaction.hitlRequestId);
   });
   const artifactKeys = /* @__PURE__ */ new Set();
-  snapshot.artifacts.forEach((runtime2, index) => {
-    const key = artifactKey(runtime2.artifact);
+  snapshot.artifacts.forEach((runtime, index) => {
+    const key = artifactKey(runtime.artifact);
+    if (artifactKeys.has(key))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["artifacts", index, "artifact"],
+        message: "[INVALID_LAYOUT] duplicate artifact runtime summary"
+      });
+    artifactKeys.add(key);
+  });
+  for (const item of collectDocumentNodesV2(snapshot.document)) {
+    if (item.node.type === "content.hitl" && !hitlIds.has(item.node.hitlRequestId))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [...item.path, "hitlRequestId"],
+        message: "[INVALID_DOCUMENT:unresolved_reference] unresolved HITL reference"
+      });
+    const reference = item.node.type === "content.artifact" ? item.node.artifact : item.node.type === "content.image" && item.node.source.type === "artifact.resource" ? item.node.source.artifact : null;
+    if (reference && !artifactKeys.has(artifactKey(reference)))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [
+          ...item.path,
+          ...item.node.type === "content.image" ? ["source", "artifact"] : ["artifact"]
+        ],
+        message: "[INVALID_DOCUMENT:unresolved_reference] unresolved artifact reference"
+      });
+  }
+});
+var BoardSnapshotSchemaV3 = z.object({
+  protocolVersion: z.literal(1),
+  type: z.literal("board.snapshot"),
+  boardId: BoardIdSchemaV1,
+  revision: SnapshotRevisionSchemaV1,
+  document: BoardDocumentSchemaV3,
+  hitl: z.array(HitlInteractionSchemaV1),
+  artifacts: z.array(ArtifactRuntimeSummarySchemaV1),
+  capabilities: BoardCapabilitiesSchemaV3,
+  lastEventSequence: z.number().int().safe().min(0)
+}).strict().superRefine((snapshot, context) => {
+  if (snapshot.revision.revisionNumber === 1) {
+    if (snapshot.revision.previousRevisionId !== null || snapshot.revision.originType !== "board.create" || snapshot.revision.sourceRevisionId !== null)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["revision"],
+        message: "[INVALID_LAYOUT] initial revision metadata is invalid"
+      });
+  } else if (snapshot.revision.previousRevisionId === null || snapshot.revision.originType === "board.create" || snapshot.revision.originType === "scene.restore" !== (snapshot.revision.sourceRevisionId !== null))
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["revision"],
+      message: "[INVALID_LAYOUT] revision lineage is invalid"
+    });
+  const hitlIds = /* @__PURE__ */ new Set();
+  snapshot.hitl.forEach((interaction, index) => {
+    if (hitlIds.has(interaction.hitlRequestId))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["hitl", index, "hitlRequestId"],
+        message: "[INVALID_LAYOUT] duplicate HITL interaction"
+      });
+    hitlIds.add(interaction.hitlRequestId);
+  });
+  const artifactKeys = /* @__PURE__ */ new Set();
+  snapshot.artifacts.forEach((runtime, index) => {
+    const key = artifactKey(runtime.artifact);
     if (artifactKeys.has(key))
       context.addIssue({
         code: z.ZodIssueCode.custom,
@@ -26886,7 +27796,7 @@ var BoardSnapshotSchema = z.any().transform((value, context) => {
     });
     return z.NEVER;
   }
-  const parsed = (hasDocument ? BoardSnapshotSchemaV2 : BoardSnapshotSchemaV1).safeParse(value);
+  const parsed = (hasDocument ? record2?.document !== null && typeof record2?.document === "object" && !Array.isArray(record2.document) && record2.document.schemaVersion === 3 ? BoardSnapshotSchemaV3 : BoardSnapshotSchemaV2 : BoardSnapshotSchemaV1).safeParse(value);
   if (!parsed.success) {
     parsed.error.issues.forEach((issue2) => context.addIssue(issue2));
     return z.NEVER;
@@ -26908,26 +27818,64 @@ var editors = Object.freeze({ owner: true, editor: true, viewer: false });
 var owners = Object.freeze({ owner: true, editor: false, viewer: false });
 var account = Object.freeze({ owner: false, editor: false, viewer: false });
 var BOARD_OPERATION_AUTHORIZATION_MATRIX_V1 = Object.freeze([
-  policy("board.list", ["browser", "mcp"], ["board.read"], allRoles, "I-27"),
-  policy("board.get", ["browser", "mcp"], ["board.read"], allRoles, "I-27", "all"),
-  policy("capabilities.get", ["browser", "mcp"], ["board.read"], allRoles, "I-27", "all"),
+  policy("board.list", ["browser", "mcp", "account_api_key"], ["board.read"], allRoles, "I-27"),
+  policy(
+    "board.get",
+    ["browser", "mcp", "account_api_key"],
+    ["board.read"],
+    allRoles,
+    "I-27",
+    "all"
+  ),
+  policy(
+    "capabilities.get",
+    ["browser", "mcp", "account_api_key"],
+    ["board.read"],
+    allRoles,
+    "I-27",
+    "all"
+  ),
   policy("artifact.get", ["browser", "mcp"], ["board.read"], allRoles, "I-27", "current_head"),
   policy("hitl.read", ["browser", "mcp"], ["board.read"], allRoles, "I-27", "current_head"),
-  policy("history.list", ["browser", "mcp"], ["board.history.read"], editors, "I-27"),
-  policy("history.get", ["browser", "mcp"], ["board.history.read"], editors, "I-27"),
-  policy("board.create", ["browser", "mcp"], ["account.board.create"], account, "I-27"),
-  policy("board.rename", ["browser"], ["board.write"], editors, "I-27"),
-  policy("document.replace", ["browser", "mcp"], ["board.write"], editors, "I-19"),
+  policy(
+    "history.list",
+    ["browser", "mcp", "account_api_key"],
+    ["board.history.read"],
+    editors,
+    "I-27"
+  ),
+  policy(
+    "history.get",
+    ["browser", "mcp", "account_api_key"],
+    ["board.history.read"],
+    editors,
+    "I-27"
+  ),
+  policy(
+    "board.create",
+    ["browser", "mcp", "account_api_key"],
+    ["account.board.create"],
+    account,
+    "I-27"
+  ),
+  policy("board.rename", ["browser", "account_api_key"], ["board.write"], editors, "I-27"),
+  policy(
+    "document.replace",
+    ["browser", "mcp", "account_api_key"],
+    ["board.write"],
+    editors,
+    "I-19"
+  ),
   policy("page.add", ["browser", "mcp"], ["board.write"], editors, "I-19"),
   policy("page.update", ["browser", "mcp"], ["board.write"], editors, "I-19"),
   policy("page.remove", ["browser", "mcp"], ["board.write"], editors, "I-19"),
   policy("page.reorder", ["browser", "mcp"], ["board.write"], editors, "I-19"),
   policy("page.default.set", ["browser", "mcp"], ["board.write"], editors, "I-19"),
-  policy("scene.replace", ["browser", "mcp"], ["board.write"], editors, "I-27"),
-  policy("scene.clear", ["browser", "mcp"], ["board.write"], editors, "I-27"),
+  policy("scene.replace", ["browser", "mcp", "account_api_key"], ["board.write"], editors, "I-27"),
+  policy("scene.clear", ["browser", "mcp", "account_api_key"], ["board.write"], editors, "I-27"),
   policy(
     "scene.restore",
-    ["browser", "mcp"],
+    ["browser", "mcp", "account_api_key"],
     ["board.history.read", "board.write"],
     editors,
     "I-27"
@@ -26939,7 +27887,7 @@ var BOARD_OPERATION_AUTHORIZATION_MATRIX_V1 = Object.freeze([
   policy("connection.create", ["browser"], ["connection.manage.own"], editors, "existing"),
   policy("connection.update", ["browser"], ["connection.manage.own"], editors, "existing"),
   policy("connection.revoke", ["browser"], ["connection.manage.own"], editors, "existing"),
-  policy("board.archive", ["browser", "mcp"], ["board.admin"], owners, "I-27"),
+  policy("board.archive", ["browser", "mcp", "account_api_key"], ["board.admin"], owners, "I-27"),
   policy("board.delete", ["browser"], ["board.admin"], owners, "I-27"),
   policy("membership.list", ["browser"], ["board.members.manage"], owners, "I-28"),
   policy("membership.invite", ["browser"], ["board.members.manage"], owners, "I-28"),
@@ -26955,7 +27903,8 @@ var BOARD_OPERATION_AUTHORIZATION_MATRIX_V1 = Object.freeze([
   policy("share.password.regenerate", ["browser"], ["board.share.manage"], owners, "I-30"),
   policy("share.password.disable", ["browser"], ["board.share.manage"], owners, "I-30"),
   policy("media.upload", ["browser", "mcp"], ["board.media.write"], editors, "I-36/I-40"),
-  policy("analytics.report.get", ["browser"], ["board.analytics.read"], owners, "I-42")
+  policy("analytics.report.get", ["browser"], ["board.analytics.read"], owners, "I-42"),
+  policy("export.render", ["browser", "account_api_key"], ["export.read"], owners, "I-50", "all")
 ]);
 var BoardOperationAuthorizationPolicySchemaV1 = z.object({
   operation: z.enum(BOARD_AUTHORIZATION_OPERATION_TYPES_V1),
@@ -27178,105 +28127,6 @@ var BoardOperationResultSchemaV1 = z.object({
       });
   }
 });
-
-// packages/board-schema/src/commands.ts
-var SceneReplaceCommandSchemaV1 = z.object({ type: z.literal("scene.replace"), scene: SceneSchemaV1 }).strict();
-var SceneClearCommandSchemaV1 = z.object({ type: z.literal("scene.clear") }).strict();
-var SceneRestoreCommandSchemaV1 = z.object({ type: z.literal("scene.restore"), sourceRevisionId: RevisionIdSchemaV1 }).strict();
-var HitlRequestCommandSchemaV1 = z.object({
-  type: z.literal("hitl.request"),
-  hitlRequestId: HitlRequestIdSchemaV1,
-  request: HitlRequestDefinitionSchemaV1
-}).strict();
-var HitlRespondCommandSchemaV1 = z.object({
-  type: z.literal("hitl.respond"),
-  hitlRequestId: HitlRequestIdSchemaV1,
-  response: HitlResponseSchemaV1
-}).strict();
-var ArtifactPublishCommandSchemaV1 = z.object({ type: z.literal("artifact.publish"), manifest: ArtifactManifestSchemaV1 }).strict();
-var ArtifactStopCommandSchemaV1 = z.object({
-  type: z.literal("artifact.stop"),
-  artifact: ArtifactReferenceSchemaV1,
-  reason: ShortTextSchemaV1.optional()
-}).strict();
-var DocumentReplaceCommandSchemaV2 = z.object({ type: z.literal("document.replace"), document: BoardDocumentSchemaV2 }).strict();
-var BoardMutationCommandSchemaV1 = z.discriminatedUnion("type", [
-  SceneReplaceCommandSchemaV1,
-  SceneClearCommandSchemaV1,
-  SceneRestoreCommandSchemaV1,
-  HitlRequestCommandSchemaV1,
-  HitlRespondCommandSchemaV1,
-  ArtifactPublishCommandSchemaV1,
-  ArtifactStopCommandSchemaV1
-]);
-var BoardMutationCommandSchemaV2 = z.discriminatedUnion("type", [
-  SceneReplaceCommandSchemaV1,
-  SceneClearCommandSchemaV1,
-  SceneRestoreCommandSchemaV1,
-  HitlRequestCommandSchemaV1,
-  HitlRespondCommandSchemaV1,
-  ArtifactPublishCommandSchemaV1,
-  ArtifactStopCommandSchemaV1,
-  DocumentReplaceCommandSchemaV2
-]);
-var MutationRequestShapeV1 = {
-  protocolVersion: z.literal(1),
-  requestId: RequestIdSchemaV1,
-  idempotencyKey: IdempotencyKeySchemaV1,
-  boardId: BoardIdSchemaV1,
-  expectedRevisionId: RevisionIdSchemaV1,
-  command: BoardMutationCommandSchemaV1
-};
-var MutationRequestShapeV2 = {
-  ...MutationRequestShapeV1,
-  command: BoardMutationCommandSchemaV2
-};
-var MutationRequestSchemaV1 = z.object(MutationRequestShapeV1).strict();
-var MutationEnvelopeSchemaV1 = z.object({ ...MutationRequestShapeV1, actor: ActorContextSchemaV1 }).strict();
-var MutationRequestSchemaV2 = z.object(MutationRequestShapeV2).strict();
-var MutationEnvelopeSchemaV2 = z.object({ ...MutationRequestShapeV2, actor: ActorContextSchemaV1 }).strict();
-var MutationResultDataSchemaV1 = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("scene.replace"), revision: RevisionSummarySchemaV1 }).strict(),
-  z.object({ type: z.literal("scene.clear"), revision: RevisionSummarySchemaV1 }).strict(),
-  z.object({
-    type: z.literal("scene.restore"),
-    sourceRevisionId: RevisionIdSchemaV1,
-    revision: RevisionSummarySchemaV1
-  }).strict(),
-  z.object({ type: z.literal("hitl.request"), hitl: HitlRequestSuccessSchemaV1 }).strict(),
-  z.object({ type: z.literal("hitl.respond"), hitl: HitlRespondSuccessSchemaV1 }).strict(),
-  z.object({ type: z.literal("artifact.publish"), artifact: ArtifactRuntimeSummarySchemaV1 }).strict(),
-  z.object({ type: z.literal("artifact.stop"), artifact: ArtifactRuntimeSummarySchemaV1 }).strict()
-]);
-var DocumentReplaceResultDataSchemaV2 = z.object({
-  type: z.literal("document.replace"),
-  revision: RevisionSummarySchemaV1,
-  originType: z.literal("document.replace"),
-  sourceRevisionId: z.null(),
-  document: BoardDocumentSchemaV2
-}).strict();
-var MutationResultDataSchemaV2 = z.discriminatedUnion("type", [
-  ...MutationResultDataSchemaV1.options,
-  DocumentReplaceResultDataSchemaV2
-]);
-var mutationResultSchema = (result) => z.object({
-  protocolVersion: z.literal(1),
-  type: z.literal("mutation.result"),
-  requestId: RequestIdSchemaV1,
-  boardId: BoardIdSchemaV1,
-  replayed: z.boolean(),
-  eventIds: z.array(EventIdSchemaV1),
-  result
-}).strict().superRefine((envelope, context) => {
-  if (new Set(envelope.eventIds).size !== envelope.eventIds.length)
-    context.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["eventIds"],
-      message: "event IDs must be unique"
-    });
-});
-var MutationResultSchemaV1 = mutationResultSchema(MutationResultDataSchemaV1);
-var MutationResultSchemaV2 = mutationResultSchema(MutationResultDataSchemaV2);
 
 // packages/board-schema/src/errors.ts
 var PathSchemaV12 = z.array(z.union([z.string(), z.number().int().min(0)]));
@@ -27627,7 +28477,29 @@ var BoardErrorSchemaV2Only = z.discriminatedUnion("code", [
     z.object({ allow: z.literal("GET") }).strict()
   )
 ]);
-var BoardErrorSchema = z.union([BoardErrorSchemaV1, BoardErrorSchemaV2Only]);
+var UpgradeRequiredErrorSchemaV3 = branch(
+  "UPGRADE_REQUIRED",
+  "conflict",
+  false,
+  409,
+  z.union([
+    z.object({
+      headSchemaVersion: z.literal(3),
+      requestedDocumentSchemaVersion: z.union([z.literal(1), z.literal(2)]),
+      operationType: z.enum(BOARD_MUTATION_COMMAND_TYPES_V2)
+    }).strict(),
+    z.object({
+      headSchemaVersion: z.literal(3),
+      requestedDocumentSchemaVersion: z.union([z.literal(1), z.literal(2)]),
+      surface: z.enum(["board.get", "board.stream", "history"])
+    }).strict()
+  ])
+);
+var BoardErrorSchema = z.union([
+  BoardErrorSchemaV1,
+  BoardErrorSchemaV2Only,
+  UpgradeRequiredErrorSchemaV3
+]);
 
 // packages/board-schema/src/events.ts
 var PresenceSummarySchemaV1 = z.object({
@@ -27777,7 +28649,7 @@ var RetainedHistoryMetadataSchemaV1 = z.object({
       label: PrintableAscii160SchemaV1,
       actorLabel: RetainedHistoryActorLabelSchemaV1,
       summary: PrintableAscii160SchemaV1,
-      schemaVersion: z.enum(["1.0.0", "2.0.0"])
+      schemaVersion: z.enum(["1.0.0", "2.0.0", "3.0.0"])
     }).strict()
   ).max(100),
   boundary: z.object({
@@ -28137,18 +29009,18 @@ var actualForLimit = (input, path, limit) => {
   const value = valueAtPath(input, path);
   if (limit === "maxArtifactTotalBytes" && Array.isArray(value)) {
     return value.reduce(
-      (total, resource) => total + (isRecord(resource) && typeof resource.byteLength === "number" ? resource.byteLength : 0),
+      (total, resource) => total + (isRecord2(resource) && typeof resource.byteLength === "number" ? resource.byteLength : 0),
       0
     );
   }
   if (limit === "maxTableCells") {
     const table = valueAtPath(input, path.slice(0, -1));
-    if (isRecord(table) && Array.isArray(table.columns) && Array.isArray(table.rows))
+    if (isRecord2(table) && Array.isArray(table.columns) && Array.isArray(table.rows))
       return table.columns.length * table.rows.length;
   }
   if (limit === "maxChartPoints" && Array.isArray(value)) {
     return value.reduce(
-      (total, series) => total + (isRecord(series) && Array.isArray(series.points) ? series.points.length : 0),
+      (total, series) => total + (isRecord2(series) && Array.isArray(series.points) ? series.points.length : 0),
       0
     );
   }
@@ -28158,7 +29030,7 @@ var inferLimitKey = (input, path, message) => {
   if (!/at most|less than or equal|too_big/i.test(message)) return null;
   const field = path.at(-1);
   const parent = valueAtPath(input, path.slice(0, -1));
-  const parentType = isRecord(parent) && typeof parent.type === "string" ? parent.type : null;
+  const parentType = isRecord2(parent) && typeof parent.type === "string" ? parent.type : null;
   if (field === "children") {
     if (parentType === "layout.split") return "maxSplitChildren";
     if (parentType === "layout.grid") return "maxGridItems";
@@ -28199,7 +29071,9 @@ var mapSchemaIssue = (input, issue2, kind) => {
       issue2.path,
       documentMatch[1]
     );
-  const knownDocument = kind === "document" || findDocumentValues(input).some(({ value }) => value.schemaVersion === 2);
+  const knownDocument = kind === "document" || findDocumentValues(input).some(
+    ({ value }) => value.schemaVersion === 2 || value.schemaVersion === 3
+  );
   if (knownDocument) {
     if (issue2.path.at(-1) === "displayMode")
       return invalidDocument2(issue2.path, "invalid_display_mode");
@@ -28280,7 +29154,7 @@ var mapSchemaIssue = (input, issue2, kind) => {
   }
   return invalidPayload(issue2.path, issue2.message);
 };
-var isRecord = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+var isRecord2 = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 var findSceneValues = (input) => {
   const scenes = [];
   const stack = [
@@ -28289,13 +29163,13 @@ var findSceneValues = (input) => {
   while (stack.length > 0) {
     const current = stack.pop();
     if (!current) break;
-    if (isRecord(current.value) && current.value.type === "scene" && Object.hasOwn(current.value, "root"))
+    if (isRecord2(current.value) && current.value.type === "scene" && Object.hasOwn(current.value, "root"))
       scenes.push({ value: current.value, path: current.path });
     if (Array.isArray(current.value))
       current.value.forEach(
         (value, index) => stack.push({ value, path: [...current.path, index] })
       );
-    else if (isRecord(current.value))
+    else if (isRecord2(current.value))
       Object.entries(current.value).forEach(
         ([key, value]) => stack.push({ value, path: [...current.path, key] })
       );
@@ -28304,14 +29178,14 @@ var findSceneValues = (input) => {
 };
 var guardSceneLimits = (input, kind) => {
   const scenes = findSceneValues(input);
-  if (kind === "scene" && scenes.length === 0 && isRecord(input))
+  if (kind === "scene" && scenes.length === 0 && isRecord2(input))
     scenes.push({ value: input, path: [] });
   for (const scene of scenes) {
     const canonical = runDecodedKernelV1(scene.value);
     if (canonical.ok && canonical.canonicalBytes.byteLength > MAX_SCENE_BYTES)
       return payloadTooLarge("scene", canonical.canonicalBytes.byteLength, MAX_SCENE_BYTES);
     const root = scene.value.root;
-    if (root === null || !isRecord(root)) continue;
+    if (root === null || !isRecord2(root)) continue;
     let count = 0;
     const stack = [{ node: root, path: [...scene.path, "root"], depth: 1 }];
     while (stack.length > 0) {
@@ -28325,7 +29199,7 @@ var guardSceneLimits = (input, kind) => {
         return limitExceeded("maxTableRows", current.node.rows.length, [...current.path, "rows"]);
       if (type === "content.chart" && Array.isArray(current.node.series)) {
         const points = current.node.series.reduce(
-          (total, series) => total + (isRecord(series) && Array.isArray(series.points) ? series.points.length : 0),
+          (total, series) => total + (isRecord2(series) && Array.isArray(series.points) ? series.points.length : 0),
           0
         );
         if (points > BOARD_LIMITS_V1.maxChartPoints)
@@ -28334,7 +29208,7 @@ var guardSceneLimits = (input, kind) => {
       const children = type === "layout.tabs" ? current.node.tabs : current.node.children;
       if (Array.isArray(children))
         children.forEach((item, index) => {
-          if (isRecord(item) && isRecord(item.node))
+          if (isRecord2(item) && isRecord2(item.node))
             stack.push({
               node: item.node,
               path: [...current.path, type === "layout.tabs" ? "tabs" : "children", index, "node"],
@@ -28364,7 +29238,7 @@ var guardSceneLimits = (input, kind) => {
       const children = current.node.type === "layout.tabs" ? current.node.tabs : current.node.children;
       if (Array.isArray(children))
         children.forEach((item, index) => {
-          if (isRecord(item) && isRecord(item.node))
+          if (isRecord2(item) && isRecord2(item.node))
             unknownStack.push({
               node: item.node,
               path: [
@@ -28387,25 +29261,25 @@ var findDocumentValues = (input) => {
   while (stack.length > 0) {
     const current = stack.pop();
     if (!current) break;
-    if (isRecord(current.value) && Object.hasOwn(current.value, "schemaVersion") && Object.hasOwn(current.value, "pages") && Object.hasOwn(current.value, "defaultPageId"))
+    if (isRecord2(current.value) && Object.hasOwn(current.value, "schemaVersion") && Object.hasOwn(current.value, "pages") && Object.hasOwn(current.value, "defaultPageId"))
       documents.push({ value: current.value, path: current.path });
     if (Array.isArray(current.value))
       current.value.forEach(
         (value, index) => stack.push({ value, path: [...current.path, index] })
       );
-    else if (isRecord(current.value))
+    else if (isRecord2(current.value))
       Object.entries(current.value).forEach(
         ([key, value]) => stack.push({ value, path: [...current.path, key] })
       );
   }
   return documents;
 };
-var guardDocumentLimits = (input, kind) => {
+var guardDocumentLimits = (input, kind, documentSchemaVersions) => {
   const documents = findDocumentValues(input);
-  if (kind === "document" && documents.length === 0 && isRecord(input))
+  if (kind === "document" && documents.length === 0 && isRecord2(input))
     documents.push({ value: input, path: [] });
   for (const document of documents) {
-    if (document.value.schemaVersion !== 2)
+    if (typeof document.value.schemaVersion !== "number" || !documentSchemaVersions.includes(document.value.schemaVersion))
       return protocolMismatch(1, "schema_revision", "document.schemaVersion");
     const canonical = runDecodedKernelV1(document.value);
     if (canonical.ok && canonical.canonicalBytes.byteLength > MAX_DOCUMENT_BYTES)
@@ -28424,9 +29298,9 @@ var guardDocumentLimits = (input, kind) => {
           pageCanonical.canonicalBytes.byteLength,
           MAX_DOCUMENT_PAGE_BYTES
         );
-      if (!isRecord(page) || !isRecord(page.scene)) continue;
+      if (!isRecord2(page) || !isRecord2(page.scene)) continue;
       const root = page.scene.root;
-      if (root === null || !isRecord(root)) continue;
+      if (root === null || !isRecord2(root)) continue;
       const stack = [root];
       while (stack.length > 0) {
         const node = stack.pop();
@@ -28435,7 +29309,7 @@ var guardDocumentLimits = (input, kind) => {
         const children = node.type === "layout.tabs" ? node.tabs : node.children;
         if (Array.isArray(children))
           children.forEach((item) => {
-            if (isRecord(item) && isRecord(item.node)) stack.push(item.node);
+            if (isRecord2(item) && isRecord2(item.node)) stack.push(item.node);
           });
       }
     }
@@ -28450,9 +29324,9 @@ var guardHitlResponseBytes = (input, kind) => {
   while (stack.length > 0) {
     const value = stack.pop();
     if (Array.isArray(value)) stack.push(...value);
-    else if (isRecord(value)) {
+    else if (isRecord2(value)) {
       for (const [key, child] of Object.entries(value)) {
-        if (key === "response" && isRecord(child) && typeof child.kind === "string")
+        if (key === "response" && isRecord2(child) && typeof child.kind === "string")
           candidates.push(child);
         stack.push(child);
       }
@@ -28469,10 +29343,10 @@ var guardHitlResponseBytes = (input, kind) => {
   }
   return null;
 };
-var processKernel = (schema, kernel, kind, documentProfile = false) => {
+var processKernel = (schema, kernel, kind, documentProfile = false, documentSchemaVersions = [2]) => {
   if (!kernel.ok) return { ok: false, error: kernelError(kernel.issue, documentProfile) };
   const input = kernel.value;
-  if (isRecord(input) && Object.hasOwn(input, "protocolVersion") && input.protocolVersion !== 1)
+  if (isRecord2(input) && Object.hasOwn(input, "protocolVersion") && input.protocolVersion !== 1)
     return {
       ok: false,
       error: protocolMismatch(
@@ -28481,7 +29355,7 @@ var processKernel = (schema, kernel, kind, documentProfile = false) => {
     };
   const sceneIssue = guardSceneLimits(input, kind);
   if (sceneIssue) return { ok: false, error: sceneIssue };
-  const documentIssue = guardDocumentLimits(input, kind);
+  const documentIssue = guardDocumentLimits(input, kind, documentSchemaVersions);
   if (documentIssue) return { ok: false, error: documentIssue };
   const hitlByteIssue = guardHitlResponseBytes(input, kind);
   if (hitlByteIssue) return { ok: false, error: hitlByteIssue };
@@ -28489,13 +29363,14 @@ var processKernel = (schema, kernel, kind, documentProfile = false) => {
   if (!result.ok) return { ok: false, error: mapSchemaIssue(input, result.issue, kind) };
   return { ok: true, data: { value: result.value, canonicalBytes: result.canonicalBytes } };
 };
-var createParser = (schema, kind = "generic", documentProfile = false) => ({
-  parse: (input) => processKernel(schema, runDecodedKernelV1(input), kind, documentProfile),
+var createParser = (schema, kind = "generic", documentProfile = false, documentSchemaVersions = [2]) => ({
+  parse: (input) => processKernel(schema, runDecodedKernelV1(input), kind, documentProfile, documentSchemaVersions),
   parseBytes: (bytes) => processKernel(
     schema,
     documentProfile ? runDocumentBytesKernelV2(bytes) : runBytesKernelV1(bytes),
     kind,
-    documentProfile
+    documentProfile,
+    documentSchemaVersions
   )
 });
 var createParserV1 = (schema, kind = "generic") => createParser(schema, kind);
@@ -28571,8 +29446,18 @@ var QuotedSha256EtagParserV1 = createParserV1(QuotedSha256EtagSchemaV1);
 var PublicShareContextParserV1 = createParserV1(PublicShareContextSchemaV1);
 var PublicArtifactSummaryParserV1 = createParserV1(PublicArtifactSummarySchemaV1);
 var PublicMediaResourceParserV1 = createParserV1(PublicMediaResourceSchemaV1);
-var PublicBoardProjectionParserV1 = createParserV1(PublicBoardProjectionSchemaV1);
-var PublicShareStateParserV1 = createParserV1(PublicShareStateSchemaV1);
+var PublicBoardProjectionParserV1 = createParser(
+  PublicBoardProjectionSchemaV1,
+  "generic",
+  true,
+  [2, 3]
+);
+var PublicShareStateParserV1 = createParser(
+  PublicShareStateSchemaV1,
+  "generic",
+  true,
+  [2, 3]
+);
 var ShareAnalyticsContextRequestParserV1 = createParserV1(
   ShareAnalyticsContextRequestSchemaV1
 );
@@ -28597,18 +29482,41 @@ var BoardOperationAuthorizationMatrixParserV1 = createParserV1(
 );
 var BoardErrorParserV1 = createParserV1(BoardErrorSchemaV1);
 var BoardDocumentParserV2 = createParser(BoardDocumentSchemaV2, "document", true);
+var BoardDocumentParserV3 = createParser(BoardDocumentSchemaV3, "document", true, [3]);
 var MutationRequestParserV2 = createParser(MutationRequestSchemaV2, "mutation", true);
 var MutationEnvelopeParserV2 = createParser(MutationEnvelopeSchemaV2, "mutation", true);
 var MutationResultParserV2 = createParser(MutationResultSchemaV2, "mutation", true);
+var MutationRequestParserV3 = createParser(MutationRequestSchemaV3, "mutation", true, [3]);
+var MutationEnvelopeParserV3 = createParser(
+  MutationEnvelopeSchemaV3,
+  "mutation",
+  true,
+  [3]
+);
+var MutationResultParserV3 = createParser(MutationResultSchemaV3, "mutation", true, [3]);
 var BoardOperationResultParserV2 = createParser(
   BoardOperationResultSchemaV1,
   "operation",
   true
 );
+var BoardOperationResultParserV3 = createParser(
+  BoardOperationResultSchemaV1,
+  "operation",
+  true,
+  [3]
+);
 var BoardSnapshotParserV2 = createParser(BoardSnapshotSchemaV2, "document", true);
-var BoardSnapshotParser = createParser(BoardSnapshotSchema, "generic", true);
+var BoardSnapshotParserV3 = createParser(BoardSnapshotSchemaV3, "document", true, [3]);
+var BoardSnapshotParser = createParser(BoardSnapshotSchema, "generic", true, [2, 3]);
 var BoardEventEnvelopeParserV2 = createParser(BoardEventEnvelopeSchemaV2, "event", true);
+var BoardEventEnvelopeParserV3 = createParser(
+  BoardEventEnvelopeSchemaV2,
+  "event",
+  true,
+  [3]
+);
 var BoardCapabilitiesParserV2 = createParser(BoardCapabilitiesSchemaV2);
+var BoardCapabilitiesParserV3 = createParser(BoardCapabilitiesSchemaV3);
 var BoardCapabilitiesParser = createParser(BoardCapabilitiesSchema);
 var BoardErrorParser = createParser(BoardErrorSchema);
 var canonicalizeJsonV1 = (input) => {
@@ -28683,8 +29591,8 @@ var parseStrictJsonBytesV1 = (bytes) => {
 };
 
 // packages/board-sdk/src/http/http-result.parser.ts
-var isRecord2 = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
-var hasExactKeys = (value, keys) => {
+var isRecord3 = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+var hasExactKeys2 = (value, keys) => {
   const actual = Object.keys(value).sort();
   const expected = [...keys].sort();
   return actual.length === expected.length && actual.every((key, index) => key === expected[index]);
@@ -28698,11 +29606,11 @@ var parseRevisionId = (value) => {
 var parseHistory = (value) => {
   const retained = RetainedHistoryMetadataParserV1.parse(value);
   if (retained.ok) return retained.data.value;
-  if (!isRecord2(value) || !hasExactKeys(value, ["protocolVersion", "type", "entries", "navigation"]) || value.protocolVersion !== 1 || value.type !== "history.adapter-metadata" || !Array.isArray(value.entries) || value.entries.length > 100)
+  if (!isRecord3(value) || !hasExactKeys2(value, ["protocolVersion", "type", "entries", "navigation"]) || value.protocolVersion !== 1 || value.type !== "history.adapter-metadata" || !Array.isArray(value.entries) || value.entries.length > 100)
     return null;
   const entries = [];
   for (const entry of value.entries) {
-    if (!isRecord2(entry) || !hasExactKeys(entry, ["revisionId", "label"]) || !validLabel(entry.label))
+    if (!isRecord3(entry) || !hasExactKeys2(entry, ["revisionId", "label"]) || !validLabel(entry.label))
       return null;
     const revisionId = parseRevisionId(entry.revisionId);
     if (revisionId === null) return null;
@@ -28711,7 +29619,7 @@ var parseHistory = (value) => {
   let navigation = null;
   if (value.navigation !== null) {
     const candidate = value.navigation;
-    if (!isRecord2(candidate) || !hasExactKeys(candidate, [
+    if (!isRecord3(candidate) || !hasExactKeys2(candidate, [
       "revisionId",
       "previousRevisionId",
       "nextRevisionId",
@@ -28771,15 +29679,15 @@ var parseBoardHttpResultV1 = (bytes, expectation) => {
   const strict = parseStrictJsonBytesV1(bytes);
   if (!strict.ok) return strict;
   const decoded = strict.value;
-  if (!isRecord2(decoded)) return { ok: false, reason: "schema" };
-  if (hasExactKeys(decoded, ["error"])) {
-    const error2 = BoardErrorParserV1.parse(decoded.error);
-    if (!error2.ok) return { ok: false, reason: "schema" };
-    if (expectation.status !== error2.data.value.httpStatusHint)
+  if (!isRecord3(decoded)) return { ok: false, reason: "schema" };
+  if (hasExactKeys2(decoded, ["error"])) {
+    const error3 = BoardErrorParserV1.parse(decoded.error);
+    if (!error3.ok) return { ok: false, reason: "schema" };
+    if (expectation.status !== error3.data.value.httpStatusHint)
       return { ok: false, reason: "correlation" };
-    return { ok: true, value: { ok: false, error: error2.data.value } };
+    return { ok: true, value: { ok: false, error: error3.data.value } };
   }
-  if (!hasExactKeys(decoded, ["protocolVersion", "type", "requestId", "result", "metadata"]) || decoded.protocolVersion !== 1 || decoded.type !== "board.http.success" || decoded.requestId !== expectation.requestId || !isRecord2(decoded.metadata) || !hasExactKeys(decoded.metadata, ["history"]))
+  if (!hasExactKeys2(decoded, ["protocolVersion", "type", "requestId", "result", "metadata"]) || decoded.protocolVersion !== 1 || decoded.type !== "board.http.success" || decoded.requestId !== expectation.requestId || !isRecord3(decoded.metadata) || !hasExactKeys2(decoded.metadata, ["history"]))
     return { ok: false, reason: "schema" };
   const operation = BoardOperationResultParserV1.parse(decoded.result);
   const mutation = operation.ok ? null : MutationResultParserV1.parse(decoded.result);
@@ -28813,17 +29721,55 @@ var parseBoardOperationHttpResultV2 = (bytes, expectation) => {
   const strict = parseStrictJsonBytesV1(bytes);
   if (!strict.ok) return strict;
   const decoded = strict.value;
-  if (!isRecord2(decoded)) return { ok: false, reason: "schema" };
-  if (hasExactKeys(decoded, ["error"])) {
-    const error2 = BoardErrorParser.parse(decoded.error);
-    if (!error2.ok) return { ok: false, reason: "schema" };
-    if (expectation.status !== error2.data.value.httpStatusHint)
+  if (!isRecord3(decoded)) return { ok: false, reason: "schema" };
+  if (hasExactKeys2(decoded, ["error"])) {
+    const error3 = BoardErrorParser.parse(decoded.error);
+    if (!error3.ok) return { ok: false, reason: "schema" };
+    if (expectation.status !== error3.data.value.httpStatusHint)
       return { ok: false, reason: "correlation" };
-    return { ok: true, value: { ok: false, error: error2.data.value } };
+    return { ok: true, value: { ok: false, error: error3.data.value } };
   }
-  if (!hasExactKeys(decoded, ["protocolVersion", "type", "requestId", "result", "metadata"]) || decoded.protocolVersion !== 1 || decoded.type !== "board.http.success" || decoded.requestId !== expectation.requestId || !isRecord2(decoded.metadata) || !hasExactKeys(decoded.metadata, ["history"]))
+  if (!hasExactKeys2(decoded, ["protocolVersion", "type", "requestId", "result", "metadata"]) || decoded.protocolVersion !== 1 || decoded.type !== "board.http.success" || decoded.requestId !== expectation.requestId || !isRecord3(decoded.metadata) || !hasExactKeys2(decoded.metadata, ["history"]))
     return { ok: false, reason: "schema" };
   const operation = BoardOperationResultParserV2.parse(decoded.result);
+  if (!operation.ok) return { ok: false, reason: "schema" };
+  const result = operation.data.value;
+  if (result.requestId !== expectation.requestId || !pathCorrelates(result, expectation))
+    return { ok: false, reason: "correlation" };
+  const historyValue = decoded.metadata.history;
+  const history = historyValue === null ? null : parseHistory(historyValue);
+  if (historyValue !== null && history === null || !historyCorrelates(result, history))
+    return { ok: false, reason: "correlation" };
+  if (expectation.status !== 200) return { ok: false, reason: "correlation" };
+  return {
+    ok: true,
+    value: {
+      ok: true,
+      value: {
+        protocolVersion: 1,
+        type: "board.http.success",
+        requestId: expectation.requestId,
+        result,
+        metadata: { history }
+      }
+    }
+  };
+};
+var parseBoardOperationHttpResultV3 = (bytes, expectation) => {
+  const strict = parseStrictJsonBytesV1(bytes);
+  if (!strict.ok) return strict;
+  const decoded = strict.value;
+  if (!isRecord3(decoded)) return { ok: false, reason: "schema" };
+  if (hasExactKeys2(decoded, ["error"])) {
+    const error3 = BoardErrorParser.parse(decoded.error);
+    if (!error3.ok) return { ok: false, reason: "schema" };
+    if (expectation.status !== error3.data.value.httpStatusHint)
+      return { ok: false, reason: "correlation" };
+    return { ok: true, value: { ok: false, error: error3.data.value } };
+  }
+  if (!hasExactKeys2(decoded, ["protocolVersion", "type", "requestId", "result", "metadata"]) || decoded.protocolVersion !== 1 || decoded.type !== "board.http.success" || decoded.requestId !== expectation.requestId || !isRecord3(decoded.metadata) || !hasExactKeys2(decoded.metadata, ["history"]))
+    return { ok: false, reason: "schema" };
+  const operation = BoardOperationResultParserV3.parse(decoded.result);
   if (!operation.ok) return { ok: false, reason: "schema" };
   const result = operation.data.value;
   if (result.requestId !== expectation.requestId || !pathCorrelates(result, expectation))
@@ -28851,17 +29797,51 @@ var parseBoardDocumentHttpResultV2 = (bytes, expectation) => {
   const strict = parseStrictJsonBytesV1(bytes);
   if (!strict.ok) return strict;
   const decoded = strict.value;
-  if (!isRecord2(decoded)) return { ok: false, reason: "schema" };
-  if (hasExactKeys(decoded, ["error"])) {
-    const error2 = BoardErrorParser.parse(decoded.error);
-    if (!error2.ok) return { ok: false, reason: "schema" };
-    if (expectation.status !== error2.data.value.httpStatusHint)
+  if (!isRecord3(decoded)) return { ok: false, reason: "schema" };
+  if (hasExactKeys2(decoded, ["error"])) {
+    const error3 = BoardErrorParser.parse(decoded.error);
+    if (!error3.ok) return { ok: false, reason: "schema" };
+    if (expectation.status !== error3.data.value.httpStatusHint)
       return { ok: false, reason: "correlation" };
-    return { ok: true, value: { ok: false, error: error2.data.value } };
+    return { ok: true, value: { ok: false, error: error3.data.value } };
   }
-  if (!hasExactKeys(decoded, ["protocolVersion", "type", "requestId", "result", "metadata"]) || decoded.protocolVersion !== 1 || decoded.type !== "board.http.success" || decoded.requestId !== expectation.requestId || !isRecord2(decoded.metadata) || !hasExactKeys(decoded.metadata, ["history"]) || decoded.metadata.history !== null)
+  if (!hasExactKeys2(decoded, ["protocolVersion", "type", "requestId", "result", "metadata"]) || decoded.protocolVersion !== 1 || decoded.type !== "board.http.success" || decoded.requestId !== expectation.requestId || !isRecord3(decoded.metadata) || !hasExactKeys2(decoded.metadata, ["history"]) || decoded.metadata.history !== null)
     return { ok: false, reason: "schema" };
   const parsed = MutationResultParserV2.parse(decoded.result);
+  if (!parsed.ok || parsed.data.value.result.type !== "document.replace")
+    return { ok: false, reason: "schema" };
+  const result = parsed.data.value;
+  if (result.requestId !== expectation.requestId || result.boardId !== expectation.boardId || expectation.status !== (result.replayed ? 200 : 201))
+    return { ok: false, reason: "correlation" };
+  return {
+    ok: true,
+    value: {
+      ok: true,
+      value: {
+        protocolVersion: 1,
+        type: "board.http.success",
+        requestId: expectation.requestId,
+        result,
+        metadata: { history: null }
+      }
+    }
+  };
+};
+var parseBoardDocumentHttpResultV3 = (bytes, expectation) => {
+  const strict = parseStrictJsonBytesV1(bytes);
+  if (!strict.ok) return strict;
+  const decoded = strict.value;
+  if (!isRecord3(decoded)) return { ok: false, reason: "schema" };
+  if (hasExactKeys2(decoded, ["error"])) {
+    const error3 = BoardErrorParser.parse(decoded.error);
+    if (!error3.ok) return { ok: false, reason: "schema" };
+    if (expectation.status !== error3.data.value.httpStatusHint)
+      return { ok: false, reason: "correlation" };
+    return { ok: true, value: { ok: false, error: error3.data.value } };
+  }
+  if (!hasExactKeys2(decoded, ["protocolVersion", "type", "requestId", "result", "metadata"]) || decoded.protocolVersion !== 1 || decoded.type !== "board.http.success" || decoded.requestId !== expectation.requestId || !isRecord3(decoded.metadata) || !hasExactKeys2(decoded.metadata, ["history"]) || decoded.metadata.history !== null)
+    return { ok: false, reason: "schema" };
+  const parsed = MutationResultParserV3.parse(decoded.result);
   if (!parsed.ok || parsed.data.value.result.type !== "document.replace")
     return { ok: false, reason: "schema" };
   const result = parsed.data.value;
@@ -28965,13 +29945,13 @@ var sleepWithinDeadlineV1 = async (milliseconds, remainingMs, signal) => {
   if (!Number.isFinite(milliseconds) || milliseconds < 0 || milliseconds >= remainingMs() || signal.aborted) {
     return false;
   }
-  return new Promise((resolve2) => {
+  return new Promise((resolve3) => {
     const timer = setTimeout(() => done(true), milliseconds);
     const onAbort = () => done(false);
     const done = (completed) => {
       clearTimeout(timer);
       signal.removeEventListener("abort", onAbort);
-      resolve2(completed);
+      resolve3(completed);
     };
     signal.addEventListener("abort", onAbort, { once: true });
   });
@@ -28981,10 +29961,11 @@ var sleepWithinDeadlineV1 = async (milliseconds, remainingMs, signal) => {
 var SUCCESS_BODY_LIMIT = 2097152;
 var ERROR_BODY_LIMIT = 65536;
 var DOCUMENT_MEDIA_TYPE = "application/vnd.sceneboard.document+json;version=2";
-var TOKEN_PATTERN = /^lcbg_v1\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$/;
-var localFailure = (error2) => ({
+var DOCUMENT_MEDIA_TYPE_V3 = "application/vnd.sceneboard.document+json;version=3";
+var TOKEN_PATTERN = /^(?:lcbg_v1|sbk_v1)\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$/;
+var localFailure = (error3) => ({
   ok: false,
-  error: error2
+  error: error3
 });
 var validateBaseUrl = (value) => {
   let url;
@@ -28999,11 +29980,11 @@ var validateBaseUrl = (value) => {
   }
   return url.origin;
 };
-var retryDelayFromError = (error2) => {
-  const seconds = error2.code === "RATE_LIMITED" ? error2.details.retryAfterSeconds : error2.code === "SERVICE_UNAVAILABLE" ? error2.details.retryAfterSeconds : null;
+var retryDelayFromError = (error3) => {
+  const seconds = error3.code === "RATE_LIMITED" ? error3.details.retryAfterSeconds : error3.code === "SERVICE_UNAVAILABLE" ? error3.details.retryAfterSeconds : null;
   return seconds === null ? null : seconds * 1e3;
 };
-var shouldRetryError = (error2) => error2.retryable && (error2.code === "RATE_LIMITED" || error2.code === "SERVICE_UNAVAILABLE");
+var shouldRetryError = (error3) => error3.retryable && (error3.code === "RATE_LIMITED" || error3.code === "SERVICE_UNAVAILABLE");
 var BoardSdkHttpClient = class {
   static readBoundedResponseBodyV1 = readBoundedResponseBodyV1;
   static parseStrictJsonBytesV1 = parseStrictJsonBytesV1;
@@ -29071,6 +30052,27 @@ var BoardSdkHttpClient = class {
         boardId: parsed.boardId,
         retryKind: "read",
         profile: "document-v2"
+      },
+      signal
+    );
+  }
+  getDocumentBoardV3(request, signal) {
+    const parsed = this.#operation(request, "board.get");
+    return this.#call(
+      {
+        method: "GET",
+        routeTemplate: "/api/v1/boards/:boardId",
+        path: `/api/v1/boards/${parsed.boardId}`,
+        query: new URLSearchParams({
+          requestId: parsed.requestId,
+          documentSchemaVersion: "3"
+        }),
+        body: null,
+        requestId: parsed.requestId,
+        resultType: "board.get",
+        boardId: parsed.boardId,
+        retryKind: "read",
+        profile: "document-v3"
       },
       signal
     );
@@ -29152,6 +30154,26 @@ var BoardSdkHttpClient = class {
       signal
     );
   }
+  mutateDocumentV3(request, signal) {
+    const parsed = MutationRequestParserV3.parse(request);
+    if (!parsed.ok || parsed.data.value.command.type !== "document.replace")
+      throw new TypeError("invalid document.replace V3 request");
+    return this.#call(
+      {
+        method: "POST",
+        routeTemplate: "/api/v1/boards/:boardId/mutations",
+        path: `/api/v1/boards/${parsed.data.value.boardId}/mutations`,
+        query: new URLSearchParams({ documentSchemaVersion: "3" }),
+        body: parsed.data.canonicalBytes,
+        requestId: parsed.data.value.requestId,
+        resultType: "document.replace",
+        boardId: parsed.data.value.boardId,
+        retryKind: "mutation",
+        profile: "document-v3"
+      },
+      signal
+    );
+  }
   restoreRevision(request, signal) {
     const parsed = MutationRequestParserV1.parse(request);
     if (!parsed.ok || parsed.data.value.command.type !== "scene.restore")
@@ -29199,6 +30221,30 @@ var BoardSdkHttpClient = class {
       signal
     );
   }
+  listDocumentHistoryV3(request, signal) {
+    const parsed = this.#operation(request, "history.list");
+    const query = new URLSearchParams({
+      requestId: parsed.requestId,
+      limit: String(parsed.limit),
+      documentSchemaVersion: "3"
+    });
+    if (parsed.cursor !== null) query.set("cursor", parsed.cursor);
+    return this.#call(
+      {
+        method: "GET",
+        routeTemplate: "/api/v1/boards/:boardId/revisions",
+        path: `/api/v1/boards/${parsed.boardId}/revisions`,
+        query,
+        body: null,
+        requestId: parsed.requestId,
+        resultType: "history.list",
+        boardId: parsed.boardId,
+        retryKind: "read",
+        profile: "document-v3"
+      },
+      signal
+    );
+  }
   getHistory(request, signal) {
     const parsed = this.#operation(request, "history.get");
     return this.#call(
@@ -29232,6 +30278,28 @@ var BoardSdkHttpClient = class {
         revisionId: parsed.revisionId,
         retryKind: "read",
         profile: "document-v2"
+      },
+      signal
+    );
+  }
+  getDocumentHistoryV3(request, signal) {
+    const parsed = this.#operation(request, "history.get");
+    return this.#call(
+      {
+        method: "GET",
+        routeTemplate: "/api/v1/boards/:boardId/revisions/:revisionId",
+        path: `/api/v1/boards/${parsed.boardId}/revisions/${parsed.revisionId}`,
+        query: new URLSearchParams({
+          requestId: parsed.requestId,
+          documentSchemaVersion: "3"
+        }),
+        body: null,
+        requestId: parsed.requestId,
+        resultType: "history.get",
+        boardId: parsed.boardId,
+        revisionId: parsed.revisionId,
+        retryKind: "read",
+        profile: "document-v3"
       },
       signal
     );
@@ -29360,7 +30428,7 @@ var BoardSdkHttpClient = class {
               Authorization: `Bearer ${token}`,
               "X-Request-Id": spec.requestId,
               ...spec.body === null ? {} : {
-                "Content-Type": spec.profile === "document-v2" ? DOCUMENT_MEDIA_TYPE : "application/json"
+                "Content-Type": spec.profile === "document-v3" ? DOCUMENT_MEDIA_TYPE_V3 : spec.profile === "document-v2" ? DOCUMENT_MEDIA_TYPE : "application/json"
               }
             },
             ...spec.body === null ? {} : { body: spec.body.slice().buffer },
@@ -29388,7 +30456,7 @@ var BoardSdkHttpClient = class {
             reason: "content_type"
           });
         }
-        const cap = response.status >= 200 && response.status < 300 ? spec.profile === "document-v2" ? BOARD_DOCUMENT_LIMITS_V2.maxDocumentEnvelopeBytes : SUCCESS_BODY_LIMIT : ERROR_BODY_LIMIT;
+        const cap = response.status >= 200 && response.status < 300 ? spec.profile === "document-v2" || spec.profile === "document-v3" ? BOARD_DOCUMENT_LIMITS_V2.maxDocumentEnvelopeBytes : SUCCESS_BODY_LIMIT : ERROR_BODY_LIMIT;
         const bytes = await readBoundedResponseBodyV1(response, cap, deadline.signal);
         if (bytes === "body_too_large")
           return localFailure({
@@ -29411,7 +30479,17 @@ var BoardSdkHttpClient = class {
             reason: "correlation"
           });
         }
-        const parsed = spec.profile === "document-v2" && spec.resultType === "document.replace" ? parseBoardDocumentHttpResultV2(bytes, {
+        const parsed = spec.profile === "document-v3" && spec.resultType === "document.replace" ? parseBoardDocumentHttpResultV3(bytes, {
+          status: response.status,
+          requestId: spec.requestId,
+          boardId: spec.boardId
+        }) : spec.profile === "document-v3" ? parseBoardOperationHttpResultV3(bytes, {
+          status: response.status,
+          requestId: spec.requestId,
+          resultType: spec.resultType,
+          ...spec.boardId === void 0 ? {} : { boardId: spec.boardId },
+          ...spec.revisionId === void 0 ? {} : { revisionId: spec.revisionId }
+        }) : spec.profile === "document-v2" && spec.resultType === "document.replace" ? parseBoardDocumentHttpResultV2(bytes, {
           status: response.status,
           requestId: spec.requestId,
           boardId: spec.boardId
@@ -29436,20 +30514,20 @@ var BoardSdkHttpClient = class {
             reason: parsed.reason
           });
         if (!parsed.value.ok) {
-          const error2 = parsed.value.error;
+          const error3 = parsed.value.error;
           this.#logger.log({
             route: spec.routeTemplate,
             attempt,
             durationMs: performance.now() - startedAt,
             requestId: spec.requestId,
-            resultCode: error2.code
+            resultCode: error3.code
           });
-          if (shouldRetryError(error2) && attempt < maximumAttempts) {
-            const serverDelay = retryDelayFromError(error2);
+          if (shouldRetryError(error3) && attempt < maximumAttempts) {
+            const serverDelay = retryDelayFromError(error3);
             const delay = serverDelay ?? protectedRetryDelayMsV1(attempt);
             if (await sleepWithinDeadlineV1(delay, deadline.remainingMs, deadline.signal)) continue;
           }
-          return { ok: false, error: error2 };
+          return { ok: false, error: error3 };
         }
         this.#logger.log({
           route: spec.routeTemplate,
@@ -29472,7 +30550,7 @@ var BoardSdkHttpClient = class {
 };
 
 // sceneboard-mcp/src/connection/connection-http.client.ts
-var TOKEN_PATTERN2 = /^lcbg_v1\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$/;
+var TOKEN_PATTERN2 = /^(?:lcbg_v1|sbk_v1)\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$/;
 var TIMESTAMP_PATTERN2 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 var LIFECYCLE_PERMISSIONS = ["board.create", "board.archive"];
 var exactRecord = (value, keys) => {
@@ -29503,7 +30581,25 @@ var parseGlobalId = (value) => {
   const parsed = GlobalIdStringParserV1.parse(value);
   return parsed.ok ? parsed.data.value : null;
 };
-var parseConnection = (value, requestId, boardId) => {
+var parseBoardAndCapabilities = (board, capabilities, requestId, boardId) => {
+  const boardResult = BoardOperationResultParserV1.parse({
+    protocolVersion: 1,
+    type: "board.operation.result",
+    requestId,
+    replayed: false,
+    result: { type: "board.list", boards: [board], nextCursor: null }
+  });
+  const parsedCapabilities = BoardCapabilitiesParserV1.parse(capabilities);
+  if (!boardResult.ok || boardResult.data.value.result.type !== "board.list" || !parsedCapabilities.ok)
+    return null;
+  const parsedBoard = boardResult.data.value.result.boards[0];
+  if (parsedBoard === void 0 || parsedBoard.boardId !== boardId) return null;
+  return {
+    board: parsedBoard,
+    capabilities: parsedCapabilities.data.value
+  };
+};
+var parsePairingConnection = (value, requestId, boardId) => {
   const root = exactRecord(value, ["principal", "grant", "selectedBoard", "versions"]);
   if (root === null) return null;
   const principal = exactRecord(root.principal, ["principalKind", "principalId", "grantId"]);
@@ -29550,22 +30646,15 @@ var parseConnection = (value, requestId, boardId) => {
     const selected = exactRecord(root.selectedBoard, ["board", "capabilities", "browserPresence"]);
     if (selected === null || !["online", "offline", "unknown"].includes(String(selected.browserPresence)))
       return null;
-    const boardResult = BoardOperationResultParserV1.parse({
-      protocolVersion: 1,
-      type: "board.operation.result",
+    const projection = parseBoardAndCapabilities(
+      selected.board,
+      selected.capabilities,
       requestId,
-      replayed: false,
-      result: { type: "board.list", boards: [selected.board], nextCursor: null }
-    });
-    const capabilities = BoardCapabilitiesParserV1.parse(selected.capabilities);
-    if (!boardResult.ok || boardResult.data.value.result.type !== "board.list" || !capabilities.ok)
-      return null;
-    const board = boardResult.data.value.result.boards[0];
-    if (board === void 0 || board.boardId !== boardId || !parsedBoardIds.includes(board.boardId))
-      return null;
+      boardId
+    );
+    if (projection === null || !parsedBoardIds.includes(projection.board.boardId)) return null;
     selectedBoard = {
-      board,
-      capabilities: capabilities.data.value,
+      ...projection,
       browserPresence: selected.browserPresence
     };
   } else if (boardId !== null) return null;
@@ -29594,10 +30683,52 @@ var parseConnection = (value, requestId, boardId) => {
     versions: { mcpServer: "0.0.0", boardProtocol: "1.0.0", api: "v1" }
   };
 };
-var local = (error2) => ({
+var parseApiKeyConnection = (value, requestId, boardId) => {
+  const root = exactRecord(value, ["principal", "credential", "selectedBoard", "versions"]);
+  if (root === null) return null;
+  const principal = exactRecord(root.principal, ["principalKind", "principalId", "grantId"]);
+  const credential = exactRecord(root.credential, ["keyPublicId", "scopes", "status", "expiresAt"]);
+  const versions = exactRecord(root.versions, ["mcpServer", "boardProtocol", "api"]);
+  if (principal === null || credential === null || versions === null || principal.principalKind !== "service" || principal.grantId !== null || credential.status !== "active" || !validTimestamp(credential.expiresAt) || versions.mcpServer !== "0.0.0" || versions.boardProtocol !== "1.0.0" || versions.api !== "v1")
+    return null;
+  const principalId = PrincipalIdParserV1.parse(principal.principalId);
+  const keyPublicId = PrincipalIdParserV1.parse(credential.keyPublicId);
+  const scopes = exactCatalogSubset(credential.scopes, ACCOUNT_API_KEY_SCOPES_V1, 1);
+  if (!principalId.ok || !keyPublicId.ok || scopes === null) return null;
+  let selectedBoard = null;
+  if (root.selectedBoard !== null) {
+    if (boardId === null) return null;
+    const selected = exactRecord(root.selectedBoard, ["board", "capabilities"]);
+    if (selected === null) return null;
+    selectedBoard = parseBoardAndCapabilities(
+      selected.board,
+      selected.capabilities,
+      requestId,
+      boardId
+    );
+    if (selectedBoard === null) return null;
+  } else if (boardId !== null) return null;
+  return {
+    principal: {
+      principalKind: "service",
+      principalId: principalId.data.value,
+      grantId: null
+    },
+    credential: {
+      keyPublicId: keyPublicId.data.value,
+      scopes,
+      status: "active",
+      expiresAt: credential.expiresAt
+    },
+    selectedBoard,
+    versions: { mcpServer: "0.0.0", boardProtocol: "1.0.0", api: "v1" }
+  };
+};
+var parseConnection = (value, requestId, boardId) => parsePairingConnection(value, requestId, boardId) ?? parseApiKeyConnection(value, requestId, boardId);
+var local = (error3) => ({
   ok: false,
   source: "local",
-  error: error2
+  error: error3
 });
 var ConnectionHttpClientV1 = class {
   constructor(options) {
@@ -29673,8 +30804,8 @@ var ConnectionHttpClientV1 = class {
       return { ok: true, value };
     }
     const body = exactRecord(parsed.value, ["error"]);
-    const error2 = body === null ? null : BoardErrorParserV1.parse(body.error);
-    if (error2 === null || !error2.ok || error2.data.value.httpStatusHint !== response.status) {
+    const error3 = body === null ? null : BoardErrorParserV1.parse(body.error);
+    if (error3 === null || !error3.ok || error3.data.value.httpStatusHint !== response.status) {
       return local({ code: "RESPONSE_INVALID", retryable: false, reason: "status" });
     }
     this.options.logger.log({
@@ -29682,14 +30813,14 @@ var ConnectionHttpClientV1 = class {
       attempt: 1,
       durationMs: performance.now() - startedAt,
       requestId,
-      resultCode: error2.data.value.code
+      resultCode: error3.data.value.code
     });
-    return { ok: false, source: "board", error: error2.data.value };
+    return { ok: false, source: "board", error: error3.data.value };
   }
 };
 
 // sceneboard-mcp/src/connection/connection-status.service.ts
-import { randomBytes } from "node:crypto";
+import { randomBytes as randomBytes3 } from "node:crypto";
 var summary = (loaded, hasToken) => ({
   source: loaded.source,
   profile: loaded.config.profile,
@@ -29697,33 +30828,33 @@ var summary = (loaded, hasToken) => ({
   timeoutMs: loaded.config.timeoutMs,
   hasToken
 });
-var localValue = (error2) => {
-  if (error2.code === "CANCELLED")
+var localValue = (error3) => {
+  if (error3.code === "CANCELLED")
     return {
       code: "BOARD_MCP_CANCELLED",
       message: "Connection check was cancelled",
       retryable: false,
       details: null
     };
-  if (error2.code === "TIMEOUT")
+  if (error3.code === "TIMEOUT")
     return {
       code: "BOARD_MCP_TIMEOUT",
       message: "SceneBoard connection timed out",
       retryable: true,
-      details: { timeoutMs: error2.timeoutMs }
+      details: { timeoutMs: error3.timeoutMs }
     };
-  if (error2.code === "TRANSPORT_ERROR")
+  if (error3.code === "TRANSPORT_ERROR")
     return {
       code: "BOARD_MCP_TRANSPORT_ERROR",
       message: "SceneBoard transport is unavailable",
       retryable: true,
-      details: { phase: error2.phase }
+      details: { phase: error3.phase }
     };
   return {
     code: "BOARD_MCP_RESPONSE_INVALID",
     message: "SceneBoard response is invalid",
     retryable: false,
-    details: { reason: error2.reason }
+    details: { reason: error3.reason }
   };
 };
 var ConnectionStatusServiceV1 = class {
@@ -29744,7 +30875,7 @@ var ConnectionStatusServiceV1 = class {
           code: "BOARD_MCP_INTERNAL_ERROR",
           message: "Connection state is unavailable",
           retryable: false,
-          details: { incidentId: randomBytes(16).toString("base64url") }
+          details: { incidentId: randomBytes3(16).toString("base64url") }
         }
       };
     }
@@ -29802,8 +30933,80 @@ var ConnectionStatusServiceV1 = class {
     };
   }
   async probeWithToken(accessToken, signal) {
-    const requestId = randomBytes(16).toString("base64url");
+    const requestId = randomBytes3(16).toString("base64url");
     return (await this.client.get(null, requestId, accessToken, signal)).ok;
+  }
+};
+var ApiKeyConnectionStatusServiceV1 = class {
+  constructor(loaded, tokens, client) {
+    this.loaded = loaded;
+    this.tokens = tokens;
+    this.client = client;
+  }
+  config(referenceConfigured) {
+    return {
+      source: this.loaded.config.accessTokenRef === "env://SCENEBOARD_API_KEY" ? "env" : "private_store",
+      referenceConfigured
+    };
+  }
+  state(state, referenceConfigured, lastErrorCode, retryable) {
+    return {
+      ok: true,
+      value: {
+        credentialMode: "api_key",
+        state,
+        config: this.config(referenceConfigured),
+        connection: null,
+        lastErrorCode,
+        retryable
+      }
+    };
+  }
+  async status(boardId, requestId, signal) {
+    let snapshot;
+    try {
+      snapshot = await this.tokens.snapshot();
+    } catch {
+      return this.state("credential_invalid", true, "API_KEY_CREDENTIAL_INVALID", false);
+    }
+    if (snapshot === null && "credentialInvalidated" in this.tokens && typeof this.tokens.credentialInvalidated === "function" && this.tokens.credentialInvalidated())
+      return this.state("credential_invalid", true, "API_KEY_CREDENTIAL_INVALID", false);
+    if (snapshot === null)
+      return this.state("credential_missing", false, "API_KEY_CREDENTIAL_MISSING", false);
+    const result = await this.client.get(boardId, requestId, snapshot.accessToken, signal);
+    if (result.ok) {
+      if (!("credential" in result.value))
+        return this.state("backend_unavailable", true, "API_KEY_BACKEND_RESPONSE_INVALID", true);
+      return {
+        ok: true,
+        value: {
+          credentialMode: "api_key",
+          state: "connected",
+          config: this.config(true),
+          connection: result.value,
+          lastErrorCode: null,
+          retryable: false
+        }
+      };
+    }
+    if (result.source === "board") {
+      if (result.error.code !== "UNAUTHENTICATED")
+        return {
+          ok: false,
+          source: "board",
+          value: result.error
+        };
+      await this.tokens.invalidate(snapshot).catch(() => void 0);
+      return this.state("credential_invalid", true, "API_KEY_CREDENTIAL_INVALID", false);
+    }
+    if (result.error.code === "CANCELLED")
+      return { ok: false, source: "mcp", value: localValue(result.error) };
+    return this.state(
+      "backend_unavailable",
+      true,
+      result.error.code === "RESPONSE_INVALID" ? "API_KEY_BACKEND_RESPONSE_INVALID" : "API_KEY_BACKEND_UNAVAILABLE",
+      true
+    );
   }
 };
 var UnconfiguredConnectionStatusServiceV1 = class {
@@ -29820,404 +31023,10 @@ var UnconfiguredConnectionStatusServiceV1 = class {
   }
 };
 
-// sceneboard-mcp/src/config/board-config.ts
-import { readFile } from "node:fs/promises";
-var BOARD_CONFIG_MAX_BYTES_V1 = 65536;
-var BOARD_PROFILE_PATTERN_V1 = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
-var BoardConfigError = class extends Error {
-  source;
-  field;
-  constructor(source, field) {
-    super("Board configuration is invalid");
-    this.name = "BoardConfigError";
-    this.source = source;
-    this.field = field;
-  }
-};
-var isRecord3 = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
-var hasExactKeys2 = (value, keys) => {
-  const actual = Object.keys(value).sort();
-  const expected = [...keys].sort();
-  return actual.length === expected.length && actual.every((key, index) => key === expected[index]);
-};
-var hasDuplicateJsonMember = (source) => {
-  const objectKeySets = [];
-  const containers = [];
-  let expectingKey = false;
-  let index = 0;
-  while (index < source.length) {
-    const character = source[index];
-    if (character === '"') {
-      const start = index;
-      index += 1;
-      while (index < source.length) {
-        const current = source[index];
-        if (current === "\\") {
-          index += 2;
-          continue;
-        }
-        if (current === '"') break;
-        index += 1;
-      }
-      if (index >= source.length) return false;
-      if (expectingKey && containers.at(-1) === "object") {
-        let key;
-        try {
-          key = JSON.parse(source.slice(start, index + 1));
-        } catch {
-          return false;
-        }
-        const keys = objectKeySets.at(-1);
-        if (typeof key !== "string" || keys === void 0) return false;
-        if (keys.has(key)) return true;
-        keys.add(key);
-        expectingKey = false;
-      }
-      index += 1;
-      continue;
-    }
-    if (character === "{") {
-      containers.push("object");
-      objectKeySets.push(/* @__PURE__ */ new Set());
-      expectingKey = true;
-    } else if (character === "[") {
-      containers.push("array");
-    } else if (character === "}" || character === "]") {
-      const removed = containers.pop();
-      if (removed === "object") objectKeySets.pop();
-      expectingKey = false;
-    } else if (character === "," && containers.at(-1) === "object") {
-      expectingKey = true;
-    } else if (character === ":" && containers.at(-1) === "object") {
-      expectingKey = false;
-    }
-    index += 1;
-  }
-  return false;
-};
-var parseJsonBytes = (bytes, source) => {
-  if (bytes.byteLength === 0 || bytes.byteLength > BOARD_CONFIG_MAX_BYTES_V1) {
-    throw new BoardConfigError(source, null);
-  }
-  let text;
-  try {
-    text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-  } catch {
-    throw new BoardConfigError(source, null);
-  }
-  if (hasDuplicateJsonMember(text)) throw new BoardConfigError(source, null);
-  try {
-    return JSON.parse(text);
-  } catch {
-    throw new BoardConfigError(source, null);
-  }
-};
-var canonicalBaseUrl = (value, source) => {
-  if (typeof value !== "string" || value.length === 0 || value.length > 2048 || /[<>${}\s]/.test(value) || /example\.(?:com|org|net)$/i.test(value)) {
-    throw new BoardConfigError(source, "baseUrl");
-  }
-  let url;
-  try {
-    url = new URL(value);
-  } catch {
-    throw new BoardConfigError(source, "baseUrl");
-  }
-  const loopback = url.hostname === "127.0.0.1" || url.hostname === "[::1]" || url.hostname === "::1";
-  if (url.origin !== value || url.pathname !== "/" || url.username !== "" || url.password !== "" || url.search !== "" || url.hash !== "" || url.protocol !== "https:" && !(url.protocol === "http:" && loopback)) {
-    throw new BoardConfigError(source, "baseUrl");
-  }
-  return url.origin;
-};
-var parseBoardConfigV1 = (value, source) => {
-  const keys = ["version", "baseUrl", "accessTokenRef", "authScheme", "timeoutMs", "profile"];
-  if (!isRecord3(value) || !hasExactKeys2(value, keys)) throw new BoardConfigError(source, null);
-  if (value.version !== 1) throw new BoardConfigError(source, "version");
-  if (value.authScheme !== "bearer") throw new BoardConfigError(source, "authScheme");
-  if (!Number.isSafeInteger(value.timeoutMs) || Number(value.timeoutMs) < 1e3 || Number(value.timeoutMs) > 12e4) {
-    throw new BoardConfigError(source, "timeoutMs");
-  }
-  if (typeof value.profile !== "string" || !BOARD_PROFILE_PATTERN_V1.test(value.profile)) {
-    throw new BoardConfigError(source, "profile");
-  }
-  const rawAccessTokenRef = value.accessTokenRef;
-  if (rawAccessTokenRef !== "env://SCENEBOARD_ACCESS_TOKEN" && rawAccessTokenRef !== `store://${value.profile}`) {
-    throw new BoardConfigError(source, "accessTokenRef");
-  }
-  const accessTokenRef = rawAccessTokenRef === "env://SCENEBOARD_ACCESS_TOKEN" ? rawAccessTokenRef : `store://${value.profile}`;
-  return {
-    version: 1,
-    baseUrl: canonicalBaseUrl(value.baseUrl, source),
-    accessTokenRef,
-    authScheme: "bearer",
-    timeoutMs: Number(value.timeoutMs),
-    profile: value.profile
-  };
-};
-var readBoardConfigFileV1 = async (path, source) => {
-  let bytes;
-  try {
-    bytes = await readFile(path);
-  } catch {
-    throw new BoardConfigError(source, null);
-  }
-  return parseBoardConfigV1(parseJsonBytes(bytes, source), source);
-};
-
-// sceneboard-mcp/src/config/config-discovery.ts
-import { access, lstat } from "node:fs/promises";
-import { constants } from "node:fs";
-import { dirname, isAbsolute, join, parse as parse3, resolve } from "node:path";
-var processConfigPath = (argv) => {
-  const entries = argv.filter((argument) => argument.startsWith("--config="));
-  if (entries.length > 1) throw new BoardConfigError("process_option", null);
-  if (entries.length === 0) return null;
-  const path = entries[0]?.slice("--config=".length) ?? "";
-  if (!isAbsolute(path)) throw new BoardConfigError("process_option", null);
-  return path;
-};
-var nearestBoardFile = async (cwd) => {
-  let current = resolve(cwd);
-  while (true) {
-    const candidate = join(current, ".board.json");
-    try {
-      await access(candidate, constants.F_OK);
-      return candidate;
-    } catch {
-      const parent = dirname(current);
-      if (parent === current || current === parse3(current).root) return null;
-      current = parent;
-    }
-  }
-};
-var userConfigPath = (env) => {
-  if (env.XDG_CONFIG_HOME !== void 0 && env.XDG_CONFIG_HOME !== "") {
-    if (!isAbsolute(env.XDG_CONFIG_HOME)) throw new BoardConfigError("user_config_file", null);
-    return join(env.XDG_CONFIG_HOME, "leecat-board", "board.json");
-  }
-  if (env.HOME === void 0 || env.HOME === "" || !isAbsolute(env.HOME)) return null;
-  return join(env.HOME, ".config", "leecat-board", "board.json");
-};
-var existing = async (path) => {
-  try {
-    await access(path, constants.F_OK);
-    return true;
-  } catch {
-    return false;
-  }
-};
-var environmentTimeout = (value) => {
-  if (value === void 0 || value === "") return 3e4;
-  return /^\d+$/u.test(value) ? Number(value) : Number.NaN;
-};
-var assertSafeFile = async (path, source, effectiveUserId) => {
-  let status;
-  try {
-    status = await lstat(path);
-  } catch {
-    throw new BoardConfigError(source, null);
-  }
-  if (!status.isFile() || status.isSymbolicLink() || (status.mode & 18) !== 0) {
-    throw new BoardConfigError(source, null);
-  }
-  if (effectiveUserId !== void 0 && status.uid !== effectiveUserId)
-    throw new BoardConfigError(source, null);
-};
-var loadFile = async (path, source, effectiveUserId) => {
-  await assertSafeFile(path, source, effectiveUserId);
-  return { config: await readBoardConfigFileV1(path, source), source, path };
-};
-var discoverBoardConfigV1 = async (options) => {
-  const effectiveUserId = options.effectiveUserId ?? process.geteuid?.();
-  const processPath = processConfigPath(options.argv);
-  if (processPath !== null) return loadFile(processPath, "process_option", effectiveUserId);
-  if (options.env.BOARD_CONFIG !== void 0 && options.env.BOARD_CONFIG !== "") {
-    if (!isAbsolute(options.env.BOARD_CONFIG)) throw new BoardConfigError("board_config_env", null);
-    return loadFile(options.env.BOARD_CONFIG, "board_config_env", effectiveUserId);
-  }
-  const nearest = await nearestBoardFile(options.cwd);
-  if (nearest !== null) return loadFile(nearest, "nearest_board_file", effectiveUserId);
-  const userPath = userConfigPath(options.env);
-  if (userPath !== null && await existing(userPath))
-    return loadFile(userPath, "user_config_file", effectiveUserId);
-  if (options.env.BOARD_API_URL === void 0 || options.env.BOARD_API_URL === "") {
-    throw new BoardConfigError("environment", "baseUrl");
-  }
-  const config2 = parseBoardConfigV1(
-    {
-      version: 1,
-      baseUrl: options.env.BOARD_API_URL,
-      accessTokenRef: options.env.BOARD_ACCESS_TOKEN_REF ?? "env://SCENEBOARD_ACCESS_TOKEN",
-      authScheme: "bearer",
-      timeoutMs: environmentTimeout(options.env.BOARD_TIMEOUT_MS),
-      profile: options.env.BOARD_PROFILE ?? "default"
-    },
-    "environment"
-  );
-  return { config: config2, source: "environment", path: null };
-};
-
-// sceneboard-mcp/src/config/secret-reference.ts
-import { isAbsolute as isAbsolute2, join as join2 } from "node:path";
-var resolveSecretReferenceV1 = (config2, env) => {
-  if (config2.accessTokenRef === "env://SCENEBOARD_ACCESS_TOKEN") {
-    return { kind: "environment", variable: "SCENEBOARD_ACCESS_TOKEN" };
-  }
-  if (env.SCENEBOARD_ACCESS_TOKEN !== void 0 && env.SCENEBOARD_ACCESS_TOKEN !== "") {
-    throw new BoardConfigError(null, "accessTokenRef");
-  }
-  let root;
-  if (env.XDG_STATE_HOME !== void 0 && env.XDG_STATE_HOME !== "") {
-    if (!isAbsolute2(env.XDG_STATE_HOME)) throw new BoardConfigError(null, "accessTokenRef");
-    root = env.XDG_STATE_HOME;
-  } else {
-    if (env.HOME === void 0 || env.HOME === "" || !isAbsolute2(env.HOME)) {
-      throw new BoardConfigError(null, "accessTokenRef");
-    }
-    root = join2(env.HOME, ".local", "state");
-  }
-  return {
-    kind: "store",
-    profile: config2.profile,
-    stateDirectory: join2(root, "leecat-board", "credentials", config2.profile)
-  };
-};
-
 // sceneboard-mcp/src/credentials/installation-identity.store.ts
-import { randomBytes as randomBytes3 } from "node:crypto";
-import { lstat as lstat3, readFile as readFile3 } from "node:fs/promises";
-import { join as join4 } from "node:path";
-
-// sceneboard-mcp/src/credentials/private-file-credential.store.ts
-import { randomBytes as randomBytes2 } from "node:crypto";
-import { constants as constants2 } from "node:fs";
-import { lstat as lstat2, mkdir, open, readFile as readFile2, rename, unlink } from "node:fs/promises";
-import { join as join3 } from "node:path";
-
-// sceneboard-mcp/src/credentials/credential-record.ts
-import { timingSafeEqual } from "node:crypto";
-var ACCESS_TOKEN_PATTERN_V1 = /^lcbg_v1\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$/;
-var GENERATION_PATTERN_V1 = /^[A-Za-z0-9_-]{22}$/;
-var parseCredentialRecordV1 = (bytes) => {
-  if (bytes.byteLength === 0 || bytes.byteLength > 512) throw new Error("credential record is invalid");
-  let source;
-  try {
-    source = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-  } catch {
-    throw new Error("credential record is invalid");
-  }
-  let value;
-  try {
-    value = JSON.parse(source);
-  } catch {
-    throw new Error("credential record is invalid");
-  }
-  if (value === null || typeof value !== "object" || Array.isArray(value)) throw new Error("credential record is invalid");
-  const record2 = value;
-  const keys = Object.keys(record2).sort();
-  if (keys.join("\0") !== ["accessToken", "generation", "version"].join("\0") || record2.version !== 1 || typeof record2.generation !== "string" || !GENERATION_PATTERN_V1.test(record2.generation) || typeof record2.accessToken !== "string" || !ACCESS_TOKEN_PATTERN_V1.test(record2.accessToken) || JSON.stringify(record2) !== source) throw new Error("credential record is invalid");
-  return { version: 1, generation: record2.generation, accessToken: record2.accessToken };
-};
-var sameCredentialV1 = (left, right) => {
-  if (left.generation !== right.generation) return false;
-  const leftToken = Buffer.from(left.accessToken, "ascii");
-  const rightToken = Buffer.from(right.accessToken, "ascii");
-  return leftToken.byteLength === rightToken.byteLength && timingSafeEqual(leftToken, rightToken);
-};
-
-// sceneboard-mcp/src/credentials/private-file-credential.store.ts
-var CREDENTIAL_FILE = "credential.json";
-var assertPrivateStateDirectoryV1 = async (stateDirectory) => {
-  await mkdir(stateDirectory, { recursive: true, mode: 448 });
-  const status = await lstat2(stateDirectory);
-  if (!status.isDirectory() || status.isSymbolicLink() || status.uid !== process.geteuid?.()) {
-    throw new Error("private state directory is invalid");
-  }
-  if ((status.mode & 511) !== 448) {
-    const handle = await open(stateDirectory, constants2.O_RDONLY | constants2.O_DIRECTORY | constants2.O_NOFOLLOW);
-    try {
-      await handle.chmod(448);
-    } finally {
-      await handle.close();
-    }
-  }
-  const confirmed = await lstat2(stateDirectory);
-  if ((confirmed.mode & 511) !== 448) throw new Error("private state directory permissions are invalid");
-};
-var assertPrivateFile = async (path) => {
-  const status = await lstat2(path);
-  if (!status.isFile() || status.isSymbolicLink() || status.uid !== process.geteuid?.() || (status.mode & 511) !== 384 || status.nlink !== 1) throw new Error("private record is invalid");
-};
-var atomicPrivateWriteV1 = async (stateDirectory, fileName, bytes) => {
-  await assertPrivateStateDirectoryV1(stateDirectory);
-  const temporaryName = `.${fileName}.${randomBytes2(16).toString("base64url")}.tmp`;
-  const temporaryPath = join3(stateDirectory, temporaryName);
-  const targetPath = join3(stateDirectory, fileName);
-  const handle = await open(temporaryPath, constants2.O_CREAT | constants2.O_EXCL | constants2.O_WRONLY | constants2.O_NOFOLLOW, 384);
-  try {
-    await handle.chmod(384);
-    await handle.writeFile(bytes);
-    await handle.sync();
-  } catch (error2) {
-    await handle.close().catch(() => void 0);
-    await unlink(temporaryPath).catch(() => void 0);
-    throw error2;
-  }
-  await handle.close();
-  await assertPrivateFile(temporaryPath);
-  await rename(temporaryPath, targetPath);
-  const directory = await open(stateDirectory, constants2.O_RDONLY | constants2.O_DIRECTORY | constants2.O_NOFOLLOW);
-  try {
-    await directory.sync();
-  } finally {
-    await directory.close();
-  }
-};
-var PrivateFileCredentialStoreV1 = class {
-  constructor(stateDirectory) {
-    this.stateDirectory = stateDirectory;
-  }
-  async preflight() {
-    await assertPrivateStateDirectoryV1(this.stateDirectory);
-  }
-  async read() {
-    const path = join3(this.stateDirectory, CREDENTIAL_FILE);
-    try {
-      await assertPrivateFile(path);
-      return parseCredentialRecordV1(await readFile2(path));
-    } catch (error2) {
-      if (error2.code === "ENOENT") return null;
-      throw error2;
-    }
-  }
-  async replace(accessToken) {
-    const record2 = parseCredentialRecordV1(new TextEncoder().encode(JSON.stringify({
-      version: 1,
-      generation: randomBytes2(16).toString("base64url"),
-      accessToken
-    })));
-    const bytes = new TextEncoder().encode(JSON.stringify(record2));
-    try {
-      await atomicPrivateWriteV1(this.stateDirectory, CREDENTIAL_FILE, bytes);
-    } finally {
-      bytes.fill(0);
-    }
-    return record2;
-  }
-  async deleteIfCurrent(snapshot) {
-    const current = await this.read();
-    if (current === null || !sameCredentialV1(current, snapshot)) return false;
-    await unlink(join3(this.stateDirectory, CREDENTIAL_FILE));
-    const directory = await open(this.stateDirectory, constants2.O_RDONLY | constants2.O_DIRECTORY | constants2.O_NOFOLLOW);
-    try {
-      await directory.sync();
-    } finally {
-      await directory.close();
-    }
-    return true;
-  }
-};
-
-// sceneboard-mcp/src/credentials/installation-identity.store.ts
+import { randomBytes as randomBytes4 } from "node:crypto";
+import { lstat as lstat4, readFile as readFile4 } from "node:fs/promises";
+import { join as join5 } from "node:path";
 var FILE_NAME = "installation.json";
 var INSTALLATION_PATTERN = /^[A-Za-z0-9._:-]{16,128}$/;
 var parseInstallation = (bytes) => {
@@ -30246,15 +31055,15 @@ var InstallationIdentityStoreV1 = class {
     this.stateDirectory = stateDirectory;
   }
   async getOrCreate() {
-    const path = join4(this.stateDirectory, FILE_NAME);
+    const path = join5(this.stateDirectory, FILE_NAME);
     try {
-      const status = await lstat3(path);
+      const status = await lstat4(path);
       if (!status.isFile() || status.isSymbolicLink() || status.uid !== process.geteuid?.() || (status.mode & 511) !== 384 || status.nlink !== 1) throw new Error("installation record is invalid");
-      return parseInstallation(await readFile3(path));
-    } catch (error2) {
-      if (error2.code !== "ENOENT") throw error2;
+      return parseInstallation(await readFile4(path));
+    } catch (error3) {
+      if (error3.code !== "ENOENT") throw error3;
     }
-    const installationId = `install_${randomBytes3(24).toString("base64url")}`;
+    const installationId = `install_${randomBytes4(24).toString("base64url")}`;
     const bytes = new TextEncoder().encode(JSON.stringify({ version: 1, installationId }));
     await atomicPrivateWriteV1(this.stateDirectory, FILE_NAME, bytes);
     return installationId;
@@ -30262,10 +31071,10 @@ var InstallationIdentityStoreV1 = class {
 };
 
 // sceneboard-mcp/src/credentials/linux-profile-lease-helper.adapter.ts
-import { createHash, randomBytes as randomBytes4 } from "node:crypto";
+import { createHash, randomBytes as randomBytes5 } from "node:crypto";
 import { spawn } from "node:child_process";
-import { constants as constants3 } from "node:fs";
-import { lstat as lstat4, open as open2, readFile as readFile4 } from "node:fs/promises";
+import { constants as constants4 } from "node:fs";
+import { lstat as lstat5, open as open3, readFile as readFile5 } from "node:fs/promises";
 
 // sceneboard-mcp/src/credentials/profile-state.lease.ts
 var ProfileLeaseErrorV1 = class extends Error {
@@ -30278,7 +31087,7 @@ var ProfileLeaseErrorV1 = class extends Error {
 
 // sceneboard-mcp/src/credentials/linux-profile-lease-helper.adapter.ts
 var FRAME_LIMIT = 64;
-var waitForFrame = async (child) => new Promise((resolve2, reject) => {
+var waitForFrame = async (child) => new Promise((resolve3, reject) => {
   let bytes = Buffer.alloc(0);
   const timer = setTimeout(() => reject(new ProfileLeaseErrorV1("liveness_unknown")), 2e3);
   timer.unref();
@@ -30306,7 +31115,7 @@ var waitForFrame = async (child) => new Promise((resolve2, reject) => {
     const newline = bytes.indexOf(10);
     if (newline < 0) return;
     cleanup();
-    resolve2(bytes.subarray(0, newline).toString("ascii"));
+    resolve3(bytes.subarray(0, newline).toString("ascii"));
   };
   child.stdout.on("data", onData);
   child.stdout.once("end", onEnd);
@@ -30321,10 +31130,10 @@ var LinuxProfileLeaseHelperAdapterV1 = class {
     if (process.platform !== "linux") return false;
     try {
       const [status, digestStatus, bytes, expected] = await Promise.all([
-        lstat4(this.helperPath),
-        lstat4(this.digestPath),
-        readFile4(this.helperPath),
-        readFile4(this.digestPath, "utf8")
+        lstat5(this.helperPath),
+        lstat5(this.digestPath),
+        readFile5(this.helperPath),
+        readFile5(this.digestPath, "utf8")
       ]);
       if (!status.isFile() || status.isSymbolicLink() || (status.mode & 511) !== 320 || status.uid !== process.geteuid?.()) return false;
       if (!digestStatus.isFile() || digestStatus.isSymbolicLink() || digestStatus.uid !== process.geteuid?.()) return false;
@@ -30335,7 +31144,7 @@ var LinuxProfileLeaseHelperAdapterV1 = class {
   }
   async acquire(stateDirectory) {
     if (!await this.verify()) throw new ProfileLeaseErrorV1("liveness_unknown");
-    const directory = await open2(stateDirectory, constants3.O_RDONLY | constants3.O_DIRECTORY | constants3.O_NOFOLLOW);
+    const directory = await open3(stateDirectory, constants4.O_RDONLY | constants4.O_DIRECTORY | constants4.O_NOFOLLOW);
     let spawned;
     try {
       spawned = spawn(this.helperPath, [], {
@@ -30356,7 +31165,7 @@ var LinuxProfileLeaseHelperAdapterV1 = class {
     const record2 = JSON.stringify({
       version: 1,
       state: "live",
-      nonce: randomBytes4(16).toString("base64url"),
+      nonce: randomBytes5(16).toString("base64url"),
       pid: process.pid
     });
     child.stdin.write(`${record2}
@@ -30364,9 +31173,9 @@ var LinuxProfileLeaseHelperAdapterV1 = class {
     let frame;
     try {
       frame = await waitForFrame(child);
-    } catch (error2) {
+    } catch (error3) {
       child.kill("SIGTERM");
-      throw error2;
+      throw error3;
     }
     if (frame === "busy") {
       child.stdin.end();
@@ -30386,19 +31195,19 @@ var LinuxProfileLeaseHelperAdapterV1 = class {
         if (released) return;
         released = true;
         child.stdin.end();
-        await new Promise((resolve2) => {
+        await new Promise((resolve3) => {
           if (child.exitCode !== null) {
-            resolve2();
+            resolve3();
             return;
           }
           const timer = setTimeout(() => {
             child.kill("SIGTERM");
-            resolve2();
+            resolve3();
           }, 2e3);
           timer.unref();
           child.once("exit", () => {
             clearTimeout(timer);
-            resolve2();
+            resolve3();
           });
         });
       }
@@ -30458,10 +31267,50 @@ var StoredTokenProviderV1 = class {
     }
   }
 };
+var ApiKeyTokenProviderV1 = class {
+  constructor(source) {
+    this.source = source;
+    this.malformedEnvironmentCredential = source.kind === "environment" && source.apiKey !== void 0 && source.apiKey !== "" && !ACCOUNT_API_KEY_PATTERN_V1.test(source.apiKey);
+  }
+  invalidated = false;
+  cached;
+  malformedEnvironmentCredential;
+  async snapshot() {
+    if (this.invalidated) return null;
+    if (this.malformedEnvironmentCredential)
+      throw new Error("provisioned API key is invalid");
+    if (this.cached !== void 0) return this.cached;
+    if (this.source.kind === "environment") {
+      this.cached = this.source.apiKey === void 0 || this.source.apiKey === "" ? null : {
+        version: 1,
+        generation: "environment_v1_token",
+        accessToken: this.source.apiKey
+      };
+      return this.cached;
+    }
+    const record2 = await this.source.store.read();
+    this.cached = record2 === null ? null : {
+      version: 1,
+      generation: record2.generation,
+      accessToken: record2.apiKey
+    };
+    return this.cached;
+  }
+  async invalidate(snapshot) {
+    const current = await this.snapshot();
+    if (current !== null && current.generation === snapshot.generation && current.accessToken === snapshot.accessToken) {
+      this.invalidated = true;
+      this.cached = null;
+    }
+  }
+  credentialInvalidated() {
+    return this.invalidated;
+  }
+};
 
 // sceneboard-mcp/src/diagnostics/redact-secrets.ts
 var SECRET_KEY = /(authorization|token|proof|challenge|code|password|cookie|secret|path|generation)/i;
-var TOKEN_PATTERN3 = /lcbg_v1\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}/g;
+var TOKEN_PATTERN3 = /(?:lcbg_v1|sbk_v1)\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}/g;
 var PAIRING_PROOF_PATTERN = /PairingProof\s+[A-Za-z0-9_-]+/gi;
 var redactSecretsV1 = (value, depth = 0) => {
   if (depth > 8) return "[REDACTED]";
@@ -30787,8 +31636,8 @@ var ZodError4 = class _ZodError extends Error {
       return issue2.message;
     };
     const fieldErrors = { _errors: [] };
-    const processError = (error2) => {
-      for (const issue2 of error2.issues) {
+    const processError = (error3) => {
+      for (const issue2 of error3.issues) {
         if (issue2.code === "invalid_union") {
           issue2.unionErrors.map(processError);
         } else if (issue2.code === "invalid_return_type") {
@@ -30851,8 +31700,8 @@ var ZodError4 = class _ZodError extends Error {
   }
 };
 ZodError4.create = (issues) => {
-  const error2 = new ZodError4(issues);
-  return error2;
+  const error3 = new ZodError4(issues);
+  return error3;
 };
 
 // sceneboard-mcp/node_modules/zod/v3/locales/en.js
@@ -31116,8 +31965,8 @@ var handleResult3 = (ctx, result) => {
       get error() {
         if (this._error)
           return this._error;
-        const error2 = new ZodError4(ctx.common.issues);
-        this._error = error2;
+        const error3 = new ZodError4(ctx.common.issues);
+        this._error = error3;
         return this._error;
       }
     };
@@ -33772,25 +34621,25 @@ var ZodFunction3 = class _ZodFunction extends ZodType4 {
       });
       return INVALID3;
     }
-    function makeArgsIssue(args, error2) {
+    function makeArgsIssue(args, error3) {
       return makeIssue3({
         data: args,
         path: ctx.path,
         errorMaps: [ctx.common.contextualErrorMap, ctx.schemaErrorMap, getErrorMap3(), en_default3].filter((x) => !!x),
         issueData: {
           code: ZodIssueCode3.invalid_arguments,
-          argumentsError: error2
+          argumentsError: error3
         }
       });
     }
-    function makeReturnsIssue(returns, error2) {
+    function makeReturnsIssue(returns, error3) {
       return makeIssue3({
         data: returns,
         path: ctx.path,
         errorMaps: [ctx.common.contextualErrorMap, ctx.schemaErrorMap, getErrorMap3(), en_default3].filter((x) => !!x),
         issueData: {
           code: ZodIssueCode3.invalid_return_type,
-          returnTypeError: error2
+          returnTypeError: error3
         }
       });
     }
@@ -33799,15 +34648,15 @@ var ZodFunction3 = class _ZodFunction extends ZodType4 {
     if (this._def.returns instanceof ZodPromise3) {
       const me = this;
       return OK3(async function(...args) {
-        const error2 = new ZodError4([]);
+        const error3 = new ZodError4([]);
         const parsedArgs = await me._def.args.parseAsync(args, params).catch((e) => {
-          error2.addIssue(makeArgsIssue(args, e));
-          throw error2;
+          error3.addIssue(makeArgsIssue(args, e));
+          throw error3;
         });
         const result = await Reflect.apply(fn, this, parsedArgs);
         const parsedReturns = await me._def.returns._def.type.parseAsync(result, params).catch((e) => {
-          error2.addIssue(makeReturnsIssue(result, e));
-          throw error2;
+          error3.addIssue(makeReturnsIssue(result, e));
+          throw error3;
         });
         return parsedReturns;
       });
@@ -34807,17 +35656,17 @@ var PairingHttpClientV1 = class {
 };
 
 // sceneboard-mcp/src/pairing/pairing-session.owner.ts
-import { createHash as createHash2, randomBytes as randomBytes5 } from "node:crypto";
+import { createHash as createHash2, randomBytes as randomBytes6 } from "node:crypto";
 var sleep = async (milliseconds, signal) => {
   if (milliseconds <= 0) return true;
-  return new Promise((resolve2) => {
+  return new Promise((resolve3) => {
     const timer = setTimeout(() => {
       signal?.removeEventListener("abort", onAbort);
-      resolve2(true);
+      resolve3(true);
     }, milliseconds);
     const onAbort = () => {
       clearTimeout(timer);
-      resolve2(false);
+      resolve3(false);
     };
     signal?.addEventListener("abort", onAbort, { once: true });
   });
@@ -34860,15 +35709,15 @@ var PairingSessionOwnerV1 = class {
     let lease;
     try {
       lease = await this.leases.acquire(this.store.stateDirectory);
-    } catch (error2) {
-      if (error2 instanceof ProfileLeaseErrorV1 && error2.reason === "active_owner") {
+    } catch (error3) {
+      if (error3 instanceof ProfileLeaseErrorV1 && error3.reason === "active_owner") {
         return {
           ok: false,
           source: "local",
           error: { code: "PROFILE_BUSY", reason: "active_owner" }
         };
       }
-      if (error2 instanceof ProfileLeaseErrorV1 && error2.reason === "lease_corrupt") {
+      if (error3 instanceof ProfileLeaseErrorV1 && error3.reason === "lease_corrupt") {
         return { ok: false, source: "local", error: { code: "PROFILE_LEASE_CORRUPT" } };
       }
       return {
@@ -34883,7 +35732,7 @@ var PairingSessionOwnerV1 = class {
       await lease.release();
       return { ok: false, source: "local", error: { code: "PAIRING_SINK_UNAVAILABLE" } };
     }
-    const proof = randomBytes5(32);
+    const proof = randomBytes6(32);
     const client = this.clientFactory(() => proof.toString("base64url"));
     let installationId;
     try {
@@ -35066,8 +35915,11 @@ var UnavailablePairingCoordinatorV1 = class {
   }
 };
 
+// sceneboard-mcp/src/tools/protected-board.gateway.ts
+import { randomBytes as randomBytes7 } from "node:crypto";
+
 // sceneboard-mcp/src/connection/connection-media-http.client.ts
-var local2 = (error2) => ({ ok: false, error: error2 });
+var local2 = (error3) => ({ ok: false, error: error3 });
 var exactRecord2 = (value, keys) => {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
   const record2 = value;
@@ -35158,8 +36010,8 @@ var ConnectionMediaHttpClientV1 = class {
       return { ok: true, result: result.data.value, metadata: null };
     }
     const envelope = exactRecord2(parsed.value, ["error"]);
-    const error2 = envelope === null ? null : BoardErrorParser.parse(envelope.error);
-    if (error2 === null || !error2.ok || error2.data.value.httpStatusHint !== response.status || ![
+    const error3 = envelope === null ? null : BoardErrorParser.parse(envelope.error);
+    if (error3 === null || !error3.ok || error3.data.value.httpStatusHint !== response.status || ![
       "INVALID_REQUEST",
       "UNAUTHENTICATED",
       "FORBIDDEN",
@@ -35170,20 +36022,538 @@ var ConnectionMediaHttpClientV1 = class {
       "INVALID_MEDIA_UPLOAD",
       "RATE_LIMITED",
       "SERVICE_UNAVAILABLE"
-    ].includes(error2.data.value.code))
+    ].includes(error3.data.value.code))
       return local2({ code: "RESPONSE_INVALID", retryable: false, reason: "status" });
     this.options.logger.log({
       route: "/api/v1/boards/:boardId/media",
       attempt: 1,
       durationMs: performance.now() - startedAt,
       requestId: input.requestId,
-      resultCode: error2.data.value.code
+      resultCode: error3.data.value.code
     });
-    return { ok: false, error: error2.data.value };
+    return { ok: false, error: error3.data.value };
+  }
+};
+
+// sceneboard-mcp/src/tools/account-api-key-tool-policy.ts
+var ACCOUNT_API_KEY_TOOL_POLICIES_V1 = Object.freeze({
+  board_list: Object.freeze({
+    operation: "board.list",
+    scopes: Object.freeze(["board:read"])
+  }),
+  board_get: Object.freeze({
+    operation: "board.get",
+    scopes: Object.freeze(["board:read"])
+  }),
+  board_scene_get: Object.freeze({
+    operation: "board.get",
+    scopes: Object.freeze(["board:read"])
+  }),
+  board_document_get: Object.freeze({
+    operation: "board.get",
+    scopes: Object.freeze(["board:read"])
+  }),
+  board_create: Object.freeze({
+    operation: "board.create",
+    scopes: Object.freeze(["board:create"])
+  }),
+  board_rename: Object.freeze({
+    operation: "board.rename",
+    scopes: Object.freeze(["board:write"])
+  }),
+  board_archive: Object.freeze({
+    operation: "board.archive",
+    scopes: Object.freeze(["board:archive"])
+  }),
+  board_capabilities_get: Object.freeze({
+    operation: "capabilities.get",
+    scopes: Object.freeze(["board:read"])
+  }),
+  board_scene_replace: Object.freeze({
+    operation: "scene.replace",
+    scopes: Object.freeze(["board:write"])
+  }),
+  board_scene_patch: Object.freeze({
+    operation: "scene.replace",
+    scopes: Object.freeze(["board:write"])
+  }),
+  board_scene_clear: Object.freeze({
+    operation: "scene.clear",
+    scopes: Object.freeze(["board:write"])
+  }),
+  board_document_replace: Object.freeze({
+    operation: "document.replace",
+    scopes: Object.freeze(["board:write"])
+  }),
+  board_page_add: Object.freeze({
+    operation: "document.replace",
+    scopes: Object.freeze(["board:write"])
+  }),
+  board_page_remove: Object.freeze({
+    operation: "document.replace",
+    scopes: Object.freeze(["board:write"])
+  }),
+  board_page_reorder: Object.freeze({
+    operation: "document.replace",
+    scopes: Object.freeze(["board:write"])
+  }),
+  board_page_update: Object.freeze({
+    operation: "document.replace",
+    scopes: Object.freeze(["board:write"])
+  }),
+  board_page_default_set: Object.freeze({
+    operation: "document.replace",
+    scopes: Object.freeze(["board:write"])
+  }),
+  board_history_list: Object.freeze({
+    operation: "history.list",
+    scopes: Object.freeze(["history:read"])
+  }),
+  board_history_get: Object.freeze({
+    operation: "history.get",
+    scopes: Object.freeze(["history:read"])
+  }),
+  board_history_restore: Object.freeze({
+    operation: "scene.restore",
+    scopes: Object.freeze(["board:write", "history:read"])
+  }),
+  board_export: Object.freeze({
+    operation: "export.render",
+    scopes: Object.freeze(["export:read"])
+  })
+});
+var accountApiKeyToolPolicyV1 = (toolName) => {
+  if (!Object.hasOwn(ACCOUNT_API_KEY_TOOL_POLICIES_V1, toolName)) return null;
+  const policy2 = ACCOUNT_API_KEY_TOOL_POLICIES_V1[toolName];
+  return {
+    operation: policy2.operation,
+    scopes: policy2.scopes
+  };
+};
+
+// sceneboard-mcp/src/exports/local-export-file.ts
+import { spawn as spawn2 } from "node:child_process";
+import { createHash as createHash3 } from "node:crypto";
+import {
+  closeSync,
+  constants as fsConstants,
+  fstatSync,
+  lstatSync,
+  openSync,
+  readFileSync
+} from "node:fs";
+import { basename, isAbsolute as isAbsolute3, normalize, posix, resolve as resolve2 } from "node:path";
+var LOCAL_EXPORT_MAX_BYTES_V1 = 536870912;
+var LOCAL_EXPORT_MAX_STDERR_BYTES_V1 = 4096;
+var LOCAL_EXPORT_MAX_STDOUT_BYTES_V1 = 128;
+var LINUX_O_DIRECTORY = 65536;
+var LINUX_O_CLOEXEC = 524288;
+var error2 = (code) => {
+  const messages = {
+    LOCAL_EXPORT_UNAVAILABLE: "Secure local export is unavailable on this platform",
+    LOCAL_EXPORT_INVALID_PATH: "Local export path is invalid",
+    LOCAL_EXPORT_EXISTS: "Local export target already exists",
+    LOCAL_EXPORT_IO: "Local export could not be published",
+    LOCAL_EXPORT_SHORT: "Export download ended before completion",
+    LOCAL_EXPORT_CORRUPT: "Export download or local helper response is invalid",
+    LOCAL_EXPORT_CANCELLED: "Local export was cancelled"
+  };
+  return Object.freeze({ code, message: messages[code], retryable: false, details: null });
+};
+var transportErrorV1 = () => Object.freeze({
+  code: "BOARD_MCP_TRANSPORT_ERROR",
+  message: "SceneBoard transport is unavailable",
+  retryable: true,
+  details: Object.freeze({ phase: "response" })
+});
+var detectGlibcV1 = () => {
+  try {
+    const report = process.report?.getReport();
+    const header = report !== void 0 && typeof report === "object" ? report.header : void 0;
+    return header !== void 0 && typeof header.glibcVersionRuntime === "string";
+  } catch {
+    return false;
+  }
+};
+var exactManifestV1 = (value) => {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
+  const root = value;
+  if (Object.keys(root).sort().join("\0") !== ["targets", "version"].join("\0")) return null;
+  if (root.version !== 1 || root.targets === null || typeof root.targets !== "object") return null;
+  const targets = root.targets;
+  if (Object.keys(targets).join("\0") !== "linux-x64-gnu") return null;
+  const target = targets["linux-x64-gnu"];
+  if (target === null || typeof target !== "object" || Array.isArray(target)) return null;
+  const entry = target;
+  if (Object.keys(entry).sort().join("\0") !== ["mode", "path", "sha256"].join("\0")) return null;
+  if (entry.path !== "linux-x64-gnu/local-export-helper" || entry.mode !== "0500" || typeof entry.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(entry.sha256))
+    return null;
+  return value;
+};
+var safeDisplayNameV1 = (path) => {
+  const safe = basename(path).replace(/[^A-Za-z0-9._-]+/gu, "-").replace(/-+/gu, "-").replace(/^[._-]+|[._-]+$/gu, "").slice(0, 120);
+  return safe === "" ? "sceneboard-export" : safe;
+};
+var parseAbsolutePathV1 = (outputFile, format) => {
+  if (outputFile.length === 0 || outputFile !== outputFile.normalize("NFC") || !isAbsolute3(outputFile) || !outputFile.startsWith("/") || normalize(outputFile) !== outputFile || outputFile.endsWith("/") || /[*?[\]{}!]/u.test(outputFile))
+    return null;
+  const components = outputFile.slice(1).split("/");
+  if (components.length === 0 || components.length > 64 || components.some((component) => {
+    const bytes = Buffer.byteLength(component, "utf8");
+    return component === "" || component === "." || component === ".." || component !== component.normalize("NFC") || component.includes("\0") || bytes === 0 || bytes > 255;
+  }))
+    return null;
+  const normalizedPathBytes = Buffer.byteLength(outputFile, "utf8");
+  const expectedExtension = format === "pdf" ? ".pdf" : ".pptx";
+  if (normalizedPathBytes > 4096 || !components.at(-1)?.endsWith(expectedExtension) || components.at(-1) === expectedExtension)
+    return null;
+  return Object.freeze({
+    format,
+    components: Object.freeze(components),
+    normalizedPathBytes,
+    displayName: safeDisplayNameV1(outputFile)
+  });
+};
+var writeU64BeV1 = (buffer, offset, value) => {
+  const big = BigInt(value);
+  buffer.writeUInt32BE(Number(big >> 32n & 0xffffffffn), offset);
+  buffer.writeUInt32BE(Number(big & 0xffffffffn), offset + 4);
+};
+var encodeLocalExportControlFrameV1 = (intent, expectedBytes) => {
+  if (!Number.isSafeInteger(expectedBytes) || expectedBytes < 1 || expectedBytes > LOCAL_EXPORT_MAX_BYTES_V1)
+    throw new TypeError("invalid local export byte count");
+  const encoded = intent.components.map((component) => Buffer.from(component, "utf8"));
+  const frameBytes = 24 + encoded.reduce((total, component) => total + 2 + component.byteLength, 0);
+  if (frameBytes > 65532) throw new TypeError("local export control frame is too large");
+  const frame = Buffer.allocUnsafe(4 + frameBytes);
+  frame.writeUInt32BE(frameBytes, 0);
+  frame.write("SBEX", 4, 4, "ascii");
+  frame.writeUInt16BE(1, 8);
+  frame.writeUInt16BE(0, 10);
+  frame.writeUInt8(intent.format === "pdf" ? 1 : 2, 12);
+  frame.writeUInt8(encoded.length, 13);
+  frame.writeUInt16BE(0, 14);
+  writeU64BeV1(frame, 16, expectedBytes);
+  frame.writeUInt32BE(intent.normalizedPathBytes, 24);
+  let cursor = 28;
+  for (const component of encoded) {
+    frame.writeUInt16BE(component.byteLength, cursor);
+    cursor += 2;
+    component.copy(frame, cursor);
+    cursor += component.byteLength;
+  }
+  return frame;
+};
+var signatureMatchesV1 = (format, bytes) => format === "pdf" ? bytes.subarray(0, 5).equals(Buffer.from("%PDF-", "ascii")) : bytes.subarray(0, 4).equals(Buffer.from([80, 75, 3, 4]));
+var writeWithBackpressureV1 = async (child, bytes) => {
+  if (child.stdin.write(bytes)) return;
+  await new Promise((resolveDrain, reject) => {
+    const cleanup = () => {
+      child.stdin.off("drain", drained);
+      child.stdin.off("error", failed2);
+    };
+    const drained = () => {
+      cleanup();
+      resolveDrain();
+    };
+    const failed2 = (streamError) => {
+      cleanup();
+      reject(streamError);
+    };
+    child.stdin.once("drain", drained);
+    child.stdin.once("error", failed2);
+  });
+};
+var collectBoundedV1 = (child, stream, limit, onOverflow) => new Promise((resolveBytes, reject) => {
+  const chunks = [];
+  let size = 0;
+  stream.on("data", (chunk) => {
+    const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    size += bytes.byteLength;
+    if (size > limit) {
+      onOverflow();
+      return;
+    }
+    chunks.push(bytes);
+  });
+  stream.once("error", reject);
+  stream.once("end", () => resolveBytes(Buffer.concat(chunks, size)));
+  child.once("error", reject);
+});
+var waitForExitV1 = (child) => new Promise((resolveExit, reject) => {
+  child.once("error", reject);
+  child.once("exit", (code, signal) => resolveExit({ code, signal }));
+});
+var endWritableV1 = (stream, bytes) => new Promise((resolveEnd, reject) => {
+  stream.once("error", reject);
+  stream.end(bytes, resolveEnd);
+});
+var LocalExportFileV1 = class {
+  constructor(options) {
+    this.options = options;
+    this.platform = options.platform ?? process.platform;
+    this.architecture = options.architecture ?? process.arch;
+    this.glibc = options.glibc ?? detectGlibcV1();
+    this.spawnProcess = options.spawn ?? spawn2;
+    this.effectiveUserId = options.effectiveUserId ?? process.geteuid?.();
+  }
+  platform;
+  architecture;
+  glibc;
+  spawnProcess;
+  effectiveUserId;
+  preflight(outputFile, format) {
+    if (this.platform !== "linux" || this.architecture !== "x64" || !this.glibc)
+      return { ok: false, error: error2("LOCAL_EXPORT_UNAVAILABLE") };
+    const parsedPath = parseAbsolutePathV1(outputFile, format);
+    if (parsedPath === null) return { ok: false, error: error2("LOCAL_EXPORT_INVALID_PATH") };
+    let descriptor = -1;
+    let manifestDescriptor = -1;
+    try {
+      const manifestPathStatus = lstatSync(this.options.manifestPath);
+      if (!manifestPathStatus.isFile() || manifestPathStatus.isSymbolicLink() || (manifestPathStatus.mode & 511) !== 256 || manifestPathStatus.uid !== this.effectiveUserId)
+        return { ok: false, error: error2("LOCAL_EXPORT_UNAVAILABLE") };
+      manifestDescriptor = openSync(
+        this.options.manifestPath,
+        fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | LINUX_O_CLOEXEC
+      );
+      const manifestStatus = fstatSync(manifestDescriptor);
+      if (!manifestStatus.isFile() || manifestStatus.dev !== manifestPathStatus.dev || manifestStatus.ino !== manifestPathStatus.ino || (manifestStatus.mode & 511) !== 256 || manifestStatus.uid !== this.effectiveUserId) {
+        closeSync(manifestDescriptor);
+        manifestDescriptor = -1;
+        return { ok: false, error: error2("LOCAL_EXPORT_UNAVAILABLE") };
+      }
+      const manifest = exactManifestV1(JSON.parse(readFileSync(manifestDescriptor, "utf8")));
+      closeSync(manifestDescriptor);
+      manifestDescriptor = -1;
+      if (manifest === null) return { ok: false, error: error2("LOCAL_EXPORT_UNAVAILABLE") };
+      const helperPath = resolve2(
+        posix.dirname(this.options.manifestPath),
+        manifest.targets["linux-x64-gnu"].path
+      );
+      const pathStatus = lstatSync(helperPath);
+      if (!pathStatus.isFile() || pathStatus.isSymbolicLink() || (pathStatus.mode & 511) !== 320 || pathStatus.uid !== this.effectiveUserId)
+        return { ok: false, error: error2("LOCAL_EXPORT_UNAVAILABLE") };
+      descriptor = openSync(
+        helperPath,
+        fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW | LINUX_O_CLOEXEC
+      );
+      const helperStatus = fstatSync(descriptor);
+      const digest = createHash3("sha256").update(readFileSync(descriptor)).digest("hex");
+      if (!helperStatus.isFile() || helperStatus.dev !== pathStatus.dev || helperStatus.ino !== pathStatus.ino || (helperStatus.mode & 511) !== 320 || helperStatus.uid !== this.effectiveUserId || digest !== manifest.targets["linux-x64-gnu"].sha256) {
+        closeSync(descriptor);
+        descriptor = -1;
+        return { ok: false, error: error2("LOCAL_EXPORT_UNAVAILABLE") };
+      }
+      return {
+        ok: true,
+        value: Object.freeze({
+          ...parsedPath,
+          helperHandle: { descriptor, released: false }
+        })
+      };
+    } catch {
+      if (manifestDescriptor >= 0) closeSync(manifestDescriptor);
+      if (descriptor >= 0) closeSync(descriptor);
+      return { ok: false, error: error2("LOCAL_EXPORT_UNAVAILABLE") };
+    }
+  }
+  release(intent) {
+    if (intent.helperHandle.released) return;
+    intent.helperHandle.released = true;
+    closeSync(intent.helperHandle.descriptor);
+  }
+  async publish(intent, artifact, signal) {
+    const closed = (result) => {
+      this.release(intent);
+      return result;
+    };
+    if (artifact.format !== intent.format || !Number.isSafeInteger(artifact.contentLength) || artifact.contentLength < 1 || artifact.contentLength > LOCAL_EXPORT_MAX_BYTES_V1)
+      return closed({ ok: false, error: error2("LOCAL_EXPORT_CORRUPT") });
+    const expectedContentType = intent.format === "pdf" ? "application/pdf" : "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+    if (artifact.contentType !== expectedContentType)
+      return closed({ ok: false, error: error2("LOCAL_EXPORT_CORRUPT") });
+    let reader;
+    try {
+      reader = artifact.body.getReader();
+    } catch {
+      return closed({ ok: false, error: error2("LOCAL_EXPORT_CORRUPT") });
+    }
+    const prefix = [];
+    let prefixBytes = 0;
+    try {
+      while (prefixBytes < 5) {
+        if (signal?.aborted === true) {
+          await reader.cancel().catch(() => void 0);
+          reader.releaseLock();
+          return closed({ ok: false, error: error2("LOCAL_EXPORT_CANCELLED") });
+        }
+        const next = await reader.read();
+        if (next.done) {
+          reader.releaseLock();
+          return closed({ ok: false, error: error2("LOCAL_EXPORT_SHORT") });
+        }
+        const bytes = Buffer.from(next.value);
+        prefix.push(bytes);
+        prefixBytes += bytes.byteLength;
+      }
+    } catch {
+      await reader.cancel().catch(() => void 0);
+      reader.releaseLock();
+      return closed({
+        ok: false,
+        error: signal?.aborted === true ? error2("LOCAL_EXPORT_CANCELLED") : transportErrorV1()
+      });
+    }
+    const initial = Buffer.concat(prefix, prefixBytes);
+    if (!signatureMatchesV1(intent.format, initial)) {
+      await reader.cancel().catch(() => void 0);
+      reader.releaseLock();
+      return closed({ ok: false, error: error2("LOCAL_EXPORT_CORRUPT") });
+    }
+    let rootDescriptor = -1;
+    let child;
+    let overflow = false;
+    let downloadFailed = false;
+    const abort = () => {
+      child?.kill("SIGTERM");
+      void reader.cancel().catch(() => void 0);
+    };
+    try {
+      rootDescriptor = openSync("/", fsConstants.O_RDONLY | LINUX_O_DIRECTORY | LINUX_O_CLOEXEC);
+      if (intent.helperHandle.released)
+        return { ok: false, error: error2("LOCAL_EXPORT_UNAVAILABLE") };
+      const spawned = this.spawnProcess("/proc/self/fd/5", [], {
+        stdio: ["pipe", "pipe", "pipe", rootDescriptor, "pipe", intent.helperHandle.descriptor],
+        windowsHide: true,
+        env: { PATH: "/usr/bin:/bin" }
+      });
+      this.release(intent);
+      if (spawned.stdin === null || spawned.stdout === null || spawned.stderr === null || spawned.stdio[4] === null)
+        throw new Error("local export helper descriptors unavailable");
+      child = spawned;
+      const control = child.stdio[4];
+      child.stdin.on("error", () => void 0);
+      signal?.addEventListener("abort", abort, { once: true });
+      const stdoutPromise = collectBoundedV1(
+        child,
+        child.stdout,
+        LOCAL_EXPORT_MAX_STDOUT_BYTES_V1,
+        () => {
+          overflow = true;
+          child?.kill("SIGTERM");
+        }
+      );
+      const stderrPromise = collectBoundedV1(
+        child,
+        child.stderr,
+        LOCAL_EXPORT_MAX_STDERR_BYTES_V1,
+        () => {
+          overflow = true;
+          child?.kill("SIGTERM");
+        }
+      );
+      const exitPromise = waitForExitV1(child);
+      await endWritableV1(control, encodeLocalExportControlFrameV1(intent, artifact.contentLength));
+      let received = 0;
+      const forward = async (bytes2) => {
+        received += bytes2.byteLength;
+        if (received > artifact.contentLength || received > LOCAL_EXPORT_MAX_BYTES_V1) {
+          overflow = true;
+          child?.kill("SIGTERM");
+          return;
+        }
+        await writeWithBackpressureV1(child, bytes2);
+      };
+      await forward(initial);
+      while (!overflow && signal?.aborted !== true) {
+        let next;
+        try {
+          next = await reader.read();
+        } catch (streamError) {
+          downloadFailed = true;
+          throw streamError;
+        }
+        if (next.done) break;
+        await forward(Buffer.from(next.value));
+      }
+      child.stdin.end();
+      const [stdout, stderr, exited] = await Promise.all([
+        stdoutPromise,
+        stderrPromise,
+        exitPromise
+      ]);
+      const diagnosticText = new TextDecoder("utf-8", { fatal: true }).decode(stderr);
+      if (diagnosticText !== "" && !/^(?:SBEX\/1 io (?:openat|fstat|write|fsync|publish|unlink) errno=[0-9]+\n)+$/u.test(
+        diagnosticText
+      ))
+        return { ok: false, error: error2("LOCAL_EXPORT_CORRUPT") };
+      if (signal?.aborted === true) return { ok: false, error: error2("LOCAL_EXPORT_CANCELLED") };
+      if (overflow || received > artifact.contentLength)
+        return { ok: false, error: error2("LOCAL_EXPORT_CORRUPT") };
+      if (received < artifact.contentLength)
+        return { ok: false, error: error2("LOCAL_EXPORT_SHORT") };
+      const line = stdout.toString("ascii");
+      const match = /^SBEX\/1 (ok|exists|invalid|unsupported|io|short|corrupt) (0|[1-9][0-9]*)\n$/u.exec(line);
+      if (match === null || exited.signal !== null || exited.code !== 0)
+        return { ok: false, error: error2("LOCAL_EXPORT_CORRUPT") };
+      const resultCode = match[1];
+      const bytes = Number(match[2]);
+      if (resultCode === "ok") {
+        if (bytes !== artifact.contentLength)
+          return { ok: false, error: error2("LOCAL_EXPORT_CORRUPT") };
+        return {
+          ok: true,
+          value: { format: intent.format, bytes, fileName: intent.displayName }
+        };
+      }
+      if (bytes !== 0) return { ok: false, error: error2("LOCAL_EXPORT_CORRUPT") };
+      const mapped = {
+        exists: "LOCAL_EXPORT_EXISTS",
+        invalid: "LOCAL_EXPORT_INVALID_PATH",
+        unsupported: "LOCAL_EXPORT_UNAVAILABLE",
+        io: "LOCAL_EXPORT_IO",
+        short: "LOCAL_EXPORT_SHORT",
+        corrupt: "LOCAL_EXPORT_CORRUPT"
+      };
+      return {
+        ok: false,
+        error: error2(mapped[resultCode])
+      };
+    } catch {
+      child?.kill("SIGTERM");
+      await reader.cancel().catch(() => void 0);
+      return {
+        ok: false,
+        error: signal?.aborted === true ? error2("LOCAL_EXPORT_CANCELLED") : downloadFailed ? transportErrorV1() : error2("LOCAL_EXPORT_IO")
+      };
+    } finally {
+      this.release(intent);
+      signal?.removeEventListener("abort", abort);
+      if (rootDescriptor >= 0) closeSync(rootDescriptor);
+      reader.releaseLock();
+    }
   }
 };
 
 // sceneboard-mcp/src/tools/protected-board.gateway.ts
+var EXPORT_HTTP_FAILURES_V1 = Object.freeze({
+  EXPORT_INVALID_REQUEST: [400, false, "Invalid export request"],
+  EXPORT_UNAUTHENTICATED: [401, false, "Authentication is required"],
+  EXPORT_FORBIDDEN: [403, false, "Export is not allowed"],
+  EXPORT_NOT_FOUND: [404, false, "Board or revision not found"],
+  EXPORT_REQUIRED_CONTENT_UNSUPPORTED: [422, false, "Required content cannot be exported"],
+  EXPORT_BOUNDS_EXCEEDED: [413, false, "Export bounds exceeded"],
+  EXPORT_RATE_LIMITED: [429, true, "Export capacity is temporarily unavailable"],
+  EXPORT_RENDERER_UNAVAILABLE: [503, true, "Export renderer is unavailable"],
+  EXPORT_RENDER_TIMEOUT: [504, true, "Export timed out"],
+  EXPORT_ENCODE_FAILED: [500, true, "Export encoding failed"],
+  EXPORT_INTERNAL_ERROR: [500, true, "Export failed"]
+});
+var EXPORT_CONTENT_TYPES_V1 = Object.freeze({
+  pdf: "application/pdf",
+  pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+});
 var ProtectedBoardGatewayV1 = class {
   constructor(options) {
     this.options = options;
@@ -35197,15 +36567,261 @@ var ProtectedBoardGatewayV1 = class {
       logger: this.options.logger
     });
   }
-  async call(operation) {
+  async call(toolOrOperation, operationNameOrUndefined, operationOrUndefined) {
+    const toolName = typeof toolOrOperation === "string" ? toolOrOperation : null;
+    const operationName = typeof toolOrOperation === "string" ? operationNameOrUndefined ?? null : null;
+    const operation = typeof toolOrOperation === "string" ? operationOrUndefined : toolOrOperation;
+    if (operation === void 0) return { connected: false };
     const snapshot = await this.options.tokens.snapshot();
     if (snapshot === null) return { connected: false };
+    if (this.options.credentialMode === "api_key") {
+      if (toolName === null || operationName === null) return { connected: false };
+      const policy2 = accountApiKeyToolPolicyV1(toolName);
+      if (policy2 === null || policy2.operation !== operationName) return { connected: false };
+      const connection = await new ConnectionHttpClientV1({
+        baseUrl: this.options.baseUrl,
+        fetch: this.options.fetch,
+        timeoutMs: this.options.timeoutMs,
+        logger: this.options.logger
+      }).get(null, randomBytes7(16).toString("base64url"), snapshot.accessToken);
+      if (!connection.ok) {
+        if (connection.source === "board") {
+          if (connection.error.code === "UNAUTHENTICATED")
+            await this.options.tokens.invalidate(snapshot);
+          return {
+            connected: true,
+            value: { ok: false, error: connection.error }
+          };
+        }
+        return { connected: false };
+      }
+      const credential = "credential" in connection.value ? connection.value.credential : null;
+      if (credential === null || !policy2.scopes.every((scope) => credential.scopes.includes(scope)))
+        return {
+          connected: true,
+          value: {
+            ok: false,
+            error: {
+              protocolVersion: 1,
+              type: "board.error",
+              code: "FORBIDDEN",
+              message: "Insufficient API key scope",
+              category: "auth",
+              retryable: false,
+              httpStatusHint: 403,
+              details: null
+            }
+          }
+        };
+    }
     const client = this.client(snapshot);
-    const value = await operation(client);
+    const value = await operation(client, snapshot);
     if (value !== null && typeof value === "object" && "ok" in value && value.ok === false && "error" in value && value.error !== null && typeof value.error === "object" && "code" in value.error && value.error.code === "UNAUTHENTICATED") {
       await this.options.tokens.invalidate(snapshot);
     }
     return { connected: true, value };
+  }
+  async renameBoard(input) {
+    const result = await this.call(
+      "board_rename",
+      "board.rename",
+      async (_client, snapshot) => {
+        const timeoutSignal = AbortSignal.timeout(this.options.timeoutMs);
+        const signal = input.signal === void 0 ? timeoutSignal : AbortSignal.any([input.signal, timeoutSignal]);
+        let response;
+        try {
+          response = await this.options.fetch(
+            new URL(
+              `/api/v1/boards/${encodeURIComponent(input.boardId)}/title`,
+              this.options.baseUrl
+            ),
+            {
+              method: "POST",
+              redirect: "manual",
+              headers: {
+                Accept: "application/json",
+                Authorization: `Bearer ${snapshot.accessToken}`,
+                "Content-Type": "application/json; charset=utf-8"
+              },
+              body: JSON.stringify({ title: input.title }),
+              signal
+            }
+          );
+        } catch {
+          return {
+            ok: false,
+            source: "local",
+            error: { code: "TRANSPORT_ERROR" }
+          };
+        }
+        if (response.redirected || response.status >= 300 && response.status < 400 || response.headers.get("content-type")?.toLowerCase() !== "application/json; charset=utf-8") {
+          await response.body?.cancel().catch(() => void 0);
+          return {
+            ok: false,
+            source: "local",
+            error: { code: "RESPONSE_INVALID" }
+          };
+        }
+        const bytes = await BoardSdkHttpClient.readBoundedResponseBodyV1(
+          response,
+          response.status === 200 ? 65536 : 65536,
+          signal
+        );
+        if (bytes === "body_too_large" || bytes === "response")
+          return {
+            ok: false,
+            source: "local",
+            error: { code: "RESPONSE_INVALID" }
+          };
+        const parsed = BoardSdkHttpClient.parseStrictJsonBytesV1(bytes);
+        if (!parsed.ok)
+          return {
+            ok: false,
+            source: "local",
+            error: { code: "RESPONSE_INVALID" }
+          };
+        if (response.status !== 200) {
+          const body = parsed.value !== null && typeof parsed.value === "object" && !Array.isArray(parsed.value) && Object.keys(parsed.value).length === 1 ? parsed.value.error : null;
+          const error3 = BoardErrorParserV1.parse(body);
+          if (!error3.ok || error3.data.value.httpStatusHint !== response.status)
+            return {
+              ok: false,
+              source: "local",
+              error: { code: "RESPONSE_INVALID" }
+            };
+          if (error3.data.value.code === "UNAUTHENTICATED")
+            await this.options.tokens.invalidate(snapshot);
+          return { ok: false, source: "board", error: error3.data.value };
+        }
+        const value = parsed.value !== null && typeof parsed.value === "object" && !Array.isArray(parsed.value) ? parsed.value : null;
+        if (value === null || Object.keys(value).sort().join("\0") !== ["boardId", "title", "updatedAt"].join("\0") || value.boardId !== input.boardId || value.title !== input.title || typeof value.updatedAt !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value.updatedAt))
+          return {
+            ok: false,
+            source: "local",
+            error: { code: "RESPONSE_INVALID" }
+          };
+        return {
+          ok: true,
+          value: {
+            boardId: value.boardId,
+            title: value.title,
+            updatedAt: value.updatedAt
+          }
+        };
+      }
+    );
+    const rawValue = result.connected ? result.value : null;
+    const rawError = rawValue !== null && rawValue.ok === false && !Object.hasOwn(rawValue, "source") && rawValue.error !== null && typeof rawValue.error === "object" ? rawValue.error : null;
+    if (rawError !== null && "protocolVersion" in rawError)
+      return {
+        connected: true,
+        value: {
+          ok: false,
+          source: "board",
+          error: rawError
+        }
+      };
+    return result;
+  }
+  async exportBoard(input) {
+    return this.call(
+      "board_export",
+      "export.render",
+      async (_client, snapshot) => {
+        const timeoutSignal = AbortSignal.timeout(12e4);
+        const signal = input.signal === void 0 ? timeoutSignal : AbortSignal.any([input.signal, timeoutSignal]);
+        let response;
+        try {
+          response = await this.options.fetch(
+            new URL(
+              `/api/v1/boards/${encodeURIComponent(input.boardId)}/exports`,
+              this.options.baseUrl
+            ),
+            {
+              method: "POST",
+              redirect: "manual",
+              headers: {
+                Accept: EXPORT_CONTENT_TYPES_V1[input.format],
+                Authorization: `Bearer ${snapshot.accessToken}`,
+                "Content-Type": "application/json; charset=utf-8"
+              },
+              body: JSON.stringify({
+                format: input.format,
+                revisionId: input.revisionId
+              }),
+              signal
+            }
+          );
+        } catch {
+          if (input.signal?.aborted === true)
+            return { ok: false, source: "local", error: { code: "CANCELLED" } };
+          if (timeoutSignal.aborted)
+            return {
+              ok: false,
+              source: "local",
+              error: { code: "TIMEOUT", timeoutMs: 12e4 }
+            };
+          return { ok: false, source: "local", error: { code: "TRANSPORT_ERROR" } };
+        }
+        if (response.redirected || response.status >= 300 && response.status < 400) {
+          await response.body?.cancel().catch(() => void 0);
+          return { ok: false, source: "local", error: { code: "RESPONSE_INVALID" } };
+        }
+        const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+        if (response.status === 200) {
+          const contentLengthText = response.headers.get("content-length");
+          const contentLength = contentLengthText !== null && /^(?:[1-9][0-9]*)$/u.test(contentLengthText) ? Number(contentLengthText) : Number.NaN;
+          if (contentType !== EXPORT_CONTENT_TYPES_V1[input.format] || !Number.isSafeInteger(contentLength) || contentLength < 1 || contentLength > LOCAL_EXPORT_MAX_BYTES_V1 || response.body === null) {
+            await response.body?.cancel().catch(() => void 0);
+            return { ok: false, source: "local", error: { code: "RESPONSE_INVALID" } };
+          }
+          return {
+            ok: true,
+            value: {
+              format: input.format,
+              contentType,
+              contentLength,
+              body: response.body
+            }
+          };
+        }
+        if (contentType !== "application/json; charset=utf-8") {
+          await response.body?.cancel().catch(() => void 0);
+          return { ok: false, source: "local", error: { code: "RESPONSE_INVALID" } };
+        }
+        const bytes = await BoardSdkHttpClient.readBoundedResponseBodyV1(response, 65536, signal);
+        if (bytes === "response") {
+          if (input.signal?.aborted === true)
+            return { ok: false, source: "local", error: { code: "CANCELLED" } };
+          if (timeoutSignal.aborted)
+            return {
+              ok: false,
+              source: "local",
+              error: { code: "TIMEOUT", timeoutMs: 12e4 }
+            };
+          return { ok: false, source: "local", error: { code: "TRANSPORT_ERROR" } };
+        }
+        if (bytes === "body_too_large")
+          return { ok: false, source: "local", error: { code: "RESPONSE_INVALID" } };
+        const parsed = BoardSdkHttpClient.parseStrictJsonBytesV1(bytes);
+        const root = parsed.ok && parsed.value !== null && typeof parsed.value === "object" && !Array.isArray(parsed.value) ? parsed.value : null;
+        const rawError = root !== null && Object.keys(root).sort().join("\0") === ["error", "ok"].join("\0") && root.ok === false && root.error !== null && typeof root.error === "object" && !Array.isArray(root.error) ? root.error : null;
+        const definition = rawError !== null && typeof rawError.code === "string" && Object.hasOwn(EXPORT_HTTP_FAILURES_V1, rawError.code) ? EXPORT_HTTP_FAILURES_V1[rawError.code] : null;
+        if (rawError === null || Object.keys(rawError).sort().join("\0") !== ["code", "message", "retryable"].join("\0") || typeof rawError.code !== "string" || definition === null || definition[0] !== response.status || rawError.retryable !== definition[1] || rawError.message !== definition[2])
+          return { ok: false, source: "local", error: { code: "RESPONSE_INVALID" } };
+        if (rawError.code === "EXPORT_UNAUTHENTICATED")
+          await this.options.tokens.invalidate(snapshot);
+        return {
+          ok: false,
+          source: "board",
+          error: {
+            code: rawError.code,
+            message: definition[2],
+            retryable: definition[1]
+          }
+        };
+      }
+    );
   }
   async withAuthorizedBoardOperation(input, operation) {
     let rawSnapshot;
@@ -35215,7 +36831,7 @@ var ProtectedBoardGatewayV1 = class {
       return { authorized: false, reason: "credential_unavailable" };
     }
     if (rawSnapshot === null) return { authorized: false, reason: "not_connected" };
-    if (rawSnapshot.version !== 1 || typeof rawSnapshot.generation !== "string" || !GENERATION_PATTERN_V1.test(rawSnapshot.generation) || typeof rawSnapshot.accessToken !== "string" || !ACCESS_TOKEN_PATTERN_V1.test(rawSnapshot.accessToken))
+    if (this.options.credentialMode === "api_key" || rawSnapshot.version !== 1 || typeof rawSnapshot.generation !== "string" || !GENERATION_PATTERN_V1.test(rawSnapshot.generation) || typeof rawSnapshot.accessToken !== "string" || !ACCESS_TOKEN_PATTERN_V1.test(rawSnapshot.accessToken))
       return { authorized: false, reason: "credential_unavailable" };
     const snapshot = Object.freeze({ ...rawSnapshot });
     const connection = await new ConnectionHttpClientV1({
@@ -35232,6 +36848,8 @@ var ProtectedBoardGatewayV1 = class {
       }
       return { authorized: false, reason: "local", error: connection.error };
     }
+    if (!("grant" in connection.value))
+      return { authorized: false, reason: "credential_unavailable" };
     const selected = connection.value.selectedBoard;
     const grant = connection.value.grant;
     if (selected === null || !input.requiredCapabilities.every(
@@ -35268,7 +36886,7 @@ var ProtectedBoardGatewayV1 = class {
 };
 
 // sceneboard-mcp/src/tools/register-tools.ts
-import { randomBytes as randomBytes8 } from "node:crypto";
+import { randomBytes as randomBytes10 } from "node:crypto";
 
 // packages/board-sdk/src/document-transform/document-transform.ts
 var invalidDocument3 = (path, reason) => ({
@@ -35281,7 +36899,7 @@ var invalidDocument3 = (path, reason) => ({
   httpStatusHint: 422,
   details: { path, reason }
 });
-var failed = (error2) => ({ ok: false, error: error2 });
+var failed = (error3) => ({ ok: false, error: error3 });
 var exactKeys = (value, keys) => {
   const actual = Object.keys(value).sort();
   const expected = [...keys].sort();
@@ -35290,7 +36908,7 @@ var exactKeys = (value, keys) => {
 var safeIndex = (value) => typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 var pageIndex = (document, pageId) => document.pages.findIndex((page) => page.pageId === pageId);
 var finiteCanvasPlacement = (placement) => Number.isFinite(placement.x) && Number.isFinite(placement.y) && Number.isFinite(placement.width) && Number.isFinite(placement.height) && placement.x >= 0 && placement.y >= 0 && placement.width > 0 && placement.height > 0 && Number.isSafeInteger(placement.zIndex);
-var placeMediaImageOnPageV1 = (input) => {
+var placeMediaImageOnPageV2 = (input) => {
   const source = BoardDocumentParserV2.parse(input.document);
   if (!source.ok) return source;
   const current = source.data.value;
@@ -35354,6 +36972,19 @@ var placeMediaImageOnPageV1 = (input) => {
   pages[index] = { ...page, scene: { ...page.scene, root: nextRoot } };
   return BoardDocumentParserV2.parse({ ...current, pages });
 };
+function placeMediaImageOnPageV1(input) {
+  if (input.document.schemaVersion === 2) return placeMediaImageOnPageV2(input);
+  const source = BoardDocumentParserV3.parse(input.document);
+  if (!source.ok) return source;
+  const transformed = placeMediaImageOnPageV2({
+    ...input,
+    document: projectDocumentV3ToV2(source.data.value)
+  });
+  if (!transformed.ok) return transformed;
+  return BoardDocumentParserV3.parse(
+    projectDocumentV2ToV3(transformed.data.value, source.data.value.format)
+  );
+}
 var applyDocumentTransformV2 = (source, operation) => {
   const document = BoardDocumentParserV2.parse(source);
   if (!document.ok) return document;
@@ -35431,7 +37062,7 @@ var applyDocumentTransformV2 = (source, operation) => {
 };
 
 // sceneboard-mcp/src/tools/tool-schemas.ts
-import { randomBytes as randomBytes6 } from "node:crypto";
+import { randomBytes as randomBytes8 } from "node:crypto";
 var GlobalIdSchemaV1 = external_exports.string().regex(/^[A-Za-z0-9_-]{1,128}$/);
 var IdempotencyKeySchemaV12 = external_exports.string().min(16).max(128).regex(/^[A-Za-z0-9._:-]+$/);
 var ShortTextSchemaV12 = external_exports.string().refine((value) => {
@@ -35525,7 +37156,7 @@ var descriptorInputSchemaV1 = (schema) => {
   });
   return descriptor;
 };
-var createRequestIdV1 = () => randomBytes6(16).toString("base64url");
+var createRequestIdV1 = () => randomBytes8(16).toString("base64url");
 
 // sceneboard-mcp/src/tools/tool-result.ts
 var GlobalIdSchema2 = external_exports.string().regex(/^[A-Za-z0-9_-]{1,128}$/);
@@ -35547,6 +37178,13 @@ var LOCAL_ERROR_CODES_V1 = [
   "BOARD_MCP_LOCAL_FILE_PLATFORM_UNSUPPORTED",
   "BOARD_MCP_LOCAL_FILE_TOO_LARGE",
   "BOARD_MCP_LOCAL_MEDIA_UNSUPPORTED",
+  "LOCAL_EXPORT_UNAVAILABLE",
+  "LOCAL_EXPORT_INVALID_PATH",
+  "LOCAL_EXPORT_EXISTS",
+  "LOCAL_EXPORT_IO",
+  "LOCAL_EXPORT_SHORT",
+  "LOCAL_EXPORT_CORRUPT",
+  "LOCAL_EXPORT_CANCELLED",
   "BOARD_MCP_INTERNAL_ERROR"
 ];
 var GENERIC_LOCAL_ERROR_CODES_V1 = LOCAL_ERROR_CODES_V1.filter(
@@ -35581,6 +37219,15 @@ var D1_RESULT_TYPES_V1 = {
   sceneboard_media_upload: ["media.ingest.result"],
   sceneboard_media_place: ["document.replace"]
 };
+var LOCAL_EXPORT_MESSAGES_V1 = Object.freeze({
+  LOCAL_EXPORT_UNAVAILABLE: "Secure local export is unavailable on this platform",
+  LOCAL_EXPORT_INVALID_PATH: "Local export path is invalid",
+  LOCAL_EXPORT_EXISTS: "Local export target already exists",
+  LOCAL_EXPORT_IO: "Local export could not be published",
+  LOCAL_EXPORT_SHORT: "Export download ended before completion",
+  LOCAL_EXPORT_CORRUPT: "Export download or local helper response is invalid",
+  LOCAL_EXPORT_CANCELLED: "Local export was cancelled"
+});
 var toolOutputSchemaV1 = (tool, reachableCodes) => {
   const upstreamCode = external_exports.enum(reachableCodes);
   const value = (code) => external_exports.object({ code }).passthrough();
@@ -35617,7 +37264,7 @@ var toolOutputSchemaV1 = (tool, reachableCodes) => {
       }).strict()
     }).strict()
   ]);
-  const error2 = external_exports.discriminatedUnion("source", [
+  const error3 = external_exports.discriminatedUnion("source", [
     external_exports.object({ source: external_exports.literal("board"), value: value(upstreamCode) }).strict(),
     external_exports.object({ source: external_exports.literal("pairing"), value: value(upstreamCode) }).strict(),
     external_exports.object({ source: external_exports.literal("mcp"), value: localValue2 }).strict()
@@ -35628,7 +37275,7 @@ var toolOutputSchemaV1 = (tool, reachableCodes) => {
     requestId: GlobalIdSchema2,
     result: external_exports.record(external_exports.unknown()).optional(),
     metadata: external_exports.unknown().optional(),
-    error: error2.optional()
+    error: error3.optional()
   }).strict();
   const validator = descriptor.superRefine((output, context) => {
     if (output.ok) {
@@ -35660,6 +37307,15 @@ var toolOutputSchemaV1 = (tool, reachableCodes) => {
           path: ["result", "requestId"],
           message: "request IDs must match"
         });
+      }
+      if (tool === "board_export") {
+        if (Object.keys(output.result).sort().join("\0") !== ["bytes", "fileName", "format"].join("\0") || output.result.format !== "pdf" && output.result.format !== "pptx" || !Number.isSafeInteger(output.result.bytes) || output.result.bytes < 1 || output.result.bytes > 536870912 || typeof output.result.fileName !== "string" || output.result.fileName.length < 1 || output.result.fileName.length > 120 || /[/\\]/u.test(output.result.fileName) || output.metadata !== null)
+          context.addIssue({
+            code: external_exports.ZodIssueCode.custom,
+            path: ["result"],
+            message: "local export result is invalid"
+          });
+        return;
       }
       const expected = D1_RESULT_TYPES_V1[tool];
       if (expected !== void 0) {
@@ -35748,6 +37404,15 @@ var toolOutputSchemaV1 = (tool, reachableCodes) => {
         message: "non-pairing tools cannot emit pairing errors"
       });
     }
+    if (tool === "board_export" && output.error?.source === "mcp" && typeof output.error.value.code === "string" && Object.hasOwn(LOCAL_EXPORT_MESSAGES_V1, output.error.value.code)) {
+      const code = output.error.value.code;
+      if (Object.keys(output.error.value).sort().join("\0") !== ["code", "details", "message", "retryable"].join("\0") || output.error.value.message !== LOCAL_EXPORT_MESSAGES_V1[code] || output.error.value.retryable !== false || output.error.value.details !== null)
+        context.addIssue({
+          code: external_exports.ZodIssueCode.custom,
+          path: ["error", "value"],
+          message: "local export error is invalid"
+        });
+    }
     if (output.result !== void 0 || Object.hasOwn(output, "metadata")) {
       context.addIssue({
         code: external_exports.ZodIssueCode.custom,
@@ -35818,35 +37483,35 @@ var internalToolErrorV1 = (incidentId) => ({
   retryable: false,
   details: { incidentId }
 });
-var localFromSdkErrorV1 = (error2) => {
-  if ("protocolVersion" in error2)
+var localFromSdkErrorV1 = (error3) => {
+  if ("protocolVersion" in error3)
     throw new TypeError("D1 errors must not be translated as local errors");
-  if (error2.code === "CANCELLED")
+  if (error3.code === "CANCELLED")
     return {
       code: "BOARD_MCP_CANCELLED",
       message: "Tool call was cancelled",
       retryable: false,
       details: null
     };
-  if (error2.code === "TIMEOUT")
+  if (error3.code === "TIMEOUT")
     return {
       code: "BOARD_MCP_TIMEOUT",
       message: "SceneBoard request timed out",
       retryable: true,
-      details: { timeoutMs: error2.timeoutMs }
+      details: { timeoutMs: error3.timeoutMs }
     };
-  if (error2.code === "TRANSPORT_ERROR")
+  if (error3.code === "TRANSPORT_ERROR")
     return {
       code: "BOARD_MCP_TRANSPORT_ERROR",
       message: "SceneBoard transport is unavailable",
       retryable: true,
-      details: { phase: error2.phase === "credential" ? "connect" : error2.phase }
+      details: { phase: error3.phase === "credential" ? "connect" : error3.phase }
     };
   return {
     code: "BOARD_MCP_RESPONSE_INVALID",
     message: "SceneBoard response is invalid",
     retryable: false,
-    details: { reason: error2.reason }
+    details: { reason: error3.reason }
   };
 };
 var asCallResult = (structuredContent, isError, text) => ({
@@ -35886,8 +37551,8 @@ var sdkToolResultV1 = (tool, requestId, result, metadata) => {
     localFromSdkErrorV1(result.error)
   );
 };
-var validationFailureV1 = (tool, requestId, error2) => {
-  const issue2 = error2.issues[0];
+var validationFailureV1 = (tool, requestId, error3) => {
+  const issue2 = error3.issues[0];
   return toolFailureV1(
     tool,
     requestId,
@@ -35950,6 +37615,8 @@ var DocumentToolHandlersV2 = class {
     const parsed = DocumentGetInputSchemaV2.safeParse(raw);
     if (!parsed.success) return validationFailureV1("board_document_get", requestId, parsed.error);
     const result = parsed.data.revisionId === null ? await this.gateway.call(
+      "board_document_get",
+      "board.get",
       (client) => client.getDocumentBoard(
         {
           protocolVersion: 1,
@@ -35960,6 +37627,8 @@ var DocumentToolHandlersV2 = class {
         signal
       )
     ) : await this.gateway.call(
+      "board_document_get",
+      "board.get",
       (client) => client.getDocumentHistory(
         {
           protocolVersion: 1,
@@ -36063,6 +37732,8 @@ var DocumentToolHandlersV2 = class {
     if (!parsed.success) return validationFailureV1(tool, requestId, parsed.error);
     const value = parsed.data;
     const head = await this.gateway.call(
+      tool,
+      "document.replace",
       (client) => client.getDocumentBoard(
         {
           protocolVersion: 1,
@@ -36112,6 +37783,8 @@ var DocumentToolHandlersV2 = class {
         transformed.error
       );
     const result = await this.gateway.call(
+      tool,
+      "document.replace",
       (client) => client.mutateDocument(
         {
           protocolVersion: 1,
@@ -36262,6 +37935,7 @@ var BoardListInputSchemaV1 = external_exports.object({
 }).strict();
 var BoardGetInputSchemaV1 = external_exports.object({ boardId: GlobalIdSchemaV1 }).strict();
 var BoardCreateInputSchemaV1 = external_exports.object({ title: ShortTextSchemaV12, idempotencyKey: IdempotencyKeySchemaV12 }).strict();
+var BoardRenameInputSchemaV1 = external_exports.object({ boardId: GlobalIdSchemaV1, title: ShortTextSchemaV12 }).strict();
 var BoardArchiveInputSchemaV1 = external_exports.object({
   boardId: GlobalIdSchemaV1,
   confirm: external_exports.literal(true),
@@ -36279,6 +37953,8 @@ var BoardToolHandlersV1 = class {
     const parsed = BoardListInputSchemaV1.safeParse(raw);
     if (!parsed.success) return invalid("board_list", requestId, parsed);
     const result = await this.gateway.call(
+      "board_list",
+      "board.list",
       (client) => client.listBoards(
         {
           protocolVersion: 1,
@@ -36298,6 +37974,8 @@ var BoardToolHandlersV1 = class {
     const parsed = BoardGetInputSchemaV1.safeParse(raw);
     if (!parsed.success) return invalid("board_get", requestId, parsed);
     const result = await this.gateway.call(
+      "board_get",
+      "board.get",
       (client) => client.getBoard(
         {
           protocolVersion: 1,
@@ -36315,6 +37993,8 @@ var BoardToolHandlersV1 = class {
     const parsed = BoardCreateInputSchemaV1.safeParse(raw);
     if (!parsed.success) return invalid("board_create", requestId, parsed);
     const result = await this.gateway.call(
+      "board_create",
+      "board.create",
       (client) => client.createBoard(
         {
           protocolVersion: 1,
@@ -36328,11 +38008,38 @@ var BoardToolHandlersV1 = class {
     );
     return result.connected ? sdkToolResultV1("board_create", requestId, result.value, null) : disconnected2("board_create", requestId);
   }
+  async rename(raw, signal) {
+    const requestId = createRequestIdV1();
+    const parsed = BoardRenameInputSchemaV1.safeParse(raw);
+    if (!parsed.success) return invalid("board_rename", requestId, parsed);
+    const result = await this.gateway.renameBoard({
+      boardId: parsed.data.boardId,
+      title: parsed.data.title,
+      ...signal === void 0 ? {} : { signal }
+    });
+    if (!result.connected) return disconnected2("board_rename", requestId);
+    if (result.value.ok) return toolSuccessV1("board_rename", requestId, result.value.value, null);
+    if (result.value.source === "board")
+      return toolFailureV1(
+        "board_rename",
+        requestId,
+        "board",
+        result.value.error
+      );
+    return toolFailureV1("board_rename", requestId, "mcp", {
+      code: result.value.error.code === "TRANSPORT_ERROR" ? "BOARD_MCP_TRANSPORT_ERROR" : "BOARD_MCP_RESPONSE_INVALID",
+      message: result.value.error.code === "TRANSPORT_ERROR" ? "SceneBoard transport is unavailable" : "SceneBoard response is invalid",
+      retryable: result.value.error.code === "TRANSPORT_ERROR",
+      details: null
+    });
+  }
   async archive(raw, signal) {
     const requestId = createRequestIdV1();
     const parsed = BoardArchiveInputSchemaV1.safeParse(raw);
     if (!parsed.success) return invalid("board_archive", requestId, parsed);
     const result = await this.gateway.call(
+      "board_archive",
+      "board.archive",
       (client) => client.archiveBoard(
         {
           protocolVersion: 1,
@@ -36352,6 +38059,8 @@ var BoardToolHandlersV1 = class {
     const parsed = BoardCapabilitiesInputSchemaV1.safeParse(raw);
     if (!parsed.success) return invalid("board_capabilities_get", requestId, parsed);
     const result = await this.gateway.call(
+      "board_capabilities_get",
+      "capabilities.get",
       (client) => client.getCapabilities(
         {
           protocolVersion: 1,
@@ -36402,78 +38111,78 @@ var PairStatusInputSchemaV1 = external_exports.object({
   pairingId: GlobalIdSchemaV1,
   waitTimeoutMs: external_exports.number().int().safe().min(0).max(12e4)
 }).strict();
-var pairLocalError = (error2) => {
-  if (error2.code === "PAIRING_SINK_READ_ONLY" || error2.code === "PAIRING_SINK_UNAVAILABLE")
+var pairLocalError = (error3) => {
+  if (error3.code === "PAIRING_SINK_READ_ONLY" || error3.code === "PAIRING_SINK_UNAVAILABLE")
     return {
       code: "BOARD_MCP_CREDENTIAL_UNAVAILABLE",
       message: "Pairing credential storage is unavailable",
       retryable: false,
       details: {
-        reason: error2.code === "PAIRING_SINK_READ_ONLY" ? "pairing_sink_read_only" : "pairing_sink_unavailable",
+        reason: error3.code === "PAIRING_SINK_READ_ONLY" ? "pairing_sink_read_only" : "pairing_sink_unavailable",
         recovery: "select_writable_store_or_provision_token_out_of_band"
       }
     };
-  if (error2.code === "PROFILE_BUSY")
+  if (error3.code === "PROFILE_BUSY")
     return {
       code: "BOARD_MCP_PROFILE_BUSY",
       message: "The SceneBoard profile is busy",
       retryable: true,
-      details: error2.reason === "active_owner" ? { reason: "active_owner", recovery: "close_other_client_or_retry" } : { reason: "liveness_unknown", recovery: "check_host_then_retry" }
+      details: error3.reason === "active_owner" ? { reason: "active_owner", recovery: "close_other_client_or_retry" } : { reason: "liveness_unknown", recovery: "check_host_then_retry" }
     };
-  if (error2.code === "PROFILE_LEASE_CORRUPT")
+  if (error3.code === "PROFILE_LEASE_CORRUPT")
     return {
       code: "BOARD_MCP_PROFILE_LEASE_CORRUPT",
       message: "The profile lease is invalid",
       retryable: false,
       details: { recovery: "repair_profile_lease_out_of_band" }
     };
-  if (error2.code === "PAIRING_STATE_LOST")
+  if (error3.code === "PAIRING_STATE_LOST")
     return {
       code: "BOARD_MCP_PAIRING_STATE_LOST",
       message: "The pairing session is unavailable",
       retryable: false,
       details: { recovery: "start_new_pairing" }
     };
-  if (error2.code === "PAIRING_CLAIM_OUTCOME_UNKNOWN")
+  if (error3.code === "PAIRING_CLAIM_OUTCOME_UNKNOWN")
     return {
       code: "BOARD_MCP_PAIRING_CLAIM_OUTCOME_UNKNOWN",
       message: "The pairing claim outcome is unknown",
       retryable: false,
       details: { recovery: "owner_cancel_or_wait_then_create_new_code" }
     };
-  if (error2.code === "PAIRING_CREDENTIAL_UNRECOVERABLE")
+  if (error3.code === "PAIRING_CREDENTIAL_UNRECOVERABLE")
     return {
       code: "BOARD_MCP_PAIRING_CREDENTIAL_UNRECOVERABLE",
       message: "The redeemed credential cannot be recovered",
       retryable: false,
       details: { recovery: "owner_rotate_or_revoke_and_repair" }
     };
-  if (error2.code === "TIMEOUT")
+  if (error3.code === "TIMEOUT")
     return {
       code: "BOARD_MCP_TIMEOUT",
       message: "Pairing timed out",
       retryable: true,
-      details: { timeoutMs: error2.timeoutMs }
+      details: { timeoutMs: error3.timeoutMs }
     };
-  if (error2.code === "CANCELLED")
+  if (error3.code === "CANCELLED")
     return {
       code: "BOARD_MCP_CANCELLED",
       message: "Pairing was cancelled",
       retryable: false,
       details: null
     };
-  if (error2.code === "RESPONSE_INVALID")
+  if (error3.code === "RESPONSE_INVALID")
     return {
       code: "BOARD_MCP_RESPONSE_INVALID",
       message: "Pairing response is invalid",
       retryable: false,
-      details: { reason: error2.reason }
+      details: { reason: error3.reason }
     };
   return {
     code: "BOARD_MCP_TRANSPORT_ERROR",
     message: "Pairing transport is unavailable",
     retryable: true,
-    details: { phase: error2.code === "TRANSPORT_OUTCOME_UNKNOWN" ? error2.phase : "request" }
+    details: { phase: error3.code === "TRANSPORT_OUTCOME_UNKNOWN" ? error3.phase : "request" }
   };
 };
 var ConnectionToolHandlersV1 = class {
@@ -36582,6 +38291,8 @@ var HistoryToolHandlersV1 = class {
     const parsed = HistoryListInputSchemaV1.safeParse(raw);
     if (!parsed.success) return validationFailureV1("board_history_list", requestId, parsed.error);
     const result = await this.gateway.call(
+      "board_history_list",
+      "history.list",
       (client) => client.listHistory(
         {
           protocolVersion: 1,
@@ -36611,6 +38322,8 @@ var HistoryToolHandlersV1 = class {
     const parsed = HistoryGetInputSchemaV1.safeParse(raw);
     if (!parsed.success) return validationFailureV1("board_history_get", requestId, parsed.error);
     const result = await this.gateway.call(
+      "board_history_get",
+      "history.get",
       (client) => client.getHistory(
         {
           protocolVersion: 1,
@@ -36640,6 +38353,8 @@ var HistoryToolHandlersV1 = class {
     if (!parsed.success)
       return validationFailureV1("board_history_restore", requestId, parsed.error);
     const result = await this.gateway.call(
+      "board_history_restore",
+      "scene.restore",
       (client) => client.restoreRevision(
         {
           protocolVersion: 1,
@@ -36661,6 +38376,115 @@ var HistoryToolHandlersV1 = class {
       "mcp",
       notConnectedV1()
     );
+  }
+};
+
+// sceneboard-mcp/src/tools/export.tools.ts
+var BoardExportInputSchemaV1 = external_exports.object({
+  boardId: GlobalIdSchemaV1,
+  revisionId: GlobalIdSchemaV1.nullable(),
+  format: external_exports.enum(["pdf", "pptx"]),
+  outputFile: external_exports.string().min(1).max(4096)
+}).strict();
+var localTransportErrorV1 = (value) => {
+  if (value.code === "CANCELLED")
+    return {
+      code: "BOARD_MCP_CANCELLED",
+      message: "Tool call was cancelled",
+      retryable: false,
+      details: null
+    };
+  if (value.code === "TIMEOUT")
+    return {
+      code: "BOARD_MCP_TIMEOUT",
+      message: "SceneBoard request timed out",
+      retryable: true,
+      details: { timeoutMs: value.timeoutMs }
+    };
+  if (value.code === "TRANSPORT_ERROR")
+    return {
+      code: "BOARD_MCP_TRANSPORT_ERROR",
+      message: "SceneBoard transport is unavailable",
+      retryable: true,
+      details: { phase: "response" }
+    };
+  return {
+    code: "BOARD_MCP_RESPONSE_INVALID",
+    message: "SceneBoard response is invalid",
+    retryable: false,
+    details: null
+  };
+};
+var ExportToolHandlersV1 = class {
+  constructor(gateway, localFiles) {
+    this.gateway = gateway;
+    this.localFiles = localFiles;
+  }
+  async export(raw, signal) {
+    const requestId = createRequestIdV1();
+    const parsed = BoardExportInputSchemaV1.safeParse(raw);
+    if (!parsed.success) return validationFailureV1("board_export", requestId, parsed.error);
+    if (this.localFiles === null)
+      return toolFailureV1("board_export", requestId, "mcp", {
+        code: "LOCAL_EXPORT_UNAVAILABLE",
+        message: "Secure local export is unavailable on this platform",
+        retryable: false,
+        details: null
+      });
+    const prepared = this.localFiles.preflight(parsed.data.outputFile, parsed.data.format);
+    if (!prepared.ok)
+      return toolFailureV1(
+        "board_export",
+        requestId,
+        "mcp",
+        prepared.error
+      );
+    try {
+      const remote = await this.gateway.exportBoard({
+        boardId: parsed.data.boardId,
+        revisionId: parsed.data.revisionId,
+        format: parsed.data.format,
+        ...signal === void 0 ? {} : { signal }
+      });
+      if (!remote.connected)
+        return toolFailureV1(
+          "board_export",
+          requestId,
+          "mcp",
+          notConnectedV1()
+        );
+      if (!remote.value.ok) {
+        if (remote.value.source === "board")
+          return toolFailureV1(
+            "board_export",
+            requestId,
+            "board",
+            remote.value.error
+          );
+        return toolFailureV1(
+          "board_export",
+          requestId,
+          "mcp",
+          localTransportErrorV1(remote.value.error)
+        );
+      }
+      const published = await this.localFiles.publish(prepared.value, remote.value.value, signal);
+      if (!published.ok)
+        return toolFailureV1(
+          "board_export",
+          requestId,
+          "mcp",
+          published.error
+        );
+      return toolSuccessV1(
+        "board_export",
+        requestId,
+        published.value,
+        null
+      );
+    } finally {
+      this.localFiles.release(prepared.value);
+    }
   }
 };
 
@@ -36895,13 +38719,13 @@ var InteractionToolHandlersV1 = class {
 };
 
 // sceneboard-mcp/src/tools/media.tools.ts
-import { randomBytes as randomBytes7 } from "node:crypto";
+import { randomBytes as randomBytes9 } from "node:crypto";
 
 // sceneboard-mcp/src/media/local-media-file.ts
-import { createHash as createHash3 } from "node:crypto";
-import { constants as constants4 } from "node:fs";
-import { lstat as lstat5, open as open3 } from "node:fs/promises";
-import { isAbsolute as isAbsolute3, normalize, parse as parse4, sep } from "node:path";
+import { createHash as createHash4 } from "node:crypto";
+import { constants as constants5 } from "node:fs";
+import { lstat as lstat6, open as open4 } from "node:fs/promises";
+import { isAbsolute as isAbsolute4, normalize as normalize2, parse as parse4, sep } from "node:path";
 var LOCAL_MEDIA_MAX_BYTES_V1 = 10485760;
 var identity = (stat) => ({
   dev: stat.dev,
@@ -36912,7 +38736,7 @@ var identity = (stat) => ({
   ctimeNs: stat.ctimeNs
 });
 var sameIdentity = (left, right) => left.dev === right.dev && left.ino === right.ino && left.mode === right.mode && left.size === right.size && left.mtimeNs === right.mtimeNs && left.ctimeNs === right.ctimeNs;
-var lexicalPathValid = (value) => value.length > 0 && !value.includes("\0") && !/[*?[\]{}!]/u.test(value) && isAbsolute3(value) && value !== parse4(value).root && !value.endsWith(sep) && normalize(value) === value;
+var lexicalPathValid = (value) => value.length > 0 && !value.includes("\0") && !/[*?[\]{}!]/u.test(value) && isAbsolute4(value) && value !== parse4(value).root && !value.endsWith(sep) && normalize2(value) === value;
 var detectedMime = (bytes) => {
   if (bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])))
     return "image/png";
@@ -36925,13 +38749,13 @@ var detectedMime = (bytes) => {
 var changed = () => ({ ok: false, code: "LOCAL_FILE_CHANGED" });
 var captureLocalMediaFileV1 = async (path) => {
   if (!lexicalPathValid(path)) return { ok: false, code: "INPUT_INVALID" };
-  if (process.platform === "win32" || typeof constants4.O_NOFOLLOW !== "number" || typeof constants4.O_NONBLOCK !== "number")
+  if (process.platform === "win32" || typeof constants5.O_NOFOLLOW !== "number" || typeof constants5.O_NONBLOCK !== "number")
     return { ok: false, code: "LOCAL_FILE_PLATFORM_UNSUPPORTED" };
   let handle = null;
   let bytes = null;
   let retained = false;
   try {
-    handle = await open3(path, constants4.O_RDONLY | constants4.O_NOFOLLOW | constants4.O_NONBLOCK);
+    handle = await open4(path, constants5.O_RDONLY | constants5.O_NOFOLLOW | constants5.O_NONBLOCK);
     const before = await handle.stat({ bigint: true });
     if (!before.isFile()) return changed();
     if (before.size < 1n) return changed();
@@ -36955,9 +38779,9 @@ var captureLocalMediaFileV1 = async (path) => {
     }
     const mime = detectedMime(bytes);
     if (mime === null) return { ok: false, code: "LOCAL_MEDIA_UNSUPPORTED" };
-    const digest = createHash3("sha256").update(bytes).digest();
+    const digest = createHash4("sha256").update(bytes).digest();
     const afterDescriptor = await handle.stat({ bigint: true });
-    const afterPath = await lstat5(path, { bigint: true });
+    const afterPath = await lstat6(path, { bigint: true });
     if (!afterDescriptor.isFile() || !afterPath.isFile() || afterPath.isSymbolicLink() || !sameIdentity(first, identity(afterDescriptor)) || !sameIdentity(first, identity(afterPath)))
       return changed();
     retained = true;
@@ -37029,8 +38853,8 @@ var MediaPlaceInputSchemaV1 = external_exports.object({
     }).strict()
   ])
 }).strict();
-var localConnectionError = (error2) => localFromSdkErrorV1(
-  error2.code === "TRANSPORT_ERROR" && error2.phase === "connect" ? { ...error2, phase: "credential" } : error2
+var localConnectionError = (error3) => localFromSdkErrorV1(
+  error3.code === "TRANSPORT_ERROR" && error3.phase === "connect" ? { ...error3, phase: "credential" } : error3
 );
 var authorizationFailure = (tool, requestId, result) => {
   if (result.reason === "not_connected")
@@ -37061,7 +38885,7 @@ var internalFailure = (tool, requestId) => toolFailureV1(
   tool,
   requestId,
   "mcp",
-  internalToolErrorV1(randomBytes7(16).toString("base64url"))
+  internalToolErrorV1(randomBytes9(16).toString("base64url"))
 );
 var boardFailure = (tool, requestId, value) => toolFailureV1(tool, requestId, "board", value);
 var MediaToolHandlersV1 = class {
@@ -37329,17 +39153,17 @@ var validateNode = (value, operationIndex, field) => {
   if (!parsed.ok) return prefixError(parsed.error, operationIndex, field);
   return parsed.data.value;
 };
-var prefixError = (error2, operationIndex, field) => {
-  if (error2.code === "INVALID_PAYLOAD" || error2.code === "INVALID_LAYOUT" || error2.code === "LIMIT_EXCEEDED") {
+var prefixError = (error3, operationIndex, field) => {
+  if (error3.code === "INVALID_PAYLOAD" || error3.code === "INVALID_LAYOUT" || error3.code === "LIMIT_EXCEEDED") {
     return {
-      ...error2,
+      ...error3,
       details: {
-        ...error2.details,
-        path: ["operations", operationIndex, field, ...error2.details.path]
+        ...error3.details,
+        path: ["operations", operationIndex, field, ...error3.details.path]
       }
     };
   }
-  return error2;
+  return error3;
 };
 var validateParent = (parent, operationIndex) => {
   const parsed = BoardNodeParserV1.parse(parent);
@@ -37397,7 +39221,7 @@ var removeLocatedNode = (location) => {
   if (entries === null) throw new Error("invalid parent");
   entries.splice(location.index, 1);
 };
-var errorResult = (error2) => ({ ok: false, error: error2 });
+var errorResult = (error3) => ({ ok: false, error: error3 });
 var applyOperation = (scene, operation, operationIndex) => {
   if (!isRecord4(operation) || typeof operation.type !== "string") {
     return invalid2(operationIndex, "type", "operation must be a strict object");
@@ -37668,8 +39492,8 @@ var applySceneTransformV1 = (scene, operations) => {
     return errorResult(invalid2(0, "type", "scene cannot be cloned"));
   }
   for (let operationIndex = 0; operationIndex < operations.length; operationIndex += 1) {
-    const error2 = applyOperation(working, operations[operationIndex], operationIndex);
-    if (error2 !== null) return errorResult(error2);
+    const error3 = applyOperation(working, operations[operationIndex], operationIndex);
+    if (error3 !== null) return errorResult(error3);
   }
   return SceneParserV1.parse(working);
 };
@@ -37717,6 +39541,8 @@ var SceneToolHandlersV1 = class {
     if (!parsed.success) return validationFailureV1("board_scene_get", requestId, parsed.error);
     if (parsed.data.revisionId === null) {
       const result2 = await this.gateway.call(
+        "board_scene_get",
+        "board.get",
         (client) => client.getBoard(
           {
             protocolVersion: 1,
@@ -37737,6 +39563,8 @@ var SceneToolHandlersV1 = class {
       );
     }
     const result = await this.gateway.call(
+      "board_scene_get",
+      "board.get",
       (client) => client.getHistory(
         {
           protocolVersion: 1,
@@ -37775,6 +39603,8 @@ var SceneToolHandlersV1 = class {
         scene.error
       );
     const result = await this.gateway.call(
+      "board_scene_replace",
+      "scene.replace",
       (client) => client.mutateBoard(
         {
           protocolVersion: 1,
@@ -37799,6 +39629,8 @@ var SceneToolHandlersV1 = class {
     const parsed = ScenePatchInputSchemaV1.safeParse(raw);
     if (!parsed.success) return validationFailureV1("board_scene_patch", requestId, parsed.error);
     const head = await this.gateway.call(
+      "board_scene_patch",
+      "scene.replace",
       (client) => client.getBoard(
         {
           protocolVersion: 1,
@@ -37832,6 +39664,8 @@ var SceneToolHandlersV1 = class {
         transformed.error
       );
     const result = await this.gateway.call(
+      "board_scene_patch",
+      "scene.replace",
       (client) => client.mutateBoard(
         {
           protocolVersion: 1,
@@ -37859,6 +39693,8 @@ var SceneToolHandlersV1 = class {
     const parsed = SceneClearInputSchemaV1.safeParse(raw);
     if (!parsed.success) return validationFailureV1("board_scene_clear", requestId, parsed.error);
     const result = await this.gateway.call(
+      "board_scene_clear",
+      "scene.clear",
       (client) => client.mutateBoard(
         {
           protocolVersion: 1,
@@ -37923,6 +39759,30 @@ var BOARD_TOOL_NAMES_V1 = [
   ...CORE_TOOL_NAMES_V1.slice(21),
   ...DOWNSTREAM_TOOL_NAMES_V1.slice(3)
 ];
+var API_KEY_TOOL_NAMES_V1 = [
+  "board_connection_status",
+  "board_list",
+  "board_get",
+  "board_create",
+  "board_rename",
+  "board_archive",
+  "board_capabilities_get",
+  "board_scene_get",
+  "board_scene_replace",
+  "board_scene_patch",
+  "board_scene_clear",
+  "board_document_get",
+  "board_document_replace",
+  "board_page_add",
+  "board_page_remove",
+  "board_page_reorder",
+  "board_page_update",
+  "board_page_default_set",
+  "board_history_list",
+  "board_history_get",
+  "board_history_restore",
+  "board_export"
+];
 var BOARD_TOOL_ERROR_CODES_V1 = {
   board_connection_status: [
     "INVALID_PAYLOAD",
@@ -37972,6 +39832,15 @@ var BOARD_TOOL_ERROR_CODES_V1 = {
     "UNAUTHENTICATED",
     "FORBIDDEN",
     "IDEMPOTENCY_KEY_REUSED",
+    "RATE_LIMITED",
+    "SERVICE_UNAVAILABLE",
+    "INTERNAL_ERROR"
+  ],
+  board_rename: [
+    "INVALID_PAYLOAD",
+    "UNAUTHENTICATED",
+    "FORBIDDEN",
+    "BOARD_NOT_FOUND",
     "RATE_LIMITED",
     "SERVICE_UNAVAILABLE",
     "INTERNAL_ERROR"
@@ -38254,6 +40123,19 @@ var BOARD_TOOL_ERROR_CODES_V1 = {
     "SERVICE_UNAVAILABLE",
     "INTERNAL_ERROR"
   ],
+  board_export: [
+    "EXPORT_INVALID_REQUEST",
+    "EXPORT_UNAUTHENTICATED",
+    "EXPORT_FORBIDDEN",
+    "EXPORT_NOT_FOUND",
+    "EXPORT_REQUIRED_CONTENT_UNSUPPORTED",
+    "EXPORT_BOUNDS_EXCEEDED",
+    "EXPORT_RATE_LIMITED",
+    "EXPORT_RENDERER_UNAVAILABLE",
+    "EXPORT_RENDER_TIMEOUT",
+    "EXPORT_ENCODE_FAILED",
+    "EXPORT_INTERNAL_ERROR"
+  ],
   board_artifact_get: [
     "INVALID_PAYLOAD",
     "PROTOCOL_VERSION_MISMATCH",
@@ -38345,7 +40227,9 @@ var registerCoreToolsV1 = (server, options) => {
   const artifacts = new ArtifactToolHandlersV1(options.gateway);
   const interactions = new InteractionToolHandlersV1(options.gateway);
   const media = new MediaToolHandlersV1(options.gateway);
-  const names = options.downstreamReady === true ? BOARD_TOOL_NAMES_V1 : CORE_TOOL_NAMES_V1;
+  const exports = new ExportToolHandlersV1(options.gateway, options.localExports ?? null);
+  const credentialMode = options.credentialMode ?? "pairing";
+  const names = credentialMode === "api_key" ? API_KEY_TOOL_NAMES_V1 : options.downstreamReady === true ? BOARD_TOOL_NAMES_V1 : CORE_TOOL_NAMES_V1;
   const protectedNames = names.filter(
     (name) => !SAFE_TOOL_NAMES_V1.includes(name)
   );
@@ -38377,16 +40261,16 @@ var registerCoreToolsV1 = (server, options) => {
         try {
           result = await handler(raw, extra.signal);
         } catch {
-          result = toolFailureV1(name, randomBytes8(16).toString("base64url"), "mcp", {
+          result = toolFailureV1(name, randomBytes10(16).toString("base64url"), "mcp", {
             code: "BOARD_MCP_INTERNAL_ERROR",
             message: "SceneBoard tool execution failed",
             retryable: false,
-            details: { incidentId: randomBytes8(16).toString("base64url") }
+            details: { incidentId: randomBytes10(16).toString("base64url") }
           });
         }
         const structured = result.structuredContent;
-        const error2 = structured?.error;
-        if (error2?.source === "board" && error2.value?.code === "UNAUTHENTICATED")
+        const error3 = structured?.error;
+        if (error3?.source === "board" && error3.value?.code === "UNAUTHENTICATED")
           setProtectedEnabled(false);
         return result;
       }
@@ -38400,18 +40284,20 @@ var registerCoreToolsV1 = (server, options) => {
     ConnectionStatusInputSchemaV1,
     (raw, signal) => connection.status(raw, signal)
   );
-  add(
-    "board_pair_request",
-    "Claim a human-created pairing code using the configured private credential sink.",
-    PairRequestInputSchemaV1,
-    (raw, signal) => connection.pairRequest(raw, signal)
-  );
-  add(
-    "board_pair_status",
-    "Wait for or read the current proof-authenticated pairing state.",
-    PairStatusInputSchemaV1,
-    (raw, signal) => connection.pairStatus(raw, signal)
-  );
+  if (credentialMode === "pairing") {
+    add(
+      "board_pair_request",
+      "Claim a human-created pairing code using the configured private credential sink.",
+      PairRequestInputSchemaV1,
+      (raw, signal) => connection.pairRequest(raw, signal)
+    );
+    add(
+      "board_pair_status",
+      "Wait for or read the current proof-authenticated pairing state.",
+      PairStatusInputSchemaV1,
+      (raw, signal) => connection.pairStatus(raw, signal)
+    );
+  }
   add(
     "board_list",
     "List authorized SceneBoard boards.",
@@ -38433,6 +40319,15 @@ var registerCoreToolsV1 = (server, options) => {
     (raw, signal) => boards.create(raw, signal),
     true
   );
+  if (credentialMode === "api_key") {
+    add(
+      "board_rename",
+      "Rename one owner board.",
+      BoardRenameInputSchemaV1,
+      (raw, signal) => boards.rename(raw, signal),
+      true
+    );
+  }
   add(
     "board_archive",
     "Archive one board with explicit confirmation.",
@@ -38524,21 +40419,23 @@ var registerCoreToolsV1 = (server, options) => {
     (raw, signal) => documents.defaultSet(raw, signal),
     true
   );
-  add(
-    "sceneboard_media_upload",
-    "Upload one explicitly authorized local PNG, JPEG, or WebP file.",
-    MediaUploadInputSchemaV1,
-    (raw, signal) => media.upload(raw, signal),
-    true
-  );
-  add(
-    "sceneboard_media_place",
-    "Place one immutable media image in an exact V2 document revision.",
-    MediaPlaceInputSchemaV1,
-    (raw, signal) => media.place(raw, signal),
-    true
-  );
-  if (options.downstreamReady === true) {
+  if (credentialMode === "pairing") {
+    add(
+      "sceneboard_media_upload",
+      "Upload one explicitly authorized local PNG, JPEG, or WebP file.",
+      MediaUploadInputSchemaV1,
+      (raw, signal) => media.upload(raw, signal),
+      true
+    );
+    add(
+      "sceneboard_media_place",
+      "Place one immutable media image in an exact V2 document revision.",
+      MediaPlaceInputSchemaV1,
+      (raw, signal) => media.place(raw, signal),
+      true
+    );
+  }
+  if (credentialMode === "pairing" && options.downstreamReady === true) {
     add(
       "board_artifact_get",
       "Read one exact immutable artifact/version manifest and runtime state.",
@@ -38582,7 +40479,16 @@ var registerCoreToolsV1 = (server, options) => {
     (raw, signal) => history.restore(raw, signal),
     true
   );
-  if (options.downstreamReady === true) {
+  if (credentialMode === "api_key") {
+    add(
+      "board_export",
+      "Export one current or retained board revision to a new no-clobber local PDF or PPTX file.",
+      BoardExportInputSchemaV1,
+      (raw, signal) => exports.export(raw, signal),
+      true
+    );
+  }
+  if (credentialMode === "pairing" && options.downstreamReady === true) {
     add(
       "board_interaction_request",
       "Create an exact human interaction, then immediately await it with board_interaction_status.",
@@ -38618,6 +40524,7 @@ var MissingTokenProviderV1 = class {
 };
 var configuredParts = async (loaded, env, fetchImplementation, logger) => {
   const reference = resolveSecretReferenceV1(loaded.config, env);
+  const credentialMode = loaded.config.credentialMode ?? "pairing";
   let tokens;
   let pairing;
   const connectionClient = new ConnectionHttpClientV1({
@@ -38626,6 +40533,25 @@ var configuredParts = async (loaded, env, fetchImplementation, logger) => {
     timeoutMs: loaded.config.timeoutMs,
     logger
   });
+  if (credentialMode === "api_key") {
+    if (reference.kind === "environment") {
+      tokens = new ApiKeyTokenProviderV1({
+        kind: "environment",
+        apiKey: env.SCENEBOARD_API_KEY
+      });
+    } else {
+      const store = new PrivateFileApiKeyStoreV1(reference.stateDirectory);
+      tokens = new ApiKeyTokenProviderV1({ kind: "store", store });
+    }
+    pairing = new UnavailablePairingCoordinatorV1("read_only");
+    return {
+      loaded,
+      tokens,
+      pairing,
+      connections: new ApiKeyConnectionStatusServiceV1(loaded, tokens, connectionClient),
+      credentialMode
+    };
+  }
   if (reference.kind === "environment") {
     tokens = new EnvironmentTokenProviderV1(env.SCENEBOARD_ACCESS_TOKEN);
     pairing = new UnavailablePairingCoordinatorV1("read_only");
@@ -38663,14 +40589,15 @@ var configuredParts = async (loaded, env, fetchImplementation, logger) => {
       );
       const connections = new ConnectionStatusServiceV1(loaded, tokens, connectionClient);
       connectionProbe = (accessToken, signal) => connections.probeWithToken(accessToken, signal);
-      return { loaded, tokens, pairing, connections };
+      return { loaded, tokens, pairing, connections, credentialMode };
     }
   }
   return {
     loaded,
     tokens,
     pairing,
-    connections: new ConnectionStatusServiceV1(loaded, tokens, connectionClient)
+    connections: new ConnectionStatusServiceV1(loaded, tokens, connectionClient),
+    credentialMode
   };
 };
 var createBoardMcpServerV1 = async (options = {}) => {
@@ -38689,6 +40616,7 @@ var createBoardMcpServerV1 = async (options = {}) => {
     logger
   });
   let authenticated = false;
+  let credentialMode = "pairing";
   try {
     const loaded = await discoverBoardConfigV1({
       argv: options.argv ?? process.argv.slice(2),
@@ -38696,6 +40624,7 @@ var createBoardMcpServerV1 = async (options = {}) => {
       env
     });
     const parts = await configuredParts(loaded, env, fetchImplementation, logger);
+    credentialMode = parts.credentialMode;
     pairing = parts.pairing;
     connections = parts.connections;
     gateway = new ProtectedBoardGatewayV1({
@@ -38703,15 +40632,16 @@ var createBoardMcpServerV1 = async (options = {}) => {
       fetch: fetchImplementation,
       timeoutMs: parts.loaded.config.timeoutMs,
       tokens: parts.tokens,
-      logger
+      logger,
+      credentialMode
     });
     if (options.probeOnStart !== false) {
-      const probe = await parts.connections.status(null, randomBytes9(16).toString("base64url"));
+      const probe = await parts.connections.status(null, randomBytes11(16).toString("base64url"));
       authenticated = probe.ok && probe.value.state === "connected";
     }
-  } catch (error2) {
+  } catch (error3) {
     logger.log({
-      event: error2 instanceof BoardConfigError ? "config_invalid" : "startup_boundary_unavailable"
+      event: error3 instanceof BoardConfigError ? "config_invalid" : "startup_boundary_unavailable"
     });
   }
   const server = new McpServer(
@@ -38725,14 +40655,20 @@ var createBoardMcpServerV1 = async (options = {}) => {
     pairing,
     connections,
     authenticated,
-    downstreamReady: true
+    downstreamReady: true,
+    credentialMode,
+    localExports: new LocalExportFileV1({
+      manifestPath: fileURLToPath(
+        new URL("../native/local-export-helper.manifest.json", import.meta.url)
+      )
+    })
   });
   let closed = false;
   return {
     server,
     registry: registry2,
     authenticated,
-    connect: (transport2) => server.connect(transport2),
+    connect: (transport) => server.connect(transport),
     close: async () => {
       if (closed) return;
       closed = true;
@@ -38743,27 +40679,39 @@ var createBoardMcpServerV1 = async (options = {}) => {
 };
 
 // sceneboard-mcp/src/index.ts
-var runtime = await createBoardMcpServerV1();
-var transport = new StdioServerTransport();
-var closing = false;
-var shutdown = async () => {
-  if (closing) return;
-  closing = true;
-  await runtime.close();
-};
-process.stdin.once("end", () => {
-  void shutdown();
+var command = await runApiKeyCredentialCommandV1({
+  argv: process.argv.slice(2),
+  cwd: process.cwd(),
+  env: process.env,
+  stdin: process.stdin,
+  stdout: (value) => process.stdout.write(value),
+  stderr: (value) => process.stderr.write(value)
 });
-process.once("SIGINT", () => {
-  void shutdown();
-});
-process.once("SIGTERM", () => {
-  void shutdown();
-});
-try {
-  await runtime.connect(transport);
-} catch {
-  process.stderr.write('{"event":"mcp_start_failed"}\n');
-  process.exitCode = 1;
-  await shutdown();
+if (command.handled) {
+  process.exitCode = command.exitCode;
+} else {
+  const runtime = await createBoardMcpServerV1();
+  const transport = new StdioServerTransport();
+  let closing = false;
+  const shutdown = async () => {
+    if (closing) return;
+    closing = true;
+    await runtime.close();
+  };
+  process.stdin.once("end", () => {
+    void shutdown();
+  });
+  process.once("SIGINT", () => {
+    void shutdown();
+  });
+  process.once("SIGTERM", () => {
+    void shutdown();
+  });
+  try {
+    await runtime.connect(transport);
+  } catch {
+    process.stderr.write('{"event":"mcp_start_failed"}\n');
+    process.exitCode = 1;
+    await shutdown();
+  }
 }

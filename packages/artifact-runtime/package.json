@@ -16,6 +16,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./bridge": "./src/bridge/index.ts",
+    "./export": "./src/export/index.ts",
     "./package": "./src/package/index.ts",
     "./policy": "./src/policy/index.ts",
     "./server": "./src/server/index.ts",

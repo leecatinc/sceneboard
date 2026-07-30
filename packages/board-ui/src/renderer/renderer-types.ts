@@ -52,7 +52,7 @@ export type PageRendererContextV2 = Readonly<{
   artifacts: BoardSnapshot['artifacts'];
   capabilities: BoardSnapshot['capabilities'];
   lastEventSequence: number;
-  documentSchemaVersion: 1 | 2;
+  documentSchemaVersion: 1 | 2 | 3;
   selectedPageId: PageId;
 }>;
 
