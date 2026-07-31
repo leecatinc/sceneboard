@@ -119,6 +119,10 @@ export const ACCOUNT_API_KEY_TOOL_POLICIES_V1 = Object.freeze({
     operation: 'scene.restore',
     scopes: Object.freeze(['board:write', 'history:read']),
   }),
+  board_export: Object.freeze({
+    operation: 'export.render',
+    scopes: Object.freeze(['export:read']),
+  }),
 } as const);
 
 export type AccountApiKeyToolNameV1 = keyof typeof ACCOUNT_API_KEY_TOOL_POLICIES_V1;

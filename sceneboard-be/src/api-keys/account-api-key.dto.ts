@@ -34,16 +34,16 @@ export const parseAccountApiKeyCreateDto = (value: unknown): AccountApiKeyCreate
   )
     throw new AppError('INVALID_PAYLOAD');
   const scopes = parseAccountApiKeyScopes(source.scopes as readonly string[] | undefined);
-  if (
-    typeof source.expiresAt !== 'string' ||
-    !ISO_TIMESTAMP.test(source.expiresAt) ||
-    new Date(source.expiresAt).toISOString() !== source.expiresAt
-  )
+  if (typeof source.expiresAt !== 'string' || !ISO_TIMESTAMP.test(source.expiresAt))
     throw new AppError('INVALID_PAYLOAD');
+  const expiresAt = Date.parse(source.expiresAt);
+  if (!Number.isSafeInteger(expiresAt) || new Date(expiresAt).toISOString() !== source.expiresAt) {
+    throw new AppError('INVALID_PAYLOAD');
+  }
   return {
     displayName: source.displayName,
     scopes: source.scopes === undefined ? undefined : scopes,
-    expiresAt: Date.parse(source.expiresAt),
+    expiresAt,
   };
 };
 

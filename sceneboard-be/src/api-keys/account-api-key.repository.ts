@@ -2,6 +2,7 @@ import type { AccountApiKeyScopeV1 } from '@sceneboard/board-schema';
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 
 import { AuditRepository } from '../audit/audit.repository.js';
+import { parseMysqlTimestampUtc } from '../common/time/mysql-timestamp.js';
 import { MysqlService } from '../database/mysql.service.js';
 import { withTransaction } from '../database/transaction.js';
 import {
@@ -41,6 +42,7 @@ export interface AccountApiKeyCredentialRecord {
   scopeMask: number;
   persistedStatus: number;
   expiresAt: number;
+  databaseNow: number;
 }
 
 export interface ActiveAccountApiKeySnapshot {
@@ -56,6 +58,10 @@ export interface ActiveAccountApiKeySnapshot {
 interface OwnerRow extends RowDataPacket {
   status: number;
   publicId: string;
+}
+
+interface DatabaseClockRow extends RowDataPacket {
+  databaseNow: string;
 }
 
 interface MetadataRow extends RowDataPacket {
@@ -81,6 +87,7 @@ interface CredentialRow extends RowDataPacket {
   scopeMask: number;
   persistedStatus: number;
   expiresAt: string;
+  databaseNow: string;
 }
 
 interface ActiveRecheckRow extends RowDataPacket {
@@ -96,8 +103,11 @@ interface ActiveRecheckRow extends RowDataPacket {
 export type AccountApiKeyIssuePersistenceResult =
   | { kind: 'created'; metadata: AccountApiKeyMetadata }
   | { kind: 'owner_disabled' }
+  | { kind: 'invalid_expiry' }
   | { kind: 'quota_exceeded' }
   | { kind: 'collision' };
+
+const DAY_MS = 24 * 60 * 60 * 1_000;
 
 export type AccountApiKeyRevokePersistenceResult = {
   kind: 'revoked' | 'already_revoked' | 'not_found';
@@ -137,8 +147,7 @@ export class AccountApiKeyRepository {
     locator: Buffer;
     tokenHash: Buffer;
     scopeMask: number;
-    expiresAt: number;
-    now: number;
+    expiresAt: number | undefined;
     prefix: string;
     auditContext: AccountApiKeyAuditContext;
   }): Promise<AccountApiKeyIssuePersistenceResult> {
@@ -147,11 +156,18 @@ export class AccountApiKeyRepository {
         withTransaction(connection, 'READ COMMITTED', async () => {
           const owner = await this.lockOwner(connection, input.ownerUserPk);
           if (owner === null || owner.status !== 1) return { kind: 'owner_disabled' as const };
+          const databaseNow = await this.databaseNow(connection);
+          const databaseNowMs = millis(databaseNow);
+          const expiresAt = input.expiresAt ?? databaseNowMs + 90 * DAY_MS;
+          const duration = expiresAt - databaseNowMs;
+          if (!Number.isSafeInteger(expiresAt) || duration < DAY_MS || duration > 365 * DAY_MS) {
+            return { kind: 'invalid_expiry' as const };
+          }
           const [counts] = await connection.execute<Array<RowDataPacket & { activeCount: number }>>(
             `SELECT COUNT(*) AS activeCount
              FROM account_api_keys
              WHERE owner_user_id = ? AND status = 1 AND expires_at > ?`,
-            [input.ownerUserPk, mysqlDate(input.now)],
+            [input.ownerUserPk, databaseNow],
           );
           if (Number(counts[0]?.activeCount ?? 0) >= 10) return { kind: 'quota_exceeded' as const };
           let inserted: ResultSetHeader;
@@ -168,8 +184,8 @@ export class AccountApiKeyRepository {
                 input.locator,
                 input.tokenHash,
                 input.scopeMask,
-                mysqlDate(input.expiresAt),
-                mysqlDate(input.now),
+                mysqlDate(expiresAt),
+                databaseNow,
               ],
             );
           } catch (error) {
@@ -186,8 +202,8 @@ export class AccountApiKeyRepository {
             prefix: input.prefix,
             scopes: accountApiKeyScopesFromMask(input.scopeMask),
             status: 'active',
-            createdAt: new Date(input.now).toISOString(),
-            expiresAt: new Date(input.expiresAt).toISOString(),
+            createdAt: iso(databaseNow),
+            expiresAt: new Date(expiresAt).toISOString(),
             lastUsedAt: null,
           };
           if (inserted.affectedRows !== 1) throw new Error('account API-key insert failed');
@@ -204,7 +220,6 @@ export class AccountApiKeyRepository {
     ownerUserPk: string;
     boundary: AccountApiKeyListBoundary | null;
     limit: number;
-    now: number;
     prefixFromLocator: (locator: Uint8Array) => string;
     auditContext: AccountApiKeyAuditContext;
   }): Promise<{ items: AccountApiKeyMetadata[]; nextBoundary: AccountApiKeyListBoundary | null }> {
@@ -260,15 +275,14 @@ export class AccountApiKeyRepository {
   async revoke(input: {
     ownerUserPk: string;
     keyPublicId: string;
-    now: number;
     auditContext: AccountApiKeyAuditContext;
   }): Promise<AccountApiKeyRevokePersistenceResult> {
     return this.mysql.withConnection((connection) =>
       withTransaction(connection, 'READ COMMITTED', async () => {
         const [rows] = await connection.execute<
-          Array<RowDataPacket & { id: string; status: number }>
+          Array<RowDataPacket & { id: string; status: number; databaseNow: string }>
         >(
-          `SELECT CAST(id AS CHAR) AS id, status
+          `SELECT CAST(id AS CHAR) AS id, status, UTC_TIMESTAMP(3) AS databaseNow
            FROM account_api_keys
            WHERE owner_user_id = ? AND public_id = ?
            FOR UPDATE`,
@@ -280,9 +294,9 @@ export class AccountApiKeyRepository {
         if (row !== undefined && row.status === 1) {
           const [updated] = await connection.execute<ResultSetHeader>(
             `UPDATE account_api_keys
-             SET status = 2, revoked_at = ?
+             SET status = 2, revoked_at = GREATEST(?, created_at)
              WHERE id = ? AND status = 1`,
-            [mysqlDate(input.now), row.id],
+            [row.databaseNow, row.id],
           );
           if (updated.affectedRows !== 1) throw new Error('account API-key revoke failed');
         }
@@ -311,7 +325,8 @@ export class AccountApiKeyRepository {
            k.token_hash AS tokenHash,
            k.scope_mask AS scopeMask,
            k.status AS persistedStatus,
-           k.expires_at AS expiresAt
+           k.expires_at AS expiresAt,
+           UTC_TIMESTAMP(3) AS databaseNow
          FROM account_api_keys k
          JOIN users u ON u.id = k.owner_user_id
          WHERE k.token_locator = ?`,
@@ -319,13 +334,22 @@ export class AccountApiKeyRepository {
       );
       const row = rows[0];
       if (row === undefined) return null;
+      let expiresAt: number;
+      let databaseNow: number;
+      try {
+        expiresAt = parseMysqlTimestampUtc(row.expiresAt).valueOf();
+        databaseNow = parseMysqlTimestampUtc(row.databaseNow).valueOf();
+      } catch {
+        return null;
+      }
       return {
         ...row,
         tokenHash: Buffer.from(row.tokenHash),
         scopeMask: Number(row.scopeMask),
         ownerStatus: Number(row.ownerStatus),
         persistedStatus: Number(row.persistedStatus),
-        expiresAt: millis(row.expiresAt),
+        expiresAt,
+        databaseNow,
       };
     });
   }
@@ -354,7 +378,6 @@ export class AccountApiKeyRepository {
   async recheckActive(
     connection: PoolConnection,
     snapshot: ActiveAccountApiKeySnapshot,
-    now: number,
   ): Promise<boolean> {
     const [rows] = await connection.execute<ActiveRecheckRow[]>(
       `SELECT
@@ -368,6 +391,7 @@ export class AccountApiKeyRepository {
        FROM account_api_keys k
        JOIN users u ON u.id = k.owner_user_id
        WHERE k.id = ?
+         AND k.expires_at > UTC_TIMESTAMP(3)
        FOR UPDATE`,
       [snapshot.keyPk],
     );
@@ -379,20 +403,19 @@ export class AccountApiKeyRepository {
       row.ownerPublicId === snapshot.ownerPublicId &&
       Number(row.ownerStatus) === 1 &&
       Number(row.persistedStatus) === 1 &&
-      Number(row.scopeMask) === snapshot.scopeMask &&
-      millis(row.expiresAt) > now
+      Number(row.scopeMask) === snapshot.scopeMask
     );
   }
 
-  async markUsed(keyPk: string, now: number): Promise<void> {
+  async markUsed(keyPk: string): Promise<void> {
     await this.mysql.withConnection(async (connection) => {
       await connection.execute(
         `UPDATE account_api_keys
-         SET last_used_at = ?
+         SET last_used_at = GREATEST(UTC_TIMESTAMP(3), created_at)
          WHERE id = ?
            AND status = 1
-           AND (last_used_at IS NULL OR last_used_at < ?)`,
-        [mysqlDate(now), keyPk, mysqlDate(now - 60_000)],
+           AND (last_used_at IS NULL OR last_used_at < UTC_TIMESTAMP(3) - INTERVAL 60 SECOND)`,
+        [keyPk],
       );
     });
   }
@@ -409,5 +432,14 @@ export class AccountApiKeyRepository {
       [ownerUserPk],
     );
     return rows[0] ?? null;
+  }
+
+  private async databaseNow(connection: PoolConnection): Promise<string> {
+    const [rows] = await connection.execute<DatabaseClockRow[]>(
+      'SELECT UTC_TIMESTAMP(3) AS databaseNow',
+    );
+    const databaseNow = rows[0]?.databaseNow;
+    if (databaseNow === undefined) throw new Error('database clock read failed');
+    return databaseNow;
   }
 }

@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import type { PoolConnection } from 'mysql2/promise';
 
 import type { AppEnvironment } from '../config/env.schema.js';
@@ -18,7 +19,21 @@ import {
 } from './account-api-key.scope.js';
 import { AccountApiKeyTokenCodec } from './account-api-key-token.codec.js';
 
-const DAY_MS = 24 * 60 * 60 * 1_000;
+interface AccountApiKeyOperationalLogger {
+  warn(message: unknown): void;
+}
+
+type RateLimitFailure = { error: unknown; cached: boolean } | null;
+
+type AccountApiKeyFailureBucket = {
+  surface: 'api-key-auth-failure-ip' | 'api-key-auth-failure-locator';
+  purpose: 'rate-limit-ip/v1' | 'rate-limit-api-key/v1';
+  identity: string;
+  limit: number;
+  windowMs: number;
+};
+
+const MAX_SATURATED_FAILURE_BUCKETS = 4_096;
 
 export interface AccountApiKeyManagementActor {
   ownerUserPk: string;
@@ -40,15 +55,6 @@ const parseName = (value: string): string => {
   return value;
 };
 
-const parseExpiry = (value: number | undefined, now: number): number => {
-  const expiresAt = value ?? now + 90 * DAY_MS;
-  const duration = expiresAt - now;
-  if (!Number.isSafeInteger(expiresAt) || duration < DAY_MS || duration > 365 * DAY_MS) {
-    throw new AppError('INVALID_PAYLOAD');
-  }
-  return expiresAt;
-};
-
 const auditContext = (actor: AccountApiKeyManagementActor): AccountApiKeyAuditContext => ({
   correlationId: actor.correlationId,
   ownerPublicId: actor.ownerPublicId,
@@ -57,6 +63,8 @@ const auditContext = (actor: AccountApiKeyManagementActor): AccountApiKeyAuditCo
 });
 
 export class AccountApiKeyService {
+  private readonly saturatedFailureBuckets = new Map<string, number>();
+
   constructor(
     private readonly repository: AccountApiKeyRepository,
     private readonly tokens: AccountApiKeyTokenCodec,
@@ -66,6 +74,9 @@ export class AccountApiKeyService {
       AppEnvironment,
       'accountApiKeyIssuanceEnabled' | 'accountApiKeyAuthEnabled'
     >,
+    private readonly operationalLogger: AccountApiKeyOperationalLogger = new Logger(
+      AccountApiKeyService.name,
+    ),
   ) {}
 
   async consumeManagementLimits(
@@ -105,7 +116,6 @@ export class AccountApiKeyService {
     const name = parseName(input.name);
     const scopes = parseAccountApiKeyScopes(input.scopes);
     const scopeMask = accountApiKeyScopeMask(scopes);
-    const expiresAt = parseExpiry(input.expiresAt, input.now);
     for (let attempt = 0; attempt < 5; attempt += 1) {
       const issued = this.tokens.issue();
       const keyPublicId = this.crypto.generatePublicIdV1();
@@ -116,13 +126,13 @@ export class AccountApiKeyService {
         locator: issued.locator,
         tokenHash: issued.tokenHash,
         scopeMask,
-        expiresAt,
-        now: input.now,
+        expiresAt: input.expiresAt,
         prefix: this.tokens.prefix(issued.locator),
         auditContext: auditContext(input.actor),
       });
       if (result.kind === 'collision') continue;
       if (result.kind === 'owner_disabled') throw new AppError('UNAUTHENTICATED');
+      if (result.kind === 'invalid_expiry') throw new AppError('INVALID_PAYLOAD');
       if (result.kind === 'quota_exceeded') throw new AppError('RATE_LIMITED');
       return { apiKey: issued.token, metadata: result.metadata };
     }
@@ -143,7 +153,6 @@ export class AccountApiKeyService {
       ownerUserPk: input.actor.ownerUserPk,
       boundary: input.boundary,
       limit,
-      now: input.now,
       prefixFromLocator: (locator) => this.tokens.prefix(locator),
       auditContext: auditContext(input.actor),
     });
@@ -160,7 +169,6 @@ export class AccountApiKeyService {
     const result = await this.repository.revoke({
       ownerUserPk: input.actor.ownerUserPk,
       keyPublicId: input.keyPublicId,
-      now: input.now,
       auditContext: auditContext(input.actor),
     });
     if (result.kind === 'not_found') throw new AppError('API_KEY_NOT_FOUND');
@@ -169,7 +177,7 @@ export class AccountApiKeyService {
   async resolveBearer(
     token: string,
     context: AccountApiKeyAuthenticationContext,
-    now: number,
+    _now?: number,
   ): Promise<ActiveAccountApiKeySnapshot> {
     if (!this.environment.accountApiKeyAuthEnabled) throw new AppError('UNAUTHENTICATED');
     let locator: Buffer;
@@ -177,7 +185,8 @@ export class AccountApiKeyService {
     try {
       ({ locator, locatorText } = this.tokens.parse(token));
     } catch {
-      await this.consumeMalformedFailure(context.clientIp);
+      const rateLimitFailure = await this.consumeMalformedFailure(context.clientIp);
+      if (rateLimitFailure?.cached === true) throw rateLimitFailure.error;
       await this.repository.writeAuthenticationAudit({
         context: {
           correlationId: context.correlationId,
@@ -192,8 +201,11 @@ export class AccountApiKeyService {
           subjectFingerprint: null,
         },
       });
+      if (rateLimitFailure !== null) throw rateLimitFailure.error;
       throw new AppError('UNAUTHENTICATED');
     }
+    const preflightFailure = this.preflightWellFormedFailure(locatorText, context.clientIp);
+    if (preflightFailure !== null) throw preflightFailure.error;
     const credential = await this.repository.findCredential(locator);
     const presentedHash = this.tokens.hash(token);
     const hashMatches = this.crypto.constantTimeEqual(
@@ -209,11 +221,12 @@ export class AccountApiKeyService {
             ? 'owner_disabled'
             : credential.persistedStatus !== 1
               ? 'revoked'
-              : credential.expiresAt <= now
+              : credential.expiresAt <= credential.databaseNow
                 ? 'expired'
                 : null;
     if (reason !== null) {
-      await this.consumeWellFormedFailure(locatorText, context.clientIp);
+      const rateLimitFailure = await this.consumeWellFormedFailure(locatorText, context.clientIp);
+      if (rateLimitFailure?.cached === true) throw rateLimitFailure.error;
       await this.repository.writeAuthenticationAudit({
         context: {
           correlationId: context.correlationId,
@@ -225,9 +238,10 @@ export class AccountApiKeyService {
           succeeded: false,
           keyPublicId: credential?.keyPublicId ?? null,
           reason,
-          subjectFingerprint: this.crypto.hmac('rate-limit-api-key/v1', locatorText),
+          subjectFingerprint: this.crypto.hmac('audit-api-key-locator/v1', locatorText),
         },
       });
+      if (rateLimitFailure !== null) throw rateLimitFailure.error;
       throw new AppError('UNAUTHENTICATED');
     }
     if (credential === null) throw new AppError('SERVICE_UNAVAILABLE');
@@ -249,22 +263,39 @@ export class AccountApiKeyService {
       },
       result: { succeeded: true, keyPublicId: credential.keyPublicId },
     });
-    void this.repository.markUsed(credential.keyPk, now).catch(() => undefined);
+    void this.repository.markUsed(credential.keyPk).catch(() => {
+      this.operationalLogger.warn({
+        event: 'account_api_key_mark_used_failed',
+        keyPublicId: credential.keyPublicId,
+      });
+    });
     return snapshot;
   }
 
   async recheckActive(
     connection: PoolConnection,
     snapshot: ActiveAccountApiKeySnapshot,
-    now: number,
+    _now: number,
   ): Promise<void> {
-    if (!(await this.repository.recheckActive(connection, snapshot, now))) {
+    let canonicalScopes: ActiveAccountApiKeySnapshot['scopes'];
+    try {
+      canonicalScopes = accountApiKeyScopesFromMask(snapshot.scopeMask);
+    } catch {
+      throw new AppError('UNAUTHENTICATED');
+    }
+    if (
+      snapshot.scopes.length !== canonicalScopes.length ||
+      snapshot.scopes.some((scope, index) => scope !== canonicalScopes[index])
+    ) {
+      throw new AppError('UNAUTHENTICATED');
+    }
+    if (!(await this.repository.recheckActive(connection, snapshot))) {
       throw new AppError('UNAUTHENTICATED');
     }
   }
 
-  private async consumeMalformedFailure(clientIp: string): Promise<void> {
-    await this.limiter.consume({
+  private async consumeMalformedFailure(clientIp: string): Promise<RateLimitFailure> {
+    return this.consumeFailureBucket({
       surface: 'api-key-auth-failure-ip',
       purpose: 'rate-limit-ip/v1',
       identity: clientIp,
@@ -273,14 +304,90 @@ export class AccountApiKeyService {
     });
   }
 
-  private async consumeWellFormedFailure(locator: string, clientIp: string): Promise<void> {
-    await this.limiter.consume({
+  private async consumeWellFormedFailure(
+    locator: string,
+    clientIp: string,
+  ): Promise<RateLimitFailure> {
+    const locatorFailure = await this.consumeFailureBucket({
       surface: 'api-key-auth-failure-locator',
       purpose: 'rate-limit-api-key/v1',
       identity: locator,
       limit: 20,
       windowMs: 5 * 60 * 1_000,
     });
-    await this.consumeMalformedFailure(clientIp);
+    const ipFailure = await this.consumeMalformedFailure(clientIp);
+    return locatorFailure ?? ipFailure;
+  }
+
+  private preflightWellFormedFailure(locator: string, clientIp: string): RateLimitFailure {
+    return (
+      this.saturatedFailure({
+        surface: 'api-key-auth-failure-locator',
+        purpose: 'rate-limit-api-key/v1',
+        identity: locator,
+        limit: 20,
+        windowMs: 5 * 60 * 1_000,
+      }) ??
+      this.saturatedFailure({
+        surface: 'api-key-auth-failure-ip',
+        purpose: 'rate-limit-ip/v1',
+        identity: clientIp,
+        limit: 60,
+        windowMs: 5 * 60 * 1_000,
+      })
+    );
+  }
+
+  private async consumeFailureBucket(
+    bucket: AccountApiKeyFailureBucket,
+  ): Promise<RateLimitFailure> {
+    const saturated = this.saturatedFailure(bucket);
+    if (saturated !== null) return saturated;
+    try {
+      await this.limiter.consume(bucket);
+      return null;
+    } catch (error) {
+      if (error instanceof AppError && error.code === 'RATE_LIMITED') {
+        this.rememberSaturatedFailure(bucket, error.retryAfterSeconds);
+      }
+      return { error, cached: false };
+    }
+  }
+
+  private saturatedFailure(bucket: AccountApiKeyFailureBucket): RateLimitFailure {
+    const cacheKey = this.failureBucketCacheKey(bucket);
+    const expiresAt = this.saturatedFailureBuckets.get(cacheKey);
+    if (expiresAt === undefined) return null;
+    const remainingMs = expiresAt - Date.now();
+    if (remainingMs <= 0) {
+      this.saturatedFailureBuckets.delete(cacheKey);
+      return null;
+    }
+    return {
+      error: new AppError('RATE_LIMITED', {
+        retryAfterSeconds: Math.max(1, Math.ceil(remainingMs / 1_000)),
+      }),
+      cached: true,
+    };
+  }
+
+  private rememberSaturatedFailure(
+    bucket: AccountApiKeyFailureBucket,
+    retryAfterSeconds: number | null,
+  ): void {
+    const cacheKey = this.failureBucketCacheKey(bucket);
+    if (
+      !this.saturatedFailureBuckets.has(cacheKey) &&
+      this.saturatedFailureBuckets.size >= MAX_SATURATED_FAILURE_BUCKETS
+    ) {
+      const oldest = this.saturatedFailureBuckets.keys().next().value as string | undefined;
+      if (oldest !== undefined) this.saturatedFailureBuckets.delete(oldest);
+    }
+    const durationMs = (retryAfterSeconds ?? Math.ceil(bucket.windowMs / 1_000)) * 1_000;
+    this.saturatedFailureBuckets.set(cacheKey, Date.now() + durationMs);
+  }
+
+  private failureBucketCacheKey(bucket: AccountApiKeyFailureBucket): string {
+    return `${bucket.surface}:${this.crypto.hmac(bucket.purpose, bucket.identity).toString('base64url')}`;
   }
 }

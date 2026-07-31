@@ -158,6 +158,8 @@ test('create DTO requires a canonical expiry and preserves exact scope selection
   );
   for (const body of [
     { displayName: 'Missing expiry' },
+    { displayName: 'Invalid month', expiresAt: '2026-13-01T00:00:00.000Z' },
+    { displayName: 'Invalid day', expiresAt: '2026-02-30T00:00:00.000Z' },
     { displayName: 'Empty', scopes: [], expiresAt },
     { displayName: 'Unknown', scopes: ['unknown'], expiresAt },
     { displayName: 'Duplicate', scopes: ['board:read', 'board:read'], expiresAt },

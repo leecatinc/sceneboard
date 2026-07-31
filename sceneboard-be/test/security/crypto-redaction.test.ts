@@ -27,12 +27,43 @@ test('generates exact public IDs and separates HKDF purpose keys', () => {
   const grant = crypto.hmac('grant-token/v1', input);
   const cursor = crypto.hmac('grant-list-cursor/v1', input);
   const apiKey = crypto.hmac('account-api-key/v1', input);
+  const auditApiKey = crypto.hmac('audit-api-key-locator/v1', input);
+  const rateLimitApiKey = crypto.hmac('rate-limit-api-key/v1', input);
   assert.equal(session.byteLength, 32);
   assert.notDeepEqual(session, grant);
   assert.notDeepEqual(grant, cursor);
   assert.notDeepEqual(grant, apiKey);
+  assert.notDeepEqual(auditApiKey, rateLimitApiKey);
   assert.equal(crypto.constantTimeEqual(session, Buffer.from(session)), true);
   assert.equal(crypto.constantTimeEqual(session, grant), false);
+});
+
+test('keeps API-key audit correlation on audit key material across limiter-key rotation', () => {
+  const create = (auditByte: number, rateLimitByte: number) =>
+    new CryptoService({
+      sessionToken: key,
+      grantToken: key,
+      csrf: key,
+      pairingCodePepper: key,
+      auditHmac: Buffer.alloc(32, auditByte),
+      rateLimitHmac: Buffer.alloc(32, rateLimitByte),
+    });
+  const input = 'locator-canary';
+  const original = create(11, 12);
+  const limiterRotated = create(11, 13);
+  const auditRotated = create(14, 12);
+  assert.deepEqual(
+    original.hmac('audit-api-key-locator/v1', input),
+    limiterRotated.hmac('audit-api-key-locator/v1', input),
+  );
+  assert.notDeepEqual(
+    original.hmac('audit-api-key-locator/v1', input),
+    auditRotated.hmac('audit-api-key-locator/v1', input),
+  );
+  assert.notDeepEqual(
+    original.hmac('rate-limit-api-key/v1', input),
+    limiterRotated.hmac('rate-limit-api-key/v1', input),
+  );
 });
 
 test('redacts account API-key names and full token values while preserving publishable IDs', () => {

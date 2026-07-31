@@ -88,7 +88,6 @@ test('lists one newest-first keyset page with database-time statuses and a cut b
     ownerUserPk: '1',
     boundary: null,
     limit: 2,
-    now: Date.parse('2030-01-01T00:00:00.000Z'),
     prefixFromLocator: (locator) => `prefix-${locator[0]}`,
     auditContext: {
       correlationId: 'correlation_1',
@@ -118,6 +117,9 @@ test('enforces the ten-active-key quota while holding the owner row lock', async
     if (sql.includes('FROM users')) {
       return [[{ status: 1, publicId: 'user_public_1' } as RowDataPacket], []];
     }
+    if (sql.includes('UTC_TIMESTAMP(3) AS databaseNow')) {
+      return [[{ databaseNow: '2027-02-01 00:00:00.000' } as RowDataPacket], []];
+    }
     if (sql.includes('COUNT(*) AS activeCount')) {
       return [[{ activeCount: 10 } as RowDataPacket], []];
     }
@@ -134,7 +136,6 @@ test('enforces the ten-active-key quota while holding the owner row lock', async
     tokenHash: Buffer.alloc(32, 2),
     scopeMask: 4,
     expiresAt: Date.parse('2027-05-02T00:00:00.000Z'),
-    now: Date.parse('2027-02-01T00:00:00.000Z'),
     prefix: 'sbk_v1.AAAAAAAA…',
     auditContext: {
       correlationId: 'correlation_2',
@@ -149,6 +150,205 @@ test('enforces the ten-active-key quota while holding the owner row lock', async
     calls.some((sql) => sql.startsWith('INSERT')),
     false,
   );
+});
+
+test('uses one database clock for quota evaluation and persisted issue metadata', async () => {
+  const databaseNow = '2027-02-01 00:00:03.000';
+  const calls: Array<{ sql: string; values?: unknown }> = [];
+  const connection = transactionalConnection(async (sql, values) => {
+    calls.push({ sql, values });
+    if (sql.includes('FROM users')) {
+      return [[{ status: 1, publicId: 'user_public_1' } as RowDataPacket], []];
+    }
+    if (sql.includes('UTC_TIMESTAMP(3) AS databaseNow')) {
+      return [[{ databaseNow } as RowDataPacket], []];
+    }
+    if (sql.includes('COUNT(*) AS activeCount')) {
+      return [[{ activeCount: 9 } as RowDataPacket], []];
+    }
+    if (sql.startsWith('INSERT INTO account_api_keys')) {
+      return [{ affectedRows: 1 }, []];
+    }
+    throw new Error(`unexpected query: ${sql}`);
+  });
+  const repository = new AccountApiKeyRepository(mysqlWith(connection), {
+    writeMandatory: async () => undefined,
+  } as never);
+  const result = await repository.issue({
+    ownerUserPk: '1',
+    keyPublicId: 'key_public_1',
+    name: 'Automation',
+    locator: Buffer.alloc(16, 1),
+    tokenHash: Buffer.alloc(32, 2),
+    scopeMask: 4,
+    expiresAt: Date.parse('2027-05-02T00:00:00.000Z'),
+    prefix: 'sbk_v1.AAAAAAAA…',
+    auditContext: {
+      correlationId: 'correlation_2',
+      ownerPublicId: 'user_public_1',
+      sessionPublicId: 'session_public_1',
+      actorPublicId: 'user_public_1',
+    },
+  });
+  assert.equal(result.kind, 'created');
+  if (result.kind !== 'created') assert.fail('expected a created result');
+  assert.equal(result.metadata.createdAt, '2027-02-01T00:00:03.000Z');
+  const quota = calls.find(({ sql }) => sql.includes('COUNT(*) AS activeCount'));
+  assert.deepEqual(quota?.values, ['1', databaseNow]);
+  const insert = calls.find(({ sql }) => sql.startsWith('INSERT INTO account_api_keys'));
+  assert.equal(Array.isArray(insert?.values), true);
+  assert.equal((insert?.values as unknown[]).at(-1), databaseNow);
+});
+
+test('validates requested and default issue expiry against the transaction database clock', async () => {
+  const databaseNow = '2027-02-01 00:00:03.000';
+  const calls: Array<{ sql: string; values?: unknown }> = [];
+  const connection = transactionalConnection(async (sql, values) => {
+    calls.push({ sql, values });
+    if (sql.includes('FROM users')) {
+      return [[{ status: 1, publicId: 'user_public_1' } as RowDataPacket], []];
+    }
+    if (sql.includes('UTC_TIMESTAMP(3) AS databaseNow')) {
+      return [[{ databaseNow } as RowDataPacket], []];
+    }
+    if (sql.includes('COUNT(*) AS activeCount')) {
+      return [[{ activeCount: 0 } as RowDataPacket], []];
+    }
+    if (sql.startsWith('INSERT INTO account_api_keys')) return [{ affectedRows: 1 }, []];
+    throw new Error(`unexpected query: ${sql}`);
+  });
+  const repository = new AccountApiKeyRepository(mysqlWith(connection), {
+    writeMandatory: async () => undefined,
+  } as never);
+  const base = {
+    ownerUserPk: '1',
+    keyPublicId: 'key_public_1',
+    name: 'Automation',
+    locator: Buffer.alloc(16, 1),
+    tokenHash: Buffer.alloc(32, 2),
+    scopeMask: 4,
+    prefix: 'sbk_v1.AAAAAAAA…',
+    auditContext: {
+      correlationId: 'correlation_clock',
+      ownerPublicId: 'user_public_1',
+      sessionPublicId: 'session_public_1',
+      actorPublicId: 'user_public_1',
+    },
+  };
+  const databaseNowMs = Date.parse('2027-02-01T00:00:03.000Z');
+  assert.deepEqual(await repository.issue({ ...base, expiresAt: databaseNowMs + 86_400_000 - 1 }), {
+    kind: 'invalid_expiry',
+  });
+  const created = await repository.issue({ ...base, expiresAt: undefined });
+  assert.equal(created.kind, 'created');
+  if (created.kind !== 'created') assert.fail('expected a created result');
+  assert.equal(created.metadata.expiresAt, new Date(databaseNowMs + 90 * 86_400_000).toISOString());
+  const inserts = calls.filter(({ sql }) => sql.startsWith('INSERT INTO account_api_keys'));
+  assert.equal(inserts.length, 1);
+  assert.deepEqual((inserts[0]?.values as unknown[]).slice(-2), [
+    '2027-05-02 00:00:03.000',
+    databaseNow,
+  ]);
+});
+
+test('returns credential expiry together with the same query database clock', async () => {
+  let query = '';
+  const connection = transactionalConnection(async (sql) => {
+    query = sql;
+    return [
+      [
+        {
+          keyPk: '9',
+          keyPublicId: 'key_public_9',
+          ownerUserPk: '1',
+          ownerPublicId: 'user_public_1',
+          ownerStatus: 1,
+          tokenHash: Buffer.alloc(32, 2),
+          scopeMask: 4,
+          persistedStatus: 1,
+          expiresAt: '2027-02-01 00:00:03.000',
+          databaseNow: '2027-02-01 00:00:03.000',
+        } as RowDataPacket,
+      ],
+      [],
+    ];
+  });
+  const repository = new AccountApiKeyRepository(mysqlWith(connection), {} as AuditRepository);
+  const credential = await repository.findCredential(Buffer.alloc(16, 1));
+  assert.match(query, /UTC_TIMESTAMP\(3\) AS databaseNow/u);
+  assert.equal(credential?.expiresAt, Date.parse('2027-02-01T00:00:03.000Z'));
+  assert.equal(credential?.databaseNow, Date.parse('2027-02-01T00:00:03.000Z'));
+});
+
+test('rejects credentials with malformed expiry or database-clock timestamps', async () => {
+  const malformedCases = [
+    { field: 'expiresAt', value: '2027-02-30 00:00:03.000' },
+    { field: 'databaseNow', value: '2027-02-01T00:00:03.000Z' },
+  ] as const;
+  for (const { field, value } of malformedCases) {
+    const connection = transactionalConnection(async () => [
+      [
+        {
+          keyPk: '9',
+          keyPublicId: 'key_public_9',
+          ownerUserPk: '1',
+          ownerPublicId: 'user_public_1',
+          ownerStatus: 1,
+          tokenHash: Buffer.alloc(32, 2),
+          scopeMask: 4,
+          persistedStatus: 1,
+          expiresAt: '2027-02-02 00:00:03.000',
+          databaseNow: '2027-02-01 00:00:03.000',
+          [field]: value,
+        } as RowDataPacket,
+      ],
+      [],
+    ]);
+    const repository = new AccountApiKeyRepository(mysqlWith(connection), {} as AuditRepository);
+    assert.equal(await repository.findCredential(Buffer.alloc(16, 1)), null, field);
+  }
+});
+
+test('revokes and marks use with constraint-safe database time when application clocks disagree', async () => {
+  const calls: Array<{ sql: string; values?: unknown }> = [];
+  const connection = transactionalConnection(async (sql, values) => {
+    calls.push({ sql, values });
+    if (sql.includes('FROM account_api_keys') && sql.endsWith('FOR UPDATE')) {
+      return [
+        [
+          {
+            id: '9',
+            status: 1,
+            createdAt: '2027-02-01 00:00:05.000',
+            databaseNow: '2027-02-01 00:00:03.000',
+          } as RowDataPacket,
+        ],
+        [],
+      ];
+    }
+    return [{ affectedRows: 1 }, []];
+  });
+  const repository = new AccountApiKeyRepository(mysqlWith(connection), {
+    writeMandatory: async () => undefined,
+  } as never);
+  await repository.revoke({
+    ownerUserPk: '1',
+    keyPublicId: 'key_public_9',
+    auditContext: {
+      correlationId: 'correlation_3',
+      ownerPublicId: 'user_public_1',
+      sessionPublicId: 'session_public_1',
+      actorPublicId: 'user_public_1',
+    },
+  });
+  await repository.markUsed('9');
+  const revoke = calls.find(({ sql }) => sql.startsWith('UPDATE account_api_keys SET status = 2'));
+  assert.match(revoke?.sql ?? '', /revoked_at = GREATEST\(\?, created_at\)/u);
+  assert.deepEqual(revoke?.values, ['2027-02-01 00:00:03.000', '9']);
+  const markUsed = calls.find(({ sql }) => sql.includes('SET last_used_at'));
+  assert.match(markUsed?.sql ?? '', /GREATEST\(UTC_TIMESTAMP\(3\), created_at\)/u);
+  assert.match(markUsed?.sql ?? '', /last_used_at < UTC_TIMESTAMP\(3\) - INTERVAL 60 SECOND/u);
+  assert.deepEqual(markUsed?.values, ['9']);
 });
 
 test('coalesces last-used writes in SQL and rechecks the full active snapshot under lock', async () => {
@@ -183,13 +383,37 @@ test('coalesces last-used writes in SQL and rechecks the full active snapshot un
     scopes: ['board:read'] as const,
     expiresAt: Date.parse('2027-02-02T00:00:00.000Z'),
   };
+  assert.equal(await repository.recheckActive(connection, snapshot), true);
   assert.equal(
-    await repository.recheckActive(connection, snapshot, Date.parse('2027-02-01T00:00:00.000Z')),
+    calls.some((sql) => sql.includes('k.expires_at > UTC_TIMESTAMP(3)')),
     true,
   );
-  await repository.markUsed('9', Date.parse('2027-02-01T00:00:00.000Z'));
+  await repository.markUsed('9');
   assert.equal(
-    calls.some((sql) => sql.includes('last_used_at IS NULL OR last_used_at < ?')),
+    calls.some((sql) =>
+      sql.includes('last_used_at IS NULL OR last_used_at < UTC_TIMESTAMP(3) - INTERVAL 60 SECOND'),
+    ),
     true,
   );
+});
+
+test('fails an exact-expiry active recheck against fresh database time', async () => {
+  let query = '';
+  const connection = transactionalConnection(async (sql) => {
+    query = sql;
+    return [[], []];
+  });
+  const repository = new AccountApiKeyRepository(mysqlWith(connection), {} as AuditRepository);
+  const snapshot = {
+    keyPk: '9',
+    keyPublicId: 'key_public_9',
+    ownerUserPk: '1',
+    ownerPublicId: 'user_public_1',
+    scopeMask: 4,
+    scopes: ['board:read'] as const,
+    expiresAt: Date.parse('2027-02-02T00:00:00.000Z'),
+  };
+  assert.equal(await repository.recheckActive(connection, snapshot), false);
+  assert.match(query, /k\.expires_at > UTC_TIMESTAMP\(3\)/u);
+  assert.deepEqual(query.endsWith('FOR UPDATE'), true);
 });

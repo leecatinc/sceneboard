@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { AuditEventCatalog, prepareAuditMetadata } from '../../src/audit/audit-events.js';
+import { accountApiKeyAuthenticationAudit } from '../../src/api-keys/account-api-key-audit.policy.js';
 
 test('owns a stable unique numeric audit catalog and event-specific metadata allowlists', () => {
   const codes = Object.values(AuditEventCatalog);
@@ -106,4 +107,51 @@ test('redacts secret-shaped values before audit metadata serialization', () => {
     prepareAuditMetadata('session_reuse', { reason: 'rotated', detail: { TOKEN: 'canary' } }),
     { reason: 'rotated', detail: { TOKEN: '[REDACTED]' } },
   );
+});
+
+test('projects account API-key rejection identities and reasons without credential material', () => {
+  const fingerprint = Buffer.alloc(32, 7);
+  const malformed = accountApiKeyAuthenticationAudit(
+    {
+      correlationId: 'correlation_malformed',
+      ownerPublicId: null,
+      sessionPublicId: null,
+      actorPublicId: null,
+    },
+    {
+      succeeded: false,
+      keyPublicId: null,
+      reason: 'malformed',
+      subjectFingerprint: null,
+    },
+  );
+  assert.equal(malformed.actorPublicId, null);
+  assert.equal(malformed.subjectFingerprint, null);
+  assert.deepEqual(malformed.metadata, {
+    authMethod: 'account_api_key',
+    correlationId: 'correlation_malformed',
+    reason: 'malformed',
+  });
+  const rejected = accountApiKeyAuthenticationAudit(
+    {
+      correlationId: 'correlation_invalid',
+      ownerPublicId: 'user_public_1',
+      sessionPublicId: null,
+      actorPublicId: 'key_public_1',
+    },
+    {
+      succeeded: false,
+      keyPublicId: 'key_public_1',
+      reason: 'invalid',
+      subjectFingerprint: fingerprint,
+    },
+  );
+  assert.equal(rejected.actorPublicId, 'key_public_1');
+  assert.equal(rejected.subjectFingerprint, fingerprint);
+  assert.deepEqual(rejected.metadata, {
+    authMethod: 'account_api_key',
+    keyPublicId: 'key_public_1',
+    correlationId: 'correlation_invalid',
+    reason: 'invalid',
+  });
 });

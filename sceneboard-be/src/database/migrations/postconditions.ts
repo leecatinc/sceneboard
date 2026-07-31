@@ -65,27 +65,148 @@ const expectedColumns = [
 ] as const;
 
 const expectedIndexes = [
-  ['PRIMARY', 0, 1, 'id'],
-  ['ix_account_api_key_expiry', 1, 1, 'status'],
-  ['ix_account_api_key_expiry', 1, 2, 'expires_at'],
-  ['ix_account_api_key_expiry', 1, 3, 'id'],
-  ['ix_account_api_key_owner_list', 1, 1, 'owner_user_id'],
-  ['ix_account_api_key_owner_list', 1, 2, 'created_at'],
-  ['ix_account_api_key_owner_list', 1, 3, 'id'],
-  ['ix_account_api_key_owner_list', 1, 4, 'status'],
-  ['uq_account_api_key_public_id', 0, 1, 'public_id'],
-  ['uq_account_api_key_token_locator', 0, 1, 'token_locator'],
+  ['PRIMARY', 0, 1, 'id', 'A'],
+  ['ix_account_api_key_expiry', 1, 1, 'status', 'A'],
+  ['ix_account_api_key_expiry', 1, 2, 'expires_at', 'A'],
+  ['ix_account_api_key_expiry', 1, 3, 'id', 'A'],
+  ['ix_account_api_key_owner_list', 1, 1, 'owner_user_id', 'A'],
+  ['ix_account_api_key_owner_list', 1, 2, 'created_at', 'D'],
+  ['ix_account_api_key_owner_list', 1, 3, 'id', 'D'],
+  ['ix_account_api_key_owner_list', 1, 4, 'status', 'A'],
+  ['uq_account_api_key_public_id', 0, 1, 'public_id', 'A'],
+  ['uq_account_api_key_token_locator', 0, 1, 'token_locator', 'A'],
 ] as const;
 
+type CheckToken = {
+  kind: 'word' | 'literal' | 'symbol';
+  value: string;
+};
+
+type CheckNode =
+  | CheckToken
+  | {
+      kind: 'parentheses';
+      callable: boolean;
+      children: CheckNode[];
+    };
+
+const tokenizeCheck = (value: string): CheckToken[] => {
+  const normalized = value.replace(/\\'/gu, "'");
+  const tokens: CheckToken[] = [];
+  for (let index = 0; index < normalized.length; index += 1) {
+    const character = normalized[index]!;
+    if (/\s/u.test(character)) continue;
+    if (character === '`') {
+      const closing = normalized.indexOf('`', index + 1);
+      if (closing === -1)
+        throw new TypeError('account API-key check contains an invalid identifier');
+      tokens.push({ kind: 'word', value: normalized.slice(index + 1, closing).toLowerCase() });
+      index = closing;
+      continue;
+    }
+    if (character === "'") {
+      let literal = character;
+      for (index += 1; index < normalized.length; index += 1) {
+        const literalCharacter = normalized[index]!;
+        literal += literalCharacter;
+        if (literalCharacter !== "'") continue;
+        if (normalized[index + 1] === "'") {
+          literal += normalized[index + 1];
+          index += 1;
+          continue;
+        }
+        break;
+      }
+      if (tokens.at(-1)?.kind === 'word' && tokens.at(-1)?.value === '_utf8mb4') tokens.pop();
+      tokens.push({ kind: 'literal', value: literal });
+      continue;
+    }
+    if (/[A-Za-z0-9_$]/u.test(character)) {
+      let end = index + 1;
+      while (end < normalized.length && /[A-Za-z0-9_$]/u.test(normalized[end]!)) end += 1;
+      const word = normalized.slice(index, end).toLowerCase();
+      tokens.push({ kind: 'word', value: word === 'octet_length' ? 'length' : word });
+      index = end - 1;
+      continue;
+    }
+    const pairedOperator = normalized.slice(index, index + 2);
+    if (['<=', '>=', '<>', '!=', '||', '&&'].includes(pairedOperator)) {
+      tokens.push({ kind: 'symbol', value: pairedOperator });
+      index += 1;
+      continue;
+    }
+    tokens.push({ kind: 'symbol', value: character });
+  }
+  return tokens;
+};
+
+const parseCheckNodes = (
+  tokens: readonly CheckToken[],
+  start = 0,
+): { nodes: CheckNode[]; next: number } => {
+  const nodes: CheckNode[] = [];
+  for (let index = start; index < tokens.length; index += 1) {
+    const token = tokens[index]!;
+    if (token.kind !== 'symbol' || token.value !== '(') {
+      if (token.kind === 'symbol' && token.value === ')') return { nodes, next: index + 1 };
+      nodes.push(token);
+      continue;
+    }
+    const previous = nodes.at(-1);
+    const nested = parseCheckNodes(tokens, index + 1);
+    nodes.push({
+      kind: 'parentheses',
+      callable: previous?.kind === 'word' && !['and', 'or', 'not'].includes(previous.value),
+      children: nested.nodes,
+    });
+    index = nested.next - 1;
+  }
+  return { nodes, next: tokens.length };
+};
+
+const hasTopLevelBoolean = (nodes: readonly CheckNode[]): boolean => {
+  let between = false;
+  for (const node of nodes) {
+    if (node.kind !== 'word') continue;
+    if (node.value === 'between') {
+      between = true;
+      continue;
+    }
+    if (node.value === 'or') return true;
+    if (node.value !== 'and') continue;
+    if (!between) return true;
+    between = false;
+  }
+  return false;
+};
+
+const normalizeCheckNodes = (nodes: readonly CheckNode[], root: boolean): CheckNode[] => {
+  let normalized = nodes.flatMap<CheckNode>((node) => {
+    if (node.kind !== 'parentheses') return [node];
+    const children = normalizeCheckNodes(node.children, false);
+    if (!node.callable && !hasTopLevelBoolean(children)) return children;
+    return [{ ...node, children }];
+  });
+  while (
+    root &&
+    normalized.length === 1 &&
+    normalized[0]?.kind === 'parentheses' &&
+    !normalized[0].callable
+  ) {
+    normalized = normalizeCheckNodes(normalized[0].children, true);
+  }
+  return normalized;
+};
+
+const renderCheckNodes = (nodes: readonly CheckNode[]): string =>
+  nodes
+    .map((node) =>
+      node.kind === 'parentheses' ? `(${renderCheckNodes(node.children)})` : node.value,
+    )
+    .join('');
+
 const canonicalCheck = (value: string): string =>
-  value
-    .replace(/`/gu, '')
-    .replace(/\\'/gu, "'")
-    .replace(/\s+/gu, '')
-    .replace(/\(\(([^()]*)\)\)/gu, '($1)')
-    .toLowerCase()
-    .replace(/_utf8mb4/gu, '')
-    .replace(/octet_length/gu, 'length');
+  renderCheckNodes(normalizeCheckNodes(parseCheckNodes(tokenizeCheck(value)).nodes, true));
 
 export const assessAccountApiKeyPostcondition = (
   columns: readonly AccountApiKeyColumnProjection[],
@@ -111,6 +232,7 @@ export const assessAccountApiKeyPostcondition = (
     Number(row.nonUnique),
     Number(row.sequence),
     row.columnName,
+    row.collation,
   ]);
   if (JSON.stringify(actualIndexes) !== JSON.stringify(expectedIndexes)) {
     throw new Error('account API-key index projection mismatch');
@@ -128,47 +250,29 @@ export const assessAccountApiKeyPostcondition = (
     throw new Error('account API-key foreign-key projection mismatch');
   }
   const actualChecks = new Map(
-    checks.map((row) => [
-      row.constraintName,
-      canonicalCheck(row.checkClause)
-        .replace(/_utf8mb4/gu, '')
-        .replace(/[()]/gu, ''),
-    ]),
+    checks.map((row) => [row.constraintName, canonicalCheck(row.checkClause)]),
   );
-  const requiredChecks = [
-    'chk_account_api_key_public_id',
-    'chk_account_api_key_display_name',
-    'chk_account_api_key_token_version',
-    'chk_account_api_key_scope_mask',
-    'chk_account_api_key_status',
-    'chk_account_api_key_times',
-    'chk_account_api_key_terminal',
-  ];
+  const expectedChecks: Readonly<Record<string, string>> = {
+    chk_account_api_key_public_id: "REGEXP_LIKE(public_id, '^[A-Za-z0-9_-]{1,128}$', 'c')",
+    chk_account_api_key_display_name:
+      'display_name = TRIM(display_name) AND CHAR_LENGTH(display_name) BETWEEN 1 AND 80',
+    chk_account_api_key_token_version: 'token_version = 1',
+    chk_account_api_key_scope_mask: 'scope_mask BETWEEN 1 AND 63',
+    chk_account_api_key_status: 'status IN (1, 2)',
+    chk_account_api_key_times:
+      'created_at < expires_at AND (last_used_at IS NULL OR last_used_at >= created_at) AND (revoked_at IS NULL OR revoked_at >= created_at)',
+    chk_account_api_key_terminal:
+      '(status = 1 AND revoked_at IS NULL) OR (status = 2 AND revoked_at IS NOT NULL)',
+  };
+  const requiredChecks = Object.keys(expectedChecks);
   if (
     actualChecks.size !== requiredChecks.length ||
     requiredChecks.some((name) => !actualChecks.has(name))
   ) {
     throw new Error('account API-key check projection mismatch');
   }
-  const requiredFragments: Readonly<Record<string, readonly string[]>> = {
-    chk_account_api_key_public_id: ["regexp_likepublic_id,'^[a-za-z0-9_-]{1,128}$','c'"],
-    chk_account_api_key_display_name: [
-      'display_name=trimdisplay_name',
-      'char_lengthdisplay_namebetween1and80',
-    ],
-    chk_account_api_key_token_version: ['token_version=1'],
-    chk_account_api_key_scope_mask: ['scope_maskbetween1and63'],
-    chk_account_api_key_status: ['statusin1,2'],
-    chk_account_api_key_times: [
-      'created_at<expires_at',
-      'last_used_atisnullorlast_used_at>=created_at',
-      'revoked_atisnullorrevoked_at>=created_at',
-    ],
-    chk_account_api_key_terminal: ['status=1andrevoked_atisnull', 'status=2andrevoked_atisnotnull'],
-  };
-  for (const [name, fragments] of Object.entries(requiredFragments)) {
-    const clause = actualChecks.get(name) ?? '';
-    if (fragments.some((fragment) => !clause.includes(fragment))) {
+  for (const [name, expectedClause] of Object.entries(expectedChecks)) {
+    if (actualChecks.get(name) !== canonicalCheck(expectedClause)) {
       throw new Error(`account API-key check clause mismatch: ${name}`);
     }
   }
@@ -197,7 +301,7 @@ export const verifyAccountApiKeyPostcondition = async (
        non_unique AS nonUnique,
        seq_in_index AS sequence,
        column_name AS columnName,
-       collation
+       collation AS collation
      FROM information_schema.statistics
      WHERE table_schema = DATABASE() AND table_name = 'account_api_keys'
      ORDER BY index_name = 'PRIMARY' DESC, index_name, seq_in_index`,
@@ -244,7 +348,7 @@ export const assessDocumentV3CheckpointPostcondition = (
     [
       'board_revision_payloads.chk_revision_payloads_checkpoint',
       [
-        "codec='b'",
+        "codec='B'",
         'stored_bytes=length(payload)',
         "schema_version='1.0.0'",
         'canonical_bytesbetween1and786432',
@@ -265,7 +369,7 @@ export const assessDocumentV3CheckpointPostcondition = (
         'scene_stored_bytesisnull',
         'scene_sha256isnull',
         'scene_schema_versionisnotnull',
-        "scene_codec='b'",
+        "scene_codec='B'",
         'scene_payloadisnotnull',
         'scene_canonical_bytesisnotnull',
         'scene_stored_bytes=length(scene_payload)',

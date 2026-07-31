@@ -673,6 +673,20 @@ const expectedChecksums = async (): Promise<
     }),
   );
 
+export const isRecoverableAccountApiKeyTableExists = (
+  version: string,
+  statement: string,
+  error: unknown,
+): boolean =>
+  version === '025_d10_account_api_keys' &&
+  /^CREATE\s+TABLE\s+`?account_api_keys`?\s*\(/iu.test(statement.trim()) &&
+  typeof error === 'object' &&
+  error !== null &&
+  'code' in error &&
+  error.code === 'ER_TABLE_EXISTS_ERROR' &&
+  'errno' in error &&
+  error.errno === 1050;
+
 @Injectable()
 export class MigrationRunner {
   constructor(@Inject(MysqlService) private readonly mysql: MysqlService) {}
@@ -710,7 +724,15 @@ export class MigrationRunner {
           const migration = expected[index]!;
           const startedAt = performance.now();
           const source = new TextDecoder('utf-8', { fatal: true }).decode(migration.bytes);
-          for (const statement of splitSqlStatements(source)) await connection.query(statement);
+          for (const statement of splitSqlStatements(source)) {
+            try {
+              await connection.query(statement);
+            } catch (error) {
+              if (!isRecoverableAccountApiKeyTableExists(migration.version, statement, error)) {
+                throw error;
+              }
+            }
+          }
           await this.verifyPostcondition(connection, migration.entry.postcondition);
           const executionMs = Math.min(
             3_600_000,
