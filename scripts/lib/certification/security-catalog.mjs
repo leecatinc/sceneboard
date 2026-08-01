@@ -27,36 +27,47 @@ const rowKeys = [
   'transportOnlyCanaryAllowance',
   'evidenceClass',
 ];
-const terminalToolNames = [
-  'board_connection_status',
-  'board_pair_request',
-  'board_pair_status',
-  'board_list',
-  'board_get',
-  'board_create',
-  'board_archive',
-  'board_capabilities_get',
-  'board_scene_get',
-  'board_scene_replace',
-  'board_scene_patch',
-  'board_scene_clear',
-  'board_artifact_get',
-  'board_artifact_put',
-  'board_artifact_stop',
-  'board_history_list',
-  'board_history_get',
-  'board_history_restore',
-  'board_interaction_request',
-  'board_interaction_status',
-  'board_interaction_respond',
-];
+const tag = (value) =>
+  value.replaceAll('.', '-').replaceAll('_', '-').replaceAll(':', '-').toUpperCase();
 
-const tag = (value) => value.replaceAll('.', '-').replaceAll('_', '-').toUpperCase();
+const stringArrayInitializer = (source, name) => {
+  const start = source.indexOf(`export const ${name} = [`);
+  const end = source.indexOf('] as const', start);
+  if (start < 0 || end < 0) throw new CertificationError('SECURITY_CASE_CATALOG_DRIFT');
+  return [...source.slice(start, end).matchAll(/'([^']+)'/gu)].map((match) => match[1]);
+};
+
+const observeToolRegistries = (source) => {
+  const core = stringArrayInitializer(source, 'CORE_TOOL_NAMES_V1');
+  const downstream = stringArrayInitializer(source, 'DOWNSTREAM_TOOL_NAMES_V1');
+  const accountApiKey = stringArrayInitializer(source, 'API_KEY_TOOL_NAMES_V1');
+  const registered = [...source.matchAll(/\badd\(\s*'([^']+)'/gu)].map((match) => match[1]);
+  const generalDeclared = [...core, ...downstream];
+  const accountOnly = new Set(accountApiKey.filter((name) => !generalDeclared.includes(name)));
+  const general = registered.filter((name) => !accountOnly.has(name));
+  const exactSet = (left, right) =>
+    left.length === right.length && left.every((name) => right.includes(name));
+  if (
+    core.length !== 24 ||
+    general.length !== 30 ||
+    accountApiKey.length !== 22 ||
+    new Set(general).size !== general.length ||
+    new Set(accountApiKey).size !== accountApiKey.length ||
+    !exactSet(general, generalDeclared)
+  )
+    throw new CertificationError('SECURITY_CASE_CATALOG_DRIFT');
+  return {
+    general,
+    accountApiKey,
+    generalDiscoveryCuts: [3, core.length, general.length],
+  };
+};
 
 export const buildExpectedSecurityCatalog = async () => {
-  const [manifestBytes, { value: inventory }] = await Promise.all([
+  const [manifestBytes, { value: inventory }, toolRegistrySource] = await Promise.all([
     readFile(resolve(root, 'test/certification/contract-manifest.v1.json')),
     readJson(resolve(root, 'test/certification/contract-input-inventory.v1.json')),
+    readFile(resolve(root, 'sceneboard-mcp/src/tools/register-tools.ts'), 'utf8'),
   ]);
   const manifest = JSON.parse(manifestBytes.toString('utf8'));
   const manifestSha256 = sha256(manifestBytes);
@@ -67,6 +78,7 @@ export const buildExpectedSecurityCatalog = async () => {
     ]),
   );
   const cases = [];
+  const toolRegistries = observeToolRegistries(toolRegistrySource);
   const add = ({
     caseId,
     cluster,
@@ -129,6 +141,29 @@ export const buildExpectedSecurityCatalog = async () => {
       principalKind: 'browser-user',
       upstreamContractId: 'D2-AUTH-SESSION-V1',
       precedence: 'parse-rate-credential-origin-csrf-authorization',
+    }),
+  );
+
+  [
+    ['ACTIVE-VALID', 'active-exact-bearer', 'ACCOUNT_API_KEY_AUTHENTICATED'],
+    ['MISSING', 'missing-bearer', 'UNAUTHENTICATED'],
+    ['MALFORMED', 'malformed-bearer', 'UNAUTHENTICATED'],
+    ['UNKNOWN', 'unknown-key-digest', 'UNAUTHENTICATED'],
+    ['REVOKED', 'revoked-key', 'UNAUTHENTICATED'],
+    ['EXPIRED', 'expired-key', 'UNAUTHENTICATED'],
+    ['DISABLED-ACCOUNT', 'disabled-owner-account', 'FORBIDDEN'],
+    ['RATE-LIMITED', 'authentication-failure-bucket-saturated', 'RATE_LIMITED'],
+  ].forEach(([axis, preconditionState, expectedCodeOrState]) =>
+    add({
+      caseId: `APIKEY-AUTH-${axis}`,
+      cluster: 'ACCOUNT_API_KEY_AUTHENTICATION',
+      owner: 'D2',
+      testFile: 'test/security/auth-session-pairing.e2e.test.mjs',
+      preconditionState,
+      expectedCodeOrState,
+      principalKind: 'account-api-key',
+      upstreamContractId: 'D2-ACCOUNT-API-KEY-AUTH-V1',
+      precedence: 'parse-rate-credential-authorization',
     }),
   );
 
@@ -291,7 +326,137 @@ export const buildExpectedSecurityCatalog = async () => {
     }),
   );
 
-  for (const tool of terminalToolNames)
+  const accountApiKeyAuthorizationCase = (
+    caseId,
+    preconditionState,
+    expectedCodeOrState,
+    precedence = 'literal-scope-owner-before-resource',
+  ) =>
+    add({
+      caseId,
+      cluster: 'ACCOUNT_API_KEY_AUTHORIZATION',
+      owner: 'D2',
+      testFile: 'test/security/authorization-order-and-cross-board.e2e.test.mjs',
+      preconditionState,
+      expectedCodeOrState,
+      principalKind: 'account-api-key',
+      upstreamContractId: 'D2-ACCOUNT-API-KEY-AUTHORIZATION-V1',
+      precedence,
+    });
+  for (const [scope, operation] of [
+    ['board:read', 'board.get'],
+    ['board:write', 'board.rename'],
+    ['history:read', 'history.get'],
+    ['board:create', 'board.create'],
+    ['board:archive', 'board.archive'],
+    ['export:read', 'export.render'],
+  ])
+    for (const axis of ['ALLOW', 'DENY'])
+      accountApiKeyAuthorizationCase(
+        `APIKEY-SCOPE-${tag(scope)}-${axis}`,
+        `${operation}-${axis === 'ALLOW' ? `literal-${scope}` : `missing-${scope}`}`,
+        axis === 'ALLOW' ? 'AUTHORIZED_WITH_LITERAL_SCOPE' : 'FORBIDDEN_MISSING_LITERAL_SCOPE',
+      );
+  [
+    ['OWNER-BOUND-ALLOW', 'owner-key-bound-board', 'AUTHORIZED_OWNER_BOARD'],
+    ['SAME-ACCOUNT-NONOWNER-DENY', 'same-account-non-owner-board', 'FORBIDDEN'],
+    ['CROSS-BOARD-DENY', 'credential-bound-to-other-board', 'FORBIDDEN_BEFORE_RESOURCE_LOOKUP'],
+    ['LIST-OWNER-FILTERED', 'account-owner-board-list', 'OWNER_FILTERED_LIST'],
+  ].forEach(([axis, preconditionState, expectedCodeOrState]) =>
+    accountApiKeyAuthorizationCase(
+      `APIKEY-OWNER-${axis}`,
+      preconditionState,
+      expectedCodeOrState,
+    ),
+  );
+  [
+    ['SCENE-CURRENT-ALLOW', 'scene-current-board-read', 'AUTHORIZED_BOARD_READ'],
+    ['SCENE-HISTORICAL-ALLOW', 'scene-revision-history-read', 'AUTHORIZED_HISTORY_READ'],
+    ['SCENE-HISTORICAL-BOARD-ONLY-DENY', 'scene-revision-board-read-only', 'FORBIDDEN'],
+    ['DOCUMENT-CURRENT-ALLOW', 'document-current-board-read', 'AUTHORIZED_BOARD_READ'],
+    ['DOCUMENT-HISTORICAL-ALLOW', 'document-revision-history-read', 'AUTHORIZED_HISTORY_READ'],
+    [
+      'DOCUMENT-HISTORICAL-BOARD-ONLY-DENY',
+      'document-revision-board-read-only',
+      'FORBIDDEN',
+    ],
+  ].forEach(([axis, preconditionState, expectedCodeOrState]) =>
+    accountApiKeyAuthorizationCase(
+      `APIKEY-HISTORICAL-${axis}`,
+      preconditionState,
+      expectedCodeOrState,
+      'revision-discriminator-before-network',
+    ),
+  );
+  [
+    ['SCENE-PATCH-ALLOW', 'scene-patch-board-read-and-write', 'AUTHORIZED_COMPOUND_PLAN'],
+    ['SCENE-PATCH-WRITE-ONLY-DENY', 'scene-patch-board-write-only', 'FORBIDDEN'],
+    [
+      'DOCUMENT-REPLACE-ALLOW',
+      'document-replace-board-read-and-write',
+      'AUTHORIZED_COMPOUND_PLAN',
+    ],
+    [
+      'DOCUMENT-REPLACE-WRITE-ONLY-DENY',
+      'document-replace-board-write-only',
+      'FORBIDDEN',
+    ],
+    ['PAGE-TRANSFORM-ALLOW', 'page-transform-board-read-and-write', 'AUTHORIZED_COMPOUND_PLAN'],
+    ['PAGE-TRANSFORM-WRITE-ONLY-DENY', 'page-transform-board-write-only', 'FORBIDDEN'],
+    [
+      'HISTORY-RESTORE-ALLOW',
+      'history-restore-board-write-and-history-read',
+      'AUTHORIZED_COMPOUND_PLAN',
+    ],
+    ['HISTORY-RESTORE-WRITE-ONLY-DENY', 'history-restore-board-write-only', 'FORBIDDEN'],
+  ].forEach(([axis, preconditionState, expectedCodeOrState]) =>
+    accountApiKeyAuthorizationCase(
+      `APIKEY-COMPOUND-${axis}`,
+      preconditionState,
+      expectedCodeOrState,
+      'complete-operation-plan-before-network',
+    ),
+  );
+  [
+    ['RENAME-OWNER-ALLOW', 'rename-owner-with-board-write', 'BOARD_RENAMED'],
+    ['RENAME-NONOWNER-DENY', 'rename-non-owner-with-board-write', 'FORBIDDEN'],
+    ['CREATE-OWNER-ALLOW', 'create-owner-with-board-create', 'BOARD_CREATED'],
+    ['CREATE-MISSING-SCOPE-DENY', 'create-owner-without-board-create', 'FORBIDDEN'],
+    ['ARCHIVE-OWNER-ALLOW', 'archive-owner-with-board-archive', 'BOARD_ARCHIVED'],
+    ['ARCHIVE-NONOWNER-DENY', 'archive-non-owner-with-board-archive', 'FORBIDDEN'],
+  ].forEach(([axis, preconditionState, expectedCodeOrState]) =>
+    accountApiKeyAuthorizationCase(
+      `APIKEY-LIFECYCLE-${axis}`,
+      preconditionState,
+      expectedCodeOrState,
+      'literal-scope-owner-before-lifecycle-effect',
+    ),
+  );
+
+  [
+    ['PREFLIGHT-UNAVAILABLE', 'local-helper-unavailable', 'NO_NETWORK_CALL'],
+    ['CURRENT-ALLOW', 'current-board-export-with-export-read', 'EXPORT_STREAMED'],
+    ['HISTORICAL-ALLOW', 'retained-revision-export-with-export-read', 'EXPORT_STREAMED'],
+    ['ADMISSION-DENY', 'account-board-credential-admission-limit', 'RATE_LIMITED_NO_RESERVATION'],
+    ['RENDER-FAILURE', 'render-fails-after-reservation', 'RESERVATION_RELEASED'],
+    ['COMPLETE', 'response-delivery-completes', 'ONE_COMPLETED_AUDIT_AND_RELEASE'],
+    ['ABORT', 'response-delivery-aborts', 'ONE_FAILED_AUDIT_AND_RELEASE'],
+    ['NO-CLOBBER', 'local-final-already-exists', 'LOCAL_EXPORT_EXISTS_PRESERVED'],
+  ].forEach(([axis, preconditionState, expectedCodeOrState]) =>
+    add({
+      caseId: `APIKEY-EXPORT-${axis}`,
+      cluster: 'ACCOUNT_API_KEY_EXPORT',
+      owner: 'D2',
+      testFile: 'test/security/authorization-order-and-cross-board.e2e.test.mjs',
+      preconditionState,
+      expectedCodeOrState,
+      principalKind: 'account-api-key',
+      upstreamContractId: 'D2-ACCOUNT-API-KEY-EXPORT-V1',
+      precedence: 'preflight-authorization-admission-render-delivery-cleanup',
+    }),
+  );
+
+  for (const tool of toolRegistries.general)
     for (const axis of ['VALID', 'MALFORMED', 'DENIED', 'REACHABLE_SAFE_ERROR'])
       add({
         caseId: `MCP-${tag(tool)}-${axis}`,
@@ -304,7 +469,7 @@ export const buildExpectedSecurityCatalog = async () => {
         upstreamContractId: `D6-TOOL-${tool}`,
         precedence: 'input-authz-owner-safe-error',
       });
-  [3, 15, 21].forEach((count) =>
+  toolRegistries.generalDiscoveryCuts.forEach((count) =>
     add({
       caseId: `MCP-DISCOVERY-${String(count).padStart(2, '0')}`,
       cluster: 'MCP',
@@ -316,6 +481,29 @@ export const buildExpectedSecurityCatalog = async () => {
       upstreamContractId: 'D6-TOOL-DISCOVERY-V1',
     }),
   );
+  for (const tool of toolRegistries.accountApiKey)
+    for (const axis of ['VALID', 'MALFORMED', 'DENIED', 'REACHABLE_SAFE_ERROR'])
+      add({
+        caseId: `APIKEY-MCP-${tag(tool)}-${axis}`,
+        cluster: 'MCP_ACCOUNT_API_KEY',
+        owner: 'D6',
+        testFile: 'test/security/mcp-tool-registry.e2e.test.mjs',
+        preconditionState: `${tool}-account-api-key-${axis.toLowerCase()}`,
+        expectedCodeOrState: axis === 'VALID' ? 'TOOL_RESULT_VALID' : axis,
+        principalKind: 'account-api-key',
+        upstreamContractId: `D6-ACCOUNT-API-KEY-TOOL-${tool}`,
+        precedence: 'credential-mode-literal-scope-input-owner-safe-error',
+      });
+  add({
+    caseId: 'APIKEY-MCP-DISCOVERY-22',
+    cluster: 'MCP_ACCOUNT_API_KEY',
+    owner: 'D6',
+    testFile: 'test/security/mcp-tool-registry.e2e.test.mjs',
+    preconditionState: 'account-api-key-publication-cut-22',
+    expectedCodeOrState: 'EXACT_22_TOOLS',
+    principalKind: 'account-api-key',
+    upstreamContractId: 'D6-ACCOUNT-API-KEY-TOOL-DISCOVERY-V1',
+  });
 
   [
     'maxBoardArtifacts',
@@ -502,6 +690,7 @@ export const buildExpectedSecurityCatalog = async () => {
     'PAIRING_CODE',
     'PAIRING_PROOF',
     'MCP_GRANT_ACCESS_TOKEN',
+    'ACCOUNT_API_KEY_TOKEN',
     'AUTHORIZATION_HEADER',
     'ARTIFACT_CAPABILITY_TICKET',
     'MYSQL_PASSWORD',
@@ -530,6 +719,7 @@ export const buildExpectedSecurityCatalog = async () => {
     ['PAIRING_CODE', ['owner-ui-and-claim-body']],
     ['PAIRING_PROOF', ['pairing-proof-authorization-only']],
     ['MCP_GRANT_ACCESS_TOKEN', ['redeem-rotate-response-and-bearer-input']],
+    ['ACCOUNT_API_KEY_TOKEN', ['account-api-key-bearer-input']],
     ['AUTHORIZATION_HEADER', ['approved-inbound-auth-header']],
     ['ARTIFACT_CAPABILITY_TICKET', ['prepare-consume-transport']],
     ['MYSQL_PASSWORD', ['owner-process-input']],

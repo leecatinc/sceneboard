@@ -72,6 +72,16 @@
       "downSha256": null,
       "reversible": false,
       "predecessorIds": ["026_d10_document_v3_checkpoint"]
+    },
+    {
+      "order": 31,
+      "version": "028_d10_document_replace_idempotency",
+      "upAsset": "028_d10_document_replace_idempotency.up.sql",
+      "upSha256": "a799378b2c117755fa5bfaa6fa2239252ce739f6eced9fe53c82dfbab54e7ab2",
+      "downAsset": null,
+      "downSha256": null,
+      "reversible": false,
+      "predecessorIds": ["027_d10_revision_export_hold"]
     }
   ],
   "tables": [

@@ -47,6 +47,7 @@ export type SafePairingAuthorizedConnectionV1 = {
     board: BoardSummaryV1;
     capabilities: BoardCapabilitiesV1;
     browserPresence: 'online' | 'offline' | 'unknown';
+    capabilityEpoch: number;
   };
   versions: {
     mcpServer: '0.0.0';
@@ -267,10 +268,17 @@ const parsePairingConnection = (
   let selectedBoard: SafePairingAuthorizedConnectionV1['selectedBoard'] = null;
   if (root.selectedBoard !== null) {
     if (boardId === null) return null;
-    const selected = exactRecord(root.selectedBoard, ['board', 'capabilities', 'browserPresence']);
+    const selected = exactRecord(root.selectedBoard, [
+      'board',
+      'capabilities',
+      'browserPresence',
+      'capabilityEpoch',
+    ]);
     if (
       selected === null ||
-      !['online', 'offline', 'unknown'].includes(String(selected.browserPresence))
+      !['online', 'offline', 'unknown'].includes(String(selected.browserPresence)) ||
+      !Number.isSafeInteger(selected.capabilityEpoch) ||
+      Number(selected.capabilityEpoch) < 0
     )
       return null;
     const projection = parseBoardAndCapabilities(
@@ -283,6 +291,7 @@ const parsePairingConnection = (
     selectedBoard = {
       ...projection,
       browserPresence: selected.browserPresence as 'online' | 'offline' | 'unknown',
+      capabilityEpoch: Number(selected.capabilityEpoch),
     };
   } else if (boardId !== null) return null;
   return {

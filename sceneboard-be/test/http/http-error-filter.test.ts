@@ -228,3 +228,46 @@ test('maps pre-controller guard failures into the same closed export envelope', 
     assert.equal((response.body as { error: { code: string } }).error.code, code);
   }
 });
+
+test('preserves authoritative retry timing for board and closed export projections', () => {
+  const rateLimited = new BoardContractError({
+    protocolVersion: 1,
+    type: 'board.error',
+    code: 'RATE_LIMITED',
+    message: 'Rate limited',
+    category: 'rate_limit',
+    retryable: true,
+    httpStatusHint: 429,
+    details: { retryAfterSeconds: 7 },
+  });
+  const unavailable = new BoardContractError({
+    protocolVersion: 1,
+    type: 'board.error',
+    code: 'SERVICE_UNAVAILABLE',
+    message: 'Service unavailable',
+    category: 'availability',
+    retryable: true,
+    httpStatusHint: 503,
+    details: { retryAfterSeconds: 13 },
+  });
+
+  for (const [failure, status, retryAfter] of [
+    [rateLimited, 429, '7'],
+    [unavailable, 503, '13'],
+  ] as const) {
+    const boardResponse = capture(failure, { url: '/api/v1/boards/board_fixture' });
+    assert.equal(boardResponse.status, status);
+    assert.equal(boardResponse.headers.get('Retry-After'), retryAfter);
+
+    const exportResponse = capture(failure, {
+      url: '/api/v1/boards/board_fixture/exports',
+    });
+    assert.equal(exportResponse.status, status);
+    assert.equal(exportResponse.headers.get('Retry-After'), retryAfter);
+  }
+
+  const appFailure = capture(new AppError('RATE_LIMITED', { retryAfterSeconds: 17 }), {
+    url: '/api/v1/boards/board_fixture/exports',
+  });
+  assert.equal(appFailure.headers.get('Retry-After'), '17');
+});

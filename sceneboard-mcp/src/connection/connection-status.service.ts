@@ -57,6 +57,69 @@ const localValue = (error: ConnectionHttpLocalErrorV1): Record<string, unknown> 
   };
 };
 
+type StatusDeadlineV1 = {
+  signal: AbortSignal;
+  cause(): 'caller' | 'timeout' | null;
+  dispose(): void;
+};
+
+const statusDeadline = (timeoutMs: number, callerSignal?: AbortSignal): StatusDeadlineV1 => {
+  const controller = new AbortController();
+  let cause: 'caller' | 'timeout' | null = null;
+  const abortFromCaller = (): void => {
+    if (cause !== null) return;
+    cause = 'caller';
+    controller.abort(callerSignal?.reason);
+  };
+  if (callerSignal?.aborted) abortFromCaller();
+  else callerSignal?.addEventListener('abort', abortFromCaller, { once: true });
+  const timer = setTimeout(() => {
+    if (cause !== null) return;
+    cause = 'timeout';
+    controller.abort(new DOMException('Connection deadline exceeded', 'TimeoutError'));
+  }, timeoutMs);
+  return {
+    signal: controller.signal,
+    cause: () => cause,
+    dispose: () => {
+      clearTimeout(timer);
+      callerSignal?.removeEventListener('abort', abortFromCaller);
+    },
+  };
+};
+
+const waitWithinDeadline = async <Value>(
+  operation: Promise<Value>,
+  signal: AbortSignal,
+): Promise<Value> => {
+  signal.throwIfAborted();
+  return new Promise<Value>((resolve, reject) => {
+    const cleanup = (): void => signal.removeEventListener('abort', onAbort);
+    const onAbort = (): void => {
+      cleanup();
+      reject(signal.reason);
+    };
+    signal.addEventListener('abort', onAbort, { once: true });
+    operation.then(
+      (value) => {
+        cleanup();
+        if (signal.aborted) reject(signal.reason);
+        else resolve(value);
+      },
+      (error: unknown) => {
+        cleanup();
+        reject(error);
+      },
+    );
+  });
+};
+
+const cancelledResult = (): ConnectionStatusPortResultV1 => ({
+  ok: false,
+  source: 'mcp',
+  value: localValue({ code: 'CANCELLED', retryable: false }),
+});
+
 export class ConnectionStatusServiceV1 implements ConnectionStatusPortV1 {
   constructor(
     private readonly loaded: LoadedBoardConfigV1,
@@ -69,73 +132,136 @@ export class ConnectionStatusServiceV1 implements ConnectionStatusPortV1 {
     requestId: string,
     signal?: AbortSignal,
   ): Promise<ConnectionStatusPortResultV1> {
-    let snapshot;
+    const deadline = statusDeadline(this.loaded.config.timeoutMs, signal);
     try {
-      snapshot = await this.tokens.snapshot();
-    } catch {
-      return {
-        ok: false,
-        source: 'mcp',
-        value: {
-          code: 'BOARD_MCP_INTERNAL_ERROR',
-          message: 'Connection state is unavailable',
-          retryable: false,
-          details: { incidentId: randomBytes(16).toString('base64url') },
-        },
-      };
-    }
-    if (snapshot === null)
-      return {
-        ok: true,
-        value: {
-          state: 'credential_missing',
-          config: summary(this.loaded, false),
-          connection: null,
-          lastErrorCode: null,
-        },
-      };
-    const result = await this.client.get(boardId, requestId, snapshot.accessToken, signal);
-    if (result.ok)
-      return {
-        ok: true,
-        value: {
-          state: 'connected',
-          config: summary(this.loaded, true),
-          connection: result.value,
-          lastErrorCode: null,
-        },
-      };
-    if (result.source === 'board') {
-      if (result.error.code !== 'UNAUTHENTICATED') {
+      let snapshot;
+      try {
+        deadline.signal.throwIfAborted();
+        snapshot = await waitWithinDeadline(this.tokens.snapshot(deadline.signal), deadline.signal);
+      } catch {
+        if (deadline.cause() === 'caller') return cancelledResult();
+        if (deadline.cause() === 'timeout')
+          return {
+            ok: true,
+            value: {
+              state: 'backend_unavailable',
+              config: summary(this.loaded, false),
+              connection: null,
+              lastErrorCode: 'BOARD_MCP_TIMEOUT',
+            },
+          };
         return {
           ok: false,
-          source: 'board',
-          value: result.error as unknown as Record<string, unknown>,
+          source: 'mcp',
+          value: {
+            code: 'BOARD_MCP_INTERNAL_ERROR',
+            message: 'Connection state is unavailable',
+            retryable: false,
+            details: { incidentId: randomBytes(16).toString('base64url') },
+          },
         };
       }
-      await this.tokens.invalidate(snapshot).catch(() => undefined);
+      if (snapshot === null)
+        return {
+          ok: true,
+          value: {
+            state: 'credential_missing',
+            config: summary(this.loaded, false),
+            connection: null,
+            lastErrorCode: null,
+          },
+        };
+      let result;
+      try {
+        result = await waitWithinDeadline(
+          this.client.get(boardId, requestId, snapshot.accessToken, deadline.signal),
+          deadline.signal,
+        );
+      } catch {
+        if (deadline.cause() === 'caller') return cancelledResult();
+        if (deadline.cause() === 'timeout')
+          return {
+            ok: true,
+            value: {
+              state: 'backend_unavailable',
+              config: summary(this.loaded, true),
+              connection: null,
+              lastErrorCode: 'BOARD_MCP_TIMEOUT',
+            },
+          };
+        throw new Error('connection deadline invariant failed');
+      }
+      if (deadline.cause() === 'caller') return cancelledResult();
+      if (deadline.cause() === 'timeout')
+        return {
+          ok: true,
+          value: {
+            state: 'backend_unavailable',
+            config: summary(this.loaded, true),
+            connection: null,
+            lastErrorCode: 'BOARD_MCP_TIMEOUT',
+          },
+        };
+      if (result.ok)
+        return {
+          ok: true,
+          value: {
+            state: 'connected',
+            config: summary(this.loaded, true),
+            connection: result.value,
+            lastErrorCode: null,
+          },
+        };
+      if (result.source === 'board') {
+        if (result.error.code !== 'UNAUTHENTICATED') {
+          return {
+            ok: false,
+            source: 'board',
+            value: result.error as unknown as Record<string, unknown>,
+          };
+        }
+        try {
+          await waitWithinDeadline(
+            this.tokens.invalidate(snapshot, deadline.signal),
+            deadline.signal,
+          );
+        } catch {
+          if (deadline.cause() === 'caller') return cancelledResult();
+          if (deadline.cause() === 'timeout')
+            return {
+              ok: true,
+              value: {
+                state: 'backend_unavailable',
+                config: summary(this.loaded, true),
+                connection: null,
+                lastErrorCode: 'BOARD_MCP_TIMEOUT',
+              },
+            };
+        }
+        return {
+          ok: true,
+          value: {
+            state: 'credential_invalid',
+            config: summary(this.loaded, false),
+            connection: null,
+            lastErrorCode: 'UNAUTHENTICATED',
+          },
+        };
+      }
+      if (result.error.code === 'CANCELLED') return cancelledResult();
+      const translated = localValue(result.error);
       return {
         ok: true,
         value: {
-          state: 'credential_invalid',
-          config: summary(this.loaded, false),
+          state: 'backend_unavailable',
+          config: summary(this.loaded, true),
           connection: null,
-          lastErrorCode: 'UNAUTHENTICATED',
+          lastErrorCode: translated.code,
         },
       };
+    } finally {
+      deadline.dispose();
     }
-    if (result.error.code === 'CANCELLED')
-      return { ok: false, source: 'mcp', value: localValue(result.error) };
-    const translated = localValue(result.error);
-    return {
-      ok: true,
-      value: {
-        state: 'backend_unavailable',
-        config: summary(this.loaded, true),
-        connection: null,
-        lastErrorCode: translated.code,
-      },
-    };
   }
 
   async probeWithToken(accessToken: string, signal?: AbortSignal): Promise<boolean> {
@@ -187,57 +313,88 @@ export class ApiKeyConnectionStatusServiceV1 implements ConnectionStatusPortV1 {
     requestId: string,
     signal?: AbortSignal,
   ): Promise<ConnectionStatusPortResultV1> {
-    let snapshot;
+    const deadline = statusDeadline(this.loaded.config.timeoutMs, signal);
     try {
-      snapshot = await this.tokens.snapshot();
-    } catch {
-      return this.state('credential_invalid', true, 'API_KEY_CREDENTIAL_INVALID', false);
-    }
-    if (
-      snapshot === null &&
-      'credentialInvalidated' in this.tokens &&
-      typeof this.tokens.credentialInvalidated === 'function' &&
-      this.tokens.credentialInvalidated()
-    )
-      return this.state('credential_invalid', true, 'API_KEY_CREDENTIAL_INVALID', false);
-    if (snapshot === null)
-      return this.state('credential_missing', false, 'API_KEY_CREDENTIAL_MISSING', false);
-    const result = await this.client.get(boardId, requestId, snapshot.accessToken, signal);
-    if (result.ok) {
-      if (!('credential' in result.value))
-        return this.state('backend_unavailable', true, 'API_KEY_BACKEND_RESPONSE_INVALID', true);
-      return {
-        ok: true,
-        value: {
-          credentialMode: 'api_key',
-          state: 'connected',
-          config: this.config(true),
-          connection: result.value,
-          lastErrorCode: null,
-          retryable: false,
-        },
-      };
-    }
-    if (result.source === 'board') {
-      if (result.error.code !== 'UNAUTHENTICATED')
+      let snapshot;
+      try {
+        deadline.signal.throwIfAborted();
+        snapshot = await waitWithinDeadline(this.tokens.snapshot(deadline.signal), deadline.signal);
+      } catch {
+        if (deadline.cause() === 'caller') return cancelledResult();
+        if (deadline.cause() === 'timeout')
+          return this.state('backend_unavailable', true, 'API_KEY_BACKEND_UNAVAILABLE', true);
+        return this.state('credential_invalid', true, 'API_KEY_CREDENTIAL_INVALID', false);
+      }
+      if (
+        snapshot === null &&
+        'credentialInvalidated' in this.tokens &&
+        typeof this.tokens.credentialInvalidated === 'function' &&
+        this.tokens.credentialInvalidated()
+      )
+        return this.state('credential_invalid', true, 'API_KEY_CREDENTIAL_INVALID', false);
+      if (snapshot === null)
+        return this.state('credential_missing', false, 'API_KEY_CREDENTIAL_MISSING', false);
+      let result;
+      try {
+        result = await waitWithinDeadline(
+          this.client.get(boardId, requestId, snapshot.accessToken, deadline.signal),
+          deadline.signal,
+        );
+      } catch {
+        if (deadline.cause() === 'caller') return cancelledResult();
+        if (deadline.cause() === 'timeout')
+          return this.state('backend_unavailable', true, 'API_KEY_BACKEND_UNAVAILABLE', true);
+        throw new Error('connection deadline invariant failed');
+      }
+      if (deadline.cause() === 'caller') return cancelledResult();
+      if (deadline.cause() === 'timeout')
+        return this.state('backend_unavailable', true, 'API_KEY_BACKEND_UNAVAILABLE', true);
+      if (result.ok) {
+        if (!('credential' in result.value))
+          return this.state('backend_unavailable', true, 'API_KEY_BACKEND_RESPONSE_INVALID', true);
         return {
-          ok: false,
-          source: 'board',
-          value: result.error as unknown as Record<string, unknown>,
+          ok: true,
+          value: {
+            credentialMode: 'api_key',
+            state: 'connected',
+            config: this.config(true),
+            connection: result.value,
+            lastErrorCode: null,
+            retryable: false,
+          },
         };
-      await this.tokens.invalidate(snapshot).catch(() => undefined);
-      return this.state('credential_invalid', true, 'API_KEY_CREDENTIAL_INVALID', false);
+      }
+      if (result.source === 'board') {
+        if (result.error.code !== 'UNAUTHENTICATED')
+          return {
+            ok: false,
+            source: 'board',
+            value: result.error as unknown as Record<string, unknown>,
+          };
+        try {
+          await waitWithinDeadline(
+            this.tokens.invalidate(snapshot, deadline.signal),
+            deadline.signal,
+          );
+        } catch {
+          if (deadline.cause() === 'caller') return cancelledResult();
+          if (deadline.cause() === 'timeout')
+            return this.state('backend_unavailable', true, 'API_KEY_BACKEND_UNAVAILABLE', true);
+        }
+        return this.state('credential_invalid', true, 'API_KEY_CREDENTIAL_INVALID', false);
+      }
+      if (result.error.code === 'CANCELLED') return cancelledResult();
+      return this.state(
+        'backend_unavailable',
+        true,
+        result.error.code === 'RESPONSE_INVALID'
+          ? 'API_KEY_BACKEND_RESPONSE_INVALID'
+          : 'API_KEY_BACKEND_UNAVAILABLE',
+        true,
+      );
+    } finally {
+      deadline.dispose();
     }
-    if (result.error.code === 'CANCELLED')
-      return { ok: false, source: 'mcp', value: localValue(result.error) };
-    return this.state(
-      'backend_unavailable',
-      true,
-      result.error.code === 'RESPONSE_INVALID'
-        ? 'API_KEY_BACKEND_RESPONSE_INVALID'
-        : 'API_KEY_BACKEND_UNAVAILABLE',
-      true,
-    );
   }
 }
 

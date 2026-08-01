@@ -1,4 +1,8 @@
-import { BoardSdkHttpClient, type BoardSdkHttpLogEventV1 } from '@sceneboard/board-sdk/http';
+import {
+  BoardSdkHttpClient,
+  type BoardSdkHttpLocalErrorV1,
+  type BoardSdkHttpLogEventV1,
+} from '@sceneboard/board-sdk/http';
 import { randomBytes } from 'node:crypto';
 
 import {
@@ -16,6 +20,7 @@ import { BoardErrorParserV1, type BoardErrorV1 } from '@sceneboard/board-schema'
 import {
   accountApiKeyToolPolicyV1,
   type AccountApiKeyOperationV1,
+  type AccountApiKeyOperationPlanV1,
   type AccountApiKeyToolNameV1,
 } from './account-api-key-tool-policy.js';
 import {
@@ -45,6 +50,7 @@ export type AuthorizedBoardOperationContextV1 = Readonly<{
   snapshot: CredentialSnapshotV1;
   client: BoardSdkHttpClient;
   media: ConnectionMediaHttpClientV1;
+  signal: AbortSignal;
 }>;
 
 export type BoardRenameGatewayResultV1 =
@@ -53,7 +59,10 @@ export type BoardRenameGatewayResultV1 =
   | {
       ok: false;
       source: 'local';
-      error: { code: 'RESPONSE_INVALID' | 'TRANSPORT_ERROR' };
+      error:
+        | { code: 'CANCELLED' }
+        | { code: 'TIMEOUT'; timeoutMs: number }
+        | { code: 'RESPONSE_INVALID' | 'TRANSPORT_ERROR' };
     };
 
 export type BoardExportGatewayResultV1 =
@@ -92,6 +101,86 @@ const EXPORT_CONTENT_TYPES_V1 = Object.freeze({
   pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
 } as const);
 
+type GatewayDeadlineCauseV1 = 'caller' | 'timeout';
+
+type GatewayDeadlineV1 = Readonly<{
+  signal: AbortSignal;
+  cause(): GatewayDeadlineCauseV1 | null;
+  dispose(): void;
+}>;
+
+type GatewayCallOptionsV1 = Readonly<{ signal: AbortSignal | undefined }>;
+
+const gatewayDeadlineV1 = (timeoutMs: number, callerSignal?: AbortSignal): GatewayDeadlineV1 => {
+  const controller = new AbortController();
+  let cause: GatewayDeadlineCauseV1 | null = null;
+  const abortFromCaller = (): void => {
+    if (cause !== null) return;
+    cause = 'caller';
+    controller.abort(callerSignal?.reason);
+  };
+  if (callerSignal?.aborted) abortFromCaller();
+  else callerSignal?.addEventListener('abort', abortFromCaller, { once: true });
+  const timer = setTimeout(() => {
+    if (cause !== null) return;
+    cause = 'timeout';
+    controller.abort(new DOMException('Protected operation deadline exceeded', 'TimeoutError'));
+  }, timeoutMs);
+  return {
+    signal: controller.signal,
+    cause: () => cause,
+    dispose: () => {
+      clearTimeout(timer);
+      callerSignal?.removeEventListener('abort', abortFromCaller);
+    },
+  };
+};
+
+const waitWithinGatewayDeadlineV1 = async <Value>(
+  operation: Promise<Value>,
+  signal: AbortSignal,
+): Promise<Value> => {
+  return new Promise<Value>((resolve, reject) => {
+    const cleanup = (): void => signal.removeEventListener('abort', onAbort);
+    const onAbort = (): void => {
+      cleanup();
+      reject(signal.reason);
+    };
+    operation.then(
+      (value) => {
+        cleanup();
+        if (signal.aborted) reject(signal.reason);
+        else resolve(value);
+      },
+      (error: unknown) => {
+        cleanup();
+        reject(error);
+      },
+    );
+    if (signal.aborted) onAbort();
+    else signal.addEventListener('abort', onAbort, { once: true });
+  });
+};
+
+const sdkDeadlineFailureV1 = (
+  cause: GatewayDeadlineCauseV1,
+  timeoutMs: number,
+): { ok: false; error: BoardSdkHttpLocalErrorV1 } => ({
+  ok: false,
+  error:
+    cause === 'caller'
+      ? { code: 'CANCELLED', retryable: false }
+      : { code: 'TIMEOUT', retryable: true, timeoutMs },
+});
+
+const connectionDeadlineFailureV1 = (
+  cause: GatewayDeadlineCauseV1,
+  timeoutMs: number,
+): ConnectionHttpLocalErrorV1 =>
+  cause === 'caller'
+    ? { code: 'CANCELLED', retryable: false }
+    : { code: 'TIMEOUT', retryable: true, timeoutMs };
+
 export class ProtectedBoardGatewayV1 {
   constructor(private readonly options: ProtectedBoardGatewayOptionsV1) {}
 
@@ -106,86 +195,217 @@ export class ProtectedBoardGatewayV1 {
   }
 
   async call<T>(
-    operation: (client: BoardSdkHttpClient, snapshot: CredentialSnapshotV1) => Promise<T>,
+    operation: (
+      client: BoardSdkHttpClient,
+      snapshot: CredentialSnapshotV1,
+      signal: AbortSignal,
+    ) => Promise<T>,
+  ): Promise<ProtectedGatewayResultV1<T>>;
+  async call<T>(
+    operation: (
+      client: BoardSdkHttpClient,
+      snapshot: CredentialSnapshotV1,
+      signal: AbortSignal,
+    ) => Promise<T>,
+    options: GatewayCallOptionsV1,
   ): Promise<ProtectedGatewayResultV1<T>>;
   async call<T>(
     toolName: AccountApiKeyToolNameV1,
-    operationName: AccountApiKeyOperationV1,
-    operation: (client: BoardSdkHttpClient, snapshot: CredentialSnapshotV1) => Promise<T>,
+    operationPlan: AccountApiKeyOperationV1 | AccountApiKeyOperationPlanV1,
+    operation: (
+      client: BoardSdkHttpClient,
+      snapshot: CredentialSnapshotV1,
+      signal: AbortSignal,
+    ) => Promise<T>,
+  ): Promise<ProtectedGatewayResultV1<T>>;
+  async call<T>(
+    toolName: AccountApiKeyToolNameV1,
+    operationPlan: AccountApiKeyOperationV1 | AccountApiKeyOperationPlanV1,
+    options: GatewayCallOptionsV1,
+    operation: (
+      client: BoardSdkHttpClient,
+      snapshot: CredentialSnapshotV1,
+      signal: AbortSignal,
+    ) => Promise<T>,
   ): Promise<ProtectedGatewayResultV1<T>>;
   async call<T>(
     toolOrOperation:
       | AccountApiKeyToolNameV1
-      | ((client: BoardSdkHttpClient, snapshot: CredentialSnapshotV1) => Promise<T>),
-    operationNameOrUndefined?: AccountApiKeyOperationV1,
+      | ((
+          client: BoardSdkHttpClient,
+          snapshot: CredentialSnapshotV1,
+          signal: AbortSignal,
+        ) => Promise<T>),
+    operationPlanOrOperation?:
+      | AccountApiKeyOperationV1
+      | AccountApiKeyOperationPlanV1
+      | GatewayCallOptionsV1
+      | ((
+          client: BoardSdkHttpClient,
+          snapshot: CredentialSnapshotV1,
+          signal: AbortSignal,
+        ) => Promise<T>),
+    optionsOrOperation?:
+      | GatewayCallOptionsV1
+      | ((
+          client: BoardSdkHttpClient,
+          snapshot: CredentialSnapshotV1,
+          signal: AbortSignal,
+        ) => Promise<T>),
     operationOrUndefined?: (
       client: BoardSdkHttpClient,
       snapshot: CredentialSnapshotV1,
+      signal: AbortSignal,
     ) => Promise<T>,
   ): Promise<ProtectedGatewayResultV1<T>> {
     const toolName = typeof toolOrOperation === 'string' ? toolOrOperation : null;
-    const operationName =
-      typeof toolOrOperation === 'string' ? (operationNameOrUndefined ?? null) : null;
-    const operation = typeof toolOrOperation === 'string' ? operationOrUndefined : toolOrOperation;
+    const requestedOperations: readonly AccountApiKeyOperationV1[] | null =
+      typeof toolOrOperation !== 'string'
+        ? null
+        : typeof operationPlanOrOperation === 'string'
+          ? [operationPlanOrOperation]
+          : Array.isArray(operationPlanOrOperation)
+            ? (operationPlanOrOperation as AccountApiKeyOperationPlanV1)
+            : null;
+    const options =
+      typeof toolOrOperation === 'string'
+        ? typeof optionsOrOperation === 'function'
+          ? { signal: undefined }
+          : (optionsOrOperation ?? { signal: undefined })
+        : ((operationPlanOrOperation as GatewayCallOptionsV1 | undefined) ?? {
+            signal: undefined,
+          });
+    const operation =
+      typeof toolOrOperation === 'string'
+        ? typeof optionsOrOperation === 'function'
+          ? optionsOrOperation
+          : operationOrUndefined
+        : toolOrOperation;
     if (operation === undefined) return { connected: false };
-    const snapshot = await this.options.tokens.snapshot();
-    if (snapshot === null) return { connected: false };
-    if (this.options.credentialMode === 'api_key') {
-      if (toolName === null || operationName === null) return { connected: false };
-      const policy = accountApiKeyToolPolicyV1(toolName);
-      if (policy === null || policy.operation !== operationName) return { connected: false };
-      const connection = await new ConnectionHttpClientV1({
-        baseUrl: this.options.baseUrl,
-        fetch: this.options.fetch,
-        timeoutMs: this.options.timeoutMs,
-        logger: this.options.logger,
-      }).get(null, randomBytes(16).toString('base64url'), snapshot.accessToken);
-      if (!connection.ok) {
-        if (connection.source === 'board') {
-          if (connection.error.code === 'UNAUTHENTICATED')
-            await this.options.tokens.invalidate(snapshot);
+    return this.callWithinDeadline(
+      toolName,
+      requestedOperations,
+      operation,
+      options.signal,
+      this.options.timeoutMs,
+      (cause) => sdkDeadlineFailureV1(cause, this.options.timeoutMs) as T,
+    );
+  }
+
+  private async callWithinDeadline<T>(
+    toolName: AccountApiKeyToolNameV1 | null,
+    requestedOperations: readonly AccountApiKeyOperationV1[] | null,
+    operation: (
+      client: BoardSdkHttpClient,
+      snapshot: CredentialSnapshotV1,
+      signal: AbortSignal,
+    ) => Promise<T>,
+    callerSignal: AbortSignal | undefined,
+    timeoutMs: number,
+    deadlineFailure: (cause: GatewayDeadlineCauseV1) => T,
+  ): Promise<ProtectedGatewayResultV1<T>> {
+    const deadline = gatewayDeadlineV1(timeoutMs, callerSignal);
+    try {
+      deadline.signal.throwIfAborted();
+      const snapshot = await waitWithinGatewayDeadlineV1(
+        this.options.tokens.snapshot(deadline.signal),
+        deadline.signal,
+      );
+      if (snapshot === null) return { connected: false };
+      if (this.options.credentialMode === 'api_key') {
+        if (toolName === null || requestedOperations === null) return { connected: false };
+        const policy = accountApiKeyToolPolicyV1(toolName);
+        const operationPlan = policy?.operationPlans.find(
+          ({ operations }) =>
+            operations.length === requestedOperations.length &&
+            operations.every((operation, index) => operation === requestedOperations[index]),
+        );
+        if (operationPlan === undefined) return { connected: false };
+        const connection = await waitWithinGatewayDeadlineV1(
+          new ConnectionHttpClientV1({
+            baseUrl: this.options.baseUrl,
+            fetch: this.options.fetch,
+            timeoutMs,
+            logger: this.options.logger,
+          }).get(
+            null,
+            randomBytes(16).toString('base64url'),
+            snapshot.accessToken,
+            deadline.signal,
+          ),
+          deadline.signal,
+        );
+        const preflightCause = deadline.cause();
+        if (preflightCause !== null)
+          return { connected: true, value: deadlineFailure(preflightCause) };
+        if (!connection.ok) {
+          if (connection.source === 'board') {
+            if (connection.error.code === 'UNAUTHENTICATED')
+              await waitWithinGatewayDeadlineV1(
+                this.options.tokens.invalidate(snapshot, deadline.signal),
+                deadline.signal,
+              );
+            return {
+              connected: true,
+              value: { ok: false, error: connection.error } as T,
+            };
+          }
+          return { connected: false };
+        }
+        const credential = 'credential' in connection.value ? connection.value.credential : null;
+        if (
+          credential === null ||
+          !operationPlan.scopes.every((scope) => credential.scopes.includes(scope))
+        )
           return {
             connected: true,
-            value: { ok: false, error: connection.error } as T,
+            value: {
+              ok: false,
+              error: {
+                protocolVersion: 1,
+                type: 'board.error',
+                code: 'FORBIDDEN',
+                message: 'Insufficient API key scope',
+                category: 'auth',
+                retryable: false,
+                httpStatusHint: 403,
+                details: null,
+              },
+            } as T,
           };
-        }
-        return { connected: false };
       }
-      const credential = 'credential' in connection.value ? connection.value.credential : null;
-      if (credential === null || !policy.scopes.every((scope) => credential.scopes.includes(scope)))
-        return {
-          connected: true,
-          value: {
-            ok: false,
-            error: {
-              protocolVersion: 1,
-              type: 'board.error',
-              code: 'FORBIDDEN',
-              message: 'Insufficient API key scope',
-              category: 'auth',
-              retryable: false,
-              httpStatusHint: 403,
-              details: null,
-            },
-          } as T,
-        };
+      const client = this.client(snapshot);
+      const value = await waitWithinGatewayDeadlineV1(
+        operation(client, snapshot, deadline.signal),
+        deadline.signal,
+      );
+      const operationCause = deadline.cause();
+      if (operationCause !== null)
+        return { connected: true, value: deadlineFailure(operationCause) };
+      if (
+        value !== null &&
+        typeof value === 'object' &&
+        'ok' in value &&
+        value.ok === false &&
+        'error' in value &&
+        value.error !== null &&
+        typeof value.error === 'object' &&
+        'code' in value.error &&
+        value.error.code === 'UNAUTHENTICATED'
+      ) {
+        await waitWithinGatewayDeadlineV1(
+          this.options.tokens.invalidate(snapshot, deadline.signal),
+          deadline.signal,
+        );
+      }
+      return { connected: true, value };
+    } catch (error) {
+      const cause = deadline.cause();
+      if (cause !== null) return { connected: true, value: deadlineFailure(cause) };
+      throw error;
+    } finally {
+      deadline.dispose();
     }
-    const client = this.client(snapshot);
-    const value = await operation(client, snapshot);
-    if (
-      value !== null &&
-      typeof value === 'object' &&
-      'ok' in value &&
-      value.ok === false &&
-      'error' in value &&
-      value.error !== null &&
-      typeof value.error === 'object' &&
-      'code' in value.error &&
-      value.error.code === 'UNAUTHENTICATED'
-    ) {
-      await this.options.tokens.invalidate(snapshot);
-    }
-    return { connected: true, value };
   }
 
   async renameBoard(input: {
@@ -193,15 +413,10 @@ export class ProtectedBoardGatewayV1 {
     title: string;
     signal?: AbortSignal;
   }): Promise<ProtectedGatewayResultV1<BoardRenameGatewayResultV1>> {
-    const result = await this.call(
+    const result = await this.callWithinDeadline<BoardRenameGatewayResultV1>(
       'board_rename',
-      'board.rename',
-      async (_client, snapshot): Promise<BoardRenameGatewayResultV1> => {
-        const timeoutSignal = AbortSignal.timeout(this.options.timeoutMs);
-        const signal =
-          input.signal === undefined
-            ? timeoutSignal
-            : AbortSignal.any([input.signal, timeoutSignal]);
+      ['board.rename'],
+      async (_client, snapshot, signal): Promise<BoardRenameGatewayResultV1> => {
         let response: Response;
         try {
           response = await this.options.fetch(
@@ -273,8 +488,6 @@ export class ProtectedBoardGatewayV1 {
               source: 'local',
               error: { code: 'RESPONSE_INVALID' },
             };
-          if (error.data.value.code === 'UNAUTHENTICATED')
-            await this.options.tokens.invalidate(snapshot);
           return { ok: false, source: 'board', error: error.data.value };
         }
         const value =
@@ -303,6 +516,16 @@ export class ProtectedBoardGatewayV1 {
           },
         };
       },
+      input.signal,
+      this.options.timeoutMs,
+      (cause) => ({
+        ok: false,
+        source: 'local',
+        error:
+          cause === 'caller'
+            ? { code: 'CANCELLED' }
+            : { code: 'TIMEOUT', timeoutMs: this.options.timeoutMs },
+      }),
     );
     const rawValue = result.connected ? (result.value as unknown as Record<string, unknown>) : null;
     const rawError =
@@ -331,15 +554,10 @@ export class ProtectedBoardGatewayV1 {
     format: LocalExportFormatV1;
     signal?: AbortSignal;
   }): Promise<ProtectedGatewayResultV1<BoardExportGatewayResultV1>> {
-    return this.call(
+    return this.callWithinDeadline<BoardExportGatewayResultV1>(
       'board_export',
-      'export.render',
-      async (_client, snapshot): Promise<BoardExportGatewayResultV1> => {
-        const timeoutSignal = AbortSignal.timeout(120_000);
-        const signal =
-          input.signal === undefined
-            ? timeoutSignal
-            : AbortSignal.any([input.signal, timeoutSignal]);
+      ['export.render'],
+      async (_client, snapshot, signal): Promise<BoardExportGatewayResultV1> => {
         let response: Response;
         try {
           response = await this.options.fetch(
@@ -365,7 +583,7 @@ export class ProtectedBoardGatewayV1 {
         } catch {
           if (input.signal?.aborted === true)
             return { ok: false, source: 'local', error: { code: 'CANCELLED' } };
-          if (timeoutSignal.aborted)
+          if (signal.aborted)
             return {
               ok: false,
               source: 'local',
@@ -412,7 +630,7 @@ export class ProtectedBoardGatewayV1 {
         if (bytes === 'response') {
           if (input.signal?.aborted === true)
             return { ok: false, source: 'local', error: { code: 'CANCELLED' } };
-          if (timeoutSignal.aborted)
+          if (signal.aborted)
             return {
               ok: false,
               source: 'local',
@@ -456,7 +674,7 @@ export class ProtectedBoardGatewayV1 {
         )
           return { ok: false, source: 'local', error: { code: 'RESPONSE_INVALID' } };
         if (rawError.code === 'EXPORT_UNAUTHENTICATED')
-          await this.options.tokens.invalidate(snapshot);
+          await this.options.tokens.invalidate(snapshot, signal);
         return {
           ok: false,
           source: 'board',
@@ -467,6 +685,13 @@ export class ProtectedBoardGatewayV1 {
           },
         };
       },
+      input.signal,
+      120_000,
+      (cause) => ({
+        ok: false,
+        source: 'local',
+        error: cause === 'caller' ? { code: 'CANCELLED' } : { code: 'TIMEOUT', timeoutMs: 120_000 },
+      }),
     );
   }
 
@@ -479,75 +704,122 @@ export class ProtectedBoardGatewayV1 {
     }>,
     operation: (context: AuthorizedBoardOperationContextV1) => Promise<T>,
   ): Promise<ProtectedAuthorizationResultV1<T>> {
-    let rawSnapshot: CredentialSnapshotV1 | null;
+    const deadline = gatewayDeadlineV1(this.options.timeoutMs, input.signal);
     try {
-      rawSnapshot = await this.options.tokens.snapshot();
-    } catch {
-      return { authorized: false, reason: 'credential_unavailable' };
-    }
-    if (rawSnapshot === null) return { authorized: false, reason: 'not_connected' };
-    if (
-      this.options.credentialMode === 'api_key' ||
-      rawSnapshot.version !== 1 ||
-      typeof rawSnapshot.generation !== 'string' ||
-      !GENERATION_PATTERN_V1.test(rawSnapshot.generation) ||
-      typeof rawSnapshot.accessToken !== 'string' ||
-      !ACCESS_TOKEN_PATTERN_V1.test(rawSnapshot.accessToken)
-    )
-      return { authorized: false, reason: 'credential_unavailable' };
-    const snapshot = Object.freeze({ ...rawSnapshot });
-    const connection = await new ConnectionHttpClientV1({
-      baseUrl: this.options.baseUrl,
-      fetch: this.options.fetch,
-      timeoutMs: this.options.timeoutMs,
-      logger: this.options.logger,
-    }).get(input.boardId, input.requestId, snapshot.accessToken, input.signal);
-    if (!connection.ok) {
-      if (connection.source === 'board') {
-        if (connection.error.code === 'UNAUTHENTICATED')
-          await this.options.tokens.invalidate(snapshot);
-        return { authorized: false, reason: 'board', error: connection.error };
+      let rawSnapshot: CredentialSnapshotV1 | null;
+      try {
+        deadline.signal.throwIfAborted();
+        rawSnapshot = await waitWithinGatewayDeadlineV1(
+          this.options.tokens.snapshot(deadline.signal),
+          deadline.signal,
+        );
+      } catch {
+        const cause = deadline.cause();
+        if (cause !== null)
+          return {
+            authorized: false,
+            reason: 'local',
+            error: connectionDeadlineFailureV1(cause, this.options.timeoutMs),
+          };
+        return { authorized: false, reason: 'credential_unavailable' };
       }
-      return { authorized: false, reason: 'local', error: connection.error };
-    }
-    if (!('grant' in connection.value))
-      return { authorized: false, reason: 'credential_unavailable' };
-    const selected = connection.value.selectedBoard;
-    const grant = connection.value.grant;
-    if (
-      selected === null ||
-      !input.requiredCapabilities.every(
-        (capability) =>
-          grant.scopes.includes(capability as never) &&
-          selected.capabilities.grantedCapabilities.includes(capability as never),
+      if (rawSnapshot === null) return { authorized: false, reason: 'not_connected' };
+      if (
+        this.options.credentialMode === 'api_key' ||
+        rawSnapshot.version !== 1 ||
+        typeof rawSnapshot.generation !== 'string' ||
+        !GENERATION_PATTERN_V1.test(rawSnapshot.generation) ||
+        typeof rawSnapshot.accessToken !== 'string' ||
+        !ACCESS_TOKEN_PATTERN_V1.test(rawSnapshot.accessToken)
       )
-    )
-      return {
-        authorized: false,
-        reason: 'board',
-        error: {
-          protocolVersion: 1,
-          type: 'board.error',
-          code: 'BOARD_NOT_FOUND',
-          message: 'Board not found',
-          category: 'not_found',
-          retryable: false,
-          httpStatusHint: 404,
-          details: null,
-        },
-      };
-    return {
-      authorized: true,
-      value: await operation({
-        snapshot,
-        client: this.client(snapshot),
-        media: new ConnectionMediaHttpClientV1({
+        return { authorized: false, reason: 'credential_unavailable' };
+      const snapshot = Object.freeze({ ...rawSnapshot });
+      const connection = await waitWithinGatewayDeadlineV1(
+        new ConnectionHttpClientV1({
           baseUrl: this.options.baseUrl,
           fetch: this.options.fetch,
           timeoutMs: this.options.timeoutMs,
           logger: this.options.logger,
+        }).get(input.boardId, input.requestId, snapshot.accessToken, deadline.signal),
+        deadline.signal,
+      );
+      const connectionCause = deadline.cause();
+      if (connectionCause !== null)
+        return {
+          authorized: false,
+          reason: 'local',
+          error: connectionDeadlineFailureV1(connectionCause, this.options.timeoutMs),
+        };
+      if (!connection.ok) {
+        if (connection.source === 'board') {
+          if (connection.error.code === 'UNAUTHENTICATED')
+            await waitWithinGatewayDeadlineV1(
+              this.options.tokens.invalidate(snapshot, deadline.signal),
+              deadline.signal,
+            );
+          return { authorized: false, reason: 'board', error: connection.error };
+        }
+        return { authorized: false, reason: 'local', error: connection.error };
+      }
+      if (!('grant' in connection.value))
+        return { authorized: false, reason: 'credential_unavailable' };
+      const selected = connection.value.selectedBoard;
+      const grant = connection.value.grant;
+      if (
+        selected === null ||
+        !input.requiredCapabilities.every(
+          (capability) =>
+            grant.scopes.includes(capability as never) &&
+            selected.capabilities.grantedCapabilities.includes(capability as never),
+        )
+      )
+        return {
+          authorized: false,
+          reason: 'board',
+          error: {
+            protocolVersion: 1,
+            type: 'board.error',
+            code: 'BOARD_NOT_FOUND',
+            message: 'Board not found',
+            category: 'not_found',
+            retryable: false,
+            httpStatusHint: 404,
+            details: null,
+          },
+        };
+      const value = await waitWithinGatewayDeadlineV1(
+        operation({
+          snapshot,
+          client: this.client(snapshot),
+          media: new ConnectionMediaHttpClientV1({
+            baseUrl: this.options.baseUrl,
+            fetch: this.options.fetch,
+            timeoutMs: this.options.timeoutMs,
+            logger: this.options.logger,
+          }),
+          signal: deadline.signal,
         }),
-      }),
-    };
+        deadline.signal,
+      );
+      const operationCause = deadline.cause();
+      if (operationCause !== null)
+        return {
+          authorized: false,
+          reason: 'local',
+          error: connectionDeadlineFailureV1(operationCause, this.options.timeoutMs),
+        };
+      return { authorized: true, value };
+    } catch (error) {
+      const cause = deadline.cause();
+      if (cause !== null)
+        return {
+          authorized: false,
+          reason: 'local',
+          error: connectionDeadlineFailureV1(cause, this.options.timeoutMs),
+        };
+      throw error;
+    } finally {
+      deadline.dispose();
+    }
   }
 }

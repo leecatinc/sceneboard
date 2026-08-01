@@ -35,7 +35,6 @@ export type BoardListRequestV1 = BoardOperationRequestV1 & {
 };
 
 interface BoardListRow extends RowDataPacket {
-  cursorBoardPk: string;
   boardId: string;
   title: string;
   boardCreatedAt: string;
@@ -104,6 +103,7 @@ export class BoardListService {
             ? null
             : this.cursors.parse({
                 cursor: input.request.cursor,
+                limit: input.request.limit,
                 includeArchived: input.request.includeArchived,
                 access,
               });
@@ -132,11 +132,12 @@ export class BoardListService {
         const nextCursor =
           rows.length > input.request.limit && last !== undefined
             ? this.cursors.issue({
+                limit: input.request.limit,
                 includeArchived: input.request.includeArchived,
                 access,
                 tuple: {
                   createdAt: timestamp(last.boardCreatedAt),
-                  boardPk: last.cursorBoardPk,
+                  boardId: boardId(last.boardId),
                 },
               })
             : null;
@@ -162,14 +163,14 @@ export class BoardListService {
   ): Promise<BoardListRow[]> {
     const archived = includeArchived ? '' : 'AND b.archived_at IS NULL';
     const cursorPredicate =
-      cursor === null ? '' : 'AND (b.created_at < ? OR (b.created_at = ? AND b.board_pk < ?))';
+      cursor === null ? '' : 'AND (b.created_at < ? OR (b.created_at = ? AND b.public_id < ?))';
     const cursorBinds =
       cursor === null
         ? []
         : [
             formatMysqlTimestampUtc(new Date(cursor.createdAt)),
             formatMysqlTimestampUtc(new Date(cursor.createdAt)),
-            cursor.boardPk,
+            cursor.boardId,
           ];
     const membershipPolicyEnabled = context.membership !== undefined;
     const grantAccess = context.access.kind === 'grant' ? context.access : null;
@@ -206,7 +207,6 @@ export class BoardListService {
     const [rows] = await connection.execute<BoardListRow[]>(
       `
       SELECT
-        CAST(b.board_pk AS CHAR) AS cursorBoardPk,
         b.public_id AS boardId,
         b.title,
         b.created_at AS boardCreatedAt,
@@ -224,7 +224,7 @@ export class BoardListService {
       WHERE ${accessPredicate}
         ${archived}
         ${cursorPredicate}
-      ORDER BY b.created_at DESC, b.board_pk DESC
+      ORDER BY b.created_at DESC, b.public_id DESC
       LIMIT ${limit}
     `,
       [...accessBinds, ...cursorBinds],

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
-import { lstat, mkdtemp, mkdir, readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { lstat, mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -42,4 +43,25 @@ test('kernel lease has one owner, reports contention, and reacquires after relea
   await lease.release();
   const next = await second.acquire(state);
   await next.release();
+});
+
+test('helper acquisition abort terminates a pending helper handshake', async () => {
+  if (process.platform !== 'linux') return;
+  const root = await mkdtemp(join(tmpdir(), 'board-mcp-lease-abort-'));
+  const state = join(root, 'state');
+  await mkdir(state, { mode: 0o700 });
+  const helperPath = join(root, 'pending-helper');
+  const digestPath = join(root, 'pending-helper.sha256');
+  const helperBytes = Buffer.from('#!/bin/sh\nread line\nread pending\n', 'utf8');
+  await writeFile(helperPath, helperBytes, { mode: 0o500 });
+  await writeFile(digestPath, `${createHash('sha256').update(helperBytes).digest('hex')}\n`, {
+    mode: 0o600,
+  });
+  const adapter = new LinuxProfileLeaseHelperAdapterV1(helperPath, digestPath);
+  const controller = new AbortController();
+  const pending = adapter.acquire(state, controller.signal);
+  setTimeout(() => controller.abort(), 20);
+  const startedAt = performance.now();
+  await assert.rejects(pending, (error: unknown) => (error as Error).name === 'AbortError');
+  assert.equal(performance.now() - startedAt < 1_000, true);
 });

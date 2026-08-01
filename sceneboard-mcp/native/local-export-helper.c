@@ -25,13 +25,42 @@
 
 static volatile sig_atomic_t active_directory = -1;
 static volatile sig_atomic_t active_temporary = 0;
+static volatile sig_atomic_t active_final_created = 0;
+static volatile sig_atomic_t active_identity_ready = 0;
+static dev_t active_device;
+static ino_t active_inode;
 static char active_temporary_name[58];
+static char active_final_name[MAX_COMPONENT_BYTES + 1U];
+
+static int active_entry_matches(int directory, const char *name) {
+  struct stat status;
+  return active_identity_ready &&
+         fstatat(directory, name, &status, AT_SYMLINK_NOFOLLOW) == 0 &&
+         S_ISREG(status.st_mode) && status.st_dev == active_device &&
+         status.st_ino == active_inode;
+}
 
 static void terminate_cleanly(int signal_number) {
   (void)signal_number;
-  if (active_temporary && active_directory >= 0)
+  if (active_final_created && active_directory >= 0 &&
+      active_entry_matches((int)active_directory, active_final_name))
+    (void)unlinkat((int)active_directory, active_final_name, 0);
+  if (active_temporary && active_directory >= 0 &&
+      active_entry_matches((int)active_directory, active_temporary_name))
     (void)unlinkat((int)active_directory, active_temporary_name, 0);
   _exit(143);
+}
+
+static int block_termination_signals(sigset_t *previous) {
+  sigset_t blocked;
+  if (sigemptyset(&blocked) != 0 || sigaddset(&blocked, SIGTERM) != 0 ||
+      sigaddset(&blocked, SIGINT) != 0)
+    return -1;
+  return sigprocmask(SIG_BLOCK, &blocked, previous);
+}
+
+static int restore_signal_mask(const sigset_t *previous) {
+  return sigprocmask(SIG_SETMASK, previous, NULL);
 }
 
 static int write_all(int descriptor, const void *bytes, size_t length) {
@@ -193,10 +222,101 @@ static void recover_old_temporary_files(int directory) {
   closedir(entries);
 }
 
-static int publish_no_replace(int directory, const char *temporary, const char *final) {
-  if (syscall(SYS_renameat2, directory, temporary, directory, final, RENAME_NOREPLACE) == 0)
+static int fault_requested(const char *fault) {
+#ifdef SCENEBOARD_HELPER_FAULT_INJECTION
+  const char *requested = getenv("SCENEBOARD_HELPER_TEST_FAULT");
+  return requested != NULL && strcmp(requested, fault) == 0;
+#else
+  (void)fault;
+  return 0;
+#endif
+}
+
+static int fault_signal_requested(const char *term_fault, const char *int_fault) {
+#ifdef SCENEBOARD_HELPER_FAULT_INJECTION
+  if (fault_requested(term_fault)) return SIGTERM;
+  if (fault_requested(int_fault)) return SIGINT;
+#else
+  (void)term_fault;
+  (void)int_fault;
+#endif
+  return 0;
+}
+
+static int raise_fault_signal(int signal_number) {
+#ifdef SCENEBOARD_HELPER_FAULT_INJECTION
+  if (result("io", 0) != 0) return -1;
+  return raise(signal_number);
+#else
+  (void)signal_number;
+  return 0;
+#endif
+}
+
+static int sync_directory(int directory) {
+#ifdef SCENEBOARD_HELPER_FAULT_INJECTION
+  static int directory_fsync_failed = 0;
+  if (!directory_fsync_failed &&
+      (fault_requested("directory-fsync") ||
+       fault_requested("replace-before-directory-fsync"))) {
+    directory_fsync_failed = 1;
+    errno = EIO;
+    return -1;
+  }
+#endif
+  return fsync(directory);
+}
+
+static int cleanup_active_entry(int directory, const char *name,
+                                volatile sig_atomic_t *active, const char *operation) {
+  if (!*active) return 0;
+  errno = 0;
+  if (!active_entry_matches(directory, name)) {
+    if (errno != 0 && errno != ENOENT) {
+      diagnostic(operation, errno);
+      return -1;
+    }
+    *active = 0;
     return 0;
+  }
+  if (unlinkat(directory, name, 0) == 0 || errno == ENOENT) {
+    *active = 0;
+    return 0;
+  }
+  diagnostic(operation, errno);
+  return -1;
+}
+
+static int cleanup_temporary(int directory, const char *temporary) {
+  return cleanup_active_entry(directory, temporary, &active_temporary,
+                              "rollback-temporary");
+}
+
+static void rollback_publication(int directory, const char *temporary, const char *final) {
+  (void)cleanup_active_entry(directory, final, &active_final_created, "rollback-final");
+  (void)cleanup_temporary(directory, temporary);
+  (void)sync_directory(directory);
+}
+
+static int publish_no_replace(int directory, const char *temporary, const char *final) {
+  int rename_signal =
+      fault_signal_requested("post-rename-sigterm", "post-rename-sigint");
+  int link_signal = fault_signal_requested("post-link-sigterm", "post-link-sigint");
+  int force_fallback = fault_requested("fallback-temporary-unlink") ||
+                       link_signal != 0;
+  if (!force_fallback &&
+      syscall(SYS_renameat2, directory, temporary, directory, final, RENAME_NOREPLACE) == 0) {
+    if (rename_signal != 0 && raise_fault_signal(rename_signal) != 0) return -1;
+    active_final_created = 1;
+    active_temporary = 0;
+    if (!active_entry_matches(directory, final)) {
+      errno = EIO;
+      return -1;
+    }
+    return 0;
+  }
   int rename_error = errno;
+  if (force_fallback) rename_error = ENOSYS;
   if (rename_error == EEXIST) return 1;
   if (rename_error != EINVAL && rename_error != ENOSYS) {
     errno = rename_error;
@@ -204,12 +324,37 @@ static int publish_no_replace(int directory, const char *temporary, const char *
   }
   if (linkat(directory, temporary, directory, final, 0) != 0)
     return errno == EEXIST ? 1 : -1;
-  if (unlinkat(directory, temporary, 0) != 0) {
-    diagnostic("unlink", errno);
-    return 2;
+  if (link_signal != 0 && raise_fault_signal(link_signal) != 0) return -1;
+  active_final_created = 1;
+  if (!active_entry_matches(directory, final)) {
+    errno = EIO;
+    return -1;
   }
+  if (fault_requested("fallback-temporary-unlink")) {
+    errno = EIO;
+  } else if (cleanup_temporary(directory, temporary) == 0) {
+    return 0;
+  }
+  int unlink_error = errno;
+  diagnostic("unlink", unlink_error);
+  errno = unlink_error;
+  return -1;
+}
+
+#ifdef SCENEBOARD_HELPER_FAULT_INJECTION
+static int replace_final_for_test(int directory, const char *final) {
+  static const char replacement[] = "%PDF-replacement";
+  if (!active_entry_matches(directory, final) || unlinkat(directory, final, 0) != 0)
+    return -1;
+  int descriptor = openat(directory, final,
+                          O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
+  if (descriptor < 0) return -1;
+  if (write_all(descriptor, replacement, sizeof(replacement) - 1U) != 0 ||
+      fsync(descriptor) != 0 || close(descriptor) != 0)
+    return -1;
   return 0;
 }
+#endif
 
 int main(void) {
   close(5);
@@ -217,7 +362,9 @@ int main(void) {
   memset(&action, 0, sizeof(action));
   action.sa_handler = terminate_cleanly;
   sigemptyset(&action.sa_mask);
-  if (sigaction(SIGTERM, &action, NULL) != 0 || sigaction(SIGINT, &action, NULL) != 0)
+  if (sigaddset(&action.sa_mask, SIGTERM) != 0 ||
+      sigaddset(&action.sa_mask, SIGINT) != 0 ||
+      sigaction(SIGTERM, &action, NULL) != 0 || sigaction(SIGINT, &action, NULL) != 0)
     return result("io", 0);
   pid_t parent = getppid();
   if (parent <= 1 || prctl(PR_SET_PDEATHSIG, SIGTERM) != 0 || getppid() != parent)
@@ -321,16 +468,21 @@ int main(void) {
     close(directory);
     goto io;
   }
+  sigset_t temporary_previous_mask;
+  if (block_termination_signals(&temporary_previous_mask) != 0) {
+    close(directory);
+    goto io;
+  }
   int output = openat(directory, temporary,
                       O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0600);
   if (output < 0) {
+    int open_error = errno;
+    (void)restore_signal_mask(&temporary_previous_mask);
+    errno = open_error;
     diagnostic("openat", errno);
     close(directory);
     goto io;
   }
-  active_directory = directory;
-  memcpy(active_temporary_name, temporary, sizeof(active_temporary_name));
-  active_temporary = 1;
   struct stat output_status;
   if (fchmod(output, 0600) != 0 || fstat(output, &output_status) != 0 ||
       !S_ISREG(output_status.st_mode) || output_status.st_uid != geteuid() ||
@@ -338,7 +490,21 @@ int main(void) {
     diagnostic("fstat", errno);
     close(output);
     (void)unlinkat(directory, temporary, 0);
-    active_temporary = 0;
+    (void)restore_signal_mask(&temporary_previous_mask);
+    close(directory);
+    goto io;
+  }
+  active_directory = directory;
+  memcpy(active_temporary_name, temporary, sizeof(active_temporary_name));
+  active_device = output_status.st_dev;
+  active_inode = output_status.st_ino;
+  active_identity_ready = 1;
+  active_temporary = 1;
+  if (restore_signal_mask(&temporary_previous_mask) != 0) {
+    (void)cleanup_temporary(directory, temporary);
+    active_identity_ready = 0;
+    active_directory = -1;
+    close(output);
     close(directory);
     goto io;
   }
@@ -353,8 +519,9 @@ int main(void) {
     if (count < 0 && errno == EINTR) continue;
     if (count <= 0) {
       close(output);
-      (void)unlinkat(directory, temporary, 0);
-      active_temporary = 0;
+      (void)cleanup_temporary(directory, temporary);
+      active_identity_ready = 0;
+      active_directory = -1;
       close(directory);
       free(frame);
       for (uint8_t index = 0; index < component_count; index += 1) free(components[index]);
@@ -363,8 +530,9 @@ int main(void) {
     if (write_all(output, payload, (size_t)count) != 0) {
       diagnostic("write", errno);
       close(output);
-      (void)unlinkat(directory, temporary, 0);
-      active_temporary = 0;
+      (void)cleanup_temporary(directory, temporary);
+      active_identity_ready = 0;
+      active_directory = -1;
       close(directory);
       goto io;
     }
@@ -376,39 +544,137 @@ int main(void) {
   } while (extra < 0 && errno == EINTR);
   if (extra != 0) {
     close(output);
-    (void)unlinkat(directory, temporary, 0);
-    active_temporary = 0;
+    (void)cleanup_temporary(directory, temporary);
+    active_identity_ready = 0;
+    active_directory = -1;
     close(directory);
     free(frame);
     for (uint8_t index = 0; index < component_count; index += 1) free(components[index]);
     return result("corrupt", 0);
   }
   if (fstat(output, &output_status) != 0 || (uint64_t)output_status.st_size != expected_bytes ||
-      fsync(output) != 0 || close(output) != 0) {
+      fsync(output) != 0) {
     diagnostic("fsync", errno);
-    (void)unlinkat(directory, temporary, 0);
-    active_temporary = 0;
+    close(output);
+    (void)cleanup_temporary(directory, temporary);
+    active_identity_ready = 0;
+    active_directory = -1;
     close(directory);
     goto io;
   }
+  sigset_t publication_previous_mask;
+  if (block_termination_signals(&publication_previous_mask) != 0) {
+    close(output);
+    (void)cleanup_temporary(directory, temporary);
+    active_identity_ready = 0;
+    active_directory = -1;
+    close(directory);
+    goto io;
+  }
+  memcpy(active_final_name, components[component_count - 1],
+         component_lengths[component_count - 1] + 1U);
+  active_final_created = 0;
   int published =
       publish_no_replace(directory, temporary, components[component_count - 1]);
+  int publication_error = published < 0 ? errno : 0;
+  if (restore_signal_mask(&publication_previous_mask) != 0) {
+    rollback_publication(directory, temporary, components[component_count - 1]);
+    close(output);
+    active_identity_ready = 0;
+    active_directory = -1;
+    close(directory);
+    goto io;
+  }
   if (published == 1) {
-    (void)unlinkat(directory, temporary, 0);
-    active_temporary = 0;
+    if (cleanup_temporary(directory, temporary) != 0) {
+      close(output);
+      active_identity_ready = 0;
+      active_directory = -1;
+      close(directory);
+      goto io;
+    }
+    close(output);
+    active_identity_ready = 0;
+    active_directory = -1;
     close(directory);
     free(frame);
     for (uint8_t index = 0; index < component_count; index += 1) free(components[index]);
     return result("exists", 0);
   }
-  if (published < 0 || fsync(directory) != 0) {
-    diagnostic("publish", errno);
-    (void)unlinkat(directory, temporary, 0);
-    active_temporary = 0;
+  if (published < 0) {
+    diagnostic("publish", publication_error);
+    rollback_publication(directory, temporary, components[component_count - 1]);
+    close(output);
+    active_identity_ready = 0;
+    active_directory = -1;
+    close(directory);
+    errno = publication_error;
+    goto io;
+  }
+#ifdef SCENEBOARD_HELPER_FAULT_INJECTION
+  int replacement_signal =
+      fault_signal_requested("replace-before-sigterm", "replace-before-sigint");
+  if ((fault_requested("replace-before-directory-fsync") || replacement_signal != 0) &&
+      replace_final_for_test(directory, components[component_count - 1]) != 0) {
+    rollback_publication(directory, temporary, components[component_count - 1]);
+    close(output);
+    active_identity_ready = 0;
+    active_directory = -1;
     close(directory);
     goto io;
   }
+  if (replacement_signal != 0 && raise_fault_signal(replacement_signal) != 0) {
+    rollback_publication(directory, temporary, components[component_count - 1]);
+    close(output);
+    active_identity_ready = 0;
+    active_directory = -1;
+    close(directory);
+    goto io;
+  }
+#endif
+  if (sync_directory(directory) != 0) {
+    int sync_error = errno;
+    diagnostic("publish", sync_error);
+    rollback_publication(directory, temporary, components[component_count - 1]);
+    close(output);
+    active_identity_ready = 0;
+    active_directory = -1;
+    close(directory);
+    errno = sync_error;
+    goto io;
+  }
+  sigset_t commit_previous_mask;
+  if (block_termination_signals(&commit_previous_mask) != 0) {
+    rollback_publication(directory, temporary, components[component_count - 1]);
+    close(output);
+    active_identity_ready = 0;
+    active_directory = -1;
+    close(directory);
+    goto io;
+  }
+  if (!active_entry_matches(directory, components[component_count - 1])) {
+    rollback_publication(directory, temporary, components[component_count - 1]);
+    close(output);
+    active_identity_ready = 0;
+    active_directory = -1;
+    close(directory);
+    (void)restore_signal_mask(&commit_previous_mask);
+    goto io;
+  }
   active_temporary = 0;
+  active_final_created = 0;
+  if (restore_signal_mask(&commit_previous_mask) != 0) {
+    active_final_created = 1;
+    rollback_publication(directory, temporary, components[component_count - 1]);
+    close(output);
+    active_identity_ready = 0;
+    active_directory = -1;
+    close(directory);
+    goto io;
+  }
+  active_identity_ready = 0;
+  active_directory = -1;
+  close(output);
   close(directory);
   free(frame);
   for (uint8_t index = 0; index < component_count; index += 1) free(components[index]);

@@ -4151,9 +4151,18 @@
       "exportKind": null,
       "projectionId": null,
       "selector": "whole-file"
+    },
+    {
+      "resourceId": "MIGRATION-ASSET-34",
+      "owner": "D3",
+      "path": "sceneboard-be/src/database/migrations/sql/028_d10_document_replace_idempotency.up.sql",
+      "exportName": null,
+      "exportKind": null,
+      "projectionId": null,
+      "selector": "whole-file"
     }
   ],
-  "expectedCardinality": 34,
+  "expectedCardinality": 35,
       "canonicalization": "utf8-lf",
       "materializationPredecessor": null,
       "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"

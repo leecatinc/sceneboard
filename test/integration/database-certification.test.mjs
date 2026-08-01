@@ -8,7 +8,7 @@ const root = new URL('../../', import.meta.url);
 const projectionNames = ['d2', 'd3', 'd7', 'd8'];
 const projectionRoot = new URL('sceneboard-be/test/contracts/schema-projections/', root);
 
-test('owner projections bind one schema and cover the exact 19-entry/22-asset registry', async () => {
+test('owner projections bind one schema and cover the exact 20-entry/23-asset registry', async () => {
   const schemaBytes = await readFile(new URL('expected-schema.v1.schema.json', projectionRoot));
   const schemaSha256 = createHash('sha256').update(schemaBytes).digest('hex');
   const projections = await Promise.all(
@@ -28,10 +28,10 @@ test('owner projections bind one schema and cover the exact 19-entry/22-asset re
     .sort((left, right) => left.order - right.order);
   assert.deepEqual(
     entries.map(({ order }) => order),
-    [...Array.from({ length: 15 }, (_, index) => index + 1), 27, 28, 29, 30],
+    [...Array.from({ length: 15 }, (_, index) => index + 1), 27, 28, 29, 30, 31],
   );
-  assert.equal(new Set(entries.map(({ version }) => version)).size, 19);
-  assert.equal(entries.length + entries.filter(({ downAsset }) => downAsset !== null).length, 22);
+  assert.equal(new Set(entries.map(({ version }) => version)).size, 20);
+  assert.equal(entries.length + entries.filter(({ downAsset }) => downAsset !== null).length, 23);
   for (const entry of entries) {
     const upBytes = await readFile(
       new URL(`sceneboard-be/src/database/migrations/sql/${entry.upAsset}`, root),

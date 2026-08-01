@@ -179,12 +179,21 @@ test('owns the closed operation, scope, and literal MCP tool partitions', () => 
     'board_export',
   ]);
   assert.deepEqual(accountApiKeyToolPolicy('board_history_restore'), {
-    operation: 'scene.restore',
-    scopes: ['board:write', 'history:read'],
+    operationPlans: [{ operations: ['scene.restore'], scopes: ['board:write', 'history:read'] }],
   });
   assert.deepEqual(accountApiKeyToolPolicy('board_export'), {
-    operation: 'export.render',
-    scopes: ['export:read'],
+    operationPlans: [{ operations: ['export.render'], scopes: ['export:read'] }],
+  });
+  assert.deepEqual(accountApiKeyToolPolicy('board_scene_get'), {
+    operationPlans: [
+      { operations: ['board.get'], scopes: ['board:read'] },
+      { operations: ['history.get'], scopes: ['history:read'] },
+    ],
+  });
+  assert.deepEqual(accountApiKeyToolPolicy('board_scene_patch'), {
+    operationPlans: [
+      { operations: ['board.get', 'scene.replace'], scopes: ['board:read', 'board:write'] },
+    ],
   });
   assert.equal(accountApiKeyToolPolicy('sceneboard_media_place'), null);
   assert.equal(accountApiKeyToolPolicy('future_document_replace_alias'), null);

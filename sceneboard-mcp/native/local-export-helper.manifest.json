@@ -3,7 +3,7 @@
   "targets": {
     "linux-x64-gnu": {
       "path": "linux-x64-gnu/local-export-helper",
-      "sha256": "6e7cc5773254d2fd0ee61ce0609f71df4256e5ace094441c9d059992ae787660",
+      "sha256": "b9f3cc79076222d1f983a79c14d46b9983289f27af8d0249e13c740525f89ced",
       "mode": "0500"
     }
   }

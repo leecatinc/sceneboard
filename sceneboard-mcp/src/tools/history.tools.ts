@@ -44,18 +44,22 @@ export class HistoryToolHandlersV1 {
     const requestId = createRequestIdV1();
     const parsed = HistoryListInputSchemaV1.safeParse(raw);
     if (!parsed.success) return validationFailureV1('board_history_list', requestId, parsed.error);
-    const result = await this.gateway.call('board_history_list', 'history.list', (client) =>
-      client.listHistory(
-        {
-          protocolVersion: 1,
-          requestId: requestId as RequestId,
-          type: 'history.list',
-          boardId: parsed.data.boardId as BoardId,
-          cursor: parsed.data.cursor as never,
-          limit: parsed.data.limit,
-        },
-        signal,
-      ),
+    const result = await this.gateway.call(
+      'board_history_list',
+      'history.list',
+      { signal },
+      (client, _snapshot, operationSignal) =>
+        client.listHistory(
+          {
+            protocolVersion: 1,
+            requestId: requestId as RequestId,
+            type: 'history.list',
+            boardId: parsed.data.boardId as BoardId,
+            cursor: parsed.data.cursor as never,
+            limit: parsed.data.limit,
+          },
+          operationSignal,
+        ),
     );
     return result.connected
       ? sdkToolResultV1(
@@ -76,17 +80,21 @@ export class HistoryToolHandlersV1 {
     const requestId = createRequestIdV1();
     const parsed = HistoryGetInputSchemaV1.safeParse(raw);
     if (!parsed.success) return validationFailureV1('board_history_get', requestId, parsed.error);
-    const result = await this.gateway.call('board_history_get', 'history.get', (client) =>
-      client.getHistory(
-        {
-          protocolVersion: 1,
-          requestId: requestId as RequestId,
-          type: 'history.get',
-          boardId: parsed.data.boardId as BoardId,
-          revisionId: parsed.data.revisionId as RevisionId,
-        },
-        signal,
-      ),
+    const result = await this.gateway.call(
+      'board_history_get',
+      'history.get',
+      { signal },
+      (client, _snapshot, operationSignal) =>
+        client.getHistory(
+          {
+            protocolVersion: 1,
+            requestId: requestId as RequestId,
+            type: 'history.get',
+            boardId: parsed.data.boardId as BoardId,
+            revisionId: parsed.data.revisionId as RevisionId,
+          },
+          operationSignal,
+        ),
     );
     return result.connected
       ? sdkToolResultV1(
@@ -108,21 +116,25 @@ export class HistoryToolHandlersV1 {
     const parsed = HistoryRestoreInputSchemaV1.safeParse(raw);
     if (!parsed.success)
       return validationFailureV1('board_history_restore', requestId, parsed.error);
-    const result = await this.gateway.call('board_history_restore', 'scene.restore', (client) =>
-      client.restoreRevision(
-        {
-          protocolVersion: 1,
-          requestId: requestId as RequestId,
-          boardId: parsed.data.boardId as BoardId,
-          expectedRevisionId: parsed.data.expectedRevisionId as RevisionId,
-          idempotencyKey: parsed.data.idempotencyKey as IdempotencyKey,
-          command: {
-            type: 'scene.restore',
-            sourceRevisionId: parsed.data.revisionId as RevisionId,
+    const result = await this.gateway.call(
+      'board_history_restore',
+      'scene.restore',
+      { signal },
+      (client, _snapshot, operationSignal) =>
+        client.restoreRevision(
+          {
+            protocolVersion: 1,
+            requestId: requestId as RequestId,
+            boardId: parsed.data.boardId as BoardId,
+            expectedRevisionId: parsed.data.expectedRevisionId as RevisionId,
+            idempotencyKey: parsed.data.idempotencyKey as IdempotencyKey,
+            command: {
+              type: 'scene.restore',
+              sourceRevisionId: parsed.data.revisionId as RevisionId,
+            },
           },
-        },
-        signal,
-      ),
+          operationSignal,
+        ),
     );
     return result.connected
       ? sdkToolResultV1('board_history_restore', requestId, result.value, null)

@@ -85,20 +85,22 @@ export class ArtifactToolHandlersV1 {
     const requestId = createRequestIdV1();
     const parsed = ArtifactGetInputSchemaV1.safeParse(raw);
     if (!parsed.success) return validationFailureV1('board_artifact_get', requestId, parsed.error);
-    const result = await this.gateway.call((client) =>
-      client.getArtifact(
-        {
-          protocolVersion: 1,
-          requestId: requestId as RequestId,
-          type: 'artifact.get',
-          boardId: parsed.data.boardId as BoardId,
-          artifact: {
-            artifactId: parsed.data.artifactId as ArtifactId,
-            versionId: parsed.data.versionId as ArtifactVersionId,
+    const result = await this.gateway.call(
+      (client, _snapshot, operationSignal) =>
+        client.getArtifact(
+          {
+            protocolVersion: 1,
+            requestId: requestId as RequestId,
+            type: 'artifact.get',
+            boardId: parsed.data.boardId as BoardId,
+            artifact: {
+              artifactId: parsed.data.artifactId as ArtifactId,
+              versionId: parsed.data.versionId as ArtifactVersionId,
+            },
           },
-        },
-        signal,
-      ),
+          operationSignal,
+        ),
+      { signal },
     );
     return result.connected
       ? sdkToolResultV1('board_artifact_get', requestId, result.value, null)
@@ -114,21 +116,24 @@ export class ArtifactToolHandlersV1 {
     const requestId = createRequestIdV1();
     const parsed = ArtifactPutInputSchemaV1.safeParse(raw);
     if (!parsed.success) return validationFailureV1('board_artifact_put', requestId, parsed.error);
-    const result = await this.gateway.call((client) =>
-      client.putArtifact(
-        requestId as RequestId,
-        {
-          boardId: parsed.data.boardId as BoardId,
-          expectedRevisionId: parsed.data.expectedRevisionId as RevisionId,
-          idempotencyKey: parsed.data.idempotencyKey as IdempotencyKey,
-          artifactId: parsed.data.artifactId as ArtifactId | null,
-          html: parsed.data.html,
-          css: parsed.data.css,
-          javascript: parsed.data.javascript,
-          requestedCapabilities: parsed.data.requestedCapabilities as ArtifactRequestCapabilityV1[],
-        },
-        signal,
-      ),
+    const result = await this.gateway.call(
+      (client, _snapshot, operationSignal) =>
+        client.putArtifact(
+          requestId as RequestId,
+          {
+            boardId: parsed.data.boardId as BoardId,
+            expectedRevisionId: parsed.data.expectedRevisionId as RevisionId,
+            idempotencyKey: parsed.data.idempotencyKey as IdempotencyKey,
+            artifactId: parsed.data.artifactId as ArtifactId | null,
+            html: parsed.data.html,
+            css: parsed.data.css,
+            javascript: parsed.data.javascript,
+            requestedCapabilities: parsed.data
+              .requestedCapabilities as ArtifactRequestCapabilityV1[],
+          },
+          operationSignal,
+        ),
+      { signal },
     );
     return result.connected
       ? sdkToolResultV1('board_artifact_put', requestId, result.value, null)
@@ -144,25 +149,27 @@ export class ArtifactToolHandlersV1 {
     const requestId = createRequestIdV1();
     const parsed = ArtifactStopInputSchemaV1.safeParse(raw);
     if (!parsed.success) return validationFailureV1('board_artifact_stop', requestId, parsed.error);
-    const result = await this.gateway.call((client) =>
-      client.mutateBoard(
-        {
-          protocolVersion: 1,
-          requestId: requestId as RequestId,
-          boardId: parsed.data.boardId as BoardId,
-          expectedRevisionId: parsed.data.expectedRevisionId as RevisionId,
-          idempotencyKey: parsed.data.idempotencyKey as IdempotencyKey,
-          command: {
-            type: 'artifact.stop',
-            artifact: {
-              artifactId: parsed.data.artifactId as ArtifactId,
-              versionId: parsed.data.versionId as ArtifactVersionId,
+    const result = await this.gateway.call(
+      (client, _snapshot, operationSignal) =>
+        client.mutateBoard(
+          {
+            protocolVersion: 1,
+            requestId: requestId as RequestId,
+            boardId: parsed.data.boardId as BoardId,
+            expectedRevisionId: parsed.data.expectedRevisionId as RevisionId,
+            idempotencyKey: parsed.data.idempotencyKey as IdempotencyKey,
+            command: {
+              type: 'artifact.stop',
+              artifact: {
+                artifactId: parsed.data.artifactId as ArtifactId,
+                versionId: parsed.data.versionId as ArtifactVersionId,
+              },
+              reason: parsed.data.reason as ShortText,
             },
-            reason: parsed.data.reason as ShortText,
           },
-        },
-        signal,
-      ),
+          operationSignal,
+        ),
+      { signal },
     );
     return result.connected
       ? sdkToolResultV1('board_artifact_stop', requestId, result.value, null)

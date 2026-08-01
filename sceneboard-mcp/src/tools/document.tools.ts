@@ -114,28 +114,36 @@ export class DocumentToolHandlersV2 {
     if (!parsed.success) return validationFailureV1('board_document_get', requestId, parsed.error);
     const result =
       parsed.data.revisionId === null
-        ? await this.gateway.call('board_document_get', 'board.get', (client) =>
-            client.getDocumentBoard(
-              {
-                protocolVersion: 1,
-                requestId: requestId as RequestId,
-                type: 'board.get',
-                boardId: parsed.data.boardId as BoardId,
-              },
-              signal,
-            ),
+        ? await this.gateway.call(
+            'board_document_get',
+            ['board.get'],
+            { signal },
+            (client, _snapshot, operationSignal) =>
+              client.getDocumentBoard(
+                {
+                  protocolVersion: 1,
+                  requestId: requestId as RequestId,
+                  type: 'board.get',
+                  boardId: parsed.data.boardId as BoardId,
+                },
+                operationSignal,
+              ),
           )
-        : await this.gateway.call('board_document_get', 'board.get', (client) =>
-            client.getDocumentHistory(
-              {
-                protocolVersion: 1,
-                requestId: requestId as RequestId,
-                type: 'history.get',
-                boardId: parsed.data.boardId as BoardId,
-                revisionId: parsed.data.revisionId as RevisionId,
-              },
-              signal,
-            ),
+        : await this.gateway.call(
+            'board_document_get',
+            ['history.get'],
+            { signal },
+            (client, _snapshot, operationSignal) =>
+              client.getDocumentHistory(
+                {
+                  protocolVersion: 1,
+                  requestId: requestId as RequestId,
+                  type: 'history.get',
+                  boardId: parsed.data.boardId as BoardId,
+                  revisionId: parsed.data.revisionId as RevisionId,
+                },
+                operationSignal,
+              ),
           );
     if (!result.connected) return disconnected('board_document_get', requestId);
     if (!result.value.ok)
@@ -250,16 +258,20 @@ export class DocumentToolHandlersV2 {
     const parsed = schema.safeParse(raw);
     if (!parsed.success) return validationFailureV1(tool, requestId, parsed.error);
     const value = parsed.data as Record<string, unknown>;
-    const head = await this.gateway.call(tool, 'document.replace', (client) =>
-      client.getDocumentBoard(
-        {
-          protocolVersion: 1,
-          requestId: requestId as RequestId,
-          type: 'board.get',
-          boardId: value.boardId as BoardId,
-        },
-        signal,
-      ),
+    const head = await this.gateway.call(
+      tool,
+      ['board.get', 'document.replace'],
+      { signal },
+      (client, _snapshot, operationSignal) =>
+        client.getDocumentBoard(
+          {
+            protocolVersion: 1,
+            requestId: requestId as RequestId,
+            type: 'board.get',
+            boardId: value.boardId as BoardId,
+          },
+          operationSignal,
+        ),
     );
     if (!head.connected) return disconnected(tool, requestId);
     if (!head.value.ok) return sdkToolResultV1(tool, requestId, head.value, null);
@@ -299,18 +311,22 @@ export class DocumentToolHandlersV2 {
         'board',
         transformed.error as unknown as Record<string, unknown>,
       );
-    const result = await this.gateway.call(tool, 'document.replace', (client) =>
-      client.mutateDocument(
-        {
-          protocolVersion: 1,
-          requestId: requestId as RequestId,
-          boardId: value.boardId as BoardId,
-          expectedRevisionId: value.expectedRevisionId as RevisionId,
-          idempotencyKey: value.idempotencyKey as IdempotencyKey,
-          command: { type: 'document.replace', document: transformed.data.value },
-        },
-        signal,
-      ),
+    const result = await this.gateway.call(
+      tool,
+      ['board.get', 'document.replace'],
+      { signal },
+      (client, _snapshot, operationSignal) =>
+        client.mutateDocument(
+          {
+            protocolVersion: 1,
+            requestId: requestId as RequestId,
+            boardId: value.boardId as BoardId,
+            expectedRevisionId: value.expectedRevisionId as RevisionId,
+            idempotencyKey: value.idempotencyKey as IdempotencyKey,
+            command: { type: 'document.replace', document: transformed.data.value },
+          },
+          operationSignal,
+        ),
     );
     return result.connected
       ? sdkToolResultV1(tool, requestId, result.value, null)

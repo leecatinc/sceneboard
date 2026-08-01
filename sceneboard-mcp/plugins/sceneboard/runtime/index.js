@@ -13363,33 +13363,47 @@ import { constants as constants2 } from "node:fs";
 import { lstat as lstat2, mkdir, open, readFile as readFile2, rename, unlink } from "node:fs/promises";
 import { join as join3 } from "node:path";
 var CREDENTIAL_FILE = "credential.json";
-var assertPrivateStateDirectoryV1 = async (stateDirectory) => {
+var assertPrivateStateDirectoryV1 = async (stateDirectory, signal) => {
+  signal?.throwIfAborted();
   await mkdir(stateDirectory, { recursive: true, mode: 448 });
+  signal?.throwIfAborted();
   const status = await lstat2(stateDirectory);
   if (!status.isDirectory() || status.isSymbolicLink() || status.uid !== process.geteuid?.()) {
     throw new Error("private state directory is invalid");
   }
   if ((status.mode & 511) !== 448) {
-    const handle = await open(stateDirectory, constants2.O_RDONLY | constants2.O_DIRECTORY | constants2.O_NOFOLLOW);
+    signal?.throwIfAborted();
+    const handle = await open(
+      stateDirectory,
+      constants2.O_RDONLY | constants2.O_DIRECTORY | constants2.O_NOFOLLOW
+    );
     try {
       await handle.chmod(448);
     } finally {
       await handle.close();
     }
   }
+  signal?.throwIfAborted();
   const confirmed = await lstat2(stateDirectory);
-  if ((confirmed.mode & 511) !== 448) throw new Error("private state directory permissions are invalid");
+  if ((confirmed.mode & 511) !== 448)
+    throw new Error("private state directory permissions are invalid");
 };
-var assertPrivateFile = async (path) => {
+var assertPrivateFile = async (path, signal) => {
+  signal?.throwIfAborted();
   const status = await lstat2(path);
-  if (!status.isFile() || status.isSymbolicLink() || status.uid !== process.geteuid?.() || (status.mode & 511) !== 384 || status.nlink !== 1) throw new Error("private record is invalid");
+  if (!status.isFile() || status.isSymbolicLink() || status.uid !== process.geteuid?.() || (status.mode & 511) !== 384 || status.nlink !== 1)
+    throw new Error("private record is invalid");
 };
 var atomicPrivateWriteV1 = async (stateDirectory, fileName, bytes) => {
   await assertPrivateStateDirectoryV1(stateDirectory);
   const temporaryName = `.${fileName}.${randomBytes(16).toString("base64url")}.tmp`;
   const temporaryPath = join3(stateDirectory, temporaryName);
   const targetPath = join3(stateDirectory, fileName);
-  const handle = await open(temporaryPath, constants2.O_CREAT | constants2.O_EXCL | constants2.O_WRONLY | constants2.O_NOFOLLOW, 384);
+  const handle = await open(
+    temporaryPath,
+    constants2.O_CREAT | constants2.O_EXCL | constants2.O_WRONLY | constants2.O_NOFOLLOW,
+    384
+  );
   try {
     await handle.chmod(384);
     await handle.writeFile(bytes);
@@ -13402,7 +13416,10 @@ var atomicPrivateWriteV1 = async (stateDirectory, fileName, bytes) => {
   await handle.close();
   await assertPrivateFile(temporaryPath);
   await rename(temporaryPath, targetPath);
-  const directory = await open(stateDirectory, constants2.O_RDONLY | constants2.O_DIRECTORY | constants2.O_NOFOLLOW);
+  const directory = await open(
+    stateDirectory,
+    constants2.O_RDONLY | constants2.O_DIRECTORY | constants2.O_NOFOLLOW
+  );
   try {
     await directory.sync();
   } finally {
@@ -13413,25 +13430,33 @@ var PrivateFileCredentialStoreV1 = class {
   constructor(stateDirectory) {
     this.stateDirectory = stateDirectory;
   }
-  async preflight() {
-    await assertPrivateStateDirectoryV1(this.stateDirectory);
+  async preflight(signal) {
+    await assertPrivateStateDirectoryV1(this.stateDirectory, signal);
   }
-  async read() {
+  async read(signal) {
+    signal?.throwIfAborted();
     const path = join3(this.stateDirectory, CREDENTIAL_FILE);
     try {
-      await assertPrivateFile(path);
-      return parseCredentialRecordV1(await readFile2(path));
+      await assertPrivateFile(path, signal);
+      signal?.throwIfAborted();
+      const bytes = await readFile2(path, { signal });
+      signal?.throwIfAborted();
+      return parseCredentialRecordV1(bytes);
     } catch (error3) {
       if (error3.code === "ENOENT") return null;
       throw error3;
     }
   }
   async replace(accessToken) {
-    const record2 = parseCredentialRecordV1(new TextEncoder().encode(JSON.stringify({
-      version: 1,
-      generation: randomBytes(16).toString("base64url"),
-      accessToken
-    })));
+    const record2 = parseCredentialRecordV1(
+      new TextEncoder().encode(
+        JSON.stringify({
+          version: 1,
+          generation: randomBytes(16).toString("base64url"),
+          accessToken
+        })
+      )
+    );
     const bytes = new TextEncoder().encode(JSON.stringify(record2));
     try {
       await atomicPrivateWriteV1(this.stateDirectory, CREDENTIAL_FILE, bytes);
@@ -13440,11 +13465,15 @@ var PrivateFileCredentialStoreV1 = class {
     }
     return record2;
   }
-  async deleteIfCurrent(snapshot) {
-    const current = await this.read();
+  async deleteIfCurrent(snapshot, signal) {
+    const current = await this.read(signal);
     if (current === null || !sameCredentialV1(current, snapshot)) return false;
+    signal?.throwIfAborted();
     await unlink(join3(this.stateDirectory, CREDENTIAL_FILE));
-    const directory = await open(this.stateDirectory, constants2.O_RDONLY | constants2.O_DIRECTORY | constants2.O_NOFOLLOW);
+    const directory = await open(
+      this.stateDirectory,
+      constants2.O_RDONLY | constants2.O_DIRECTORY | constants2.O_NOFOLLOW
+    );
     try {
       await directory.sync();
     } finally {
@@ -13456,7 +13485,8 @@ var PrivateFileCredentialStoreV1 = class {
 
 // sceneboard-mcp/src/credentials/private-file-api-key.store.ts
 var API_KEY_CREDENTIAL_FILE_V1 = "api-key.credential.json";
-var assertPrivateFile2 = async (path) => {
+var assertPrivateFile2 = async (path, signal) => {
+  signal?.throwIfAborted();
   const status = await lstat3(path);
   if (!status.isFile() || status.isSymbolicLink() || status.uid !== process.geteuid?.() || (status.mode & 511) !== 384 || status.nlink !== 1)
     throw new Error("private API key record is invalid");
@@ -13466,17 +13496,21 @@ var PrivateFileApiKeyStoreV1 = class {
     this.stateDirectory = stateDirectory;
     this.platform = platform;
   }
-  async preflight() {
+  async preflight(signal) {
+    signal?.throwIfAborted();
     if (this.platform === "win32")
       throw new Error("private API key storage is unsupported on Windows");
-    await assertPrivateStateDirectoryV1(this.stateDirectory);
+    await assertPrivateStateDirectoryV1(this.stateDirectory, signal);
   }
-  async read() {
-    await this.preflight();
+  async read(signal) {
+    await this.preflight(signal);
     const path = join4(this.stateDirectory, API_KEY_CREDENTIAL_FILE_V1);
     try {
-      await assertPrivateFile2(path);
-      return parseApiKeyCredentialRecordV1(await readFile3(path));
+      await assertPrivateFile2(path, signal);
+      signal?.throwIfAborted();
+      const bytes = await readFile3(path, { signal });
+      signal?.throwIfAborted();
+      return parseApiKeyCredentialRecordV1(bytes);
     } catch (error3) {
       if (error3.code === "ENOENT") return null;
       throw error3;
@@ -13494,11 +13528,7 @@ var PrivateFileApiKeyStoreV1 = class {
     );
     const bytes = new TextEncoder().encode(JSON.stringify(record2));
     try {
-      await atomicPrivateWriteV1(
-        this.stateDirectory,
-        API_KEY_CREDENTIAL_FILE_V1,
-        bytes
-      );
+      await atomicPrivateWriteV1(this.stateDirectory, API_KEY_CREDENTIAL_FILE_V1, bytes);
     } finally {
       bytes.fill(0);
     }
@@ -29985,6 +30015,23 @@ var retryDelayFromError = (error3) => {
   return seconds === null ? null : seconds * 1e3;
 };
 var shouldRetryError = (error3) => error3.retryable && (error3.code === "RATE_LIMITED" || error3.code === "SERVICE_UNAVAILABLE");
+var settleCredentialWithinDeadlineV1 = async (provider, signal) => {
+  if (signal.aborted) return { kind: "aborted" };
+  let onAbort = null;
+  const aborted2 = new Promise((resolve3) => {
+    onAbort = () => resolve3({ kind: "aborted" });
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+  const credential = Promise.resolve().then(provider).then(
+    (value) => ({ kind: "value", value }),
+    () => ({ kind: "error" })
+  );
+  try {
+    return await Promise.race([credential, aborted2]);
+  } finally {
+    if (onAbort !== null) signal.removeEventListener("abort", onAbort);
+  }
+};
 var BoardSdkHttpClient = class {
   static readBoundedResponseBodyV1 = readBoundedResponseBodyV1;
   static parseStrictJsonBytesV1 = parseStrictJsonBytesV1;
@@ -30045,7 +30092,10 @@ var BoardSdkHttpClient = class {
         method: "GET",
         routeTemplate: "/api/v1/boards/:boardId",
         path: `/api/v1/boards/${parsed.boardId}`,
-        query: new URLSearchParams({ requestId: parsed.requestId }),
+        query: new URLSearchParams({
+          requestId: parsed.requestId,
+          documentSchemaVersion: "2"
+        }),
         body: null,
         requestId: parsed.requestId,
         resultType: "board.get",
@@ -30144,6 +30194,7 @@ var BoardSdkHttpClient = class {
         method: "POST",
         routeTemplate: "/api/v1/boards/:boardId/mutations",
         path: `/api/v1/boards/${parsed.data.value.boardId}/mutations`,
+        query: new URLSearchParams({ documentSchemaVersion: "2" }),
         body: parsed.data.canonicalBytes,
         requestId: parsed.data.value.requestId,
         resultType: "document.replace",
@@ -30270,7 +30321,10 @@ var BoardSdkHttpClient = class {
         method: "GET",
         routeTemplate: "/api/v1/boards/:boardId/revisions/:revisionId",
         path: `/api/v1/boards/${parsed.boardId}/revisions/${parsed.revisionId}`,
-        query: new URLSearchParams({ requestId: parsed.requestId }),
+        query: new URLSearchParams({
+          requestId: parsed.requestId,
+          documentSchemaVersion: "2"
+        }),
         body: null,
         requestId: parsed.requestId,
         resultType: "history.get",
@@ -30408,11 +30462,17 @@ var BoardSdkHttpClient = class {
         }
         const startedAt = performance.now();
         let token;
-        try {
-          token = await this.#bearerTokenProvider();
-        } catch {
+        const credential = await settleCredentialWithinDeadlineV1(
+          this.#bearerTokenProvider,
+          deadline.signal
+        );
+        if (credential.kind === "aborted") {
+          return deadline.timedOut() ? localFailure({ code: "TIMEOUT", retryable: true, timeoutMs: this.#timeoutMs }) : localFailure({ code: "CANCELLED", retryable: false });
+        }
+        if (credential.kind === "error") {
           return localFailure({ code: "TRANSPORT_ERROR", retryable: true, phase: "credential" });
         }
+        token = credential.value;
         if (!TOKEN_PATTERN.test(token)) {
           return localFailure({ code: "TRANSPORT_ERROR", retryable: true, phase: "credential" });
         }
@@ -30643,8 +30703,13 @@ var parsePairingConnection = (value, requestId, boardId) => {
   let selectedBoard = null;
   if (root.selectedBoard !== null) {
     if (boardId === null) return null;
-    const selected = exactRecord(root.selectedBoard, ["board", "capabilities", "browserPresence"]);
-    if (selected === null || !["online", "offline", "unknown"].includes(String(selected.browserPresence)))
+    const selected = exactRecord(root.selectedBoard, [
+      "board",
+      "capabilities",
+      "browserPresence",
+      "capabilityEpoch"
+    ]);
+    if (selected === null || !["online", "offline", "unknown"].includes(String(selected.browserPresence)) || !Number.isSafeInteger(selected.capabilityEpoch) || Number(selected.capabilityEpoch) < 0)
       return null;
     const projection = parseBoardAndCapabilities(
       selected.board,
@@ -30655,7 +30720,8 @@ var parsePairingConnection = (value, requestId, boardId) => {
     if (projection === null || !parsedBoardIds.includes(projection.board.boardId)) return null;
     selectedBoard = {
       ...projection,
-      browserPresence: selected.browserPresence
+      browserPresence: selected.browserPresence,
+      capabilityEpoch: Number(selected.capabilityEpoch)
     };
   } else if (boardId !== null) return null;
   return {
@@ -30857,6 +30923,57 @@ var localValue = (error3) => {
     details: { reason: error3.reason }
   };
 };
+var statusDeadline = (timeoutMs, callerSignal) => {
+  const controller = new AbortController();
+  let cause = null;
+  const abortFromCaller = () => {
+    if (cause !== null) return;
+    cause = "caller";
+    controller.abort(callerSignal?.reason);
+  };
+  if (callerSignal?.aborted) abortFromCaller();
+  else callerSignal?.addEventListener("abort", abortFromCaller, { once: true });
+  const timer = setTimeout(() => {
+    if (cause !== null) return;
+    cause = "timeout";
+    controller.abort(new DOMException("Connection deadline exceeded", "TimeoutError"));
+  }, timeoutMs);
+  return {
+    signal: controller.signal,
+    cause: () => cause,
+    dispose: () => {
+      clearTimeout(timer);
+      callerSignal?.removeEventListener("abort", abortFromCaller);
+    }
+  };
+};
+var waitWithinDeadline = async (operation, signal) => {
+  signal.throwIfAborted();
+  return new Promise((resolve3, reject) => {
+    const cleanup = () => signal.removeEventListener("abort", onAbort);
+    const onAbort = () => {
+      cleanup();
+      reject(signal.reason);
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    operation.then(
+      (value) => {
+        cleanup();
+        if (signal.aborted) reject(signal.reason);
+        else resolve3(value);
+      },
+      (error3) => {
+        cleanup();
+        reject(error3);
+      }
+    );
+  });
+};
+var cancelledResult = () => ({
+  ok: false,
+  source: "mcp",
+  value: localValue({ code: "CANCELLED", retryable: false })
+});
 var ConnectionStatusServiceV1 = class {
   constructor(loaded, tokens, client) {
     this.loaded = loaded;
@@ -30864,73 +30981,136 @@ var ConnectionStatusServiceV1 = class {
     this.client = client;
   }
   async status(boardId, requestId, signal) {
-    let snapshot;
+    const deadline = statusDeadline(this.loaded.config.timeoutMs, signal);
     try {
-      snapshot = await this.tokens.snapshot();
-    } catch {
-      return {
-        ok: false,
-        source: "mcp",
-        value: {
-          code: "BOARD_MCP_INTERNAL_ERROR",
-          message: "Connection state is unavailable",
-          retryable: false,
-          details: { incidentId: randomBytes3(16).toString("base64url") }
-        }
-      };
-    }
-    if (snapshot === null)
-      return {
-        ok: true,
-        value: {
-          state: "credential_missing",
-          config: summary(this.loaded, false),
-          connection: null,
-          lastErrorCode: null
-        }
-      };
-    const result = await this.client.get(boardId, requestId, snapshot.accessToken, signal);
-    if (result.ok)
-      return {
-        ok: true,
-        value: {
-          state: "connected",
-          config: summary(this.loaded, true),
-          connection: result.value,
-          lastErrorCode: null
-        }
-      };
-    if (result.source === "board") {
-      if (result.error.code !== "UNAUTHENTICATED") {
+      let snapshot;
+      try {
+        deadline.signal.throwIfAborted();
+        snapshot = await waitWithinDeadline(this.tokens.snapshot(deadline.signal), deadline.signal);
+      } catch {
+        if (deadline.cause() === "caller") return cancelledResult();
+        if (deadline.cause() === "timeout")
+          return {
+            ok: true,
+            value: {
+              state: "backend_unavailable",
+              config: summary(this.loaded, false),
+              connection: null,
+              lastErrorCode: "BOARD_MCP_TIMEOUT"
+            }
+          };
         return {
           ok: false,
-          source: "board",
-          value: result.error
+          source: "mcp",
+          value: {
+            code: "BOARD_MCP_INTERNAL_ERROR",
+            message: "Connection state is unavailable",
+            retryable: false,
+            details: { incidentId: randomBytes3(16).toString("base64url") }
+          }
         };
       }
-      await this.tokens.invalidate(snapshot).catch(() => void 0);
+      if (snapshot === null)
+        return {
+          ok: true,
+          value: {
+            state: "credential_missing",
+            config: summary(this.loaded, false),
+            connection: null,
+            lastErrorCode: null
+          }
+        };
+      let result;
+      try {
+        result = await waitWithinDeadline(
+          this.client.get(boardId, requestId, snapshot.accessToken, deadline.signal),
+          deadline.signal
+        );
+      } catch {
+        if (deadline.cause() === "caller") return cancelledResult();
+        if (deadline.cause() === "timeout")
+          return {
+            ok: true,
+            value: {
+              state: "backend_unavailable",
+              config: summary(this.loaded, true),
+              connection: null,
+              lastErrorCode: "BOARD_MCP_TIMEOUT"
+            }
+          };
+        throw new Error("connection deadline invariant failed");
+      }
+      if (deadline.cause() === "caller") return cancelledResult();
+      if (deadline.cause() === "timeout")
+        return {
+          ok: true,
+          value: {
+            state: "backend_unavailable",
+            config: summary(this.loaded, true),
+            connection: null,
+            lastErrorCode: "BOARD_MCP_TIMEOUT"
+          }
+        };
+      if (result.ok)
+        return {
+          ok: true,
+          value: {
+            state: "connected",
+            config: summary(this.loaded, true),
+            connection: result.value,
+            lastErrorCode: null
+          }
+        };
+      if (result.source === "board") {
+        if (result.error.code !== "UNAUTHENTICATED") {
+          return {
+            ok: false,
+            source: "board",
+            value: result.error
+          };
+        }
+        try {
+          await waitWithinDeadline(
+            this.tokens.invalidate(snapshot, deadline.signal),
+            deadline.signal
+          );
+        } catch {
+          if (deadline.cause() === "caller") return cancelledResult();
+          if (deadline.cause() === "timeout")
+            return {
+              ok: true,
+              value: {
+                state: "backend_unavailable",
+                config: summary(this.loaded, true),
+                connection: null,
+                lastErrorCode: "BOARD_MCP_TIMEOUT"
+              }
+            };
+        }
+        return {
+          ok: true,
+          value: {
+            state: "credential_invalid",
+            config: summary(this.loaded, false),
+            connection: null,
+            lastErrorCode: "UNAUTHENTICATED"
+          }
+        };
+      }
+      if (result.error.code === "CANCELLED") return cancelledResult();
+      const translated = localValue(result.error);
       return {
         ok: true,
         value: {
-          state: "credential_invalid",
-          config: summary(this.loaded, false),
+          state: "backend_unavailable",
+          config: summary(this.loaded, true),
           connection: null,
-          lastErrorCode: "UNAUTHENTICATED"
+          lastErrorCode: translated.code
         }
       };
+    } finally {
+      deadline.dispose();
     }
-    if (result.error.code === "CANCELLED")
-      return { ok: false, source: "mcp", value: localValue(result.error) };
-    const translated = localValue(result.error);
-    return {
-      ok: true,
-      value: {
-        state: "backend_unavailable",
-        config: summary(this.loaded, true),
-        connection: null,
-        lastErrorCode: translated.code
-      }
-    };
   }
   async probeWithToken(accessToken, signal) {
     const requestId = randomBytes3(16).toString("base64url");
@@ -30963,50 +31143,81 @@ var ApiKeyConnectionStatusServiceV1 = class {
     };
   }
   async status(boardId, requestId, signal) {
-    let snapshot;
+    const deadline = statusDeadline(this.loaded.config.timeoutMs, signal);
     try {
-      snapshot = await this.tokens.snapshot();
-    } catch {
-      return this.state("credential_invalid", true, "API_KEY_CREDENTIAL_INVALID", false);
-    }
-    if (snapshot === null && "credentialInvalidated" in this.tokens && typeof this.tokens.credentialInvalidated === "function" && this.tokens.credentialInvalidated())
-      return this.state("credential_invalid", true, "API_KEY_CREDENTIAL_INVALID", false);
-    if (snapshot === null)
-      return this.state("credential_missing", false, "API_KEY_CREDENTIAL_MISSING", false);
-    const result = await this.client.get(boardId, requestId, snapshot.accessToken, signal);
-    if (result.ok) {
-      if (!("credential" in result.value))
-        return this.state("backend_unavailable", true, "API_KEY_BACKEND_RESPONSE_INVALID", true);
-      return {
-        ok: true,
-        value: {
-          credentialMode: "api_key",
-          state: "connected",
-          config: this.config(true),
-          connection: result.value,
-          lastErrorCode: null,
-          retryable: false
-        }
-      };
-    }
-    if (result.source === "board") {
-      if (result.error.code !== "UNAUTHENTICATED")
+      let snapshot;
+      try {
+        deadline.signal.throwIfAborted();
+        snapshot = await waitWithinDeadline(this.tokens.snapshot(deadline.signal), deadline.signal);
+      } catch {
+        if (deadline.cause() === "caller") return cancelledResult();
+        if (deadline.cause() === "timeout")
+          return this.state("backend_unavailable", true, "API_KEY_BACKEND_UNAVAILABLE", true);
+        return this.state("credential_invalid", true, "API_KEY_CREDENTIAL_INVALID", false);
+      }
+      if (snapshot === null && "credentialInvalidated" in this.tokens && typeof this.tokens.credentialInvalidated === "function" && this.tokens.credentialInvalidated())
+        return this.state("credential_invalid", true, "API_KEY_CREDENTIAL_INVALID", false);
+      if (snapshot === null)
+        return this.state("credential_missing", false, "API_KEY_CREDENTIAL_MISSING", false);
+      let result;
+      try {
+        result = await waitWithinDeadline(
+          this.client.get(boardId, requestId, snapshot.accessToken, deadline.signal),
+          deadline.signal
+        );
+      } catch {
+        if (deadline.cause() === "caller") return cancelledResult();
+        if (deadline.cause() === "timeout")
+          return this.state("backend_unavailable", true, "API_KEY_BACKEND_UNAVAILABLE", true);
+        throw new Error("connection deadline invariant failed");
+      }
+      if (deadline.cause() === "caller") return cancelledResult();
+      if (deadline.cause() === "timeout")
+        return this.state("backend_unavailable", true, "API_KEY_BACKEND_UNAVAILABLE", true);
+      if (result.ok) {
+        if (!("credential" in result.value))
+          return this.state("backend_unavailable", true, "API_KEY_BACKEND_RESPONSE_INVALID", true);
         return {
-          ok: false,
-          source: "board",
-          value: result.error
+          ok: true,
+          value: {
+            credentialMode: "api_key",
+            state: "connected",
+            config: this.config(true),
+            connection: result.value,
+            lastErrorCode: null,
+            retryable: false
+          }
         };
-      await this.tokens.invalidate(snapshot).catch(() => void 0);
-      return this.state("credential_invalid", true, "API_KEY_CREDENTIAL_INVALID", false);
+      }
+      if (result.source === "board") {
+        if (result.error.code !== "UNAUTHENTICATED")
+          return {
+            ok: false,
+            source: "board",
+            value: result.error
+          };
+        try {
+          await waitWithinDeadline(
+            this.tokens.invalidate(snapshot, deadline.signal),
+            deadline.signal
+          );
+        } catch {
+          if (deadline.cause() === "caller") return cancelledResult();
+          if (deadline.cause() === "timeout")
+            return this.state("backend_unavailable", true, "API_KEY_BACKEND_UNAVAILABLE", true);
+        }
+        return this.state("credential_invalid", true, "API_KEY_CREDENTIAL_INVALID", false);
+      }
+      if (result.error.code === "CANCELLED") return cancelledResult();
+      return this.state(
+        "backend_unavailable",
+        true,
+        result.error.code === "RESPONSE_INVALID" ? "API_KEY_BACKEND_RESPONSE_INVALID" : "API_KEY_BACKEND_UNAVAILABLE",
+        true
+      );
+    } finally {
+      deadline.dispose();
     }
-    if (result.error.code === "CANCELLED")
-      return { ok: false, source: "mcp", value: localValue(result.error) };
-    return this.state(
-      "backend_unavailable",
-      true,
-      result.error.code === "RESPONSE_INVALID" ? "API_KEY_BACKEND_RESPONSE_INVALID" : "API_KEY_BACKEND_UNAVAILABLE",
-      true
-    );
   }
 };
 var UnconfiguredConnectionStatusServiceV1 = class {
@@ -31087,15 +31298,24 @@ var ProfileLeaseErrorV1 = class extends Error {
 
 // sceneboard-mcp/src/credentials/linux-profile-lease-helper.adapter.ts
 var FRAME_LIMIT = 64;
-var waitForFrame = async (child) => new Promise((resolve3, reject) => {
+var waitForFrame = async (child, signal) => new Promise((resolve3, reject) => {
+  signal?.throwIfAborted();
   let bytes = Buffer.alloc(0);
-  const timer = setTimeout(() => reject(new ProfileLeaseErrorV1("liveness_unknown")), 2e3);
-  timer.unref();
+  let timer;
   const cleanup = () => {
     clearTimeout(timer);
     child.stdout.off("data", onData);
     child.stdout.off("end", onEnd);
     child.off("error", onError);
+    signal?.removeEventListener("abort", onAbort);
+  };
+  const onAbort = () => {
+    cleanup();
+    reject(signal?.reason);
+  };
+  const onTimeout = () => {
+    cleanup();
+    reject(new ProfileLeaseErrorV1("liveness_unknown"));
   };
   const onError = () => {
     cleanup();
@@ -31120,31 +31340,48 @@ var waitForFrame = async (child) => new Promise((resolve3, reject) => {
   child.stdout.on("data", onData);
   child.stdout.once("end", onEnd);
   child.once("error", onError);
+  signal?.addEventListener("abort", onAbort, { once: true });
+  timer = setTimeout(onTimeout, 2e3);
+  timer.unref();
 });
 var LinuxProfileLeaseHelperAdapterV1 = class {
   constructor(helperPath, digestPath) {
     this.helperPath = helperPath;
     this.digestPath = digestPath;
   }
-  async verify() {
+  async verify(signal) {
+    signal?.throwIfAborted();
     if (process.platform !== "linux") return false;
     try {
       const [status, digestStatus, bytes, expected] = await Promise.all([
         lstat5(this.helperPath),
         lstat5(this.digestPath),
-        readFile5(this.helperPath),
-        readFile5(this.digestPath, "utf8")
+        readFile5(this.helperPath, { signal }),
+        readFile5(this.digestPath, { encoding: "utf8", signal })
       ]);
-      if (!status.isFile() || status.isSymbolicLink() || (status.mode & 511) !== 320 || status.uid !== process.geteuid?.()) return false;
-      if (!digestStatus.isFile() || digestStatus.isSymbolicLink() || digestStatus.uid !== process.geteuid?.()) return false;
+      signal?.throwIfAborted();
+      if (!status.isFile() || status.isSymbolicLink() || (status.mode & 511) !== 320 || status.uid !== process.geteuid?.())
+        return false;
+      if (!digestStatus.isFile() || digestStatus.isSymbolicLink() || digestStatus.uid !== process.geteuid?.())
+        return false;
       return createHash("sha256").update(bytes).digest("hex") === expected.trim();
     } catch {
+      if (signal?.aborted) signal.throwIfAborted();
       return false;
     }
   }
-  async acquire(stateDirectory) {
-    if (!await this.verify()) throw new ProfileLeaseErrorV1("liveness_unknown");
-    const directory = await open3(stateDirectory, constants4.O_RDONLY | constants4.O_DIRECTORY | constants4.O_NOFOLLOW);
+  async acquire(stateDirectory, signal) {
+    signal?.throwIfAborted();
+    if (!await this.verify(signal)) throw new ProfileLeaseErrorV1("liveness_unknown");
+    signal?.throwIfAborted();
+    const directory = await open3(
+      stateDirectory,
+      constants4.O_RDONLY | constants4.O_DIRECTORY | constants4.O_NOFOLLOW
+    );
+    if (signal?.aborted) {
+      await directory.close();
+      signal.throwIfAborted();
+    }
     let spawned;
     try {
       spawned = spawn(this.helperPath, [], {
@@ -31172,7 +31409,7 @@ var LinuxProfileLeaseHelperAdapterV1 = class {
 `);
     let frame;
     try {
-      frame = await waitForFrame(child);
+      frame = await waitForFrame(child, signal);
     } catch (error3) {
       child.kill("SIGTERM");
       throw error3;
@@ -31189,26 +31426,46 @@ var LinuxProfileLeaseHelperAdapterV1 = class {
       child.stdin.end();
       throw new ProfileLeaseErrorV1("liveness_unknown");
     }
+    if (signal?.aborted) {
+      child.kill("SIGTERM");
+      signal.throwIfAborted();
+    }
     let released = false;
     return {
-      release: async () => {
+      release: async (releaseSignal) => {
         if (released) return;
         released = true;
+        if (releaseSignal?.aborted) {
+          child.kill("SIGTERM");
+          return;
+        }
         child.stdin.end();
         await new Promise((resolve3) => {
           if (child.exitCode !== null) {
             resolve3();
             return;
           }
+          const cleanup = () => {
+            clearTimeout(timer);
+            child.off("exit", onExit);
+            releaseSignal?.removeEventListener("abort", onAbort);
+          };
+          const finish = () => {
+            cleanup();
+            resolve3();
+          };
+          const onExit = () => finish();
+          const onAbort = () => {
+            child.kill("SIGTERM");
+            finish();
+          };
           const timer = setTimeout(() => {
             child.kill("SIGTERM");
-            resolve3();
+            finish();
           }, 2e3);
           timer.unref();
-          child.once("exit", () => {
-            clearTimeout(timer);
-            resolve3();
-          });
+          child.once("exit", onExit);
+          releaseSignal?.addEventListener("abort", onAbort, { once: true });
         });
       }
     };
@@ -31220,15 +31477,38 @@ var ProfileLeaseProviderV1 = class {
   constructor(adapter) {
     this.adapter = adapter;
   }
-  verify() {
-    return this.adapter.verify();
+  verify(signal) {
+    return this.adapter.verify(signal);
   }
-  acquire(stateDirectory) {
-    return this.adapter.acquire(stateDirectory);
+  acquire(stateDirectory, signal) {
+    return this.adapter.acquire(stateDirectory, signal);
   }
 };
 
 // sceneboard-mcp/src/credentials/token-provider.ts
+var waitForCredentialOperation = async (operation, signal) => {
+  if (signal === void 0) return operation;
+  signal.throwIfAborted();
+  return new Promise((resolve3, reject) => {
+    const cleanup = () => signal.removeEventListener("abort", onAbort);
+    const onAbort = () => {
+      cleanup();
+      reject(signal.reason);
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+    operation.then(
+      (value) => {
+        cleanup();
+        if (signal.aborted) reject(signal.reason);
+        else resolve3(value);
+      },
+      (error3) => {
+        cleanup();
+        reject(error3);
+      }
+    );
+  });
+};
 var EnvironmentTokenProviderV1 = class {
   constructor(token) {
     this.token = token;
@@ -31237,12 +31517,15 @@ var EnvironmentTokenProviderV1 = class {
     }
   }
   invalidated = false;
-  async snapshot() {
+  async snapshot(signal) {
+    signal?.throwIfAborted();
     if (this.invalidated || this.token === void 0 || this.token === "") return null;
     return { version: 1, generation: "environment_v1_token", accessToken: this.token };
   }
-  async invalidate(snapshot) {
-    if (snapshot.generation === "environment_v1_token" && snapshot.accessToken === this.token) this.invalidated = true;
+  async invalidate(snapshot, signal) {
+    signal?.throwIfAborted();
+    if (snapshot.generation === "environment_v1_token" && snapshot.accessToken === this.token)
+      this.invalidated = true;
   }
 };
 var StoredTokenProviderV1 = class {
@@ -31250,20 +31533,30 @@ var StoredTokenProviderV1 = class {
     this.store = store;
     this.leases = leases;
   }
-  async snapshot() {
-    const lease = await this.leases.acquire(this.store.stateDirectory);
+  async snapshot(signal) {
+    signal?.throwIfAborted();
+    const lease = await waitForCredentialOperation(
+      this.leases.acquire(this.store.stateDirectory, signal),
+      signal
+    );
     try {
-      return await this.store.read();
+      const snapshot = await waitForCredentialOperation(this.store.read(signal), signal);
+      signal?.throwIfAborted();
+      return snapshot;
     } finally {
-      await lease.release();
+      await lease.release(signal);
     }
   }
-  async invalidate(snapshot) {
-    const lease = await this.leases.acquire(this.store.stateDirectory);
+  async invalidate(snapshot, signal) {
+    signal?.throwIfAborted();
+    const lease = await waitForCredentialOperation(
+      this.leases.acquire(this.store.stateDirectory, signal),
+      signal
+    );
     try {
-      await this.store.deleteIfCurrent(snapshot);
+      await waitForCredentialOperation(this.store.deleteIfCurrent(snapshot, signal), signal);
     } finally {
-      await lease.release();
+      await lease.release(signal);
     }
   }
 };
@@ -31275,10 +31568,10 @@ var ApiKeyTokenProviderV1 = class {
   invalidated = false;
   cached;
   malformedEnvironmentCredential;
-  async snapshot() {
+  async snapshot(signal) {
+    signal?.throwIfAborted();
     if (this.invalidated) return null;
-    if (this.malformedEnvironmentCredential)
-      throw new Error("provisioned API key is invalid");
+    if (this.malformedEnvironmentCredential) throw new Error("provisioned API key is invalid");
     if (this.cached !== void 0) return this.cached;
     if (this.source.kind === "environment") {
       this.cached = this.source.apiKey === void 0 || this.source.apiKey === "" ? null : {
@@ -31288,7 +31581,10 @@ var ApiKeyTokenProviderV1 = class {
       };
       return this.cached;
     }
-    const record2 = await this.source.store.read();
+    const record2 = await waitForCredentialOperation(
+      this.source.store.read(signal),
+      signal
+    );
     this.cached = record2 === null ? null : {
       version: 1,
       generation: record2.generation,
@@ -31296,8 +31592,9 @@ var ApiKeyTokenProviderV1 = class {
     };
     return this.cached;
   }
-  async invalidate(snapshot) {
-    const current = await this.snapshot();
+  async invalidate(snapshot, signal) {
+    const current = await this.snapshot(signal);
+    signal?.throwIfAborted();
     if (current !== null && current.generation === snapshot.generation && current.accessToken === snapshot.accessToken) {
       this.invalidated = true;
       this.cached = null;
@@ -36036,98 +36333,45 @@ var ConnectionMediaHttpClientV1 = class {
 };
 
 // sceneboard-mcp/src/tools/account-api-key-tool-policy.ts
+var operationPlan = (operations, scopes) => Object.freeze({ operations: Object.freeze(operations), scopes: Object.freeze(scopes) });
+var toolPolicy = (...operationPlans) => Object.freeze({ operationPlans: Object.freeze(operationPlans) });
+var readModifyWritePlan = (operation) => operationPlan(["board.get", operation], ["board:read", "board:write"]);
 var ACCOUNT_API_KEY_TOOL_POLICIES_V1 = Object.freeze({
-  board_list: Object.freeze({
-    operation: "board.list",
-    scopes: Object.freeze(["board:read"])
-  }),
-  board_get: Object.freeze({
-    operation: "board.get",
-    scopes: Object.freeze(["board:read"])
-  }),
-  board_scene_get: Object.freeze({
-    operation: "board.get",
-    scopes: Object.freeze(["board:read"])
-  }),
-  board_document_get: Object.freeze({
-    operation: "board.get",
-    scopes: Object.freeze(["board:read"])
-  }),
-  board_create: Object.freeze({
-    operation: "board.create",
-    scopes: Object.freeze(["board:create"])
-  }),
-  board_rename: Object.freeze({
-    operation: "board.rename",
-    scopes: Object.freeze(["board:write"])
-  }),
-  board_archive: Object.freeze({
-    operation: "board.archive",
-    scopes: Object.freeze(["board:archive"])
-  }),
-  board_capabilities_get: Object.freeze({
-    operation: "capabilities.get",
-    scopes: Object.freeze(["board:read"])
-  }),
-  board_scene_replace: Object.freeze({
-    operation: "scene.replace",
-    scopes: Object.freeze(["board:write"])
-  }),
-  board_scene_patch: Object.freeze({
-    operation: "scene.replace",
-    scopes: Object.freeze(["board:write"])
-  }),
-  board_scene_clear: Object.freeze({
-    operation: "scene.clear",
-    scopes: Object.freeze(["board:write"])
-  }),
-  board_document_replace: Object.freeze({
-    operation: "document.replace",
-    scopes: Object.freeze(["board:write"])
-  }),
-  board_page_add: Object.freeze({
-    operation: "document.replace",
-    scopes: Object.freeze(["board:write"])
-  }),
-  board_page_remove: Object.freeze({
-    operation: "document.replace",
-    scopes: Object.freeze(["board:write"])
-  }),
-  board_page_reorder: Object.freeze({
-    operation: "document.replace",
-    scopes: Object.freeze(["board:write"])
-  }),
-  board_page_update: Object.freeze({
-    operation: "document.replace",
-    scopes: Object.freeze(["board:write"])
-  }),
-  board_page_default_set: Object.freeze({
-    operation: "document.replace",
-    scopes: Object.freeze(["board:write"])
-  }),
-  board_history_list: Object.freeze({
-    operation: "history.list",
-    scopes: Object.freeze(["history:read"])
-  }),
-  board_history_get: Object.freeze({
-    operation: "history.get",
-    scopes: Object.freeze(["history:read"])
-  }),
-  board_history_restore: Object.freeze({
-    operation: "scene.restore",
-    scopes: Object.freeze(["board:write", "history:read"])
-  }),
-  board_export: Object.freeze({
-    operation: "export.render",
-    scopes: Object.freeze(["export:read"])
-  })
+  board_list: toolPolicy(operationPlan(["board.list"], ["board:read"])),
+  board_get: toolPolicy(operationPlan(["board.get"], ["board:read"])),
+  board_scene_get: toolPolicy(
+    operationPlan(["board.get"], ["board:read"]),
+    operationPlan(["history.get"], ["history:read"])
+  ),
+  board_document_get: toolPolicy(
+    operationPlan(["board.get"], ["board:read"]),
+    operationPlan(["history.get"], ["history:read"])
+  ),
+  board_create: toolPolicy(operationPlan(["board.create"], ["board:create"])),
+  board_rename: toolPolicy(operationPlan(["board.rename"], ["board:write"])),
+  board_archive: toolPolicy(operationPlan(["board.archive"], ["board:archive"])),
+  board_capabilities_get: toolPolicy(operationPlan(["capabilities.get"], ["board:read"])),
+  board_scene_replace: toolPolicy(operationPlan(["scene.replace"], ["board:write"])),
+  board_scene_patch: toolPolicy(readModifyWritePlan("scene.replace")),
+  board_scene_clear: toolPolicy(operationPlan(["scene.clear"], ["board:write"])),
+  board_document_replace: toolPolicy(readModifyWritePlan("document.replace")),
+  board_page_add: toolPolicy(readModifyWritePlan("document.replace")),
+  board_page_remove: toolPolicy(readModifyWritePlan("document.replace")),
+  board_page_reorder: toolPolicy(readModifyWritePlan("document.replace")),
+  board_page_update: toolPolicy(readModifyWritePlan("document.replace")),
+  board_page_default_set: toolPolicy(readModifyWritePlan("document.replace")),
+  board_history_list: toolPolicy(operationPlan(["history.list"], ["history:read"])),
+  board_history_get: toolPolicy(operationPlan(["history.get"], ["history:read"])),
+  board_history_restore: toolPolicy(
+    operationPlan(["scene.restore"], ["board:write", "history:read"])
+  ),
+  board_export: toolPolicy(operationPlan(["export.render"], ["export:read"]))
 });
 var accountApiKeyToolPolicyV1 = (toolName) => {
   if (!Object.hasOwn(ACCOUNT_API_KEY_TOOL_POLICIES_V1, toolName)) return null;
   const policy2 = ACCOUNT_API_KEY_TOOL_POLICIES_V1[toolName];
   return {
-    operation: policy2.operation,
-    scopes: policy2.scopes
+    operationPlans: policy2.operationPlans
   };
 };
 
@@ -36554,6 +36798,57 @@ var EXPORT_CONTENT_TYPES_V1 = Object.freeze({
   pdf: "application/pdf",
   pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 });
+var gatewayDeadlineV1 = (timeoutMs, callerSignal) => {
+  const controller = new AbortController();
+  let cause = null;
+  const abortFromCaller = () => {
+    if (cause !== null) return;
+    cause = "caller";
+    controller.abort(callerSignal?.reason);
+  };
+  if (callerSignal?.aborted) abortFromCaller();
+  else callerSignal?.addEventListener("abort", abortFromCaller, { once: true });
+  const timer = setTimeout(() => {
+    if (cause !== null) return;
+    cause = "timeout";
+    controller.abort(new DOMException("Protected operation deadline exceeded", "TimeoutError"));
+  }, timeoutMs);
+  return {
+    signal: controller.signal,
+    cause: () => cause,
+    dispose: () => {
+      clearTimeout(timer);
+      callerSignal?.removeEventListener("abort", abortFromCaller);
+    }
+  };
+};
+var waitWithinGatewayDeadlineV1 = async (operation, signal) => {
+  return new Promise((resolve3, reject) => {
+    const cleanup = () => signal.removeEventListener("abort", onAbort);
+    const onAbort = () => {
+      cleanup();
+      reject(signal.reason);
+    };
+    operation.then(
+      (value) => {
+        cleanup();
+        if (signal.aborted) reject(signal.reason);
+        else resolve3(value);
+      },
+      (error3) => {
+        cleanup();
+        reject(error3);
+      }
+    );
+    if (signal.aborted) onAbort();
+    else signal.addEventListener("abort", onAbort, { once: true });
+  });
+};
+var sdkDeadlineFailureV1 = (cause, timeoutMs) => ({
+  ok: false,
+  error: cause === "caller" ? { code: "CANCELLED", retryable: false } : { code: "TIMEOUT", retryable: true, timeoutMs }
+});
+var connectionDeadlineFailureV1 = (cause, timeoutMs) => cause === "caller" ? { code: "CANCELLED", retryable: false } : { code: "TIMEOUT", retryable: true, timeoutMs };
 var ProtectedBoardGatewayV1 = class {
   constructor(options) {
     this.options = options;
@@ -36567,67 +36862,117 @@ var ProtectedBoardGatewayV1 = class {
       logger: this.options.logger
     });
   }
-  async call(toolOrOperation, operationNameOrUndefined, operationOrUndefined) {
+  async call(toolOrOperation, operationPlanOrOperation, optionsOrOperation, operationOrUndefined) {
     const toolName = typeof toolOrOperation === "string" ? toolOrOperation : null;
-    const operationName = typeof toolOrOperation === "string" ? operationNameOrUndefined ?? null : null;
-    const operation = typeof toolOrOperation === "string" ? operationOrUndefined : toolOrOperation;
+    const requestedOperations = typeof toolOrOperation !== "string" ? null : typeof operationPlanOrOperation === "string" ? [operationPlanOrOperation] : Array.isArray(operationPlanOrOperation) ? operationPlanOrOperation : null;
+    const options = typeof toolOrOperation === "string" ? typeof optionsOrOperation === "function" ? { signal: void 0 } : optionsOrOperation ?? { signal: void 0 } : operationPlanOrOperation ?? {
+      signal: void 0
+    };
+    const operation = typeof toolOrOperation === "string" ? typeof optionsOrOperation === "function" ? optionsOrOperation : operationOrUndefined : toolOrOperation;
     if (operation === void 0) return { connected: false };
-    const snapshot = await this.options.tokens.snapshot();
-    if (snapshot === null) return { connected: false };
-    if (this.options.credentialMode === "api_key") {
-      if (toolName === null || operationName === null) return { connected: false };
-      const policy2 = accountApiKeyToolPolicyV1(toolName);
-      if (policy2 === null || policy2.operation !== operationName) return { connected: false };
-      const connection = await new ConnectionHttpClientV1({
-        baseUrl: this.options.baseUrl,
-        fetch: this.options.fetch,
-        timeoutMs: this.options.timeoutMs,
-        logger: this.options.logger
-      }).get(null, randomBytes7(16).toString("base64url"), snapshot.accessToken);
-      if (!connection.ok) {
-        if (connection.source === "board") {
-          if (connection.error.code === "UNAUTHENTICATED")
-            await this.options.tokens.invalidate(snapshot);
+    return this.callWithinDeadline(
+      toolName,
+      requestedOperations,
+      operation,
+      options.signal,
+      this.options.timeoutMs,
+      (cause) => sdkDeadlineFailureV1(cause, this.options.timeoutMs)
+    );
+  }
+  async callWithinDeadline(toolName, requestedOperations, operation, callerSignal, timeoutMs, deadlineFailure) {
+    const deadline = gatewayDeadlineV1(timeoutMs, callerSignal);
+    try {
+      deadline.signal.throwIfAborted();
+      const snapshot = await waitWithinGatewayDeadlineV1(
+        this.options.tokens.snapshot(deadline.signal),
+        deadline.signal
+      );
+      if (snapshot === null) return { connected: false };
+      if (this.options.credentialMode === "api_key") {
+        if (toolName === null || requestedOperations === null) return { connected: false };
+        const policy2 = accountApiKeyToolPolicyV1(toolName);
+        const operationPlan2 = policy2?.operationPlans.find(
+          ({ operations }) => operations.length === requestedOperations.length && operations.every((operation2, index) => operation2 === requestedOperations[index])
+        );
+        if (operationPlan2 === void 0) return { connected: false };
+        const connection = await waitWithinGatewayDeadlineV1(
+          new ConnectionHttpClientV1({
+            baseUrl: this.options.baseUrl,
+            fetch: this.options.fetch,
+            timeoutMs,
+            logger: this.options.logger
+          }).get(
+            null,
+            randomBytes7(16).toString("base64url"),
+            snapshot.accessToken,
+            deadline.signal
+          ),
+          deadline.signal
+        );
+        const preflightCause = deadline.cause();
+        if (preflightCause !== null)
+          return { connected: true, value: deadlineFailure(preflightCause) };
+        if (!connection.ok) {
+          if (connection.source === "board") {
+            if (connection.error.code === "UNAUTHENTICATED")
+              await waitWithinGatewayDeadlineV1(
+                this.options.tokens.invalidate(snapshot, deadline.signal),
+                deadline.signal
+              );
+            return {
+              connected: true,
+              value: { ok: false, error: connection.error }
+            };
+          }
+          return { connected: false };
+        }
+        const credential = "credential" in connection.value ? connection.value.credential : null;
+        if (credential === null || !operationPlan2.scopes.every((scope) => credential.scopes.includes(scope)))
           return {
             connected: true,
-            value: { ok: false, error: connection.error }
-          };
-        }
-        return { connected: false };
-      }
-      const credential = "credential" in connection.value ? connection.value.credential : null;
-      if (credential === null || !policy2.scopes.every((scope) => credential.scopes.includes(scope)))
-        return {
-          connected: true,
-          value: {
-            ok: false,
-            error: {
-              protocolVersion: 1,
-              type: "board.error",
-              code: "FORBIDDEN",
-              message: "Insufficient API key scope",
-              category: "auth",
-              retryable: false,
-              httpStatusHint: 403,
-              details: null
+            value: {
+              ok: false,
+              error: {
+                protocolVersion: 1,
+                type: "board.error",
+                code: "FORBIDDEN",
+                message: "Insufficient API key scope",
+                category: "auth",
+                retryable: false,
+                httpStatusHint: 403,
+                details: null
+              }
             }
-          }
-        };
+          };
+      }
+      const client = this.client(snapshot);
+      const value = await waitWithinGatewayDeadlineV1(
+        operation(client, snapshot, deadline.signal),
+        deadline.signal
+      );
+      const operationCause = deadline.cause();
+      if (operationCause !== null)
+        return { connected: true, value: deadlineFailure(operationCause) };
+      if (value !== null && typeof value === "object" && "ok" in value && value.ok === false && "error" in value && value.error !== null && typeof value.error === "object" && "code" in value.error && value.error.code === "UNAUTHENTICATED") {
+        await waitWithinGatewayDeadlineV1(
+          this.options.tokens.invalidate(snapshot, deadline.signal),
+          deadline.signal
+        );
+      }
+      return { connected: true, value };
+    } catch (error3) {
+      const cause = deadline.cause();
+      if (cause !== null) return { connected: true, value: deadlineFailure(cause) };
+      throw error3;
+    } finally {
+      deadline.dispose();
     }
-    const client = this.client(snapshot);
-    const value = await operation(client, snapshot);
-    if (value !== null && typeof value === "object" && "ok" in value && value.ok === false && "error" in value && value.error !== null && typeof value.error === "object" && "code" in value.error && value.error.code === "UNAUTHENTICATED") {
-      await this.options.tokens.invalidate(snapshot);
-    }
-    return { connected: true, value };
   }
   async renameBoard(input) {
-    const result = await this.call(
+    const result = await this.callWithinDeadline(
       "board_rename",
-      "board.rename",
-      async (_client, snapshot) => {
-        const timeoutSignal = AbortSignal.timeout(this.options.timeoutMs);
-        const signal = input.signal === void 0 ? timeoutSignal : AbortSignal.any([input.signal, timeoutSignal]);
+      ["board.rename"],
+      async (_client, snapshot, signal) => {
         let response;
         try {
           response = await this.options.fetch(
@@ -36689,8 +37034,6 @@ var ProtectedBoardGatewayV1 = class {
               source: "local",
               error: { code: "RESPONSE_INVALID" }
             };
-          if (error3.data.value.code === "UNAUTHENTICATED")
-            await this.options.tokens.invalidate(snapshot);
           return { ok: false, source: "board", error: error3.data.value };
         }
         const value = parsed.value !== null && typeof parsed.value === "object" && !Array.isArray(parsed.value) ? parsed.value : null;
@@ -36708,7 +37051,14 @@ var ProtectedBoardGatewayV1 = class {
             updatedAt: value.updatedAt
           }
         };
-      }
+      },
+      input.signal,
+      this.options.timeoutMs,
+      (cause) => ({
+        ok: false,
+        source: "local",
+        error: cause === "caller" ? { code: "CANCELLED" } : { code: "TIMEOUT", timeoutMs: this.options.timeoutMs }
+      })
     );
     const rawValue = result.connected ? result.value : null;
     const rawError = rawValue !== null && rawValue.ok === false && !Object.hasOwn(rawValue, "source") && rawValue.error !== null && typeof rawValue.error === "object" ? rawValue.error : null;
@@ -36724,12 +37074,10 @@ var ProtectedBoardGatewayV1 = class {
     return result;
   }
   async exportBoard(input) {
-    return this.call(
+    return this.callWithinDeadline(
       "board_export",
-      "export.render",
-      async (_client, snapshot) => {
-        const timeoutSignal = AbortSignal.timeout(12e4);
-        const signal = input.signal === void 0 ? timeoutSignal : AbortSignal.any([input.signal, timeoutSignal]);
+      ["export.render"],
+      async (_client, snapshot, signal) => {
         let response;
         try {
           response = await this.options.fetch(
@@ -36755,7 +37103,7 @@ var ProtectedBoardGatewayV1 = class {
         } catch {
           if (input.signal?.aborted === true)
             return { ok: false, source: "local", error: { code: "CANCELLED" } };
-          if (timeoutSignal.aborted)
+          if (signal.aborted)
             return {
               ok: false,
               source: "local",
@@ -36793,7 +37141,7 @@ var ProtectedBoardGatewayV1 = class {
         if (bytes === "response") {
           if (input.signal?.aborted === true)
             return { ok: false, source: "local", error: { code: "CANCELLED" } };
-          if (timeoutSignal.aborted)
+          if (signal.aborted)
             return {
               ok: false,
               source: "local",
@@ -36810,7 +37158,7 @@ var ProtectedBoardGatewayV1 = class {
         if (rawError === null || Object.keys(rawError).sort().join("\0") !== ["code", "message", "retryable"].join("\0") || typeof rawError.code !== "string" || definition === null || definition[0] !== response.status || rawError.retryable !== definition[1] || rawError.message !== definition[2])
           return { ok: false, source: "local", error: { code: "RESPONSE_INVALID" } };
         if (rawError.code === "EXPORT_UNAUTHENTICATED")
-          await this.options.tokens.invalidate(snapshot);
+          await this.options.tokens.invalidate(snapshot, signal);
         return {
           ok: false,
           source: "board",
@@ -36820,68 +37168,122 @@ var ProtectedBoardGatewayV1 = class {
             retryable: definition[1]
           }
         };
-      }
+      },
+      input.signal,
+      12e4,
+      (cause) => ({
+        ok: false,
+        source: "local",
+        error: cause === "caller" ? { code: "CANCELLED" } : { code: "TIMEOUT", timeoutMs: 12e4 }
+      })
     );
   }
   async withAuthorizedBoardOperation(input, operation) {
-    let rawSnapshot;
+    const deadline = gatewayDeadlineV1(this.options.timeoutMs, input.signal);
     try {
-      rawSnapshot = await this.options.tokens.snapshot();
-    } catch {
-      return { authorized: false, reason: "credential_unavailable" };
-    }
-    if (rawSnapshot === null) return { authorized: false, reason: "not_connected" };
-    if (this.options.credentialMode === "api_key" || rawSnapshot.version !== 1 || typeof rawSnapshot.generation !== "string" || !GENERATION_PATTERN_V1.test(rawSnapshot.generation) || typeof rawSnapshot.accessToken !== "string" || !ACCESS_TOKEN_PATTERN_V1.test(rawSnapshot.accessToken))
-      return { authorized: false, reason: "credential_unavailable" };
-    const snapshot = Object.freeze({ ...rawSnapshot });
-    const connection = await new ConnectionHttpClientV1({
-      baseUrl: this.options.baseUrl,
-      fetch: this.options.fetch,
-      timeoutMs: this.options.timeoutMs,
-      logger: this.options.logger
-    }).get(input.boardId, input.requestId, snapshot.accessToken, input.signal);
-    if (!connection.ok) {
-      if (connection.source === "board") {
-        if (connection.error.code === "UNAUTHENTICATED")
-          await this.options.tokens.invalidate(snapshot);
-        return { authorized: false, reason: "board", error: connection.error };
+      let rawSnapshot;
+      try {
+        deadline.signal.throwIfAborted();
+        rawSnapshot = await waitWithinGatewayDeadlineV1(
+          this.options.tokens.snapshot(deadline.signal),
+          deadline.signal
+        );
+      } catch {
+        const cause = deadline.cause();
+        if (cause !== null)
+          return {
+            authorized: false,
+            reason: "local",
+            error: connectionDeadlineFailureV1(cause, this.options.timeoutMs)
+          };
+        return { authorized: false, reason: "credential_unavailable" };
       }
-      return { authorized: false, reason: "local", error: connection.error };
-    }
-    if (!("grant" in connection.value))
-      return { authorized: false, reason: "credential_unavailable" };
-    const selected = connection.value.selectedBoard;
-    const grant = connection.value.grant;
-    if (selected === null || !input.requiredCapabilities.every(
-      (capability) => grant.scopes.includes(capability) && selected.capabilities.grantedCapabilities.includes(capability)
-    ))
-      return {
-        authorized: false,
-        reason: "board",
-        error: {
-          protocolVersion: 1,
-          type: "board.error",
-          code: "BOARD_NOT_FOUND",
-          message: "Board not found",
-          category: "not_found",
-          retryable: false,
-          httpStatusHint: 404,
-          details: null
-        }
-      };
-    return {
-      authorized: true,
-      value: await operation({
-        snapshot,
-        client: this.client(snapshot),
-        media: new ConnectionMediaHttpClientV1({
+      if (rawSnapshot === null) return { authorized: false, reason: "not_connected" };
+      if (this.options.credentialMode === "api_key" || rawSnapshot.version !== 1 || typeof rawSnapshot.generation !== "string" || !GENERATION_PATTERN_V1.test(rawSnapshot.generation) || typeof rawSnapshot.accessToken !== "string" || !ACCESS_TOKEN_PATTERN_V1.test(rawSnapshot.accessToken))
+        return { authorized: false, reason: "credential_unavailable" };
+      const snapshot = Object.freeze({ ...rawSnapshot });
+      const connection = await waitWithinGatewayDeadlineV1(
+        new ConnectionHttpClientV1({
           baseUrl: this.options.baseUrl,
           fetch: this.options.fetch,
           timeoutMs: this.options.timeoutMs,
           logger: this.options.logger
-        })
-      })
-    };
+        }).get(input.boardId, input.requestId, snapshot.accessToken, deadline.signal),
+        deadline.signal
+      );
+      const connectionCause = deadline.cause();
+      if (connectionCause !== null)
+        return {
+          authorized: false,
+          reason: "local",
+          error: connectionDeadlineFailureV1(connectionCause, this.options.timeoutMs)
+        };
+      if (!connection.ok) {
+        if (connection.source === "board") {
+          if (connection.error.code === "UNAUTHENTICATED")
+            await waitWithinGatewayDeadlineV1(
+              this.options.tokens.invalidate(snapshot, deadline.signal),
+              deadline.signal
+            );
+          return { authorized: false, reason: "board", error: connection.error };
+        }
+        return { authorized: false, reason: "local", error: connection.error };
+      }
+      if (!("grant" in connection.value))
+        return { authorized: false, reason: "credential_unavailable" };
+      const selected = connection.value.selectedBoard;
+      const grant = connection.value.grant;
+      if (selected === null || !input.requiredCapabilities.every(
+        (capability) => grant.scopes.includes(capability) && selected.capabilities.grantedCapabilities.includes(capability)
+      ))
+        return {
+          authorized: false,
+          reason: "board",
+          error: {
+            protocolVersion: 1,
+            type: "board.error",
+            code: "BOARD_NOT_FOUND",
+            message: "Board not found",
+            category: "not_found",
+            retryable: false,
+            httpStatusHint: 404,
+            details: null
+          }
+        };
+      const value = await waitWithinGatewayDeadlineV1(
+        operation({
+          snapshot,
+          client: this.client(snapshot),
+          media: new ConnectionMediaHttpClientV1({
+            baseUrl: this.options.baseUrl,
+            fetch: this.options.fetch,
+            timeoutMs: this.options.timeoutMs,
+            logger: this.options.logger
+          }),
+          signal: deadline.signal
+        }),
+        deadline.signal
+      );
+      const operationCause = deadline.cause();
+      if (operationCause !== null)
+        return {
+          authorized: false,
+          reason: "local",
+          error: connectionDeadlineFailureV1(operationCause, this.options.timeoutMs)
+        };
+      return { authorized: true, value };
+    } catch (error3) {
+      const cause = deadline.cause();
+      if (cause !== null)
+        return {
+          authorized: false,
+          reason: "local",
+          error: connectionDeadlineFailureV1(cause, this.options.timeoutMs)
+        };
+      throw error3;
+    } finally {
+      deadline.dispose();
+    }
   }
 };
 
@@ -37616,20 +38018,22 @@ var DocumentToolHandlersV2 = class {
     if (!parsed.success) return validationFailureV1("board_document_get", requestId, parsed.error);
     const result = parsed.data.revisionId === null ? await this.gateway.call(
       "board_document_get",
-      "board.get",
-      (client) => client.getDocumentBoard(
+      ["board.get"],
+      { signal },
+      (client, _snapshot, operationSignal) => client.getDocumentBoard(
         {
           protocolVersion: 1,
           requestId,
           type: "board.get",
           boardId: parsed.data.boardId
         },
-        signal
+        operationSignal
       )
     ) : await this.gateway.call(
       "board_document_get",
-      "board.get",
-      (client) => client.getDocumentHistory(
+      ["history.get"],
+      { signal },
+      (client, _snapshot, operationSignal) => client.getDocumentHistory(
         {
           protocolVersion: 1,
           requestId,
@@ -37637,7 +38041,7 @@ var DocumentToolHandlersV2 = class {
           boardId: parsed.data.boardId,
           revisionId: parsed.data.revisionId
         },
-        signal
+        operationSignal
       )
     );
     if (!result.connected) return disconnected("board_document_get", requestId);
@@ -37733,15 +38137,16 @@ var DocumentToolHandlersV2 = class {
     const value = parsed.data;
     const head = await this.gateway.call(
       tool,
-      "document.replace",
-      (client) => client.getDocumentBoard(
+      ["board.get", "document.replace"],
+      { signal },
+      (client, _snapshot, operationSignal) => client.getDocumentBoard(
         {
           protocolVersion: 1,
           requestId,
           type: "board.get",
           boardId: value.boardId
         },
-        signal
+        operationSignal
       )
     );
     if (!head.connected) return disconnected(tool, requestId);
@@ -37784,8 +38189,9 @@ var DocumentToolHandlersV2 = class {
       );
     const result = await this.gateway.call(
       tool,
-      "document.replace",
-      (client) => client.mutateDocument(
+      ["board.get", "document.replace"],
+      { signal },
+      (client, _snapshot, operationSignal) => client.mutateDocument(
         {
           protocolVersion: 1,
           requestId,
@@ -37794,7 +38200,7 @@ var DocumentToolHandlersV2 = class {
           idempotencyKey: value.idempotencyKey,
           command: { type: "document.replace", document: transformed.data.value }
         },
-        signal
+        operationSignal
       )
     );
     return result.connected ? sdkToolResultV1(tool, requestId, result.value, null) : disconnected(tool, requestId);
@@ -37846,7 +38252,7 @@ var ArtifactToolHandlersV1 = class {
     const parsed = ArtifactGetInputSchemaV1.safeParse(raw);
     if (!parsed.success) return validationFailureV1("board_artifact_get", requestId, parsed.error);
     const result = await this.gateway.call(
-      (client) => client.getArtifact(
+      (client, _snapshot, operationSignal) => client.getArtifact(
         {
           protocolVersion: 1,
           requestId,
@@ -37857,8 +38263,9 @@ var ArtifactToolHandlersV1 = class {
             versionId: parsed.data.versionId
           }
         },
-        signal
-      )
+        operationSignal
+      ),
+      { signal }
     );
     return result.connected ? sdkToolResultV1("board_artifact_get", requestId, result.value, null) : toolFailureV1(
       "board_artifact_get",
@@ -37872,7 +38279,7 @@ var ArtifactToolHandlersV1 = class {
     const parsed = ArtifactPutInputSchemaV1.safeParse(raw);
     if (!parsed.success) return validationFailureV1("board_artifact_put", requestId, parsed.error);
     const result = await this.gateway.call(
-      (client) => client.putArtifact(
+      (client, _snapshot, operationSignal) => client.putArtifact(
         requestId,
         {
           boardId: parsed.data.boardId,
@@ -37884,8 +38291,9 @@ var ArtifactToolHandlersV1 = class {
           javascript: parsed.data.javascript,
           requestedCapabilities: parsed.data.requestedCapabilities
         },
-        signal
-      )
+        operationSignal
+      ),
+      { signal }
     );
     return result.connected ? sdkToolResultV1("board_artifact_put", requestId, result.value, null) : toolFailureV1(
       "board_artifact_put",
@@ -37899,7 +38307,7 @@ var ArtifactToolHandlersV1 = class {
     const parsed = ArtifactStopInputSchemaV1.safeParse(raw);
     if (!parsed.success) return validationFailureV1("board_artifact_stop", requestId, parsed.error);
     const result = await this.gateway.call(
-      (client) => client.mutateBoard(
+      (client, _snapshot, operationSignal) => client.mutateBoard(
         {
           protocolVersion: 1,
           requestId,
@@ -37915,8 +38323,9 @@ var ArtifactToolHandlersV1 = class {
             reason: parsed.data.reason
           }
         },
-        signal
-      )
+        operationSignal
+      ),
+      { signal }
     );
     return result.connected ? sdkToolResultV1("board_artifact_stop", requestId, result.value, null) : toolFailureV1(
       "board_artifact_stop",
@@ -37955,7 +38364,8 @@ var BoardToolHandlersV1 = class {
     const result = await this.gateway.call(
       "board_list",
       "board.list",
-      (client) => client.listBoards(
+      { signal },
+      (client, _snapshot, operationSignal) => client.listBoards(
         {
           protocolVersion: 1,
           requestId,
@@ -37964,7 +38374,7 @@ var BoardToolHandlersV1 = class {
           limit: parsed.data.limit,
           includeArchived: parsed.data.includeArchived
         },
-        signal
+        operationSignal
       )
     );
     return result.connected ? sdkToolResultV1("board_list", requestId, result.value, null) : disconnected2("board_list", requestId);
@@ -37976,14 +38386,15 @@ var BoardToolHandlersV1 = class {
     const result = await this.gateway.call(
       "board_get",
       "board.get",
-      (client) => client.getBoard(
+      { signal },
+      (client, _snapshot, operationSignal) => client.getBoard(
         {
           protocolVersion: 1,
           requestId,
           type: "board.get",
           boardId: parsed.data.boardId
         },
-        signal
+        operationSignal
       )
     );
     return result.connected ? sdkToolResultV1("board_get", requestId, result.value, null) : disconnected2("board_get", requestId);
@@ -37995,7 +38406,8 @@ var BoardToolHandlersV1 = class {
     const result = await this.gateway.call(
       "board_create",
       "board.create",
-      (client) => client.createBoard(
+      { signal },
+      (client, _snapshot, operationSignal) => client.createBoard(
         {
           protocolVersion: 1,
           requestId,
@@ -38003,7 +38415,7 @@ var BoardToolHandlersV1 = class {
           title: parsed.data.title,
           idempotencyKey: parsed.data.idempotencyKey
         },
-        signal
+        operationSignal
       )
     );
     return result.connected ? sdkToolResultV1("board_create", requestId, result.value, null) : disconnected2("board_create", requestId);
@@ -38027,10 +38439,10 @@ var BoardToolHandlersV1 = class {
         result.value.error
       );
     return toolFailureV1("board_rename", requestId, "mcp", {
-      code: result.value.error.code === "TRANSPORT_ERROR" ? "BOARD_MCP_TRANSPORT_ERROR" : "BOARD_MCP_RESPONSE_INVALID",
-      message: result.value.error.code === "TRANSPORT_ERROR" ? "SceneBoard transport is unavailable" : "SceneBoard response is invalid",
-      retryable: result.value.error.code === "TRANSPORT_ERROR",
-      details: null
+      code: result.value.error.code === "CANCELLED" ? "BOARD_MCP_CANCELLED" : result.value.error.code === "TIMEOUT" ? "BOARD_MCP_TIMEOUT" : result.value.error.code === "TRANSPORT_ERROR" ? "BOARD_MCP_TRANSPORT_ERROR" : "BOARD_MCP_RESPONSE_INVALID",
+      message: result.value.error.code === "CANCELLED" ? "Tool call was cancelled" : result.value.error.code === "TIMEOUT" ? "SceneBoard request timed out" : result.value.error.code === "TRANSPORT_ERROR" ? "SceneBoard transport is unavailable" : "SceneBoard response is invalid",
+      retryable: result.value.error.code === "TIMEOUT" || result.value.error.code === "TRANSPORT_ERROR",
+      details: result.value.error.code === "TIMEOUT" ? { timeoutMs: result.value.error.timeoutMs } : null
     });
   }
   async archive(raw, signal) {
@@ -38040,7 +38452,8 @@ var BoardToolHandlersV1 = class {
     const result = await this.gateway.call(
       "board_archive",
       "board.archive",
-      (client) => client.archiveBoard(
+      { signal },
+      (client, _snapshot, operationSignal) => client.archiveBoard(
         {
           protocolVersion: 1,
           requestId,
@@ -38049,7 +38462,7 @@ var BoardToolHandlersV1 = class {
           confirm: true,
           idempotencyKey: parsed.data.idempotencyKey
         },
-        signal
+        operationSignal
       )
     );
     return result.connected ? sdkToolResultV1("board_archive", requestId, result.value, null) : disconnected2("board_archive", requestId);
@@ -38061,14 +38474,15 @@ var BoardToolHandlersV1 = class {
     const result = await this.gateway.call(
       "board_capabilities_get",
       "capabilities.get",
-      (client) => client.getCapabilities(
+      { signal },
+      (client, _snapshot, operationSignal) => client.getCapabilities(
         {
           protocolVersion: 1,
           requestId,
           type: "capabilities.get",
           boardId: parsed.data.boardId
         },
-        signal
+        operationSignal
       )
     );
     return result.connected ? sdkToolResultV1("board_capabilities_get", requestId, result.value, null) : disconnected2("board_capabilities_get", requestId);
@@ -38293,7 +38707,8 @@ var HistoryToolHandlersV1 = class {
     const result = await this.gateway.call(
       "board_history_list",
       "history.list",
-      (client) => client.listHistory(
+      { signal },
+      (client, _snapshot, operationSignal) => client.listHistory(
         {
           protocolVersion: 1,
           requestId,
@@ -38302,7 +38717,7 @@ var HistoryToolHandlersV1 = class {
           cursor: parsed.data.cursor,
           limit: parsed.data.limit
         },
-        signal
+        operationSignal
       )
     );
     return result.connected ? sdkToolResultV1(
@@ -38324,7 +38739,8 @@ var HistoryToolHandlersV1 = class {
     const result = await this.gateway.call(
       "board_history_get",
       "history.get",
-      (client) => client.getHistory(
+      { signal },
+      (client, _snapshot, operationSignal) => client.getHistory(
         {
           protocolVersion: 1,
           requestId,
@@ -38332,7 +38748,7 @@ var HistoryToolHandlersV1 = class {
           boardId: parsed.data.boardId,
           revisionId: parsed.data.revisionId
         },
-        signal
+        operationSignal
       )
     );
     return result.connected ? sdkToolResultV1(
@@ -38355,7 +38771,8 @@ var HistoryToolHandlersV1 = class {
     const result = await this.gateway.call(
       "board_history_restore",
       "scene.restore",
-      (client) => client.restoreRevision(
+      { signal },
+      (client, _snapshot, operationSignal) => client.restoreRevision(
         {
           protocolVersion: 1,
           requestId,
@@ -38367,7 +38784,7 @@ var HistoryToolHandlersV1 = class {
             sourceRevisionId: parsed.data.revisionId
           }
         },
-        signal
+        operationSignal
       )
     );
     return result.connected ? sdkToolResultV1("board_history_restore", requestId, result.value, null) : toolFailureV1(
@@ -38628,7 +39045,7 @@ var InteractionToolHandlersV1 = class {
         definition.error
       );
     const result = await this.gateway.call(
-      (client) => client.mutateBoard(
+      (client, _snapshot, operationSignal) => client.mutateBoard(
         {
           protocolVersion: 1,
           requestId,
@@ -38641,8 +39058,9 @@ var InteractionToolHandlersV1 = class {
             request: definition.data.value
           }
         },
-        signal
-      )
+        operationSignal
+      ),
+      { signal }
     );
     return result.connected ? sdkToolResultV1("board_interaction_request", requestId, result.value, null) : toolFailureV1(
       "board_interaction_request",
@@ -38657,7 +39075,7 @@ var InteractionToolHandlersV1 = class {
     if (!parsed.success)
       return validationFailureV1("board_interaction_status", requestId, parsed.error);
     const result = await this.gateway.call(
-      (client) => client.getInteraction(
+      (client, _snapshot, operationSignal) => client.getInteraction(
         {
           protocolVersion: 1,
           requestId,
@@ -38669,8 +39087,9 @@ var InteractionToolHandlersV1 = class {
             timeoutMs: parsed.data.wait.timeoutMs
           }
         },
-        signal
-      )
+        operationSignal
+      ),
+      { signal }
     );
     return result.connected ? sdkToolResultV1("board_interaction_status", requestId, result.value, null) : toolFailureV1(
       "board_interaction_status",
@@ -38693,7 +39112,7 @@ var InteractionToolHandlersV1 = class {
         response.error
       );
     const result = await this.gateway.call(
-      (client) => client.mutateBoard(
+      (client, _snapshot, operationSignal) => client.mutateBoard(
         {
           protocolVersion: 1,
           requestId,
@@ -38706,8 +39125,9 @@ var InteractionToolHandlersV1 = class {
             response: response.data.value
           }
         },
-        signal
-      )
+        operationSignal
+      ),
+      { signal }
     );
     return result.connected ? sdkToolResultV1("board_interaction_respond", requestId, result.value, null) : toolFailureV1(
       "board_interaction_respond",
@@ -38905,7 +39325,7 @@ var MediaToolHandlersV1 = class {
           requiredCapabilities: ["board.media.write"],
           ...signal === void 0 ? {} : { signal }
         },
-        async ({ snapshot, media }) => {
+        async ({ snapshot, media, signal: operationSignal }) => {
           const captured = await captureLocalMediaFileV1(parsed.data.path);
           if (!captured.ok) return { kind: "capture_error", code: captured.code };
           try {
@@ -38921,7 +39341,7 @@ var MediaToolHandlersV1 = class {
                   digestBase64: captured.value.digestBase64,
                   bytes: captured.value.bytes
                 },
-                signal
+                operationSignal
               )
             };
           } finally {
@@ -38978,7 +39398,7 @@ var MediaToolHandlersV1 = class {
           requiredCapabilities: ["board.history.read", "board.write"],
           ...signal === void 0 ? {} : { signal }
         },
-        async ({ client }) => {
+        async ({ client, signal: operationSignal }) => {
           const history = await client.getDocumentHistory(
             {
               protocolVersion: 1,
@@ -38987,7 +39407,7 @@ var MediaToolHandlersV1 = class {
               boardId: parsed.data.boardId,
               revisionId: parsed.data.expectedRevisionId
             },
-            signal
+            operationSignal
           );
           if (!history.ok) return { kind: "sdk", value: history };
           const nested = history.result.result;
@@ -39038,7 +39458,7 @@ var MediaToolHandlersV1 = class {
                 idempotencyKey: parsed.data.idempotencyKey,
                 command: { type: "document.replace", document: transformed.data.value }
               },
-              signal
+              operationSignal
             )
           };
         }
@@ -39542,15 +39962,16 @@ var SceneToolHandlersV1 = class {
     if (parsed.data.revisionId === null) {
       const result2 = await this.gateway.call(
         "board_scene_get",
-        "board.get",
-        (client) => client.getBoard(
+        ["board.get"],
+        { signal },
+        (client, _snapshot, operationSignal) => client.getBoard(
           {
             protocolVersion: 1,
             requestId,
             type: "board.get",
             boardId: parsed.data.boardId
           },
-          signal
+          operationSignal
         )
       );
       if (result2.connected && result2.value.ok && result2.value.result.result.type === "board.get" && "document" in result2.value.result.result.snapshot)
@@ -39564,8 +39985,9 @@ var SceneToolHandlersV1 = class {
     }
     const result = await this.gateway.call(
       "board_scene_get",
-      "board.get",
-      (client) => client.getHistory(
+      ["history.get"],
+      { signal },
+      (client, _snapshot, operationSignal) => client.getHistory(
         {
           protocolVersion: 1,
           requestId,
@@ -39573,7 +39995,7 @@ var SceneToolHandlersV1 = class {
           boardId: parsed.data.boardId,
           revisionId: parsed.data.revisionId
         },
-        signal
+        operationSignal
       )
     );
     if (result.connected && result.value.ok && result.value.result.result.type === "history.get" && "document" in result.value.result.result.snapshot)
@@ -39605,7 +40027,8 @@ var SceneToolHandlersV1 = class {
     const result = await this.gateway.call(
       "board_scene_replace",
       "scene.replace",
-      (client) => client.mutateBoard(
+      { signal },
+      (client, _snapshot, operationSignal) => client.mutateBoard(
         {
           protocolVersion: 1,
           requestId,
@@ -39614,7 +40037,7 @@ var SceneToolHandlersV1 = class {
           idempotencyKey: parsed.data.idempotencyKey,
           command: { type: "scene.replace", scene: scene.data.value }
         },
-        signal
+        operationSignal
       )
     );
     return result.connected ? sdkToolResultV1("board_scene_replace", requestId, result.value, null) : toolFailureV1(
@@ -39630,15 +40053,16 @@ var SceneToolHandlersV1 = class {
     if (!parsed.success) return validationFailureV1("board_scene_patch", requestId, parsed.error);
     const head = await this.gateway.call(
       "board_scene_patch",
-      "scene.replace",
-      (client) => client.getBoard(
+      ["board.get", "scene.replace"],
+      { signal },
+      (client, _snapshot, operationSignal) => client.getBoard(
         {
           protocolVersion: 1,
           requestId,
           type: "board.get",
           boardId: parsed.data.boardId
         },
-        signal
+        operationSignal
       )
     );
     if (!head.connected)
@@ -39665,8 +40089,9 @@ var SceneToolHandlersV1 = class {
       );
     const result = await this.gateway.call(
       "board_scene_patch",
-      "scene.replace",
-      (client) => client.mutateBoard(
+      ["board.get", "scene.replace"],
+      { signal },
+      (client, _snapshot, operationSignal) => client.mutateBoard(
         {
           protocolVersion: 1,
           requestId,
@@ -39675,7 +40100,7 @@ var SceneToolHandlersV1 = class {
           idempotencyKey: parsed.data.idempotencyKey,
           command: { type: "scene.replace", scene: transformed.data.value }
         },
-        signal
+        operationSignal
       )
     );
     return result.connected ? sdkToolResultV1("board_scene_patch", requestId, result.value, {
@@ -39695,7 +40120,8 @@ var SceneToolHandlersV1 = class {
     const result = await this.gateway.call(
       "board_scene_clear",
       "scene.clear",
-      (client) => client.mutateBoard(
+      { signal },
+      (client, _snapshot, operationSignal) => client.mutateBoard(
         {
           protocolVersion: 1,
           requestId,
@@ -39704,7 +40130,7 @@ var SceneToolHandlersV1 = class {
           idempotencyKey: parsed.data.idempotencyKey,
           command: { type: "scene.clear" }
         },
-        signal
+        operationSignal
       )
     );
     return result.connected ? sdkToolResultV1("board_scene_clear", requestId, result.value, null) : toolFailureV1(
@@ -40516,10 +40942,12 @@ var registerCoreToolsV1 = (server, options) => {
 
 // sceneboard-mcp/src/server.ts
 var MissingTokenProviderV1 = class {
-  async snapshot() {
+  async snapshot(signal) {
+    signal?.throwIfAborted();
     return null;
   }
-  async invalidate(_snapshot) {
+  async invalidate(_snapshot, signal) {
+    signal?.throwIfAborted();
   }
 };
 var configuredParts = async (loaded, env, fetchImplementation, logger) => {

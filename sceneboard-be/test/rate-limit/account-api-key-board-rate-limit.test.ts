@@ -6,6 +6,7 @@ import type { Reflector } from '@nestjs/core';
 
 import type { ActiveAccountApiKeySnapshot } from '../../src/api-keys/account-api-key.repository.js';
 import { AppError } from '../../src/common/errors/app-error.js';
+import { CryptoService } from '../../src/common/security/crypto.service.js';
 import type { AppEnvironment } from '../../src/config/env.schema.js';
 import {
   ACCOUNT_API_KEY_SNAPSHOT,
@@ -15,7 +16,10 @@ import {
   BoardOperationRateLimitGuard,
   type BoardOperationRateLimitClass,
 } from '../../src/rate-limit/board-operation-rate-limit.policy.js';
-import type { RateLimitInput, RateLimitService } from '../../src/rate-limit/rate-limit.service.js';
+import {
+  type RateLimitInput,
+  RateLimitService,
+} from '../../src/rate-limit/rate-limit.service.js';
 
 const snapshot: ActiveAccountApiKeySnapshot = {
   keyPk: '70',
@@ -155,4 +159,107 @@ test('skips non-key principals and fails closed without consuming later identiti
     calls.map((call: RateLimitInput) => call.purpose),
     ['rate-limit-api-key/v1', 'rate-limit-user/v1'],
   );
+});
+
+const crypto = new CryptoService({
+  sessionToken: Buffer.alloc(32, 1),
+  grantToken: Buffer.alloc(32, 2),
+  csrf: Buffer.alloc(32, 3),
+  pairingCodePepper: Buffer.alloc(32, 4),
+  auditHmac: Buffer.alloc(32, 5),
+  rateLimitHmac: Buffer.alloc(32, 6),
+});
+
+const rateLimitInput: RateLimitInput = {
+  surface: 'api-key-op-board-read-key',
+  purpose: 'rate-limit-api-key/v1',
+  identity: 'key_public_1',
+  limit: 5,
+  windowMs: 300_000,
+};
+
+test('service boundary fails closed for every malformed tuple and preserves threshold semantics', async () => {
+  for (const result of [
+    null,
+    [],
+    [1],
+    [1, 1, 1],
+    ['1', 1],
+    [1, '1'],
+    [0, 1],
+    [-1, 1],
+    [1.5, 1],
+    [Number.NaN, 1],
+    [Number.MAX_SAFE_INTEGER + 1, 1],
+    [1, 0],
+    [1, -1],
+    [1, 1.5],
+    [1, Number.NaN],
+    [1, Number.MAX_SAFE_INTEGER + 1],
+    [1, rateLimitInput.windowMs + 1],
+  ]) {
+    const limiter = new RateLimitService(
+      { consume: async () => result as never },
+      crypto,
+      'sceneboard:',
+    );
+    await assert.rejects(
+      limiter.consume(rateLimitInput),
+      (error) => error instanceof AppError && error.code === 'SERVICE_UNAVAILABLE',
+      JSON.stringify(result),
+    );
+  }
+
+  await assert.doesNotReject(
+    new RateLimitService({ consume: async () => [5, 1] }, crypto, 'sceneboard:').consume(
+      rateLimitInput,
+    ),
+  );
+  await assert.rejects(
+    new RateLimitService({ consume: async () => [6, 300_000] }, crypto, 'sceneboard:').consume(
+      rateLimitInput,
+    ),
+    (error) =>
+      error instanceof AppError &&
+      error.code === 'RATE_LIMITED' &&
+      error.retryAfterSeconds === 300,
+  );
+  await assert.rejects(
+    new RateLimitService(
+      { consume: async () => Promise.reject(new Error('redis unavailable')) },
+      crypto,
+      'sceneboard:',
+    ).consume(rateLimitInput),
+    (error) => error instanceof AppError && error.code === 'SERVICE_UNAVAILABLE',
+  );
+});
+
+test('malformed limiter tuple prevents the protected handler path from being admitted', async () => {
+  let calls = 0;
+  const limiter = new RateLimitService(
+    {
+      async consume() {
+        calls += 1;
+        return [0, -1];
+      },
+    },
+    crypto,
+    'sceneboard:',
+  );
+  const guard = new BoardOperationRateLimitGuard(
+    { getAllAndOverride: () => 'board-read' } as unknown as Reflector,
+    limiter,
+    { trustedProxyCidrs: [] } as unknown as AppEnvironment,
+  );
+  await assert.rejects(
+    guard.canActivate(
+      context({
+        headers: {},
+        socket: { remoteAddress: '192.0.2.10' },
+        boardPrincipal: principal,
+      }),
+    ),
+    (error) => error instanceof AppError && error.code === 'SERVICE_UNAVAILABLE',
+  );
+  assert.equal(calls, 1);
 });

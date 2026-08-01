@@ -6,7 +6,7 @@ import type { Reflector } from '@nestjs/core';
 
 import { CookieService } from '../../src/auth/cookie.service.js';
 import type { SessionService } from '../../src/auth/session.service.js';
-import { BoardContractError } from '../../src/common/errors/app-error.js';
+import { AppError, BoardContractError } from '../../src/common/errors/app-error.js';
 import {
   BoardPrincipalGuard,
   type BoardPrincipalRequest,
@@ -39,7 +39,7 @@ const executionContext = (request: BoardPrincipalRequest): ExecutionContext =>
     switchToHttp: () => ({ getRequest: () => request }),
   }) as unknown as ExecutionContext;
 
-const setup = (mode: 'standard' | 'media-upload') => {
+const setup = (mode: 'standard' | 'media-upload', accountFailure?: AppError) => {
   const calls: string[] = [];
   const reflector = {
     getAllAndOverride() {
@@ -55,6 +55,7 @@ const setup = (mode: 'standard' | 'media-upload') => {
   const actors = {
     async resolveAccountApiKey(token: string) {
       calls.push(`account:${token}`);
+      if (accountFailure !== undefined) throw accountFailure;
       return accountPrincipal;
     },
     async resolveMcp(value: string) {
@@ -149,4 +150,41 @@ test('media admission preserves its generic forbidden arms for API keys and brow
     );
     assert.deepEqual(denied.calls, []);
   }
+});
+
+test('preserves closed retry-bearing API-key resolver failures at the principal boundary', async () => {
+  for (const [failure, code, retryAfterSeconds] of [
+    [new AppError('RATE_LIMITED', { retryAfterSeconds: 7 }), 'RATE_LIMITED', 7],
+    [new AppError('SERVICE_UNAVAILABLE', { retryAfterSeconds: 11 }), 'SERVICE_UNAVAILABLE', 11],
+  ] as const) {
+    const denied = setup('standard', failure);
+    await assert.rejects(
+      denied.guard.canActivate(
+        executionContext({
+          headers: { authorization: `Bearer ${KEY}` },
+          rawHeaders: ['Authorization', `Bearer ${KEY}`],
+          cookies: {},
+        }),
+      ),
+      (error: unknown) =>
+        error instanceof BoardContractError &&
+        error.boardError.code === code &&
+        error.boardError.details?.retryAfterSeconds === retryAfterSeconds,
+    );
+  }
+
+  const invalid = setup('standard', new AppError('UNAUTHENTICATED'));
+  await assert.rejects(
+    invalid.guard.canActivate(
+      executionContext({
+        headers: { authorization: `Bearer ${KEY}` },
+        rawHeaders: ['Authorization', `Bearer ${KEY}`],
+        cookies: {},
+      }),
+    ),
+    (error: unknown) =>
+      error instanceof BoardContractError &&
+      error.boardError.code === 'UNAUTHENTICATED' &&
+      error.boardError.details === null,
+  );
 });

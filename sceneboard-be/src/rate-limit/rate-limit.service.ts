@@ -69,8 +69,16 @@ export class RateLimitService {
         cause: error,
       });
     }
+    if (!Array.isArray(result) || result.length !== 2)
+      throw new AppError('SERVICE_UNAVAILABLE');
     const [count, ttlMs] = result;
-    if (!Number.isSafeInteger(count) || !Number.isFinite(ttlMs))
+    if (
+      !Number.isSafeInteger(count) ||
+      !Number.isSafeInteger(ttlMs) ||
+      count < 1 ||
+      ttlMs < 1 ||
+      ttlMs > input.windowMs
+    )
       throw new AppError('SERVICE_UNAVAILABLE');
     if (count > input.limit) {
       throw new AppError('RATE_LIMITED', {

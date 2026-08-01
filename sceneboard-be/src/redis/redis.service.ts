@@ -45,9 +45,15 @@ export class RedisService implements RedisRateLimitPort, OnModuleDestroy {
     const result = await this.command.eval(script, 1, key, ...args);
     if (!Array.isArray(result) || result.length !== 2)
       throw new Error('Redis limiter returned an invalid result');
-    const count = Number(result[0]);
-    const ttl = Number(result[1]);
-    if (!Number.isSafeInteger(count) || !Number.isSafeInteger(ttl))
+    const [count, ttl] = result;
+    if (
+      typeof count !== 'number' ||
+      typeof ttl !== 'number' ||
+      !Number.isSafeInteger(count) ||
+      !Number.isSafeInteger(ttl) ||
+      count < 1 ||
+      ttl < 1
+    )
       throw new Error('Redis limiter returned invalid numbers');
     return [count, ttl];
   }

@@ -231,7 +231,9 @@ test('document mutation binds the V2 media profile, 201/200 replay status, and n
     },
   } as unknown as MutationResultV2;
   const fetchValue: typeof fetch = async (input, init) => {
-    assert.equal(new URL(input.toString()).pathname, '/api/v1/boards/board_1/mutations');
+    const url = new URL(input.toString());
+    assert.equal(url.pathname, '/api/v1/boards/board_1/mutations');
+    assert.equal(url.search, '?documentSchemaVersion=2');
     assert.equal(
       new Headers(init?.headers).get('content-type'),
       'application/vnd.sceneboard.document+json;version=2',
@@ -370,7 +372,9 @@ test('document read uses the 32 MiB parser profile and preserves the snapshot br
     },
   };
   delete (documentResult.result.snapshot as unknown as { scene?: unknown }).scene;
-  const fetchValue: typeof fetch = async (_input, init) => {
+  const fetchValue: typeof fetch = async (input, init) => {
+    const url = new URL(input.toString());
+    assert.equal(url.search, '?requestId=request_1&documentSchemaVersion=2');
     assert.equal(new Headers(init?.headers).has('content-type'), false);
     return successResponse(documentResult);
   };
@@ -378,6 +382,22 @@ test('document read uses the 32 MiB parser profile and preserves the snapshot br
   assert.equal(result.ok, true);
   if (result.ok && result.result.result.type === 'board.get')
     assert.equal('document' in result.result.result.snapshot, true);
+});
+
+test('document history read sends the explicit V2 selector without changing the V1 seam', async () => {
+  const request = operationRequest('operation-request-history-get.v1.json', 'history.get');
+  const responseResult = fixture<BoardOperationResultV1>('operation-result-history-get.v1.json');
+  const seen: string[] = [];
+  const fetchValue: typeof fetch = async (input) => {
+    seen.push(new URL(input.toString()).search);
+    return successResponse(responseResult);
+  };
+  await client(fetchValue).getHistory(request);
+  await client(fetchValue).getDocumentHistory(request);
+  assert.deepEqual(seen, [
+    '?requestId=request_1',
+    '?requestId=request_1&documentSchemaVersion=2',
+  ]);
 });
 
 test('preserves an exact D1 error and never retries a terminal authorization result', async () => {
@@ -444,6 +464,71 @@ test('rejects pre-cancelled calls without credential access or dispatch', async 
     error: { code: 'CANCELLED', retryable: false },
   });
   assert.equal(calls, 0);
+});
+
+test('caller abort settles an in-flight credential provider and ignores its late resolution', async () => {
+  const request = operationRequest('operation-request-board-list.v1.json', 'board.list');
+  let dispatches = 0;
+  let resolveCredential: ((value: string) => void) | undefined;
+  let markProviderStarted: (() => void) | undefined;
+  const providerStarted = new Promise<void>((resolve) => {
+    markProviderStarted = resolve;
+  });
+  const credential = new Promise<string>((resolve) => {
+    resolveCredential = resolve;
+  });
+  const sdk = new BoardSdkHttpClient({
+    baseUrl: 'https://sceneboard.dev',
+    fetch: async () => {
+      dispatches += 1;
+      throw new Error('must not dispatch');
+    },
+    bearerTokenProvider: () => {
+      markProviderStarted?.();
+      return credential;
+    },
+    timeoutPolicy: { timeoutMs: 2_000 },
+    logger: { log: () => undefined },
+  });
+  const controller = new AbortController();
+  const pending = sdk.listBoards(request, controller.signal);
+  await providerStarted;
+  controller.abort();
+
+  assert.deepEqual(await pending, {
+    ok: false,
+    error: { code: 'CANCELLED', retryable: false },
+  });
+  resolveCredential?.(TOKEN);
+  await Promise.resolve();
+  assert.equal(dispatches, 0);
+});
+
+test('deadline settles an in-flight credential provider and handles its late rejection', async () => {
+  const request = operationRequest('operation-request-board-list.v1.json', 'board.list');
+  let dispatches = 0;
+  let rejectCredential: ((reason?: unknown) => void) | undefined;
+  const credential = new Promise<string>((_resolve, reject) => {
+    rejectCredential = reject;
+  });
+  const sdk = new BoardSdkHttpClient({
+    baseUrl: 'https://sceneboard.dev',
+    fetch: async () => {
+      dispatches += 1;
+      throw new Error('must not dispatch');
+    },
+    bearerTokenProvider: () => credential,
+    timeoutPolicy: { timeoutMs: 20 },
+    logger: { log: () => undefined },
+  });
+
+  assert.deepEqual(await sdk.listBoards(request), {
+    ok: false,
+    error: { code: 'TIMEOUT', retryable: true, timeoutMs: 20 },
+  });
+  rejectCredential?.(new Error('late credential failure'));
+  await Promise.resolve();
+  assert.equal(dispatches, 0);
 });
 
 test('transport-neutral parser rejects duplicate outer members and request correlation drift', () => {

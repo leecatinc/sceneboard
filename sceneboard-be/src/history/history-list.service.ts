@@ -15,10 +15,20 @@ import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 
 import { BoardContractError } from '../common/errors/app-error.js';
 import { BoardPersistenceError } from '../common/errors/board-persistence.error.js';
+import { invalidCursorV1 } from '../common/cursors/signed-cursor.js';
 import { formatPublicUuidV4 } from '../common/ids/public-uuid.storage.js';
 import { parseMysqlTimestampUtc } from '../common/time/mysql-timestamp.js';
-import type { BoardAccessPolicy, ResolvedBoardPrincipalV1 } from '../grants/board-access.policy.js';
-import { HistoryCursorCodec } from './history-cursor.codec.js';
+import type {
+  AuthorizedBoardContextV1,
+  BoardAccessPolicy,
+  ResolvedBoardPrincipalV1,
+} from '../grants/board-access.policy.js';
+import {
+  HistoryCursorCodec,
+  type HistoryCursorAccessContextV1,
+  type HistoryCursorAnchorV1,
+  type HistoryCursorContextV1,
+} from './history-cursor.codec.js';
 import {
   historyListMetadata,
   retainedHistoryListMetadata,
@@ -57,18 +67,6 @@ interface HistoryBoundaryRow extends RowDataPacket {
   truncatedBefore: number;
 }
 
-const notFound = (): BoardContractError =>
-  new BoardContractError({
-    protocolVersion: 1,
-    type: 'board.error',
-    code: 'BOARD_NOT_FOUND',
-    message: 'Board not found',
-    category: 'not_found',
-    retryable: false,
-    httpStatusHint: 404,
-    details: null,
-  });
-
 const revisionId = (value: Uint8Array): RevisionId => formatPublicUuidV4(value) as RevisionId;
 const positive = (value: string): number => {
   if (!/^[1-9][0-9]{0,15}$/.test(value)) throw new BoardPersistenceError('row_integrity');
@@ -105,6 +103,17 @@ const originType = (
   throw new BoardPersistenceError('row_integrity');
 };
 
+const cursorAccess = (context: AuthorizedBoardContextV1): HistoryCursorAccessContextV1 =>
+  context.access.kind === 'owner'
+    ? { accessKind: 'owner', ownerUserId: context.access.ownerUserPk.toString() }
+    : context.access.kind === 'grant'
+      ? { accessKind: 'grant', grantId: context.access.grantId }
+      : {
+          accessKind: 'account_api_key',
+          ownerUserId: context.access.ownerUserPk.toString(),
+          apiKeyId: context.access.apiKeyPk.toString(),
+        };
+
 export class HistoryListService {
   constructor(
     private readonly accessPolicy: BoardAccessPolicy,
@@ -130,11 +139,18 @@ export class HistoryListService {
         boardId: input.request.boardId,
         isolation: 'REPEATABLE_READ_CUT',
       },
-      async (connection) => {
+      async (connection, authorized) => {
+        const retainedBoundary = await this.readBoundary(connection, input.request.boardId);
+        const cursorContext: HistoryCursorContextV1 = {
+          boardId: input.request.boardId,
+          limit: input.request.limit,
+          access: cursorAccess(authorized),
+          retentionBoundary: revisionId(retainedBoundary.oldestRetainedRevisionId),
+        };
         const before =
           input.request.cursor === null
             ? null
-            : this.cursors.parseAnchor(input.request.cursor, input.request.boardId);
+            : this.cursors.parseAnchor(input.request.cursor, cursorContext);
         if (before !== null) {
           await this.assertCursorAnchor(connection, input.request.boardId, before);
         }
@@ -185,11 +201,14 @@ export class HistoryListService {
         const nextCursor =
           rows.length > input.request.limit && last !== undefined
             ? this.emitRetainedMetadata
-              ? this.cursors.issueRetained(
-                  input.request.boardId,
-                  positive(page.at(-1)?.retainedOrder ?? ''),
-                )
-              : this.cursors.issue(input.request.boardId, last.revision.revisionNumber)
+              ? this.cursors.issueRetained({
+                  ...cursorContext,
+                  retainedOrder: positive(page.at(-1)?.retainedOrder ?? ''),
+                })
+              : this.cursors.issue({
+                  ...cursorContext,
+                  beforeRevisionNumber: last.revision.revisionNumber,
+                })
             : null;
         const parsed = BoardOperationResultParserV1.parse({
           protocolVersion: 1,
@@ -199,9 +218,6 @@ export class HistoryListService {
           result: { type: 'history.list', entries, nextCursor },
         });
         if (!parsed.ok) throw new BoardPersistenceError('row_integrity');
-        const retainedBoundary = this.emitRetainedMetadata
-          ? await this.readBoundary(connection, input.request.boardId)
-          : null;
         return {
           result: parsed.data.value,
           metadata: this.emitRetainedMetadata
@@ -255,13 +271,8 @@ export class HistoryListService {
                   };
                 }),
                 {
-                  truncatedBefore: retainedBoundary?.truncatedBefore === 1,
-                  oldestRetainedRevisionId: revisionId(
-                    retainedBoundary?.oldestRetainedRevisionId ??
-                      (() => {
-                        throw new BoardPersistenceError('row_integrity');
-                      })(),
-                  ),
+                  truncatedBefore: retainedBoundary.truncatedBefore === 1,
+                  oldestRetainedRevisionId: revisionId(retainedBoundary.oldestRetainedRevisionId),
                 },
               )
             : historyListMetadata(
@@ -276,9 +287,9 @@ export class HistoryListService {
   private async assertCursorAnchor(
     connection: PoolConnection,
     boardId: BoardId,
-    anchor: { version: 1 | 2; value: number },
+    anchor: HistoryCursorAnchorV1,
   ): Promise<void> {
-    const predicate = anchor.version === 1 ? 'r.revision_number = ?' : 'c.retained_order = ?';
+    const predicate = anchor.kind === 'revision' ? 'r.revision_number = ?' : 'c.retained_order = ?';
     const [rows] = await connection.execute<RowDataPacket[]>(
       `
       SELECT c.revision_pk
@@ -290,7 +301,7 @@ export class HistoryListService {
     `,
       [boardId, anchor.value],
     );
-    if (rows.length !== 1) throw notFound();
+    if (rows.length !== 1) throw invalidCursorV1();
   }
 
   private async readBoundary(
@@ -325,13 +336,13 @@ export class HistoryListService {
   private async readPage(
     connection: PoolConnection,
     boardId: HistoryListRequestV1['boardId'],
-    before: { version: 1 | 2; value: number } | null,
+    before: HistoryCursorAnchorV1 | null,
     limit: number,
   ): Promise<HistoryListRow[]> {
     const boundary =
       before === null
         ? 'c.retained_order <= head_catalog.retained_order'
-        : before.version === 1
+        : before.kind === 'revision'
           ? `r.revision_number < ?
              AND EXISTS (
                SELECT 1
@@ -385,7 +396,7 @@ export class HistoryListService {
     `,
       before === null
         ? [boardId]
-        : before.version === 1
+        : before.kind === 'revision'
           ? [boardId, before.value, before.value]
           : [boardId, before.value],
     );

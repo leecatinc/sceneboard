@@ -65,18 +65,22 @@ export class BoardToolHandlersV1 {
     const requestId = createRequestIdV1();
     const parsed = BoardListInputSchemaV1.safeParse(raw);
     if (!parsed.success) return invalid('board_list', requestId, parsed);
-    const result = await this.gateway.call('board_list', 'board.list', (client) =>
-      client.listBoards(
-        {
-          protocolVersion: 1,
-          requestId: requestId as RequestId,
-          type: 'board.list',
-          cursor: parsed.data.cursor as never,
-          limit: parsed.data.limit,
-          includeArchived: parsed.data.includeArchived,
-        },
-        signal,
-      ),
+    const result = await this.gateway.call(
+      'board_list',
+      'board.list',
+      { signal },
+      (client, _snapshot, operationSignal) =>
+        client.listBoards(
+          {
+            protocolVersion: 1,
+            requestId: requestId as RequestId,
+            type: 'board.list',
+            cursor: parsed.data.cursor as never,
+            limit: parsed.data.limit,
+            includeArchived: parsed.data.includeArchived,
+          },
+          operationSignal,
+        ),
     );
     return result.connected
       ? sdkToolResultV1('board_list', requestId, result.value, null)
@@ -87,16 +91,20 @@ export class BoardToolHandlersV1 {
     const requestId = createRequestIdV1();
     const parsed = BoardGetInputSchemaV1.safeParse(raw);
     if (!parsed.success) return invalid('board_get', requestId, parsed);
-    const result = await this.gateway.call('board_get', 'board.get', (client) =>
-      client.getBoard(
-        {
-          protocolVersion: 1,
-          requestId: requestId as RequestId,
-          type: 'board.get',
-          boardId: parsed.data.boardId as BoardId,
-        },
-        signal,
-      ),
+    const result = await this.gateway.call(
+      'board_get',
+      'board.get',
+      { signal },
+      (client, _snapshot, operationSignal) =>
+        client.getBoard(
+          {
+            protocolVersion: 1,
+            requestId: requestId as RequestId,
+            type: 'board.get',
+            boardId: parsed.data.boardId as BoardId,
+          },
+          operationSignal,
+        ),
     );
     return result.connected
       ? sdkToolResultV1('board_get', requestId, result.value, null)
@@ -107,17 +115,21 @@ export class BoardToolHandlersV1 {
     const requestId = createRequestIdV1();
     const parsed = BoardCreateInputSchemaV1.safeParse(raw);
     if (!parsed.success) return invalid('board_create', requestId, parsed);
-    const result = await this.gateway.call('board_create', 'board.create', (client) =>
-      client.createBoard(
-        {
-          protocolVersion: 1,
-          requestId: requestId as RequestId,
-          type: 'board.create',
-          title: parsed.data.title as ShortText,
-          idempotencyKey: parsed.data.idempotencyKey as IdempotencyKey,
-        },
-        signal,
-      ),
+    const result = await this.gateway.call(
+      'board_create',
+      'board.create',
+      { signal },
+      (client, _snapshot, operationSignal) =>
+        client.createBoard(
+          {
+            protocolVersion: 1,
+            requestId: requestId as RequestId,
+            type: 'board.create',
+            title: parsed.data.title as ShortText,
+            idempotencyKey: parsed.data.idempotencyKey as IdempotencyKey,
+          },
+          operationSignal,
+        ),
     );
     return result.connected
       ? sdkToolResultV1('board_create', requestId, result.value, null)
@@ -144,15 +156,25 @@ export class BoardToolHandlersV1 {
       );
     return toolFailureV1('board_rename', requestId, 'mcp', {
       code:
-        result.value.error.code === 'TRANSPORT_ERROR'
-          ? 'BOARD_MCP_TRANSPORT_ERROR'
-          : 'BOARD_MCP_RESPONSE_INVALID',
+        result.value.error.code === 'CANCELLED'
+          ? 'BOARD_MCP_CANCELLED'
+          : result.value.error.code === 'TIMEOUT'
+            ? 'BOARD_MCP_TIMEOUT'
+            : result.value.error.code === 'TRANSPORT_ERROR'
+              ? 'BOARD_MCP_TRANSPORT_ERROR'
+              : 'BOARD_MCP_RESPONSE_INVALID',
       message:
-        result.value.error.code === 'TRANSPORT_ERROR'
-          ? 'SceneBoard transport is unavailable'
-          : 'SceneBoard response is invalid',
-      retryable: result.value.error.code === 'TRANSPORT_ERROR',
-      details: null,
+        result.value.error.code === 'CANCELLED'
+          ? 'Tool call was cancelled'
+          : result.value.error.code === 'TIMEOUT'
+            ? 'SceneBoard request timed out'
+            : result.value.error.code === 'TRANSPORT_ERROR'
+              ? 'SceneBoard transport is unavailable'
+              : 'SceneBoard response is invalid',
+      retryable:
+        result.value.error.code === 'TIMEOUT' || result.value.error.code === 'TRANSPORT_ERROR',
+      details:
+        result.value.error.code === 'TIMEOUT' ? { timeoutMs: result.value.error.timeoutMs } : null,
     });
   }
 
@@ -160,18 +182,22 @@ export class BoardToolHandlersV1 {
     const requestId = createRequestIdV1();
     const parsed = BoardArchiveInputSchemaV1.safeParse(raw);
     if (!parsed.success) return invalid('board_archive', requestId, parsed);
-    const result = await this.gateway.call('board_archive', 'board.archive', (client) =>
-      client.archiveBoard(
-        {
-          protocolVersion: 1,
-          requestId: requestId as RequestId,
-          type: 'board.archive',
-          boardId: parsed.data.boardId as BoardId,
-          confirm: true,
-          idempotencyKey: parsed.data.idempotencyKey as IdempotencyKey,
-        },
-        signal,
-      ),
+    const result = await this.gateway.call(
+      'board_archive',
+      'board.archive',
+      { signal },
+      (client, _snapshot, operationSignal) =>
+        client.archiveBoard(
+          {
+            protocolVersion: 1,
+            requestId: requestId as RequestId,
+            type: 'board.archive',
+            boardId: parsed.data.boardId as BoardId,
+            confirm: true,
+            idempotencyKey: parsed.data.idempotencyKey as IdempotencyKey,
+          },
+          operationSignal,
+        ),
     );
     return result.connected
       ? sdkToolResultV1('board_archive', requestId, result.value, null)
@@ -182,16 +208,20 @@ export class BoardToolHandlersV1 {
     const requestId = createRequestIdV1();
     const parsed = BoardCapabilitiesInputSchemaV1.safeParse(raw);
     if (!parsed.success) return invalid('board_capabilities_get', requestId, parsed);
-    const result = await this.gateway.call('board_capabilities_get', 'capabilities.get', (client) =>
-      client.getCapabilities(
-        {
-          protocolVersion: 1,
-          requestId: requestId as RequestId,
-          type: 'capabilities.get',
-          boardId: parsed.data.boardId as BoardId,
-        },
-        signal,
-      ),
+    const result = await this.gateway.call(
+      'board_capabilities_get',
+      'capabilities.get',
+      { signal },
+      (client, _snapshot, operationSignal) =>
+        client.getCapabilities(
+          {
+            protocolVersion: 1,
+            requestId: requestId as RequestId,
+            type: 'capabilities.get',
+            boardId: parsed.data.boardId as BoardId,
+          },
+          operationSignal,
+        ),
     );
     return result.connected
       ? sdkToolResultV1('board_capabilities_get', requestId, result.value, null)

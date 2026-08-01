@@ -95,9 +95,7 @@ export class BoardPrincipalGuard implements CanActivate {
     } catch (error) {
       if (error instanceof BoardContractError) throw error;
       if (!(error instanceof AppError)) throw error;
-      throw boardAuthFailure(
-        error.code === 'SERVICE_UNAVAILABLE' ? 'SERVICE_UNAVAILABLE' : 'UNAUTHENTICATED',
-      );
+      throw boardAuthFailure(error);
     }
   }
 }
@@ -148,27 +146,52 @@ const boardForbidden = (): BoardContractError =>
     details: null,
   });
 
-const boardAuthFailure = (code: 'UNAUTHENTICATED' | 'SERVICE_UNAVAILABLE'): BoardContractError =>
+const boardAuthFailure = (error: AppError): BoardContractError =>
   new BoardContractError(
-    code === 'UNAUTHENTICATED'
+    error.code === 'RATE_LIMITED'
       ? {
           protocolVersion: 1,
           type: 'board.error',
-          code,
-          message: 'Authentication is required',
-          category: 'auth',
-          retryable: false,
-          httpStatusHint: 401,
-          details: null,
-        }
-      : {
-          protocolVersion: 1,
-          type: 'board.error',
-          code,
-          message: 'Service unavailable',
-          category: 'availability',
+          code: 'RATE_LIMITED',
+          message: 'Rate limited',
+          category: 'rate_limit',
           retryable: true,
-          httpStatusHint: 503,
-          details: { retryAfterSeconds: null },
-        },
+          httpStatusHint: 429,
+          details: {
+            retryAfterSeconds:
+              error.retryAfterSeconds !== null &&
+              Number.isFinite(error.retryAfterSeconds) &&
+              error.retryAfterSeconds > 0
+                ? Math.ceil(error.retryAfterSeconds)
+                : 1,
+          },
+        }
+      : error.code === 'SERVICE_UNAVAILABLE'
+        ? {
+            protocolVersion: 1,
+            type: 'board.error',
+            code: 'SERVICE_UNAVAILABLE',
+            message: 'Service unavailable',
+            category: 'availability',
+            retryable: true,
+            httpStatusHint: 503,
+            details: {
+              retryAfterSeconds:
+                error.retryAfterSeconds !== null &&
+                Number.isFinite(error.retryAfterSeconds) &&
+                error.retryAfterSeconds > 0
+                  ? Math.ceil(error.retryAfterSeconds)
+                  : null,
+            },
+          }
+        : {
+            protocolVersion: 1,
+            type: 'board.error',
+            code: 'UNAUTHENTICATED',
+            message: 'Authentication is required',
+            category: 'auth',
+            retryable: false,
+            httpStatusHint: 401,
+            details: null,
+          },
   );

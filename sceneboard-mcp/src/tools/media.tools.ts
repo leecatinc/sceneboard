@@ -195,7 +195,7 @@ export class MediaToolHandlersV1 {
           requiredCapabilities: ['board.media.write'],
           ...(signal === undefined ? {} : { signal }),
         },
-        async ({ snapshot, media }) => {
+        async ({ snapshot, media, signal: operationSignal }) => {
           const captured = await captureLocalMediaFileV1(parsed.data.path);
           if (!captured.ok) return { kind: 'capture_error' as const, code: captured.code };
           try {
@@ -211,7 +211,7 @@ export class MediaToolHandlersV1 {
                   digestBase64: captured.value.digestBase64,
                   bytes: captured.value.bytes,
                 },
-                signal,
+                operationSignal,
               ),
             };
           } finally {
@@ -272,7 +272,7 @@ export class MediaToolHandlersV1 {
           requiredCapabilities: ['board.history.read', 'board.write'],
           ...(signal === undefined ? {} : { signal }),
         },
-        async ({ client }) => {
+        async ({ client, signal: operationSignal }) => {
           const history = await client.getDocumentHistory(
             {
               protocolVersion: 1,
@@ -281,7 +281,7 @@ export class MediaToolHandlersV1 {
               boardId: parsed.data.boardId as BoardId,
               revisionId: parsed.data.expectedRevisionId as RevisionId,
             },
-            signal,
+            operationSignal,
           );
           if (!history.ok) return { kind: 'sdk' as const, value: history };
           const nested = history.result.result;
@@ -340,7 +340,7 @@ export class MediaToolHandlersV1 {
                 idempotencyKey: parsed.data.idempotencyKey as IdempotencyKey,
                 command: { type: 'document.replace', document: transformed.data.value },
               },
-              signal,
+              operationSignal,
             ),
           };
         },

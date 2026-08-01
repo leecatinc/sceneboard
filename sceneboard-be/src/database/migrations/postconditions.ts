@@ -48,6 +48,24 @@ export interface RevisionExportHoldProjection {
   holderCheckClause: string;
 }
 
+export interface DocumentReplaceIdempotencyColumnProjection extends RowDataPacket {
+  columnName: string;
+  columnType: string;
+  isNullable: string;
+}
+
+export interface DocumentReplaceIdempotencyCheckProjection extends RowDataPacket {
+  constraintName: string;
+  checkClause: string;
+}
+
+export interface DocumentReplaceIdempotencyIndexProjection extends RowDataPacket {
+  indexName: string;
+  nonUnique: number;
+  sequence: number;
+  columnName: string;
+}
+
 const expectedColumns = [
   ['id', 1, 'bigint unsigned', null, null, 'NO', null, 'auto_increment'],
   ['public_id', 2, 'varchar(128)', 'ascii', 'ascii_bin', 'NO', null, ''],
@@ -515,4 +533,119 @@ export const verifyRevisionExportHoldPostcondition = async (
     foreignKeyColumns: foreignKeys.map((row) => `${row.columnName}:${row.referencedColumnName}`),
     holderCheckClause: holder.checkClause,
   });
+};
+
+export const assessDocumentReplaceIdempotencyPostcondition = (
+  columns: readonly DocumentReplaceIdempotencyColumnProjection[],
+  checks: readonly DocumentReplaceIdempotencyCheckProjection[],
+  indexes: readonly DocumentReplaceIdempotencyIndexProjection[],
+): void => {
+  const actualColumns = columns.map((row) => [
+    row.columnName,
+    row.columnType.toLowerCase(),
+    row.isNullable,
+  ]);
+  const expectedColumns = [
+    ['fingerprint_payload', 'longblob', 'NO'],
+    ['fingerprint_canonical_bytes', 'int unsigned', 'NO'],
+    ['result_payload', 'longblob', 'YES'],
+    ['result_canonical_bytes', 'int unsigned', 'YES'],
+  ];
+  if (JSON.stringify(actualColumns) !== JSON.stringify(expectedColumns))
+    throw new Error('document replace idempotency column projection mismatch');
+
+  const actualChecks = new Map(
+    checks.map((row) => [row.constraintName, canonicalCheck(row.checkClause)]),
+  );
+  const expectedChecks: Readonly<Record<string, string>> = {
+    chk_idempotency_scope_shape: `(scope_code = 'C' AND scope_subject = 'board.create'
+      AND expected_revision_id IS NULL AND operation_type = 'board.create')
+      OR (scope_code = 'A' AND scope_subject <> 'board.create'
+      AND expected_revision_id IS NULL AND operation_type = 'board.archive')
+      OR (scope_code = 'M' AND scope_subject <> 'board.create'
+      AND expected_revision_id IS NOT NULL AND operation_type IN (
+        'scene.replace','scene.clear','scene.restore','hitl.request','hitl.respond',
+        'artifact.publish','artifact.stop','document.replace'))`,
+    chk_idempotency_fingerprint: `fingerprint_version = 1
+      AND fingerprint_canonical_bytes BETWEEN 1 AND 33554432
+      AND fingerprint_canonical_bytes = OCTET_LENGTH(fingerprint_payload)`,
+    chk_idempotency_status: `(status_code = 'P' AND result_payload IS NULL
+      AND result_canonical_bytes IS NULL AND result_sha256 IS NULL
+      AND completed_at IS NULL AND expires_at IS NULL)
+      OR (status_code = 'C' AND result_payload IS NOT NULL
+      AND result_canonical_bytes IS NOT NULL
+      AND result_canonical_bytes BETWEEN 1 AND 33554432
+      AND result_canonical_bytes = OCTET_LENGTH(result_payload)
+      AND result_sha256 IS NOT NULL
+      AND completed_at IS NOT NULL AND expires_at IS NOT NULL
+      AND expires_at > completed_at)`,
+  };
+  if (
+    actualChecks.size !== Object.keys(expectedChecks).length ||
+    Object.keys(expectedChecks).some((name) => !actualChecks.has(name))
+  )
+    throw new Error('document replace idempotency check projection mismatch');
+  for (const [name, clause] of Object.entries(expectedChecks)) {
+    if (actualChecks.get(name) !== canonicalCheck(clause))
+      throw new Error(`document replace idempotency check clause mismatch: ${name}`);
+  }
+
+  const actualIndex = indexes.map((row) => [
+    row.indexName,
+    Number(row.nonUnique),
+    Number(row.sequence),
+    row.columnName,
+  ]);
+  const expectedIndex = [
+    ['uq_idempotency_scope', 0, 1, 'scope_code'],
+    ['uq_idempotency_scope', 0, 2, 'principal_kind'],
+    ['uq_idempotency_scope', 0, 3, 'principal_id'],
+    ['uq_idempotency_scope', 0, 4, 'scope_subject'],
+    ['uq_idempotency_scope', 0, 5, 'idempotency_key'],
+  ];
+  if (JSON.stringify(actualIndex) !== JSON.stringify(expectedIndex))
+    throw new Error('document replace idempotency unique-key projection mismatch');
+};
+
+export const verifyDocumentReplaceIdempotencyPostcondition = async (
+  connection: PoolConnection,
+): Promise<void> => {
+  const [columns] = await connection.query<DocumentReplaceIdempotencyColumnProjection[]>(
+    `SELECT column_name AS columnName, column_type AS columnType, is_nullable AS isNullable
+     FROM information_schema.columns
+     WHERE table_schema = DATABASE()
+       AND table_name = 'board_idempotency_records'
+       AND column_name IN (
+         'fingerprint_payload',
+         'fingerprint_canonical_bytes',
+         'result_payload',
+         'result_canonical_bytes'
+       )
+     ORDER BY ordinal_position`,
+  );
+  const [checks] = await connection.query<DocumentReplaceIdempotencyCheckProjection[]>(
+    `SELECT tc.constraint_name AS constraintName, cc.check_clause AS checkClause
+     FROM information_schema.table_constraints tc
+     JOIN information_schema.check_constraints cc
+       ON cc.constraint_schema = tc.constraint_schema
+      AND cc.constraint_name = tc.constraint_name
+     WHERE tc.table_schema = DATABASE()
+       AND tc.table_name = 'board_idempotency_records'
+       AND tc.constraint_name IN (
+         'chk_idempotency_scope_shape',
+         'chk_idempotency_fingerprint',
+         'chk_idempotency_status'
+       )
+     ORDER BY tc.constraint_name`,
+  );
+  const [indexes] = await connection.query<DocumentReplaceIdempotencyIndexProjection[]>(
+    `SELECT index_name AS indexName, non_unique AS nonUnique,
+            seq_in_index AS sequence, column_name AS columnName
+     FROM information_schema.statistics
+     WHERE table_schema = DATABASE()
+       AND table_name = 'board_idempotency_records'
+       AND index_name = 'uq_idempotency_scope'
+     ORDER BY seq_in_index`,
+  );
+  assessDocumentReplaceIdempotencyPostcondition(columns, checks, indexes);
 };

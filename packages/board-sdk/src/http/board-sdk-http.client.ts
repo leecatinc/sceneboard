@@ -190,6 +190,34 @@ const retryDelayFromError = (error: BoardError): number | null => {
 const shouldRetryError = (error: BoardError): boolean =>
   error.retryable && (error.code === 'RATE_LIMITED' || error.code === 'SERVICE_UNAVAILABLE');
 
+type CredentialSettlementV1 =
+  | { kind: 'value'; value: string }
+  | { kind: 'error' }
+  | { kind: 'aborted' };
+
+const settleCredentialWithinDeadlineV1 = async (
+  provider: BoardSdkHttpClientOptionsV1['bearerTokenProvider'],
+  signal: AbortSignal,
+): Promise<CredentialSettlementV1> => {
+  if (signal.aborted) return { kind: 'aborted' };
+  let onAbort: (() => void) | null = null;
+  const aborted = new Promise<CredentialSettlementV1>((resolve) => {
+    onAbort = () => resolve({ kind: 'aborted' });
+    signal.addEventListener('abort', onAbort, { once: true });
+  });
+  const credential = Promise.resolve()
+    .then(provider)
+    .then(
+      (value): CredentialSettlementV1 => ({ kind: 'value', value }),
+      (): CredentialSettlementV1 => ({ kind: 'error' }),
+    );
+  try {
+    return await Promise.race([credential, aborted]);
+  } finally {
+    if (onAbort !== null) signal.removeEventListener('abort', onAbort);
+  }
+};
+
 export class BoardSdkHttpClient {
   static readonly readBoundedResponseBodyV1 = readBoundedResponseBodyV1;
   static readonly parseStrictJsonBytesV1 = parseStrictJsonBytesV1;
@@ -267,7 +295,10 @@ export class BoardSdkHttpClient {
         method: 'GET',
         routeTemplate: '/api/v1/boards/:boardId',
         path: `/api/v1/boards/${parsed.boardId}`,
-        query: new URLSearchParams({ requestId: parsed.requestId }),
+        query: new URLSearchParams({
+          requestId: parsed.requestId,
+          documentSchemaVersion: '2',
+        }),
         body: null,
         requestId: parsed.requestId,
         resultType: 'board.get',
@@ -392,6 +423,7 @@ export class BoardSdkHttpClient {
         method: 'POST',
         routeTemplate: '/api/v1/boards/:boardId/mutations',
         path: `/api/v1/boards/${parsed.data.value.boardId}/mutations`,
+        query: new URLSearchParams({ documentSchemaVersion: '2' }),
         body: parsed.data.canonicalBytes,
         requestId: parsed.data.value.requestId,
         resultType: 'document.replace',
@@ -546,7 +578,10 @@ export class BoardSdkHttpClient {
         method: 'GET',
         routeTemplate: '/api/v1/boards/:boardId/revisions/:revisionId',
         path: `/api/v1/boards/${parsed.boardId}/revisions/${parsed.revisionId}`,
-        query: new URLSearchParams({ requestId: parsed.requestId }),
+        query: new URLSearchParams({
+          requestId: parsed.requestId,
+          documentSchemaVersion: '2',
+        }),
         body: null,
         requestId: parsed.requestId,
         resultType: 'history.get',
@@ -718,11 +753,19 @@ export class BoardSdkHttpClient {
         }
         const startedAt = performance.now();
         let token: string;
-        try {
-          token = await this.#bearerTokenProvider();
-        } catch {
+        const credential = await settleCredentialWithinDeadlineV1(
+          this.#bearerTokenProvider,
+          deadline.signal,
+        );
+        if (credential.kind === 'aborted') {
+          return deadline.timedOut()
+            ? localFailure({ code: 'TIMEOUT', retryable: true, timeoutMs: this.#timeoutMs })
+            : localFailure({ code: 'CANCELLED', retryable: false });
+        }
+        if (credential.kind === 'error') {
           return localFailure({ code: 'TRANSPORT_ERROR', retryable: true, phase: 'credential' });
         }
+        token = credential.value;
         if (!TOKEN_PATTERN.test(token)) {
           return localFailure({ code: 'TRANSPORT_ERROR', retryable: true, phase: 'credential' });
         }

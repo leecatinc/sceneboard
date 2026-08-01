@@ -33,12 +33,12 @@ const actor = (kind: 'user' | 'mcp_client' | 'service'): ActorContextV1 => {
   return parsed.data.value;
 };
 
-const request = (): BoardListRequestV1 => {
+const request = (cursor: string | null = null): BoardListRequestV1 => {
   const parsed = BoardOperationRequestParserV1.parse({
     protocolVersion: 1,
     requestId: 'request_list_1',
     type: 'board.list',
-    cursor: null,
+    cursor,
     limit: 2,
     includeArchived: false,
   });
@@ -49,7 +49,6 @@ const request = (): BoardListRequestV1 => {
 };
 
 const row = (boardPk: string, createdSecond: number, uuidByte: string) => ({
-  cursorBoardPk: boardPk,
   boardId: `board_${boardPk}`,
   title: `Board ${boardPk}`,
   boardCreatedAt: `2026-07-16 12:00:${String(createdSecond).padStart(2, '0')}.000`,
@@ -63,14 +62,19 @@ const row = (boardPk: string, createdSecond: number, uuidByte: string) => ({
   headRevisionCreatedAt: `2026-07-16 12:01:${String(createdSecond).padStart(2, '0')}.000`,
 });
 
-const setup = (kind: 'owner' | 'grant' | 'account_api_key') => {
+type BoardListFixtureRow = ReturnType<typeof row>;
+
+const setup = (
+  kind: 'owner' | 'grant' | 'account_api_key',
+  pages?: BoardListFixtureRow[][],
+) => {
   const calls: Array<{ sql: string; binds: unknown[] }> = [];
   const rows = [row('3', 3, 'a'), row('2', 2, 'b'), row('1', 1, 'c')];
   const connection = {
     async execute(sql: string, binds: unknown[]): Promise<[unknown, unknown]> {
       const normalized = sql.replace(/\s+/g, ' ').trim();
       calls.push({ sql: normalized, binds });
-      return [rows, []];
+      return [pages?.[calls.length - 1] ?? rows, []];
     },
   } as unknown as PoolConnection;
   const principal: ResolvedBoardPrincipalV1 =
@@ -155,10 +159,11 @@ test('owner board page uses one narrow limit+1 projection and cursors from the l
   assert.deepEqual(
     value.cursors.parse({
       cursor: result.result.nextCursor,
+      limit: 2,
       includeArchived: false,
       access: { accessKind: 'owner', ownerUserId: '20' },
     }),
-    { createdAt: '2026-07-16T12:00:02.000Z', boardPk: '2' },
+    { createdAt: '2026-07-16T12:00:02.000Z', boardId: 'board_2' },
   );
   assert.equal(value.calls.length, 1);
   assert.match(value.calls[0]?.sql ?? '', /FROM boards b JOIN board_heads/);
@@ -193,6 +198,7 @@ test('API-key board page filters active owner membership and binds its cursor to
   assert.deepEqual(
     value.cursors.parse({
       cursor: result.result.nextCursor,
+      limit: 2,
       includeArchived: false,
       access: {
         accessKind: 'account_api_key',
@@ -200,11 +206,12 @@ test('API-key board page filters active owner membership and binds its cursor to
         apiKeyId: '70',
       },
     }),
-    { createdAt: '2026-07-16T12:00:02.000Z', boardPk: '2' },
+    { createdAt: '2026-07-16T12:00:02.000Z', boardId: 'board_2' },
   );
   assert.throws(() =>
     value.cursors.parse({
       cursor: result.result.nextCursor!,
+      limit: 2,
       includeArchived: false,
       access: {
         accessKind: 'account_api_key',
@@ -213,4 +220,43 @@ test('API-key board page filters active owner membership and binds its cursor to
       },
     }),
   );
+});
+
+test('equal-timestamp pages use the public board ID tuple without duplicates or gaps', async () => {
+  const sharedCreatedSecond = 3;
+  const value = setup('owner', [
+    [
+      row('3', sharedCreatedSecond, 'a'),
+      row('2', sharedCreatedSecond, 'b'),
+      row('1', sharedCreatedSecond, 'c'),
+    ],
+    [row('1', sharedCreatedSecond, 'c')],
+  ]);
+
+  const first = await value.service.list({ principal: value.principal, request: request() });
+  assert.equal(first.result.type, 'board.list');
+  if (first.result.type !== 'board.list' || first.result.nextCursor === null) return;
+  const second = await value.service.list({
+    principal: value.principal,
+    request: request(first.result.nextCursor),
+  });
+  assert.equal(second.result.type, 'board.list');
+  if (second.result.type !== 'board.list') return;
+
+  assert.deepEqual(
+    [...first.result.boards, ...second.result.boards].map((board) => board.boardId),
+    ['board_3', 'board_2', 'board_1'],
+  );
+  assert.equal(second.result.nextCursor, null);
+  assert.match(
+    value.calls[1]?.sql ?? '',
+    /b\.created_at < \? OR \(b\.created_at = \? AND b\.public_id < \?\)/,
+  );
+  assert.match(value.calls[1]?.sql ?? '', /ORDER BY b\.created_at DESC, b\.public_id DESC/);
+  assert.deepEqual(value.calls[1]?.binds, [
+    '20',
+    '2026-07-16 12:00:03.000',
+    '2026-07-16 12:00:03.000',
+    'board_2',
+  ]);
 });

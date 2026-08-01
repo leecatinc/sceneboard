@@ -51,26 +51,33 @@ test('document page schemas reject extra fields and require an explicit update m
 
 test('page tools read the V2 head, apply the shared transform, and send one whole document', async () => {
   let submitted: MutationRequestV2 | null = null;
+  const caller = new AbortController();
+  const owned = new AbortController();
+  const receivedSignals: AbortSignal[] = [];
   const client = {
-    getDocumentBoard: async () => ({
-      ok: true as const,
-      result: {
-        protocolVersion: 1 as const,
-        type: 'board.operation.result' as const,
-        requestId: 'request_head',
-        replayed: false,
+    getDocumentBoard: async (_request: unknown, signal: AbortSignal) => {
+      receivedSignals.push(signal);
+      return {
+        ok: true as const,
         result: {
-          type: 'board.get' as const,
-          snapshot: {
-            boardId: 'board_1',
-            revision: { revisionId: 'revision_1' },
-            document,
+          protocolVersion: 1 as const,
+          type: 'board.operation.result' as const,
+          requestId: 'request_head',
+          replayed: false,
+          result: {
+            type: 'board.get' as const,
+            snapshot: {
+              boardId: 'board_1',
+              revision: { revisionId: 'revision_1' },
+              document,
+            },
           },
         },
-      },
-      metadata: { history: null },
-    }),
-    mutateDocument: async (request: MutationRequestV2) => {
+        metadata: { history: null },
+      };
+    },
+    mutateDocument: async (request: MutationRequestV2, signal: AbortSignal) => {
+      receivedSignals.push(signal);
       submitted = request;
       return {
         ok: true as const,
@@ -103,23 +110,26 @@ test('page tools read the V2 head, apply the shared transform, and send one whol
       const operation = args.at(-1) as (value: typeof client) => Promise<T>;
       return {
         connected: true as const,
-        value: await operation(client),
+        value: await operation(client, {} as never, owned.signal),
       };
     },
   };
   const handlers = new DocumentToolHandlersV2(gateway as never);
-  const output = await handlers.add({
-    boardId: 'board_1',
-    expectedRevisionId: 'revision_1',
-    idempotencyKey: 'idempotency-key-1',
-    page: {
-      pageId: 'page_b',
-      title: 'B',
-      displayMode: 'fit-width',
-      scene: { protocolVersion: 1, type: 'scene', root: null },
+  const output = await handlers.add(
+    {
+      boardId: 'board_1',
+      expectedRevisionId: 'revision_1',
+      idempotencyKey: 'idempotency-key-1',
+      page: {
+        pageId: 'page_b',
+        title: 'B',
+        displayMode: 'fit-width',
+        scene: { protocolVersion: 1, type: 'scene', root: null },
+      },
+      index: 1,
     },
-    index: 1,
-  });
+    caller.signal,
+  );
   assert.equal(output.isError, false);
   assert.notEqual(submitted, null);
   const command = (submitted as MutationRequestV2 | null)?.command;
@@ -130,6 +140,8 @@ test('page tools read the V2 head, apply the shared transform, and send one whol
       ['page_a', 'page_b'],
     );
   }
+  assert.deepEqual(receivedSignals, [owned.signal, owned.signal]);
+  assert.equal(receivedSignals.includes(caller.signal), false);
 });
 
 test('legacy scene get fails with the stable document mismatch on a V2 head', async () => {
@@ -175,4 +187,43 @@ test('legacy scene get fails with the stable document mismatch on a V2 head', as
     ).error.value.code,
     'DOCUMENT_VERSION_MISMATCH',
   );
+});
+
+test('scene and document tools preflight their invocation-specific operation plans', async () => {
+  const calls: unknown[][] = [];
+  const gateway = {
+    call: async (...args: unknown[]) => {
+      calls.push(args.slice(0, 2));
+      return { connected: false as const };
+    },
+  };
+  const scenes = new SceneToolHandlersV1(gateway as never);
+  const documents = new DocumentToolHandlersV2(gateway as never);
+
+  await scenes.get({ boardId: 'board_1', revisionId: null });
+  await scenes.get({ boardId: 'board_1', revisionId: 'revision_1' });
+  await scenes.patch({
+    boardId: 'board_1',
+    expectedRevisionId: 'revision_1',
+    idempotencyKey: 'idempotency-key-1',
+    operations: [{ type: 'replace_root', root: null }],
+  });
+  await documents.get({ boardId: 'board_1', revisionId: null });
+  await documents.get({ boardId: 'board_1', revisionId: 'revision_1' });
+  await documents.add({
+    boardId: 'board_1',
+    expectedRevisionId: 'revision_1',
+    idempotencyKey: 'idempotency-key-1',
+    page: document.pages[0],
+    index: 0,
+  });
+
+  assert.deepEqual(calls, [
+    ['board_scene_get', ['board.get']],
+    ['board_scene_get', ['history.get']],
+    ['board_scene_patch', ['board.get', 'scene.replace']],
+    ['board_document_get', ['board.get']],
+    ['board_document_get', ['history.get']],
+    ['board_page_add', ['board.get', 'document.replace']],
+  ]);
 });

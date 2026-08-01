@@ -180,6 +180,16 @@ const retryAfterSeconds = (error: BoardError): number | null => {
   return null;
 };
 
+const sourceRetryAfterSeconds = (exception: unknown): number | null => {
+  if (exception instanceof BoardContractError) return retryAfterSeconds(exception.boardError);
+  if (
+    exception instanceof AppError &&
+    (exception.code === 'RATE_LIMITED' || exception.code === 'SERVICE_UNAVAILABLE')
+  )
+    return exception.retryAfterSeconds;
+  return null;
+};
+
 @Catch()
 export class HttpErrorFilter implements ExceptionFilter {
   constructor(@Inject(CryptoService) private readonly crypto: CryptoService) {}
@@ -209,7 +219,16 @@ export class HttpErrorFilter implements ExceptionFilter {
 
     if (isExportPath(request.url ?? '')) {
       const failure = exportFailure(exception);
-      if (failure.code === 'EXPORT_RATE_LIMITED') response.setHeader('Retry-After', '1');
+      if (
+        failure.code === 'EXPORT_RATE_LIMITED' ||
+        failure.code === 'EXPORT_RENDERER_UNAVAILABLE'
+      ) {
+        const retryAfter = sourceRetryAfterSeconds(exception);
+        response.setHeader(
+          'Retry-After',
+          String(Math.max(1, Math.ceil(retryAfter === null ? 1 : retryAfter))),
+        );
+      }
       response.status(failure.httpStatus).json(failure.toPayload());
       return;
     }

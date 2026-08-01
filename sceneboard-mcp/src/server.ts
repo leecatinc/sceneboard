@@ -38,10 +38,13 @@ import type { ConnectionStatusPortV1 } from './tools/connection.tools.js';
 import { LocalExportFileV1 } from './exports/local-export-file.js';
 
 class MissingTokenProviderV1 implements TokenProviderV1 {
-  async snapshot(): Promise<CredentialSnapshotV1 | null> {
+  async snapshot(signal?: AbortSignal): Promise<CredentialSnapshotV1 | null> {
+    signal?.throwIfAborted();
     return null;
   }
-  async invalidate(_snapshot: CredentialSnapshotV1): Promise<void> {}
+  async invalidate(_snapshot: CredentialSnapshotV1, signal?: AbortSignal): Promise<void> {
+    signal?.throwIfAborted();
+  }
 }
 
 export type BoardMcpServerOptionsV1 = {

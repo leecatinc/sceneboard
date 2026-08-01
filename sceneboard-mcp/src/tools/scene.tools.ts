@@ -81,16 +81,20 @@ export class SceneToolHandlersV1 {
     const parsed = SceneGetInputSchemaV1.safeParse(raw);
     if (!parsed.success) return validationFailureV1('board_scene_get', requestId, parsed.error);
     if (parsed.data.revisionId === null) {
-      const result = await this.gateway.call('board_scene_get', 'board.get', (client) =>
-        client.getBoard(
-          {
-            protocolVersion: 1,
-            requestId: requestId as RequestId,
-            type: 'board.get',
-            boardId: parsed.data.boardId as BoardId,
-          },
-          signal,
-        ),
+      const result = await this.gateway.call(
+        'board_scene_get',
+        ['board.get'],
+        { signal },
+        (client, _snapshot, operationSignal) =>
+          client.getBoard(
+            {
+              protocolVersion: 1,
+              requestId: requestId as RequestId,
+              type: 'board.get',
+              boardId: parsed.data.boardId as BoardId,
+            },
+            operationSignal,
+          ),
       );
       if (
         result.connected &&
@@ -108,17 +112,21 @@ export class SceneToolHandlersV1 {
             notConnectedV1() as unknown as Record<string, unknown>,
           );
     }
-    const result = await this.gateway.call('board_scene_get', 'board.get', (client) =>
-      client.getHistory(
-        {
-          protocolVersion: 1,
-          requestId: requestId as RequestId,
-          type: 'history.get',
-          boardId: parsed.data.boardId as BoardId,
-          revisionId: parsed.data.revisionId as RevisionId,
-        },
-        signal,
-      ),
+    const result = await this.gateway.call(
+      'board_scene_get',
+      ['history.get'],
+      { signal },
+      (client, _snapshot, operationSignal) =>
+        client.getHistory(
+          {
+            protocolVersion: 1,
+            requestId: requestId as RequestId,
+            type: 'history.get',
+            boardId: parsed.data.boardId as BoardId,
+            revisionId: parsed.data.revisionId as RevisionId,
+          },
+          operationSignal,
+        ),
     );
     if (
       result.connected &&
@@ -154,18 +162,22 @@ export class SceneToolHandlersV1 {
         'board',
         scene.error as unknown as Record<string, unknown>,
       );
-    const result = await this.gateway.call('board_scene_replace', 'scene.replace', (client) =>
-      client.mutateBoard(
-        {
-          protocolVersion: 1,
-          requestId: requestId as RequestId,
-          boardId: parsed.data.boardId as BoardId,
-          expectedRevisionId: parsed.data.expectedRevisionId as RevisionId,
-          idempotencyKey: parsed.data.idempotencyKey as IdempotencyKey,
-          command: { type: 'scene.replace', scene: scene.data.value },
-        },
-        signal,
-      ),
+    const result = await this.gateway.call(
+      'board_scene_replace',
+      'scene.replace',
+      { signal },
+      (client, _snapshot, operationSignal) =>
+        client.mutateBoard(
+          {
+            protocolVersion: 1,
+            requestId: requestId as RequestId,
+            boardId: parsed.data.boardId as BoardId,
+            expectedRevisionId: parsed.data.expectedRevisionId as RevisionId,
+            idempotencyKey: parsed.data.idempotencyKey as IdempotencyKey,
+            command: { type: 'scene.replace', scene: scene.data.value },
+          },
+          operationSignal,
+        ),
     );
     return result.connected
       ? sdkToolResultV1('board_scene_replace', requestId, result.value, null)
@@ -181,16 +193,20 @@ export class SceneToolHandlersV1 {
     const requestId = createRequestIdV1();
     const parsed = ScenePatchInputSchemaV1.safeParse(raw);
     if (!parsed.success) return validationFailureV1('board_scene_patch', requestId, parsed.error);
-    const head = await this.gateway.call('board_scene_patch', 'scene.replace', (client) =>
-      client.getBoard(
-        {
-          protocolVersion: 1,
-          requestId: requestId as RequestId,
-          type: 'board.get',
-          boardId: parsed.data.boardId as BoardId,
-        },
-        signal,
-      ),
+    const head = await this.gateway.call(
+      'board_scene_patch',
+      ['board.get', 'scene.replace'],
+      { signal },
+      (client, _snapshot, operationSignal) =>
+        client.getBoard(
+          {
+            protocolVersion: 1,
+            requestId: requestId as RequestId,
+            type: 'board.get',
+            boardId: parsed.data.boardId as BoardId,
+          },
+          operationSignal,
+        ),
     );
     if (!head.connected)
       return toolFailureV1(
@@ -214,18 +230,22 @@ export class SceneToolHandlersV1 {
         'board',
         transformed.error as unknown as Record<string, unknown>,
       );
-    const result = await this.gateway.call('board_scene_patch', 'scene.replace', (client) =>
-      client.mutateBoard(
-        {
-          protocolVersion: 1,
-          requestId: requestId as RequestId,
-          boardId: parsed.data.boardId as BoardId,
-          expectedRevisionId: parsed.data.expectedRevisionId as RevisionId,
-          idempotencyKey: parsed.data.idempotencyKey as IdempotencyKey,
-          command: { type: 'scene.replace', scene: transformed.data.value },
-        },
-        signal,
-      ),
+    const result = await this.gateway.call(
+      'board_scene_patch',
+      ['board.get', 'scene.replace'],
+      { signal },
+      (client, _snapshot, operationSignal) =>
+        client.mutateBoard(
+          {
+            protocolVersion: 1,
+            requestId: requestId as RequestId,
+            boardId: parsed.data.boardId as BoardId,
+            expectedRevisionId: parsed.data.expectedRevisionId as RevisionId,
+            idempotencyKey: parsed.data.idempotencyKey as IdempotencyKey,
+            command: { type: 'scene.replace', scene: transformed.data.value },
+          },
+          operationSignal,
+        ),
     );
     return result.connected
       ? sdkToolResultV1('board_scene_patch', requestId, result.value, {
@@ -244,18 +264,22 @@ export class SceneToolHandlersV1 {
     const requestId = createRequestIdV1();
     const parsed = SceneClearInputSchemaV1.safeParse(raw);
     if (!parsed.success) return validationFailureV1('board_scene_clear', requestId, parsed.error);
-    const result = await this.gateway.call('board_scene_clear', 'scene.clear', (client) =>
-      client.mutateBoard(
-        {
-          protocolVersion: 1,
-          requestId: requestId as RequestId,
-          boardId: parsed.data.boardId as BoardId,
-          expectedRevisionId: parsed.data.expectedRevisionId as RevisionId,
-          idempotencyKey: parsed.data.idempotencyKey as IdempotencyKey,
-          command: { type: 'scene.clear' },
-        },
-        signal,
-      ),
+    const result = await this.gateway.call(
+      'board_scene_clear',
+      'scene.clear',
+      { signal },
+      (client, _snapshot, operationSignal) =>
+        client.mutateBoard(
+          {
+            protocolVersion: 1,
+            requestId: requestId as RequestId,
+            boardId: parsed.data.boardId as BoardId,
+            expectedRevisionId: parsed.data.expectedRevisionId as RevisionId,
+            idempotencyKey: parsed.data.idempotencyKey as IdempotencyKey,
+            command: { type: 'scene.clear' },
+          },
+          operationSignal,
+        ),
     );
     return result.connected
       ? sdkToolResultV1('board_scene_clear', requestId, result.value, null)

@@ -336,6 +336,7 @@ export class MysqlBoardAccessPolicy implements BoardAccessPolicy {
       );
     }
     let callbackActive = true;
+    let ownerMembershipUsed = false;
     const guardedContext: AuthorizedBoardContextV1 = {
       ...context,
       createBinding:
@@ -353,7 +354,8 @@ export class MysqlBoardAccessPolicy implements BoardAccessPolicy {
           ? null
           : {
               create: async (boardPk, createdAtSql) => {
-                if (!callbackActive) throw boardFailure('INTERNAL_ERROR');
+                if (!callbackActive || ownerMembershipUsed) throw boardFailure('INTERNAL_ERROR');
+                ownerMembershipUsed = true;
                 return context.createOwnerMembership!.create(boardPk, createdAtSql);
               },
             },

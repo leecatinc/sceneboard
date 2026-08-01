@@ -124,8 +124,8 @@ export const normalizeHistoryListV1 = ({
     const adapter = metadata.entries[index];
     const revision = entry.revision;
     const expectedLabel = `Revision ${revision.revisionNumber}`;
-    if (adapter?.revisionId !== revision.revisionId || adapter.label !== expectedLabel)
-      throw new TypeError('history metadata order or label does not correlate');
+    if (adapter?.revisionId !== revision.revisionId)
+      throw new TypeError('history metadata order does not correlate');
     const summary = HISTORY_SUMMARY_BY_ORIGIN[entry.originType];
     const previous = retainedPrevious(entry, metadata);
     const nextRevisionId = index === 0 ? null : (entries[index - 1]?.revision.revisionId ?? null);
@@ -133,6 +133,7 @@ export const normalizeHistoryListV1 = ({
       const retained = metadata.entries[index];
       if (
         retained === undefined ||
+        retained.label !== expectedLabel ||
         retained.summary !== summary ||
         (retained.schemaVersion !== '1.0.0' &&
           retained.schemaVersion !== '2.0.0' &&
@@ -156,7 +157,7 @@ export const normalizeHistoryListV1 = ({
       revisionId: revision.revisionId,
       revisionNumber: revision.revisionNumber,
       createdAt: revision.createdAt,
-      label: expectedLabel,
+      label: adapter.label,
       actorLabel: entry.actor.principalKind === 'service' ? 'system' : 'editor',
       summary,
       schemaVersion: '1.0.0',

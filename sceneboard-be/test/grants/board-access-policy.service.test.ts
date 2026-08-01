@@ -22,6 +22,7 @@ import {
   type ResolvedBoardPrincipalV1,
 } from '../../src/grants/board-access.policy.js';
 import { MysqlBoardAccessPolicy } from '../../src/grants/board-access-policy.service.js';
+import { currentBoardSessionAccessFromContext } from '../../src/grants/current-board-capabilities.js';
 import { MembershipRepository } from '../../src/memberships/membership.repository.js';
 import { BoardMembershipAuthorizationService } from '../../src/memberships/membership.service.js';
 
@@ -131,6 +132,8 @@ interface SetupOptions {
   boardOwnerPk?: bigint;
   membershipRoles?: Array<'owner' | 'editor' | 'viewer' | null>;
   apiKeyRecheckFailureAt?: number;
+  ownerMembershipFailureAt?: number;
+  ownerMembershipFailureErrno?: number;
 }
 
 const setup = (options: SetupOptions = {}) => {
@@ -255,6 +258,11 @@ const setup = (options: SetupOptions = {}) => {
           adoptCanonicalOwner: async () => undefined,
           createOwner: async () => {
             ownerMembershipCreations += 1;
+            if (ownerMembershipCreations === options.ownerMembershipFailureAt) {
+              throw Object.assign(new Error('owner membership persistence failed'), {
+                errno: options.ownerMembershipFailureErrno,
+              });
+            }
           },
         } as unknown as MembershipRepository);
   let apiKeyRechecks = 0;
@@ -527,6 +535,134 @@ test('creates API-key owner membership through the same authorized transaction c
   assert.equal(value.ownerMembershipCreations(), 1);
   assert.equal(value.apiKeyRechecks(), 2);
   assert.equal(value.calls.includes('COMMIT'), true);
+});
+
+test('projects lifecycle permissions only for browser owner membership', () => {
+  const membership = {
+    boardPk: 50n,
+    accountPk: 20n,
+    membershipPk: 60n,
+    membershipRole: 'owner' as const,
+    membershipVersion: 1,
+    capabilityEpoch: 7,
+    capabilityEpochEnforced: true,
+    operation: 'capabilities.get' as const,
+    surface: 'browser' as const,
+    write: false,
+  };
+  const browser = currentBoardSessionAccessFromContext({
+    actor: userPrincipal().actor,
+    membership,
+  });
+  const mcp = currentBoardSessionAccessFromContext({
+    actor: mcpPrincipal().actor,
+    membership: { ...membership, surface: 'mcp' },
+  });
+  const apiKey = currentBoardSessionAccessFromContext({
+    actor: accountApiKeyPrincipal().actor,
+    membership: { ...membership, surface: 'account_api_key' },
+  });
+
+  assert.deepEqual(browser.connectionGrantCeiling.lifecyclePermissions, [
+    'board.archive',
+    'board.create',
+  ]);
+  for (const access of [mcp, apiKey]) {
+    assert.deepEqual(access.authorizationCapabilities, []);
+    assert.deepEqual(access.connectionGrantCeiling.scopes, []);
+    assert.deepEqual(access.connectionGrantCeiling.lifecyclePermissions, []);
+  }
+});
+
+test('owner-membership capabilities are single-use for every board-create principal', async () => {
+  for (const principal of [userPrincipal(), mcpPrincipal(), accountApiKeyPrincipal()]) {
+    const value = setup({ membershipRoles: [] });
+    let escaped: ((boardPk: bigint, createdAtSql: string) => Promise<void>) | undefined;
+    await value.policy.withAuthorizedBoardTransaction(
+      {
+        principal,
+        operation: 'board.create',
+        boardId: null,
+        isolation: 'READ_COMMITTED_WRITE',
+      },
+      async (_connection, context) => {
+        assert.ok(context.createOwnerMembership);
+        escaped = context.createOwnerMembership.create;
+        await escaped(50n, '2026-07-16 12:00:00.000');
+        await assert.rejects(
+          escaped(51n, '2026-07-16 12:00:00.000'),
+          isBoardError('INTERNAL_ERROR'),
+        );
+      },
+    );
+    assert.equal(value.ownerMembershipCreations(), 1);
+    assert.ok(escaped);
+    await assert.rejects(escaped(52n, '2026-07-16 12:00:00.000'), isBoardError('INTERNAL_ERROR'));
+  }
+});
+
+test('owner-membership capability is consumed before a failing persistence attempt', async () => {
+  const value = setup({ membershipRoles: [], ownerMembershipFailureAt: 1 });
+  await value.policy.withAuthorizedBoardTransaction(
+    {
+      principal: userPrincipal(),
+      operation: 'board.create',
+      boardId: null,
+      isolation: 'READ_COMMITTED_WRITE',
+    },
+    async (_connection, context) => {
+      assert.ok(context.createOwnerMembership);
+      await assert.rejects(
+        context.createOwnerMembership.create(50n, '2026-07-16 12:00:00.000'),
+        /owner membership persistence failed/u,
+      );
+      await assert.rejects(
+        context.createOwnerMembership.create(51n, '2026-07-16 12:00:00.000'),
+        isBoardError('INTERNAL_ERROR'),
+      );
+    },
+  );
+  assert.equal(value.ownerMembershipCreations(), 1);
+});
+
+test('owner-membership capability is optional and refreshed after transaction rollback retry', async () => {
+  const unused = setup({ membershipRoles: [] });
+  await unused.policy.withAuthorizedBoardTransaction(
+    {
+      principal: userPrincipal(),
+      operation: 'board.create',
+      boardId: null,
+      isolation: 'READ_COMMITTED_WRITE',
+    },
+    async (_connection, context) => {
+      assert.ok(context.createOwnerMembership);
+    },
+  );
+  assert.equal(unused.ownerMembershipCreations(), 0);
+
+  const retried = setup({
+    membershipRoles: [],
+    ownerMembershipFailureAt: 1,
+    ownerMembershipFailureErrno: 1213,
+  });
+  let attempts = 0;
+  await retried.policy.withAuthorizedBoardTransaction(
+    {
+      principal: mcpPrincipal(),
+      operation: 'board.create',
+      boardId: null,
+      isolation: 'READ_COMMITTED_WRITE',
+    },
+    async (_connection, context) => {
+      attempts += 1;
+      assert.ok(context.createOwnerMembership);
+      await context.createOwnerMembership.create(50n, '2026-07-16 12:00:00.000');
+    },
+  );
+  assert.equal(attempts, 2);
+  assert.equal(retried.ownerMembershipCreations(), 2);
+  assert.equal(retried.calls.filter((call) => call === 'ROLLBACK').length, 1);
+  assert.equal(retried.calls.filter((call) => call === 'COMMIT').length, 1);
 });
 
 test('denies a key missing one composite restore scope before board work', async () => {

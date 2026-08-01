@@ -165,7 +165,10 @@ const exportFailures = [
   ['EXPORT_INTERNAL_ERROR', 500, true, 'Export failed'],
 ] as const;
 
-const connectionResponse = (requestId: string): Response =>
+const connectionResponse = (
+  requestId: string,
+  scopes: readonly string[] = ['export:read'],
+): Response =>
   new Response(
     JSON.stringify({
       principal: {
@@ -175,7 +178,7 @@ const connectionResponse = (requestId: string): Response =>
       },
       credential: {
         keyPublicId: 'key_synthetic',
-        scopes: ['export:read'],
+        scopes,
         status: 'active',
         expiresAt: '2027-07-30T00:00:00.000Z',
       },
@@ -210,6 +213,49 @@ const gateway = (fetchImplementation: typeof fetch): ProtectedBoardGatewayV1 =>
     } as TokenProviderV1,
     logger: { log() {} },
   });
+
+test('gateway enforces the literal union for dynamic history and read-modify-write plans', async () => {
+  const exercise = async (
+    scopes: readonly string[],
+    toolName: 'board_scene_get' | 'board_scene_patch',
+    operations: readonly ['history.get'] | readonly ['board.get', 'scene.replace'],
+  ) => {
+    let networkCalls = 0;
+    const client = gateway(async (request) => {
+      const url = new URL(request instanceof Request ? request.url : request);
+      assert.equal(url.pathname, '/api/v1/mcp/connection');
+      return connectionResponse(url.searchParams.get('requestId') ?? '', scopes);
+    });
+    const result = await client.call(toolName, operations, async () => {
+      networkCalls += 1;
+      return { ok: true as const };
+    });
+    return { result, networkCalls };
+  };
+
+  assert.equal(
+    (await exercise(['history:read'], 'board_scene_get', ['history.get'])).networkCalls,
+    1,
+  );
+  assert.equal(
+    (await exercise(['board:read'], 'board_scene_get', ['history.get'])).networkCalls,
+    0,
+  );
+  assert.equal(
+    (
+      await exercise(['board:read', 'board:write'], 'board_scene_patch', [
+        'board.get',
+        'scene.replace',
+      ])
+    ).networkCalls,
+    1,
+  );
+  assert.equal(
+    (await exercise(['board:write'], 'board_scene_patch', ['board.get', 'scene.replace']))
+      .networkCalls,
+    0,
+  );
+});
 
 test('gateway preserves all eleven exact export failure tuples', async () => {
   for (const [code, status, retryable, message] of exportFailures) {

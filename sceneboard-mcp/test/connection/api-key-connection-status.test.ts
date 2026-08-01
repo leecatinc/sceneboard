@@ -4,7 +4,11 @@ import test from 'node:test';
 import { ApiKeyConnectionStatusServiceV1 } from '../../src/connection/connection-status.service.js';
 import { ConnectionHttpClientV1 } from '../../src/connection/connection-http.client.js';
 import type { LoadedBoardConfigV1 } from '../../src/config/board-config.js';
-import { ApiKeyTokenProviderV1 } from '../../src/credentials/token-provider.js';
+import {
+  ApiKeyTokenProviderV1,
+  type CredentialSnapshotV1,
+  type TokenProviderV1,
+} from '../../src/credentials/token-provider.js';
 
 const apiKey = `sbk_v1.${'A'.repeat(22)}.${'B'.repeat(43)}`;
 const requestId = 'abcdefghijklmnopqrstuv';
@@ -205,4 +209,133 @@ test('selected-board 404 remains a board failure outside the API-key status unio
     assert.equal(result.source, 'board');
     assert.equal(result.value.code, 'BOARD_NOT_FOUND');
   }
+});
+
+test('API-key status applies caller cancellation before and during credential snapshots', async () => {
+  const preAborted = new AbortController();
+  preAborted.abort();
+  let snapshotCalls = 0;
+  const neverFetch = new ConnectionHttpClientV1({
+    baseUrl: loaded.config.baseUrl,
+    fetch: async () => {
+      throw new Error('must not fetch');
+    },
+    timeoutMs: loaded.config.timeoutMs,
+    logger: { log() {} },
+  });
+  const provider = {
+    snapshot: async () => {
+      snapshotCalls += 1;
+      return null;
+    },
+    invalidate: async () => undefined,
+  } satisfies TokenProviderV1;
+  const preAbortedResult = await new ApiKeyConnectionStatusServiceV1(
+    loaded,
+    provider,
+    neverFetch,
+  ).status(null, requestId, preAborted.signal);
+  assert.equal(preAbortedResult.ok, false);
+  if (!preAbortedResult.ok) assert.equal(preAbortedResult.value.code, 'BOARD_MCP_CANCELLED');
+  assert.equal(snapshotCalls, 0);
+
+  const controller = new AbortController();
+  let snapshotSignal: AbortSignal | undefined;
+  let resolveSnapshot: ((snapshot: CredentialSnapshotV1 | null) => void) | undefined;
+  const pendingProvider = {
+    snapshot: (signal?: AbortSignal) =>
+      new Promise<CredentialSnapshotV1 | null>((resolve) => {
+        snapshotSignal = signal;
+        resolveSnapshot = resolve;
+      }),
+    invalidate: async () => undefined,
+  } satisfies TokenProviderV1;
+  const pending = new ApiKeyConnectionStatusServiceV1(loaded, pendingProvider, neverFetch).status(
+    null,
+    requestId,
+    controller.signal,
+  );
+  await Promise.resolve();
+  controller.abort();
+  const result = await pending;
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.value.code, 'BOARD_MCP_CANCELLED');
+  assert.equal(snapshotSignal?.aborted, true);
+  resolveSnapshot?.({ version: 1, generation: 'late', accessToken: apiKey });
+});
+
+test('API-key status timeout covers credential snapshots', async () => {
+  const timeoutLoaded: LoadedBoardConfigV1 = {
+    ...loaded,
+    config: { ...loaded.config, timeoutMs: 20 },
+  };
+  const provider = {
+    snapshot: () => new Promise<CredentialSnapshotV1 | null>(() => undefined),
+    invalidate: async () => undefined,
+  } satisfies TokenProviderV1;
+  const result = await new ApiKeyConnectionStatusServiceV1(
+    timeoutLoaded,
+    provider,
+    new ConnectionHttpClientV1({
+      baseUrl: loaded.config.baseUrl,
+      fetch: async () => {
+        throw new Error('must not fetch');
+      },
+      timeoutMs: timeoutLoaded.config.timeoutMs,
+      logger: { log() {} },
+    }),
+  ).status(null, requestId);
+  assert.equal(result.ok && result.value.state, 'backend_unavailable');
+  if (result.ok) {
+    assert.equal(result.value.lastErrorCode, 'API_KEY_BACKEND_UNAVAILABLE');
+    assert.equal(result.value.retryable, true);
+  }
+});
+
+test('API-key status keeps the original deadline while invalidating an unauthorized credential', async () => {
+  const timeoutLoaded: LoadedBoardConfigV1 = {
+    ...loaded,
+    config: { ...loaded.config, timeoutMs: 20 },
+  };
+  let invalidationSignal: AbortSignal | undefined;
+  let invalidated = false;
+  const provider: TokenProviderV1 = {
+    snapshot: async () => ({ version: 1, generation: 'current', accessToken: apiKey }),
+    invalidate: async (_snapshot, signal) => {
+      invalidationSignal = signal;
+      await new Promise<void>((resolve, reject) => {
+        signal?.addEventListener('abort', () => reject(signal.reason), { once: true });
+      });
+      invalidated = true;
+    },
+  };
+  const result = await new ApiKeyConnectionStatusServiceV1(
+    timeoutLoaded,
+    provider,
+    new ConnectionHttpClientV1({
+      baseUrl: loaded.config.baseUrl,
+      fetch: async () =>
+        new Response(
+          JSON.stringify({
+            error: {
+              protocolVersion: 1,
+              type: 'board.error',
+              code: 'UNAUTHENTICATED',
+              message: 'Authentication is required',
+              category: 'auth',
+              retryable: false,
+              httpStatusHint: 401,
+              details: null,
+            },
+          }),
+          { status: 401, headers: responseHeaders() },
+        ),
+      timeoutMs: timeoutLoaded.config.timeoutMs,
+      logger: { log() {} },
+    }),
+  ).status(null, requestId);
+  assert.equal(result.ok && result.value.state, 'backend_unavailable');
+  if (result.ok) assert.equal(result.value.lastErrorCode, 'API_KEY_BACKEND_UNAVAILABLE');
+  assert.equal(invalidationSignal?.aborted, true);
+  assert.equal(invalidated, false);
 });

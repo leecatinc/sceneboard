@@ -85,7 +85,11 @@ export class ExportAdmissionServiceV1 {
         principal: input.principal,
         boardId: input.boardId,
         apply: async (connection, context) => {
-          const release = this.reserve(input.principal, input.boardId);
+          releaseReservation?.();
+          releaseReservation = undefined;
+          bundle = undefined;
+          auditContext = undefined;
+          releaseReservation = this.reserve(input.principal, input.boardId);
           try {
             const board = await this.board(connection, input.boardId, context.ownerUserPk);
             const projected = await this.projections.project(connection, {
@@ -105,17 +109,16 @@ export class ExportAdmissionServiceV1 {
             return {
               bundle: projected,
               boardTitle: board.title,
-              release,
             };
           } catch (error) {
-            release();
+            releaseReservation?.();
+            releaseReservation = undefined;
             throw error;
           }
         },
       });
       const admittedBundle = authorized.bundle;
       bundle = admittedBundle;
-      releaseReservation = authorized.release;
       globallyAdmitted = await this.globalAdmission.acquire(credentials.sessionId, Date.now());
       if (!globallyAdmitted) throw new ExportFailureV1('EXPORT_RATE_LIMITED');
       await this.sessions.open({
@@ -147,14 +150,31 @@ export class ExportAdmissionServiceV1 {
             this.holds.release(releaseConnection, admittedBundle.hold).then(() => undefined),
           ),
       });
+      const admittedAudit = auditContext;
+      if (admittedAudit === undefined) throw new ExportFailureV1('EXPORT_INTERNAL_ERROR');
       let responseTerminal = false;
-      let auditTerminal = false;
+      let auditTerminalPromise: Promise<void> | undefined;
+      let pendingCompletionBytes: number | undefined;
+      const claimAuditTerminal = (write: () => Promise<void>): Promise<void> => {
+        if (auditTerminalPromise !== undefined) return auditTerminalPromise;
+        auditTerminalPromise = Promise.resolve().then(write);
+        return auditTerminalPromise;
+      };
       const finish = async (kind: 'complete' | 'abort'): Promise<void> => {
         if (responseTerminal) return;
         responseTerminal = true;
         try {
-          if (kind === 'complete') await lease.completeResponse();
-          else await lease.abort();
+          if (kind === 'complete') {
+            await lease.completeResponse();
+            if (pendingCompletionBytes !== undefined) {
+              const bytes = pendingCompletionBytes;
+              await claimAuditTerminal(() =>
+                this.mysql.withConnection((connection) =>
+                  this.audit.completed(connection, { ...admittedAudit, bytes }),
+                ),
+              );
+            }
+          } else await lease.abort();
         } finally {
           if (globallyAdmitted) {
             await this.globalAdmission.release(credentials.sessionId).catch(() => undefined);
@@ -164,22 +184,16 @@ export class ExportAdmissionServiceV1 {
           releaseReservation = undefined;
         }
       };
-      const admittedAudit = auditContext;
-      if (admittedAudit === undefined) throw new ExportFailureV1('EXPORT_INTERNAL_ERROR');
       const completeAudit = async (bytes: number): Promise<void> => {
-        if (auditTerminal) return;
-        await this.mysql.withConnection((connection) =>
-          this.audit.completed(connection, { ...admittedAudit, bytes }),
-        );
-        auditTerminal = true;
+        if (auditTerminalPromise !== undefined) return auditTerminalPromise;
+        if (pendingCompletionBytes === undefined) pendingCompletionBytes = bytes;
       };
-      const failAudit = async (reason: ExportFailureCodeV1): Promise<void> => {
-        if (auditTerminal) return;
-        await this.mysql.withConnection((connection) =>
-          this.audit.failed(connection, { ...admittedAudit, reason }),
+      const failAudit = (reason: ExportFailureCodeV1): Promise<void> =>
+        claimAuditTerminal(() =>
+          this.mysql.withConnection((connection) =>
+            this.audit.failed(connection, { ...admittedAudit, reason }),
+          ),
         );
-        auditTerminal = true;
-      };
       return Object.freeze({
         ...lease,
         boardTitle: authorized.boardTitle,

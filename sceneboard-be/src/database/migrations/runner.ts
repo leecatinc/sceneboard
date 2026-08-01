@@ -15,6 +15,7 @@ import {
 import { splitSqlStatements } from './sql-splitter.js';
 import {
   verifyAccountApiKeyPostcondition,
+  verifyDocumentReplaceIdempotencyPostcondition,
   verifyDocumentV3CheckpointPostcondition,
   verifyRevisionExportHoldPostcondition,
 } from './postconditions.js';
@@ -813,6 +814,10 @@ export class MigrationRunner {
     connection: PoolConnection,
     postcondition: string,
   ): Promise<void> {
+    if (postcondition === 'd10_document_replace_idempotency_v1') {
+      await verifyDocumentReplaceIdempotencyPostcondition(connection);
+      return;
+    }
     if (postcondition === 'd10_revision_export_hold_v1') {
       await verifyRevisionExportHoldPostcondition(connection);
       return;

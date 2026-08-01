@@ -33,6 +33,76 @@ const helperPath = resolve(packageRoot, 'native/linux-x64-gnu/local-export-helpe
 const testRoot = process.env.SCENEBOARD_TEST_TMP_ROOT ?? tmpdir();
 const helperSourcePath = resolve(packageRoot, 'native/local-export-helper.c');
 
+const compileFaultInjectionHelper = async (directory: string): Promise<string> => {
+  const output = join(directory, 'local-export-helper-fault-injection');
+  const compiled = spawnSync(
+    'cc',
+    [
+      '-std=c17',
+      '-D_FORTIFY_SOURCE=2',
+      '-DSCENEBOARD_HELPER_FAULT_INJECTION',
+      '-O2',
+      '-Wall',
+      '-Wextra',
+      '-Werror',
+      '-o',
+      output,
+      helperSourcePath,
+    ],
+    { encoding: 'utf8', env: { PATH: process.env.PATH ?? '/usr/bin:/bin' } },
+  );
+  assert.equal(compiled.status, 0, compiled.stderr || compiled.error?.message);
+  await chmod(output, 0o500);
+  return output;
+};
+
+const runFaultInjectionHelper = async (
+  executable: string,
+  outputFile: string,
+  fault:
+    | 'fallback-temporary-unlink'
+    | 'directory-fsync'
+    | 'post-rename-sigterm'
+    | 'post-rename-sigint'
+    | 'post-link-sigterm'
+    | 'post-link-sigint'
+    | 'replace-before-directory-fsync'
+    | 'replace-before-sigterm'
+    | 'replace-before-sigint',
+): Promise<{ stdout: string; exitCode: number | null }> => {
+  const bytes = Buffer.from('%PDF-fault-injection', 'ascii');
+  const rootDescriptor = openSync('/', 0);
+  const child = spawn(executable, [], {
+    stdio: ['pipe', 'pipe', 'ignore', rootDescriptor, 'pipe'],
+    env: {
+      PATH: '/usr/bin:/bin',
+      SCENEBOARD_HELPER_TEST_FAULT: fault,
+    },
+  });
+  closeSync(rootDescriptor);
+  const stdout: Buffer[] = [];
+  assert(child.stdout !== null);
+  assert(child.stdin !== null);
+  child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk));
+  const control = child.stdio[4] as NodeJS.WritableStream;
+  control.end(
+    encodeLocalExportControlFrameV1(
+      {
+        format: 'pdf',
+        components: outputFile.slice(1).split('/'),
+        normalizedPathBytes: Buffer.byteLength(outputFile, 'utf8'),
+      },
+      bytes.byteLength,
+    ),
+  );
+  child.stdin.end(bytes);
+  const exitCode = await new Promise<number | null>((resolveExit, reject) => {
+    child.once('error', reject);
+    child.once('exit', (code) => resolveExit(code));
+  });
+  return { stdout: Buffer.concat(stdout).toString('ascii'), exitCode };
+};
+
 const stream = (bytes: Buffer): ReadableStream<Uint8Array> =>
   new ReadableStream({
     start(controller) {
@@ -458,14 +528,110 @@ test('control ABI rejects unknown version and trailing control bytes before walk
   }
 });
 
-test('no-replace fallback never removes an already linked final target', async () => {
-  const source = await readFile(helperSourcePath, 'utf8');
-  const fallback = source.slice(
-    source.indexOf('static int publish_no_replace'),
-    source.indexOf('int main(void)'),
-  );
-  assert.match(fallback, /linkat\(directory, temporary, directory, final, 0\)/u);
-  assert.match(fallback, /diagnostic\("unlink", errno\)/u);
-  assert.doesNotMatch(fallback, /unlinkat\(directory, final/u);
-  assert.match(source, /if \(published < 0 \|\| fsync\(directory\) != 0\)/u);
+test('publication failures roll back only files created by this helper invocation', async () => {
+  const root = await createRoot();
+  try {
+    const executable = await compileFaultInjectionHelper(root);
+    const fallbackDirectory = `${root}/fallback`;
+    const fsyncDirectory = `${root}/fsync`;
+    const collisionDirectory = `${root}/collision`;
+    await Promise.all(
+      [fallbackDirectory, fsyncDirectory, collisionDirectory].map((directory) =>
+        mkdir(directory, { mode: 0o700 }),
+      ),
+    );
+
+    assert.deepEqual(
+      await runFaultInjectionHelper(
+        executable,
+        `${fallbackDirectory}/fallback.pdf`,
+        'fallback-temporary-unlink',
+      ),
+      { stdout: 'SBEX/1 io 0\n', exitCode: 0 },
+    );
+    assert.deepEqual(await readdir(fallbackDirectory), []);
+
+    assert.deepEqual(
+      await runFaultInjectionHelper(executable, `${fsyncDirectory}/fsync.pdf`, 'directory-fsync'),
+      { stdout: 'SBEX/1 io 0\n', exitCode: 0 },
+    );
+    assert.deepEqual(await readdir(fsyncDirectory), []);
+
+    const existing = `${collisionDirectory}/existing.pdf`;
+    await writeFile(existing, 'keep', { mode: 0o600 });
+    assert.deepEqual(
+      await runFaultInjectionHelper(executable, existing, 'fallback-temporary-unlink'),
+      { stdout: 'SBEX/1 exists 0\n', exitCode: 0 },
+    );
+    assert.deepEqual(await readdir(collisionDirectory), ['existing.pdf']);
+    assert.equal(await readFile(existing, 'utf8'), 'keep');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('publication transitions are signal-safe and cleanup is identity-bound', async () => {
+  const root = await createRoot();
+  try {
+    const executable = await compileFaultInjectionHelper(root);
+    const fsyncReplacementDirectory = `${root}/fsync-replacement`;
+    const collisionDirectory = `${root}/collision`;
+    const signalCases = [
+      ['rename-sigterm', 'post-rename-sigterm'],
+      ['rename-sigint', 'post-rename-sigint'],
+      ['link-sigterm', 'post-link-sigterm'],
+      ['link-sigint', 'post-link-sigint'],
+    ] as const;
+    const replacementSignalCases = [
+      ['replacement-sigterm', 'replace-before-sigterm'],
+      ['replacement-sigint', 'replace-before-sigint'],
+    ] as const;
+    await Promise.all(
+      [
+        fsyncReplacementDirectory,
+        collisionDirectory,
+        ...signalCases.map(([directory]) => `${root}/${directory}`),
+        ...replacementSignalCases.map(([directory]) => `${root}/${directory}`),
+      ].map((directory) => mkdir(directory, { mode: 0o700 })),
+    );
+
+    for (const [directory, fault] of signalCases) {
+      const path = `${root}/${directory}`;
+      assert.deepEqual(await runFaultInjectionHelper(executable, `${path}/signal.pdf`, fault), {
+        stdout: 'SBEX/1 io 0\n',
+        exitCode: 143,
+      });
+      assert.deepEqual(await readdir(path), []);
+    }
+
+    const fsyncReplacement = `${fsyncReplacementDirectory}/replacement.pdf`;
+    assert.deepEqual(
+      await runFaultInjectionHelper(executable, fsyncReplacement, 'replace-before-directory-fsync'),
+      { stdout: 'SBEX/1 io 0\n', exitCode: 0 },
+    );
+    assert.deepEqual(await readdir(fsyncReplacementDirectory), ['replacement.pdf']);
+    assert.equal(await readFile(fsyncReplacement, 'utf8'), '%PDF-replacement');
+
+    for (const [directory, fault] of replacementSignalCases) {
+      const path = `${root}/${directory}`;
+      const replacement = `${path}/replacement.pdf`;
+      assert.deepEqual(await runFaultInjectionHelper(executable, replacement, fault), {
+        stdout: 'SBEX/1 io 0\n',
+        exitCode: 143,
+      });
+      assert.deepEqual(await readdir(path), ['replacement.pdf']);
+      assert.equal(await readFile(replacement, 'utf8'), '%PDF-replacement');
+    }
+
+    const existing = `${collisionDirectory}/existing.pdf`;
+    await writeFile(existing, 'keep-byte-for-byte', { mode: 0o600 });
+    assert.deepEqual(await runFaultInjectionHelper(executable, existing, 'post-link-sigterm'), {
+      stdout: 'SBEX/1 exists 0\n',
+      exitCode: 0,
+    });
+    assert.deepEqual(await readdir(collisionDirectory), ['existing.pdf']);
+    assert.equal(await readFile(existing, 'utf8'), 'keep-byte-for-byte');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });

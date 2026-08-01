@@ -64,7 +64,8 @@ export const currentBoardSessionAccessFromContext = (
       scopes: canManageConnection
         ? CLIENT_GRANT_CAPABILITIES_V1.filter((capability) => admitted.has(capability))
         : [],
-      lifecyclePermissions: role === 'owner' ? ['board.archive', 'board.create'] : [],
+      lifecyclePermissions:
+        isBrowserMember && role === 'owner' ? ['board.archive', 'board.create'] : [],
     },
   });
   if (!parsed.ok) throw new BoardPersistenceError('row_integrity');

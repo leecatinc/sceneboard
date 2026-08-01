@@ -9,6 +9,8 @@ import {
   normalizeActorContextV1,
   type ActorContextV1,
   type BoardId,
+  type GrantId,
+  type RevisionId,
 } from '@sceneboard/board-schema';
 import type { PoolConnection } from 'mysql2/promise';
 
@@ -109,6 +111,17 @@ test('history list uses one narrow newest-first page and cursors from the last r
     async execute(sql: string, binds: unknown[]): Promise<[unknown, unknown]> {
       const normalized = sql.replace(/\s+/g, ' ').trim();
       calls.push({ sql: normalized, binds });
+      if (normalized.includes('SELECT oldest.revision_id AS oldestRetainedRevisionId')) {
+        return [
+          [
+            {
+              oldestRetainedRevisionId: bytes(revisions[0]),
+              truncatedBefore: 0,
+            },
+          ],
+          [],
+        ];
+      }
       return [
         [
           {
@@ -121,6 +134,11 @@ test('history list uses one narrow newest-first page and cursors from the last r
             actorKind: 'U',
             actorPrincipalId: 'user_1',
             label: 'Cleared',
+            retainedOrder: '3',
+            truncatedBefore: 0,
+            actorAccountPk: '20',
+            actorClass: 'owner',
+            sceneSchemaVersion: '1.0.0',
           },
           {
             revisionId: bytes(revisions[1]),
@@ -132,6 +150,11 @@ test('history list uses one narrow newest-first page and cursors from the last r
             actorKind: 'U',
             actorPrincipalId: 'user_1',
             label: 'Updated',
+            retainedOrder: '2',
+            truncatedBefore: 0,
+            actorAccountPk: '20',
+            actorClass: 'owner',
+            sceneSchemaVersion: '1.0.0',
           },
           {
             revisionId: bytes(revisions[0]),
@@ -143,6 +166,11 @@ test('history list uses one narrow newest-first page and cursors from the last r
             actorKind: 'U',
             actorPrincipalId: 'user_1',
             label: 'Created',
+            retainedOrder: '1',
+            truncatedBefore: 0,
+            actorAccountPk: '20',
+            actorClass: 'owner',
+            sceneSchemaVersion: '1.0.0',
           },
         ],
         [],
@@ -174,7 +202,15 @@ test('history list uses one narrow newest-first page and cursors from the last r
     [3, 2],
   );
   assert.equal(result.result.entries[0]?.originType, 'document.replace');
-  assert.equal(cursors.parse(result.result.nextCursor, boardId), 2);
+  assert.equal(
+    cursors.parse(result.result.nextCursor, {
+      boardId,
+      limit: 2,
+      access: { accessKind: 'owner', ownerUserId: '20' },
+      retentionBoundary: revisions[0] as RevisionId,
+    }),
+    2,
+  );
   assert.deepEqual(response.metadata, {
     protocolVersion: 1,
     type: 'history.adapter-metadata',
@@ -184,10 +220,83 @@ test('history list uses one narrow newest-first page and cursors from the last r
     ],
     navigation: null,
   });
-  assert.equal(calls.length, 1);
-  assert.doesNotMatch(calls[0]?.sql ?? '', /scene_payload|COUNT\(/i);
-  assert.match(calls[0]?.sql ?? '', /LIMIT 3$/);
-  assert.deepEqual(calls[0]?.binds, [boardId]);
+  assert.equal(calls.length, 2);
+  assert.match(calls[0]?.sql ?? '', /oldestRetainedRevisionId/);
+  assert.doesNotMatch(calls[1]?.sql ?? '', /scene_payload|COUNT\(/i);
+  assert.match(calls[1]?.sql ?? '', /LIMIT 3$/);
+  assert.deepEqual(calls[1]?.binds, [boardId]);
+});
+
+test('history list rejects changed request, access, anchor, and retention contexts before page reads', async () => {
+  const key = createCursorMacKeyV1(Buffer.alloc(32, 8));
+  const cursors = new HistoryCursorCodec(key);
+  const originalContext = {
+    boardId,
+    limit: 2,
+    access: { accessKind: 'owner' as const, ownerUserId: '20' },
+    retentionBoundary: revisions[0] as RevisionId,
+  };
+  const cursor = cursors.issue({ ...originalContext, beforeRevisionNumber: 2 });
+  const pageReads: string[] = [];
+  let boundary: string = revisions[0];
+  let authorized = context();
+  const connection = {
+    async execute(sql: string): Promise<[unknown, unknown]> {
+      const normalized = sql.replace(/\s+/g, ' ').trim();
+      if (normalized.includes('SELECT oldest.revision_id AS oldestRetainedRevisionId'))
+        return [
+          [
+            {
+              oldestRetainedRevisionId: bytes(boundary),
+              truncatedBefore: boundary === revisions[0] ? 0 : 1,
+            },
+          ],
+          [],
+        ];
+      if (normalized.includes('SELECT c.revision_pk')) return [[], []];
+      pageReads.push(normalized);
+      return [[], []];
+    },
+  } as unknown as PoolConnection;
+  const policy: BoardAccessPolicy = {
+    async withAuthorizedBoardTransaction<T>(
+      _input: AuthorizedBoardTransactionInputV1,
+      apply: (value: PoolConnection, authorized: AuthorizedBoardContextV1) => Promise<T>,
+    ) {
+      return apply(connection, authorized);
+    },
+  };
+  const service = new HistoryListService(policy, cursors);
+  const expectInvalid = async (request: HistoryListRequestV1): Promise<void> => {
+    await assert.rejects(
+      service.listWithMetadata({ principal: principal(), request }),
+      (error: unknown) =>
+        error instanceof Error &&
+        'boardError' in error &&
+        (error as { boardError: { code: string } }).boardError.code === 'INVALID_PAYLOAD',
+    );
+  };
+  await expectInvalid({ ...parseList(), cursor, limit: 1 });
+  await expectInvalid({
+    ...parseList(),
+    boardId: 'AQECAwQFBgcICQoLDA0ODw' as BoardId,
+    cursor,
+  });
+  for (const access of [
+    { kind: 'owner' as const, ownerUserPk: 21n },
+    { kind: 'grant' as const, grantPk: 30n, grantId: 'grant_1' as GrantId },
+    { kind: 'api_key' as const, ownerUserPk: 20n, apiKeyPk: 70n },
+  ]) {
+    authorized = { ...context(), access };
+    await expectInvalid({ ...parseList(), cursor });
+  }
+  authorized = context();
+  await expectInvalid({ ...parseList(), cursor });
+  assert.equal(pageReads.length, 0);
+
+  boundary = revisions[1];
+  await expectInvalid({ ...parseList(), cursor });
+  assert.equal(pageReads.length, 0);
 });
 
 test('history get projects V3 history for V2 readers and preserves format for explicit V3 readers', async () => {

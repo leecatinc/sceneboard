@@ -1,6 +1,12 @@
 import { timingSafeEqual } from 'node:crypto';
 
-import type { GrantId, PageCursorV1, TimestampV1 } from '@sceneboard/board-schema';
+import {
+  BoardIdParserV1,
+  type BoardId,
+  type GrantId,
+  type PageCursorV1,
+  type TimestampV1,
+} from '@sceneboard/board-schema';
 
 import {
   decodeSignedCursorV1,
@@ -21,7 +27,7 @@ export type BoardListAccessContextV1 =
 
 export interface BoardListCursorTupleV1 {
   createdAt: TimestampV1;
-  boardPk: string;
+  boardId: BoardId;
 }
 
 const decimalId = (value: string): string => {
@@ -42,22 +48,35 @@ const timestamp = (value: string): TimestampV1 => {
   return value as TimestampV1;
 };
 
+const pageLimit = (value: number): number => {
+  if (!Number.isSafeInteger(value) || value < 1) throw invalidCursorV1();
+  return value;
+};
+
+const boardId = (value: unknown): BoardId => {
+  const parsed = BoardIdParserV1.parse(value);
+  if (!parsed.ok) throw invalidCursorV1();
+  return parsed.data.value;
+};
+
 export class BoardListCursorCodec {
   constructor(private readonly key: CursorMacKeyV1) {}
 
   issue(input: {
+    limit: number;
     includeArchived: boolean;
     access: BoardListAccessContextV1;
     tuple: BoardListCursorTupleV1;
   }): PageCursorV1 {
     const payload = Buffer.from(
       JSON.stringify({
-        v: 1,
+        v: 3,
         k: 'boards',
+        l: pageLimit(input.limit),
         a: input.includeArchived,
         x: this.contextMac(input.access),
         t: timestamp(input.tuple.createdAt),
-        p: decimalId(input.tuple.boardPk),
+        b: boardId(input.tuple.boardId),
       }),
       'utf8',
     );
@@ -66,18 +85,19 @@ export class BoardListCursorCodec {
 
   parse(input: {
     cursor: string;
+    limit: number;
     includeArchived: boolean;
     access: BoardListAccessContextV1;
   }): BoardListCursorTupleV1 {
     const { payload, decoded } = decodeSignedCursorV1(this.key, input.cursor);
     if (
-      Object.keys(decoded).join(',') !== 'v,k,a,x,t,p' ||
-      decoded.v !== 1 ||
+      Object.keys(decoded).join(',') !== 'v,k,l,a,x,t,b' ||
+      decoded.v !== 3 ||
       decoded.k !== 'boards' ||
+      decoded.l !== pageLimit(input.limit) ||
       decoded.a !== input.includeArchived ||
       typeof decoded.x !== 'string' ||
-      typeof decoded.t !== 'string' ||
-      typeof decoded.p !== 'string'
+      typeof decoded.t !== 'string'
     ) {
       throw invalidCursorV1();
     }
@@ -89,15 +109,16 @@ export class BoardListCursorCodec {
     ) {
       throw invalidCursorV1();
     }
-    const tuple = { createdAt: timestamp(decoded.t), boardPk: decimalId(decoded.p) };
+    const tuple = { createdAt: timestamp(decoded.t), boardId: boardId(decoded.b) };
     const canonical = Buffer.from(
       JSON.stringify({
-        v: 1,
+        v: 3,
         k: 'boards',
+        l: input.limit,
         a: input.includeArchived,
         x: expectedContext,
         t: tuple.createdAt,
-        p: tuple.boardPk,
+        b: tuple.boardId,
       }),
       'utf8',
     );

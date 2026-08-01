@@ -215,22 +215,24 @@ export class InteractionToolHandlersV1 {
         'board',
         definition.error as unknown as Record<string, unknown>,
       );
-    const result = await this.gateway.call((client) =>
-      client.mutateBoard(
-        {
-          protocolVersion: 1,
-          requestId: requestId as RequestId,
-          boardId: parsed.data.boardId as BoardId,
-          expectedRevisionId: parsed.data.expectedRevisionId as RevisionId,
-          idempotencyKey: parsed.data.idempotencyKey as IdempotencyKey,
-          command: {
-            type: 'hitl.request',
-            hitlRequestId: parsed.data.hitlRequestId as HitlRequestId,
-            request: definition.data.value as HitlRequestDefinitionV1,
+    const result = await this.gateway.call(
+      (client, _snapshot, operationSignal) =>
+        client.mutateBoard(
+          {
+            protocolVersion: 1,
+            requestId: requestId as RequestId,
+            boardId: parsed.data.boardId as BoardId,
+            expectedRevisionId: parsed.data.expectedRevisionId as RevisionId,
+            idempotencyKey: parsed.data.idempotencyKey as IdempotencyKey,
+            command: {
+              type: 'hitl.request',
+              hitlRequestId: parsed.data.hitlRequestId as HitlRequestId,
+              request: definition.data.value as HitlRequestDefinitionV1,
+            },
           },
-        },
-        signal,
-      ),
+          operationSignal,
+        ),
+      { signal },
     );
     return result.connected
       ? sdkToolResultV1('board_interaction_request', requestId, result.value, null)
@@ -247,24 +249,26 @@ export class InteractionToolHandlersV1 {
     const parsed = InteractionStatusInputSchemaV1.safeParse(raw);
     if (!parsed.success)
       return validationFailureV1('board_interaction_status', requestId, parsed.error);
-    const result = await this.gateway.call((client) =>
-      client.getInteraction(
-        {
-          protocolVersion: 1,
-          requestId: requestId as RequestId,
-          type: 'hitl.read',
-          boardId: parsed.data.boardId as BoardId,
-          hitlRequestId: parsed.data.hitlRequestId as HitlRequestId,
-          wait:
-            parsed.data.wait === null
-              ? null
-              : {
-                  afterStateUpdatedAt: parsed.data.wait.afterStateUpdatedAt as TimestampV1,
-                  timeoutMs: parsed.data.wait.timeoutMs,
-                },
-        },
-        signal,
-      ),
+    const result = await this.gateway.call(
+      (client, _snapshot, operationSignal) =>
+        client.getInteraction(
+          {
+            protocolVersion: 1,
+            requestId: requestId as RequestId,
+            type: 'hitl.read',
+            boardId: parsed.data.boardId as BoardId,
+            hitlRequestId: parsed.data.hitlRequestId as HitlRequestId,
+            wait:
+              parsed.data.wait === null
+                ? null
+                : {
+                    afterStateUpdatedAt: parsed.data.wait.afterStateUpdatedAt as TimestampV1,
+                    timeoutMs: parsed.data.wait.timeoutMs,
+                  },
+          },
+          operationSignal,
+        ),
+      { signal },
     );
     return result.connected
       ? sdkToolResultV1('board_interaction_status', requestId, result.value, null)
@@ -289,22 +293,24 @@ export class InteractionToolHandlersV1 {
         'board',
         response.error as unknown as Record<string, unknown>,
       );
-    const result = await this.gateway.call((client) =>
-      client.mutateBoard(
-        {
-          protocolVersion: 1,
-          requestId: requestId as RequestId,
-          boardId: parsed.data.boardId as BoardId,
-          expectedRevisionId: parsed.data.expectedRevisionId as RevisionId,
-          idempotencyKey: parsed.data.idempotencyKey as IdempotencyKey,
-          command: {
-            type: 'hitl.respond',
-            hitlRequestId: parsed.data.hitlRequestId as HitlRequestId,
-            response: response.data.value as HitlResponseV1,
+    const result = await this.gateway.call(
+      (client, _snapshot, operationSignal) =>
+        client.mutateBoard(
+          {
+            protocolVersion: 1,
+            requestId: requestId as RequestId,
+            boardId: parsed.data.boardId as BoardId,
+            expectedRevisionId: parsed.data.expectedRevisionId as RevisionId,
+            idempotencyKey: parsed.data.idempotencyKey as IdempotencyKey,
+            command: {
+              type: 'hitl.respond',
+              hitlRequestId: parsed.data.hitlRequestId as HitlRequestId,
+              response: response.data.value as HitlResponseV1,
+            },
           },
-        },
-        signal,
-      ),
+          operationSignal,
+        ),
+      { signal },
     );
     return result.connected
       ? sdkToolResultV1('board_interaction_respond', requestId, result.value, null)

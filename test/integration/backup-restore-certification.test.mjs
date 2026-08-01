@@ -15,7 +15,7 @@ test('forward-only D3/D7/D8/D9/D10 migrations expose no automatic destructive ro
       /version: '([^']+)'[\s\S]*?upAsset: '([^']+)'[\s\S]*?reversible: false,[\s\S]*?downAsset: null/gu,
     ),
   ];
-  assert.equal(forwardOnly.length, 27);
+  assert.equal(forwardOnly.length, 28);
   for (const [, , asset] of forwardOnly) {
     const sql = await readFile(
       new URL(`sceneboard-be/src/database/migrations/sql/${asset}`, root),

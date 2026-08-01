@@ -217,6 +217,13 @@ export const MIGRATION_REGISTRY = [
     downAsset: null,
     postcondition: 'd10_revision_export_hold_v1',
   },
+  {
+    version: '028_d10_document_replace_idempotency',
+    upAsset: '028_d10_document_replace_idempotency.up.sql',
+    reversible: false,
+    downAsset: null,
+    postcondition: 'd10_document_replace_idempotency_v1',
+  },
 ] as const satisfies readonly MigrationRegistryEntry[];
 
 export const MIGRATION_REGISTRY_VERSION = MIGRATION_REGISTRY.at(-1)?.version ?? 'empty';
