@@ -27,6 +27,7 @@ import {
   LOCAL_EXPORT_MAX_BYTES_V1,
   type LocalExportArtifactV1,
   type LocalExportFormatV1,
+  type LocalExportPublishResultV1,
 } from '../exports/local-export-file.js';
 
 export type ProtectedBoardGatewayOptionsV1 = {
@@ -36,6 +37,8 @@ export type ProtectedBoardGatewayOptionsV1 = {
   tokens: TokenProviderV1;
   logger: { log(event: BoardSdkHttpLogEventV1): void };
   credentialMode?: 'pairing' | 'api_key';
+  now?: () => number;
+  exportTimeoutMs?: number;
 };
 
 export type ProtectedGatewayResultV1<T> = { connected: false } | { connected: true; value: T };
@@ -66,7 +69,10 @@ export type BoardRenameGatewayResultV1 =
     };
 
 export type BoardExportGatewayResultV1 =
-  | { ok: true; value: LocalExportArtifactV1 }
+  | {
+      ok: true;
+      value: Extract<LocalExportPublishResultV1, { ok: true }>['value'];
+    }
   | {
       ok: false;
       source: 'board';
@@ -80,6 +86,11 @@ export type BoardExportGatewayResultV1 =
         | { code: 'TIMEOUT'; timeoutMs: 120_000 }
         | { code: 'TRANSPORT_ERROR' }
         | { code: 'RESPONSE_INVALID' };
+    }
+  | {
+      ok: false;
+      source: 'publication';
+      error: Extract<LocalExportPublishResultV1, { ok: false }>['error'];
     };
 
 const EXPORT_HTTP_FAILURES_V1 = Object.freeze({
@@ -96,10 +107,54 @@ const EXPORT_HTTP_FAILURES_V1 = Object.freeze({
   EXPORT_INTERNAL_ERROR: [500, true, 'Export failed'],
 } as const);
 
+const EXPORT_PREFLIGHT_FAILURE_CODES_V1 = Object.freeze({
+  UNAUTHENTICATED: 'EXPORT_UNAUTHENTICATED',
+  FORBIDDEN: 'EXPORT_FORBIDDEN',
+  BOARD_NOT_FOUND: 'EXPORT_NOT_FOUND',
+  RATE_LIMITED: 'EXPORT_RATE_LIMITED',
+  SERVICE_UNAVAILABLE: 'EXPORT_RENDERER_UNAVAILABLE',
+  INTERNAL_ERROR: 'EXPORT_INTERNAL_ERROR',
+} as const);
+
+const exportPreflightFailureV1 = (value: unknown): BoardExportGatewayResultV1 | null => {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+  const root = value as Record<string, unknown>;
+  if (root.ok !== false || Object.hasOwn(root, 'source')) return null;
+  if (Object.keys(root).sort().join('\0') !== ['error', 'ok'].join('\0'))
+    return { ok: false, source: 'local', error: { code: 'RESPONSE_INVALID' } };
+  const parsed = BoardErrorParserV1.parse(root.error);
+  if (!parsed.ok)
+    return { ok: false, source: 'local', error: { code: 'RESPONSE_INVALID' } };
+  const boardCode = parsed.data.value.code;
+  if (!Object.hasOwn(EXPORT_PREFLIGHT_FAILURE_CODES_V1, boardCode))
+    return { ok: false, source: 'local', error: { code: 'RESPONSE_INVALID' } };
+  const exportCode = EXPORT_PREFLIGHT_FAILURE_CODES_V1[
+    boardCode as keyof typeof EXPORT_PREFLIGHT_FAILURE_CODES_V1
+  ];
+  const definition = EXPORT_HTTP_FAILURES_V1[exportCode];
+  return {
+    ok: false,
+    source: 'board',
+    error: {
+      code: exportCode,
+      message: definition[2],
+      retryable: definition[1],
+    },
+  };
+};
+
 const EXPORT_CONTENT_TYPES_V1 = Object.freeze({
   pdf: 'application/pdf',
   pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
 } as const);
+
+const RENAME_TIMESTAMP_PATTERN_V1 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+
+const canonicalRenameTimestampV1 = (value: unknown): value is string => {
+  if (typeof value !== 'string' || !RENAME_TIMESTAMP_PATTERN_V1.test(value)) return false;
+  const instant = Date.parse(value);
+  return Number.isFinite(instant) && new Date(instant).toISOString() === value;
+};
 
 type GatewayDeadlineCauseV1 = 'caller' | 'timeout';
 
@@ -109,7 +164,15 @@ type GatewayDeadlineV1 = Readonly<{
   dispose(): void;
 }>;
 
-type GatewayCallOptionsV1 = Readonly<{ signal: AbortSignal | undefined }>;
+type ApiKeyAuthorizationTargetV1 = Readonly<{
+  boardId: string;
+  operation: AccountApiKeyOperationV1;
+}>;
+
+type GatewayCallOptionsV1 = Readonly<{
+  signal: AbortSignal | undefined;
+  authorization?: ApiKeyAuthorizationTargetV1;
+}>;
 
 const gatewayDeadlineV1 = (timeoutMs: number, callerSignal?: AbortSignal): GatewayDeadlineV1 => {
   const controller = new AbortController();
@@ -287,6 +350,7 @@ export class ProtectedBoardGatewayV1 {
       requestedOperations,
       operation,
       options.signal,
+      options.authorization,
       this.options.timeoutMs,
       (cause) => sdkDeadlineFailureV1(cause, this.options.timeoutMs) as T,
     );
@@ -301,6 +365,7 @@ export class ProtectedBoardGatewayV1 {
       signal: AbortSignal,
     ) => Promise<T>,
     callerSignal: AbortSignal | undefined,
+    authorization: ApiKeyAuthorizationTargetV1 | undefined,
     timeoutMs: number,
     deadlineFailure: (cause: GatewayDeadlineCauseV1) => T,
   ): Promise<ProtectedGatewayResultV1<T>> {
@@ -321,17 +386,30 @@ export class ProtectedBoardGatewayV1 {
             operations.every((operation, index) => operation === requestedOperations[index]),
         );
         if (operationPlan === undefined) return { connected: false };
+        const targetRequired = operationPlan.operations.some(
+          (requestedOperation) =>
+            requestedOperation !== 'board.list' && requestedOperation !== 'board.create',
+        );
+        if (
+          targetRequired !== (authorization !== undefined) ||
+          (authorization !== undefined &&
+            !operationPlan.operations.includes(authorization.operation))
+        )
+          return { connected: false };
         const connection = await waitWithinGatewayDeadlineV1(
           new ConnectionHttpClientV1({
             baseUrl: this.options.baseUrl,
             fetch: this.options.fetch,
             timeoutMs,
             logger: this.options.logger,
+            ...(this.options.now === undefined ? {} : { now: this.options.now }),
           }).get(
-            null,
+            authorization?.boardId ?? null,
             randomBytes(16).toString('base64url'),
             snapshot.accessToken,
             deadline.signal,
+            'api_key',
+            authorization?.operation,
           ),
           deadline.signal,
         );
@@ -499,8 +577,7 @@ export class ProtectedBoardGatewayV1 {
           Object.keys(value).sort().join('\0') !== ['boardId', 'title', 'updatedAt'].join('\0') ||
           value.boardId !== input.boardId ||
           value.title !== input.title ||
-          typeof value.updatedAt !== 'string' ||
-          !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value.updatedAt)
+          !canonicalRenameTimestampV1(value.updatedAt)
         )
           return {
             ok: false,
@@ -517,6 +594,7 @@ export class ProtectedBoardGatewayV1 {
         };
       },
       input.signal,
+      { boardId: input.boardId, operation: 'board.rename' },
       this.options.timeoutMs,
       (cause) => ({
         ok: false,
@@ -553,8 +631,12 @@ export class ProtectedBoardGatewayV1 {
     revisionId: string | null;
     format: LocalExportFormatV1;
     signal?: AbortSignal;
+    publish(
+      artifact: LocalExportArtifactV1,
+      signal: AbortSignal,
+    ): Promise<LocalExportPublishResultV1>;
   }): Promise<ProtectedGatewayResultV1<BoardExportGatewayResultV1>> {
-    return this.callWithinDeadline<BoardExportGatewayResultV1>(
+    const result = await this.callWithinDeadline<BoardExportGatewayResultV1>(
       'board_export',
       ['export.render'],
       async (_client, snapshot, signal): Promise<BoardExportGatewayResultV1> => {
@@ -612,15 +694,18 @@ export class ProtectedBoardGatewayV1 {
             await response.body?.cancel().catch(() => undefined);
             return { ok: false, source: 'local', error: { code: 'RESPONSE_INVALID' } };
           }
-          return {
-            ok: true,
-            value: {
+          const published = await input.publish(
+            {
               format: input.format,
               contentType,
               contentLength,
               body: response.body,
             },
-          };
+            signal,
+          );
+          return published.ok
+            ? published
+            : { ok: false, source: 'publication', error: published.error };
         }
         if (contentType !== 'application/json; charset=utf-8') {
           await response.body?.cancel().catch(() => undefined);
@@ -686,13 +771,19 @@ export class ProtectedBoardGatewayV1 {
         };
       },
       input.signal,
-      120_000,
+      { boardId: input.boardId, operation: 'export.render' },
+      this.options.exportTimeoutMs ?? 120_000,
       (cause) => ({
         ok: false,
         source: 'local',
         error: cause === 'caller' ? { code: 'CANCELLED' } : { code: 'TIMEOUT', timeoutMs: 120_000 },
       }),
     );
+    if (!result.connected) return result;
+    const preflightFailure = exportPreflightFailureV1(result.value);
+    return preflightFailure === null
+      ? result
+      : { connected: true, value: preflightFailure };
   }
 
   async withAuthorizedBoardOperation<T>(
@@ -740,7 +831,8 @@ export class ProtectedBoardGatewayV1 {
           fetch: this.options.fetch,
           timeoutMs: this.options.timeoutMs,
           logger: this.options.logger,
-        }).get(input.boardId, input.requestId, snapshot.accessToken, deadline.signal),
+          ...(this.options.now === undefined ? {} : { now: this.options.now }),
+        }).get(input.boardId, input.requestId, snapshot.accessToken, deadline.signal, 'pairing'),
         deadline.signal,
       );
       const connectionCause = deadline.cause();

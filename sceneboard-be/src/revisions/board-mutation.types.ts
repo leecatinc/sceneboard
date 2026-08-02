@@ -72,7 +72,12 @@ export interface LockedHeadRow extends RowDataPacket {
   headRevisionId: Buffer;
   headRevisionNumber: string;
   lastEventSequence: string;
-  sceneSchemaVersion: string;
+  sceneSchemaVersion: string | null;
+  sceneCodec: string | null;
+  scenePayload: Buffer | null;
+  sceneCanonicalBytes: number | null;
+  sceneStoredBytes: number | null;
+  sceneSha256: Buffer | null;
 }
 
 export interface RestoreSourceRow extends RowDataPacket {

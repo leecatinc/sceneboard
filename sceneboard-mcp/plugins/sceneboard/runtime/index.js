@@ -13000,12 +13000,11 @@ import { Writable } from "node:stream";
 import { createInterface } from "node:readline/promises";
 
 // sceneboard-mcp/src/config/config-discovery.ts
-import { access, lstat } from "node:fs/promises";
+import { access, open } from "node:fs/promises";
 import { constants } from "node:fs";
 import { dirname, isAbsolute, join, parse as parse3, resolve } from "node:path";
 
 // sceneboard-mcp/src/config/board-config.ts
-import { readFile } from "node:fs/promises";
 var BOARD_CONFIG_MAX_BYTES_V1 = 65536;
 var BOARD_PROFILE_PATTERN_V1 = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 var BoardConfigError = class extends Error {
@@ -13150,17 +13149,35 @@ var parseBoardConfigV1 = (value, source) => {
   };
   return value.credentialMode === "pairing" ? { ...pairing, credentialMode: "pairing" } : pairing;
 };
-var readBoardConfigFileV1 = async (path, source) => {
+var sameFileStatus = (left, right) => left.dev === right.dev && left.ino === right.ino && left.uid === right.uid && left.mode === right.mode && left.nlink === right.nlink && left.size === right.size && left.mtimeNs === right.mtimeNs && left.ctimeNs === right.ctimeNs;
+var readBoundedFileHandle = async (handle) => {
+  const buffer = new Uint8Array(BOARD_CONFIG_MAX_BYTES_V1 + 1);
+  let offset = 0;
+  while (offset < buffer.byteLength) {
+    const { bytesRead } = await handle.read(buffer, offset, buffer.byteLength - offset, offset);
+    if (bytesRead === 0) break;
+    offset += bytesRead;
+  }
+  return buffer.subarray(0, offset);
+};
+var readBoardConfigFileV1 = async (handle, source, approvedStatus) => {
+  let before;
   let bytes;
+  let after;
   try {
-    bytes = await readFile(path);
+    before = await handle.stat({ bigint: true });
+    if (!sameFileStatus(approvedStatus, before)) throw new BoardConfigError(source, null);
+    bytes = await readBoundedFileHandle(handle);
+    after = await handle.stat({ bigint: true });
   } catch {
     throw new BoardConfigError(source, null);
   }
+  if (!sameFileStatus(before, after)) throw new BoardConfigError(source, null);
   return parseBoardConfigV1(parseJsonBytes(bytes, source), source);
 };
 
 // sceneboard-mcp/src/config/config-discovery.ts
+var IMPLICIT_REPOSITORY_BASE_URLS_V1 = /* @__PURE__ */ new Set(["https://sceneboard.dev"]);
 var processConfigPath = (argv) => {
   const entries = argv.filter((argument) => argument.startsWith("--config="));
   if (entries.length > 1) throw new BoardConfigError("process_option", null);
@@ -13203,22 +13220,29 @@ var environmentTimeout = (value) => {
   if (value === void 0 || value === "") return 3e4;
   return /^\d+$/u.test(value) ? Number(value) : Number.NaN;
 };
-var assertSafeFile = async (path, source, effectiveUserId) => {
-  let status;
-  try {
-    status = await lstat(path);
-  } catch {
+var assertSafeFile = (status, source, effectiveUserId) => {
+  if (!status.isFile() || status.nlink !== 1n || status.size < 1n || status.size > BigInt(BOARD_CONFIG_MAX_BYTES_V1) || (status.mode & 0o022n) !== 0n) {
     throw new BoardConfigError(source, null);
   }
-  if (!status.isFile() || status.isSymbolicLink() || (status.mode & 18) !== 0) {
-    throw new BoardConfigError(source, null);
-  }
-  if (effectiveUserId !== void 0 && status.uid !== effectiveUserId)
+  if (effectiveUserId === void 0 || status.uid !== BigInt(effectiveUserId))
     throw new BoardConfigError(source, null);
 };
 var loadFile = async (path, source, effectiveUserId) => {
-  await assertSafeFile(path, source, effectiveUserId);
-  return { config: await readBoardConfigFileV1(path, source), source, path };
+  let handle;
+  try {
+    handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const approvedStatus = await handle.stat({ bigint: true });
+    assertSafeFile(approvedStatus, source, effectiveUserId);
+    const config2 = await readBoardConfigFileV1(handle, source, approvedStatus);
+    if (source === "nearest_board_file" && !IMPLICIT_REPOSITORY_BASE_URLS_V1.has(config2.baseUrl))
+      throw new BoardConfigError(source, "baseUrl");
+    return { config: config2, source, path };
+  } catch (error3) {
+    if (error3 instanceof BoardConfigError) throw error3;
+    throw new BoardConfigError(source, null);
+  } finally {
+    await handle?.close().catch(() => void 0);
+  }
 };
 var discoverBoardConfigV1 = async (options) => {
   const effectiveUserId = options.effectiveUserId ?? process.geteuid?.();
@@ -13318,8 +13342,9 @@ var sameCredentialV1 = (left, right) => {
 
 // sceneboard-mcp/src/credentials/api-key-credential-record.ts
 var ACCOUNT_API_KEY_PATTERN_V1 = /^sbk_v1\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$/;
+var API_KEY_CREDENTIAL_RECORD_MAX_BYTES_V1 = 512;
 var parseApiKeyCredentialRecordV1 = (bytes) => {
-  if (bytes.byteLength === 0 || bytes.byteLength > 512)
+  if (bytes.byteLength === 0 || bytes.byteLength > API_KEY_CREDENTIAL_RECORD_MAX_BYTES_V1)
     throw new Error("API key credential record is invalid");
   let source;
   try {
@@ -13354,26 +13379,26 @@ var sameApiKeyCredentialV1 = (left, right) => {
 // sceneboard-mcp/src/credentials/private-file-api-key.store.ts
 import { randomBytes as randomBytes2 } from "node:crypto";
 import { constants as constants3 } from "node:fs";
-import { lstat as lstat3, open as open2, readFile as readFile3, unlink as unlink2 } from "node:fs/promises";
+import { open as open3, unlink as unlink2 } from "node:fs/promises";
 import { join as join4 } from "node:path";
 
 // sceneboard-mcp/src/credentials/private-file-credential.store.ts
 import { randomBytes } from "node:crypto";
 import { constants as constants2 } from "node:fs";
-import { lstat as lstat2, mkdir, open, readFile as readFile2, rename, unlink } from "node:fs/promises";
+import { lstat, mkdir, open as open2, readFile, rename, unlink } from "node:fs/promises";
 import { join as join3 } from "node:path";
 var CREDENTIAL_FILE = "credential.json";
 var assertPrivateStateDirectoryV1 = async (stateDirectory, signal) => {
   signal?.throwIfAborted();
   await mkdir(stateDirectory, { recursive: true, mode: 448 });
   signal?.throwIfAborted();
-  const status = await lstat2(stateDirectory);
+  const status = await lstat(stateDirectory);
   if (!status.isDirectory() || status.isSymbolicLink() || status.uid !== process.geteuid?.()) {
     throw new Error("private state directory is invalid");
   }
   if ((status.mode & 511) !== 448) {
     signal?.throwIfAborted();
-    const handle = await open(
+    const handle = await open2(
       stateDirectory,
       constants2.O_RDONLY | constants2.O_DIRECTORY | constants2.O_NOFOLLOW
     );
@@ -13384,13 +13409,13 @@ var assertPrivateStateDirectoryV1 = async (stateDirectory, signal) => {
     }
   }
   signal?.throwIfAborted();
-  const confirmed = await lstat2(stateDirectory);
+  const confirmed = await lstat(stateDirectory);
   if ((confirmed.mode & 511) !== 448)
     throw new Error("private state directory permissions are invalid");
 };
 var assertPrivateFile = async (path, signal) => {
   signal?.throwIfAborted();
-  const status = await lstat2(path);
+  const status = await lstat(path);
   if (!status.isFile() || status.isSymbolicLink() || status.uid !== process.geteuid?.() || (status.mode & 511) !== 384 || status.nlink !== 1)
     throw new Error("private record is invalid");
 };
@@ -13399,7 +13424,7 @@ var atomicPrivateWriteV1 = async (stateDirectory, fileName, bytes) => {
   const temporaryName = `.${fileName}.${randomBytes(16).toString("base64url")}.tmp`;
   const temporaryPath = join3(stateDirectory, temporaryName);
   const targetPath = join3(stateDirectory, fileName);
-  const handle = await open(
+  const handle = await open2(
     temporaryPath,
     constants2.O_CREAT | constants2.O_EXCL | constants2.O_WRONLY | constants2.O_NOFOLLOW,
     384
@@ -13416,7 +13441,7 @@ var atomicPrivateWriteV1 = async (stateDirectory, fileName, bytes) => {
   await handle.close();
   await assertPrivateFile(temporaryPath);
   await rename(temporaryPath, targetPath);
-  const directory = await open(
+  const directory = await open2(
     stateDirectory,
     constants2.O_RDONLY | constants2.O_DIRECTORY | constants2.O_NOFOLLOW
   );
@@ -13439,7 +13464,7 @@ var PrivateFileCredentialStoreV1 = class {
     try {
       await assertPrivateFile(path, signal);
       signal?.throwIfAborted();
-      const bytes = await readFile2(path, { signal });
+      const bytes = await readFile(path, { signal });
       signal?.throwIfAborted();
       return parseCredentialRecordV1(bytes);
     } catch (error3) {
@@ -13470,7 +13495,7 @@ var PrivateFileCredentialStoreV1 = class {
     if (current === null || !sameCredentialV1(current, snapshot)) return false;
     signal?.throwIfAborted();
     await unlink(join3(this.stateDirectory, CREDENTIAL_FILE));
-    const directory = await open(
+    const directory = await open2(
       this.stateDirectory,
       constants2.O_RDONLY | constants2.O_DIRECTORY | constants2.O_NOFOLLOW
     );
@@ -13485,11 +13510,36 @@ var PrivateFileCredentialStoreV1 = class {
 
 // sceneboard-mcp/src/credentials/private-file-api-key.store.ts
 var API_KEY_CREDENTIAL_FILE_V1 = "api-key.credential.json";
-var assertPrivateFile2 = async (path, signal) => {
+var privateFileInvalid = () => new Error("private API key record is invalid");
+var readApiKeyCredentialFileHandleV1 = async (handle, effectiveUserId, signal) => {
   signal?.throwIfAborted();
-  const status = await lstat3(path);
-  if (!status.isFile() || status.isSymbolicLink() || status.uid !== process.geteuid?.() || (status.mode & 511) !== 384 || status.nlink !== 1)
-    throw new Error("private API key record is invalid");
+  if (effectiveUserId === void 0) throw privateFileInvalid();
+  try {
+    const before = await handle.stat({ bigint: true });
+    if (!before.isFile() || before.uid !== BigInt(effectiveUserId) || (before.mode & 0o777n) !== 0o600n || before.nlink !== 1n || before.size < 1n || before.size > BigInt(API_KEY_CREDENTIAL_RECORD_MAX_BYTES_V1))
+      throw privateFileInvalid();
+    const bytes = Buffer.alloc(Number(before.size));
+    try {
+      let offset = 0;
+      while (offset < bytes.byteLength) {
+        signal?.throwIfAborted();
+        const result = await handle.read(bytes, offset, bytes.byteLength - offset, offset);
+        if (result.bytesRead === 0) break;
+        offset += result.bytesRead;
+      }
+      signal?.throwIfAborted();
+      const after = await handle.stat({ bigint: true });
+      if (offset !== bytes.byteLength || !after.isFile() || after.uid !== BigInt(effectiveUserId) || (after.mode & 0o777n) !== 0o600n || after.nlink !== 1n || before.dev !== after.dev || before.ino !== after.ino || before.mode !== after.mode || before.uid !== after.uid || before.nlink !== after.nlink || before.size !== after.size || before.mtimeNs !== after.mtimeNs || before.ctimeNs !== after.ctimeNs)
+        throw privateFileInvalid();
+      return parseApiKeyCredentialRecordV1(bytes);
+    } finally {
+      bytes.fill(0);
+    }
+  } catch (error3) {
+    signal?.throwIfAborted();
+    if (error3 instanceof Error && error3.message === "private API key record is invalid") throw error3;
+    throw privateFileInvalid();
+  }
 };
 var PrivateFileApiKeyStoreV1 = class {
   constructor(stateDirectory, platform = process.platform) {
@@ -13505,15 +13555,20 @@ var PrivateFileApiKeyStoreV1 = class {
   async read(signal) {
     await this.preflight(signal);
     const path = join4(this.stateDirectory, API_KEY_CREDENTIAL_FILE_V1);
+    let handle;
     try {
-      await assertPrivateFile2(path, signal);
       signal?.throwIfAborted();
-      const bytes = await readFile3(path, { signal });
-      signal?.throwIfAborted();
-      return parseApiKeyCredentialRecordV1(bytes);
+      if (typeof constants3.O_NOFOLLOW !== "number") throw privateFileInvalid();
+      const closeOnExec = process.platform === "linux" ? 524288 : 0;
+      handle = await open3(path, constants3.O_RDONLY | constants3.O_NOFOLLOW | closeOnExec);
     } catch (error3) {
       if (error3.code === "ENOENT") return null;
       throw error3;
+    }
+    try {
+      return await readApiKeyCredentialFileHandleV1(handle, process.geteuid?.(), signal);
+    } finally {
+      await handle.close().catch(() => void 0);
     }
   }
   async replace(apiKey) {
@@ -13542,7 +13597,7 @@ var PrivateFileApiKeyStoreV1 = class {
       if (error3.code === "ENOENT") return false;
       throw error3;
     }
-    const directory = await open2(
+    const directory = await open3(
       this.stateDirectory,
       constants3.O_RDONLY | constants3.O_DIRECTORY | constants3.O_NOFOLLOW
     );
@@ -25829,6 +25884,7 @@ var MAX_MEDIA_BYTES = 10485760;
 var MAX_MEDIA_PIXELS = 4e7;
 var MAX_BOARD_MEDIA_BYTES = 536870912;
 var MAX_MEDIA_REFERENCES = 5e3;
+var MAX_ARTIFACT_REFERENCE_OCCURRENCES = 500;
 var BOARD_LIMITS_V1 = {
   maxEnvelopeBytes: MAX_ENVELOPE_BYTES,
   maxSceneBytes: MAX_SCENE_BYTES,
@@ -25880,6 +25936,10 @@ var BOARD_DOCUMENT_LIMITS_V2 = {
   maxMediaPixels: MAX_MEDIA_PIXELS,
   maxBoardMediaBytes: MAX_BOARD_MEDIA_BYTES,
   maxMediaReferences: MAX_MEDIA_REFERENCES
+};
+var BOARD_DOCUMENT_LIMITS_V3 = {
+  ...BOARD_DOCUMENT_LIMITS_V2,
+  maxArtifactReferenceOccurrences: MAX_ARTIFACT_REFERENCE_OCCURRENCES
 };
 
 // packages/board-schema/src/identifiers.ts
@@ -26686,6 +26746,7 @@ var validateDocumentPages = (document, context) => {
     invalidDocument(context, ["pages"], "page_count", "document page count is invalid");
   const pageIds = /* @__PURE__ */ new Set();
   const nodeIds = /* @__PURE__ */ new Map();
+  const artifactReferenceCounts = /* @__PURE__ */ new Map();
   let nodeCount = 0;
   document.pages.forEach((page, pageIndex2) => {
     if (pageIds.has(page.pageId))
@@ -26697,6 +26758,7 @@ var validateDocumentPages = (document, context) => {
       );
     pageIds.add(page.pageId);
     for (const item of collectSceneNodesV1(page.scene.root)) {
+      const node = item.node;
       nodeCount += 1;
       const path = ["pages", pageIndex2, "scene", ...item.path, "id"];
       const firstPath = nodeIds.get(item.node.id);
@@ -26708,6 +26770,19 @@ var validateDocumentPages = (document, context) => {
           `duplicate node ID ${item.node.id}; first path ${JSON.stringify(firstPath)}`
         );
       else nodeIds.set(item.node.id, path);
+      const reference = node.type === "content.artifact" ? { artifact: node.artifact, code: "A" } : node.type === "content.image" && node.source.type === "artifact.resource" ? { artifact: node.source.artifact, code: "I" } : null;
+      if (reference !== null) {
+        const key = `${reference.artifact.artifactId}\0${reference.artifact.versionId}\0${reference.code}`;
+        const occurrenceCount = (artifactReferenceCounts.get(key) ?? 0) + 1;
+        artifactReferenceCounts.set(key, occurrenceCount);
+        if (occurrenceCount === MAX_ARTIFACT_REFERENCE_OCCURRENCES + 1)
+          invalidDocument(
+            context,
+            ["pages", pageIndex2, "scene", ...item.path],
+            "limit",
+            "artifact reference occurrence count exceeded"
+          );
+      }
     }
   });
   if (!pageIds.has(document.defaultPageId))
@@ -27088,6 +27163,11 @@ var BoardLimitsSchemaV2 = z.object(
     Object.entries(BOARD_DOCUMENT_LIMITS_V2).map(([key, value]) => [key, z.literal(value)])
   )
 ).strict();
+var BoardLimitsSchemaV3 = z.object(
+  Object.fromEntries(
+    Object.entries(BOARD_DOCUMENT_LIMITS_V3).map(([key, value]) => [key, z.literal(value)])
+  )
+).strict();
 var BoardCapabilitiesSchemaV1 = z.object({
   protocolVersion: z.literal(PROTOCOL_VERSION),
   type: z.literal("board.capabilities"),
@@ -27169,13 +27249,14 @@ var BoardCapabilitiesSchemaV3 = z.object({
     hitlKinds: exactCatalog(HITL_KINDS_V1),
     artifactRequestCapabilities: exactCatalog(ARTIFACT_REQUEST_CAPABILITIES_V1)
   }).strict(),
-  limits: BoardLimitsSchemaV2,
+  limits: BoardLimitsSchemaV3,
   grantedCapabilities: sortedSubset(CLIENT_GRANT_CAPABILITIES_V1),
   allowedArtifactRequestCapabilities: sortedSubset(ARTIFACT_REQUEST_CAPABILITIES_V1)
 }).strict();
 var DEFAULT_BOARD_CAPABILITIES_V3 = {
   ...DEFAULT_BOARD_CAPABILITIES_V2,
-  schemaVersion: "1.2.0"
+  schemaVersion: "1.2.0",
+  limits: { ...BOARD_DOCUMENT_LIMITS_V3 }
 };
 var BoardCapabilitiesSchema = z.union([
   BoardCapabilitiesSchemaV1,
@@ -30760,7 +30841,8 @@ var parseApiKeyConnection = (value, requestId, boardId) => {
   const principalId = PrincipalIdParserV1.parse(principal.principalId);
   const keyPublicId = PrincipalIdParserV1.parse(credential.keyPublicId);
   const scopes = exactCatalogSubset(credential.scopes, ACCOUNT_API_KEY_SCOPES_V1, 1);
-  if (!principalId.ok || !keyPublicId.ok || scopes === null) return null;
+  if (!principalId.ok || !keyPublicId.ok || principalId.data.value !== keyPublicId.data.value || scopes === null)
+    return null;
   let selectedBoard = null;
   if (root.selectedBoard !== null) {
     if (boardId === null) return null;
@@ -30790,7 +30872,21 @@ var parseApiKeyConnection = (value, requestId, boardId) => {
     versions: { mcpServer: "0.0.0", boardProtocol: "1.0.0", api: "v1" }
   };
 };
-var parseConnection = (value, requestId, boardId) => parsePairingConnection(value, requestId, boardId) ?? parseApiKeyConnection(value, requestId, boardId);
+var parseAuthorizedConnectionProjectionV1 = (value, requestId, boardId, expectedCredentialMode) => {
+  return expectedCredentialMode === "pairing" ? parsePairingConnection(value, requestId, boardId) : parseApiKeyConnection(value, requestId, boardId);
+};
+var parseAuthorizedConnectionV1 = (value, requestId, boardId, expectedCredentialMode, now) => {
+  if (!Number.isFinite(now)) return null;
+  const projection = parseAuthorizedConnectionProjectionV1(
+    value,
+    requestId,
+    boardId,
+    expectedCredentialMode
+  );
+  if (projection === null || expectedCredentialMode === "api_key" && "credential" in projection && Date.parse(projection.credential.expiresAt) <= now)
+    return null;
+  return projection;
+};
 var local = (error3) => ({
   ok: false,
   source: "local",
@@ -30800,14 +30896,20 @@ var ConnectionHttpClientV1 = class {
   constructor(options) {
     this.options = options;
   }
-  async get(boardId, requestId, accessToken, outerSignal) {
+  async get(boardId, requestId, accessToken, outerSignal, expectedCredentialMode, authorizationOperation) {
     if (!TOKEN_PATTERN2.test(accessToken))
       return local({ code: "TRANSPORT_ERROR", retryable: true, phase: "connect" });
+    const tokenCredentialMode = accessToken.startsWith("sbk_v1.") ? "api_key" : "pairing";
+    const responseCredentialMode = expectedCredentialMode ?? tokenCredentialMode;
+    if (responseCredentialMode !== tokenCredentialMode)
+      return local({ code: "RESPONSE_INVALID", retryable: false, reason: "schema" });
     const timeoutSignal = AbortSignal.timeout(this.options.timeoutMs);
     const signal = outerSignal === void 0 ? timeoutSignal : AbortSignal.any([outerSignal, timeoutSignal]);
     if (signal.aborted) return local({ code: "CANCELLED", retryable: false });
     const query = new URLSearchParams({ requestId });
     if (boardId !== null) query.set("boardId", boardId);
+    if (authorizationOperation !== void 0)
+      query.set("authorizationOperation", authorizationOperation);
     const url = new URL("/api/v1/mcp/connection", this.options.baseUrl);
     url.search = query.toString();
     const startedAt = performance.now();
@@ -30857,7 +30959,13 @@ var ConnectionHttpClientV1 = class {
     if (!parsed.ok)
       return local({ code: "RESPONSE_INVALID", retryable: false, reason: parsed.reason });
     if (response.status === 200) {
-      const value = parseConnection(parsed.value, requestId, boardId);
+      const value = parseAuthorizedConnectionV1(
+        parsed.value,
+        requestId,
+        boardId,
+        responseCredentialMode,
+        this.options.now?.() ?? Date.now()
+      );
       if (value === null)
         return local({ code: "RESPONSE_INVALID", retryable: false, reason: "schema" });
       this.options.logger.log({
@@ -31023,7 +31131,7 @@ var ConnectionStatusServiceV1 = class {
       let result;
       try {
         result = await waitWithinDeadline(
-          this.client.get(boardId, requestId, snapshot.accessToken, deadline.signal),
+          this.client.get(boardId, requestId, snapshot.accessToken, deadline.signal, "pairing"),
           deadline.signal
         );
       } catch {
@@ -31114,7 +31222,7 @@ var ConnectionStatusServiceV1 = class {
   }
   async probeWithToken(accessToken, signal) {
     const requestId = randomBytes3(16).toString("base64url");
-    return (await this.client.get(null, requestId, accessToken, signal)).ok;
+    return (await this.client.get(null, requestId, accessToken, signal, "pairing")).ok;
   }
 };
 var ApiKeyConnectionStatusServiceV1 = class {
@@ -31162,7 +31270,14 @@ var ApiKeyConnectionStatusServiceV1 = class {
       let result;
       try {
         result = await waitWithinDeadline(
-          this.client.get(boardId, requestId, snapshot.accessToken, deadline.signal),
+          this.client.get(
+            boardId,
+            requestId,
+            snapshot.accessToken,
+            deadline.signal,
+            "api_key",
+            boardId === null ? void 0 : "board.get"
+          ),
           deadline.signal
         );
       } catch {
@@ -31236,7 +31351,7 @@ var UnconfiguredConnectionStatusServiceV1 = class {
 
 // sceneboard-mcp/src/credentials/installation-identity.store.ts
 import { randomBytes as randomBytes4 } from "node:crypto";
-import { lstat as lstat4, readFile as readFile4 } from "node:fs/promises";
+import { lstat as lstat2, readFile as readFile2 } from "node:fs/promises";
 import { join as join5 } from "node:path";
 var FILE_NAME = "installation.json";
 var INSTALLATION_PATTERN = /^[A-Za-z0-9._:-]{16,128}$/;
@@ -31268,9 +31383,9 @@ var InstallationIdentityStoreV1 = class {
   async getOrCreate() {
     const path = join5(this.stateDirectory, FILE_NAME);
     try {
-      const status = await lstat4(path);
+      const status = await lstat2(path);
       if (!status.isFile() || status.isSymbolicLink() || status.uid !== process.geteuid?.() || (status.mode & 511) !== 384 || status.nlink !== 1) throw new Error("installation record is invalid");
-      return parseInstallation(await readFile4(path));
+      return parseInstallation(await readFile2(path));
     } catch (error3) {
       if (error3.code !== "ENOENT") throw error3;
     }
@@ -31285,7 +31400,7 @@ var InstallationIdentityStoreV1 = class {
 import { createHash, randomBytes as randomBytes5 } from "node:crypto";
 import { spawn } from "node:child_process";
 import { constants as constants4 } from "node:fs";
-import { lstat as lstat5, open as open3, readFile as readFile5 } from "node:fs/promises";
+import { lstat as lstat3, open as open4, readFile as readFile3 } from "node:fs/promises";
 
 // sceneboard-mcp/src/credentials/profile-state.lease.ts
 var ProfileLeaseErrorV1 = class extends Error {
@@ -31354,10 +31469,10 @@ var LinuxProfileLeaseHelperAdapterV1 = class {
     if (process.platform !== "linux") return false;
     try {
       const [status, digestStatus, bytes, expected] = await Promise.all([
-        lstat5(this.helperPath),
-        lstat5(this.digestPath),
-        readFile5(this.helperPath, { signal }),
-        readFile5(this.digestPath, { encoding: "utf8", signal })
+        lstat3(this.helperPath),
+        lstat3(this.digestPath),
+        readFile3(this.helperPath, { signal }),
+        readFile3(this.digestPath, { encoding: "utf8", signal })
       ]);
       signal?.throwIfAborted();
       if (!status.isFile() || status.isSymbolicLink() || (status.mode & 511) !== 320 || status.uid !== process.geteuid?.())
@@ -31374,7 +31489,7 @@ var LinuxProfileLeaseHelperAdapterV1 = class {
     signal?.throwIfAborted();
     if (!await this.verify(signal)) throw new ProfileLeaseErrorV1("liveness_unknown");
     signal?.throwIfAborted();
-    const directory = await open3(
+    const directory = await open4(
       stateDirectory,
       constants4.O_RDONLY | constants4.O_DIRECTORY | constants4.O_NOFOLLOW
     );
@@ -36489,12 +36604,14 @@ var encodeLocalExportControlFrameV1 = (intent, expectedBytes) => {
   return frame;
 };
 var signatureMatchesV1 = (format, bytes) => format === "pdf" ? bytes.subarray(0, 5).equals(Buffer.from("%PDF-", "ascii")) : bytes.subarray(0, 4).equals(Buffer.from([80, 75, 3, 4]));
-var writeWithBackpressureV1 = async (child, bytes) => {
+var writeWithBackpressureV1 = async (child, bytes, signal) => {
+  signal?.throwIfAborted();
   if (child.stdin.write(bytes)) return;
   await new Promise((resolveDrain, reject) => {
     const cleanup = () => {
       child.stdin.off("drain", drained);
       child.stdin.off("error", failed2);
+      signal?.removeEventListener("abort", aborted2);
     };
     const drained = () => {
       cleanup();
@@ -36504,34 +36621,163 @@ var writeWithBackpressureV1 = async (child, bytes) => {
       cleanup();
       reject(streamError);
     };
+    const aborted2 = () => {
+      cleanup();
+      reject(signal?.reason);
+    };
     child.stdin.once("drain", drained);
     child.stdin.once("error", failed2);
+    if (signal?.aborted) aborted2();
+    else signal?.addEventListener("abort", aborted2, { once: true });
   });
 };
-var collectBoundedV1 = (child, stream, limit, onOverflow) => new Promise((resolveBytes, reject) => {
+var collectBoundedV1 = (child, stream, limit, onOverflow, signal) => new Promise((resolveBytes, reject) => {
   const chunks = [];
   let size = 0;
-  stream.on("data", (chunk) => {
+  const cleanup = () => {
+    stream.off("data", received);
+    stream.off("error", failed2);
+    stream.off("end", ended);
+    child.off("error", failed2);
+    signal?.removeEventListener("abort", aborted2);
+  };
+  const failed2 = (streamError) => {
+    cleanup();
+    reject(streamError);
+  };
+  const ended = () => {
+    cleanup();
+    resolveBytes(Buffer.concat(chunks, size));
+  };
+  const aborted2 = () => {
+    cleanup();
+    reject(signal?.reason);
+  };
+  const received = (chunk) => {
     const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     size += bytes.byteLength;
     if (size > limit) {
+      cleanup();
       onOverflow();
+      reject(new Error("local export helper output overflow"));
       return;
     }
     chunks.push(bytes);
+  };
+  stream.on("data", received);
+  stream.once("error", failed2);
+  stream.once("end", ended);
+  child.once("error", failed2);
+  if (signal?.aborted) aborted2();
+  else signal?.addEventListener("abort", aborted2, { once: true });
+});
+var waitForExitV1 = (child, signal) => new Promise((resolveExit, reject) => {
+  const cleanup = () => {
+    child.off("error", failed2);
+    child.off("exit", exited);
+    signal?.removeEventListener("abort", aborted2);
+  };
+  const failed2 = (childError) => {
+    cleanup();
+    reject(childError);
+  };
+  const exited = (code, exitSignal) => {
+    cleanup();
+    resolveExit({ code, signal: exitSignal });
+  };
+  const aborted2 = () => {
+    cleanup();
+    reject(signal?.reason);
+  };
+  child.once("error", failed2);
+  child.once("exit", exited);
+  if (signal?.aborted) aborted2();
+  else signal?.addEventListener("abort", aborted2, { once: true });
+});
+var endWritableV1 = (stream, bytes, signal) => new Promise((resolveEnd, reject) => {
+  const cleanup = () => {
+    stream.removeListener("error", failed2);
+    signal?.removeEventListener("abort", aborted2);
+  };
+  const failed2 = (streamError) => {
+    cleanup();
+    reject(streamError);
+  };
+  const ended = () => {
+    cleanup();
+    resolveEnd();
+  };
+  const aborted2 = () => {
+    cleanup();
+    reject(signal?.reason);
+  };
+  stream.once("error", failed2);
+  if (signal?.aborted) aborted2();
+  else {
+    signal?.addEventListener("abort", aborted2, { once: true });
+    stream.end(bytes, ended);
+  }
+});
+var readWithSignalV1 = async (reader, signal) => {
+  signal?.throwIfAborted();
+  return new Promise((resolveRead, reject) => {
+    const cleanup = () => signal?.removeEventListener("abort", aborted2);
+    const aborted2 = () => {
+      cleanup();
+      reject(signal?.reason);
+    };
+    reader.read().then(
+      (value) => {
+        cleanup();
+        if (signal?.aborted) reject(signal.reason);
+        else resolveRead(value);
+      },
+      (readError) => {
+        cleanup();
+        reject(readError);
+      }
+    );
+    signal?.addEventListener("abort", aborted2, { once: true });
   });
-  stream.once("error", reject);
-  stream.once("end", () => resolveBytes(Buffer.concat(chunks, size)));
-  child.once("error", reject);
-});
-var waitForExitV1 = (child) => new Promise((resolveExit, reject) => {
-  child.once("error", reject);
-  child.once("exit", (code, signal) => resolveExit({ code, signal }));
-});
-var endWritableV1 = (stream, bytes) => new Promise((resolveEnd, reject) => {
-  stream.once("error", reject);
-  stream.end(bytes, resolveEnd);
-});
+};
+var cancelReaderBestEffortV1 = (reader) => {
+  void reader.cancel().catch(() => void 0);
+};
+var destroyStreamV1 = (stream) => {
+  if (stream !== null && "destroy" in stream && typeof stream.destroy === "function")
+    stream.destroy();
+};
+var waitForChildExitBoundedV1 = async (child, timeoutMs) => {
+  if (child.exitCode !== null || child.signalCode !== null) return true;
+  return new Promise((resolveExit) => {
+    const cleanup = () => {
+      clearTimeout(timer);
+      child.off("exit", exited);
+      child.off("error", exited);
+    };
+    const exited = () => {
+      cleanup();
+      resolveExit(true);
+    };
+    const timer = setTimeout(() => {
+      cleanup();
+      resolveExit(false);
+    }, timeoutMs);
+    child.once("exit", exited);
+    child.once("error", exited);
+  });
+};
+var terminateChildV1 = async (child, control) => {
+  destroyStreamV1(control ?? null);
+  destroyStreamV1(child.stdin);
+  destroyStreamV1(child.stdout);
+  destroyStreamV1(child.stderr);
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  child.kill("SIGTERM");
+  if (await waitForChildExitBoundedV1(child, 250)) return;
+  child.kill("SIGKILL");
+  await waitForChildExitBoundedV1(child, 250);
+};
 var LocalExportFileV1 = class {
   constructor(options) {
     this.options = options;
@@ -36623,47 +36869,47 @@ var LocalExportFileV1 = class {
     } catch {
       return closed({ ok: false, error: error2("LOCAL_EXPORT_CORRUPT") });
     }
-    const prefix = [];
-    let prefixBytes = 0;
-    try {
-      while (prefixBytes < 5) {
-        if (signal?.aborted === true) {
-          await reader.cancel().catch(() => void 0);
-          reader.releaseLock();
-          return closed({ ok: false, error: error2("LOCAL_EXPORT_CANCELLED") });
-        }
-        const next = await reader.read();
-        if (next.done) {
-          reader.releaseLock();
-          return closed({ ok: false, error: error2("LOCAL_EXPORT_SHORT") });
-        }
-        const bytes = Buffer.from(next.value);
-        prefix.push(bytes);
-        prefixBytes += bytes.byteLength;
-      }
-    } catch {
-      await reader.cancel().catch(() => void 0);
-      reader.releaseLock();
-      return closed({
-        ok: false,
-        error: signal?.aborted === true ? error2("LOCAL_EXPORT_CANCELLED") : transportErrorV1()
-      });
-    }
-    const initial = Buffer.concat(prefix, prefixBytes);
-    if (!signatureMatchesV1(intent.format, initial)) {
-      await reader.cancel().catch(() => void 0);
-      reader.releaseLock();
-      return closed({ ok: false, error: error2("LOCAL_EXPORT_CORRUPT") });
-    }
     let rootDescriptor = -1;
     let child;
+    let control;
     let overflow = false;
     let downloadFailed = false;
     const abort = () => {
       child?.kill("SIGTERM");
-      void reader.cancel().catch(() => void 0);
+      if (child !== void 0) {
+        destroyStreamV1(control ?? null);
+        destroyStreamV1(child.stdin);
+        destroyStreamV1(child.stdout);
+        destroyStreamV1(child.stderr);
+      }
     };
+    signal?.addEventListener("abort", abort, { once: true });
+    if (signal?.aborted) abort();
     try {
+      const readNext = async () => {
+        try {
+          return await readWithSignalV1(reader, signal);
+        } catch (readError) {
+          if (signal?.aborted !== true) downloadFailed = true;
+          throw readError;
+        }
+      };
+      const prefix = [];
+      let prefixBytes = 0;
+      while (prefixBytes < 5) {
+        const next = await readNext();
+        if (next.done) return { ok: false, error: error2("LOCAL_EXPORT_SHORT") };
+        const bytes2 = Buffer.from(next.value);
+        prefix.push(bytes2);
+        prefixBytes += bytes2.byteLength;
+      }
+      const initial = Buffer.concat(prefix, prefixBytes);
+      if (!signatureMatchesV1(intent.format, initial)) {
+        this.release(intent);
+        cancelReaderBestEffortV1(reader);
+        return { ok: false, error: error2("LOCAL_EXPORT_CORRUPT") };
+      }
+      signal?.throwIfAborted();
       rootDescriptor = openSync("/", fsConstants.O_RDONLY | LINUX_O_DIRECTORY | LINUX_O_CLOEXEC);
       if (intent.helperHandle.released)
         return { ok: false, error: error2("LOCAL_EXPORT_UNAVAILABLE") };
@@ -36676,9 +36922,8 @@ var LocalExportFileV1 = class {
       if (spawned.stdin === null || spawned.stdout === null || spawned.stderr === null || spawned.stdio[4] === null)
         throw new Error("local export helper descriptors unavailable");
       child = spawned;
-      const control = child.stdio[4];
+      control = child.stdio[4];
       child.stdin.on("error", () => void 0);
-      signal?.addEventListener("abort", abort, { once: true });
       const stdoutPromise = collectBoundedV1(
         child,
         child.stdout,
@@ -36686,7 +36931,8 @@ var LocalExportFileV1 = class {
         () => {
           overflow = true;
           child?.kill("SIGTERM");
-        }
+        },
+        signal
       );
       const stderrPromise = collectBoundedV1(
         child,
@@ -36695,10 +36941,17 @@ var LocalExportFileV1 = class {
         () => {
           overflow = true;
           child?.kill("SIGTERM");
-        }
+        },
+        signal
       );
-      const exitPromise = waitForExitV1(child);
-      await endWritableV1(control, encodeLocalExportControlFrameV1(intent, artifact.contentLength));
+      const exitPromise = waitForExitV1(child, signal);
+      const completion = Promise.all([stdoutPromise, stderrPromise, exitPromise]);
+      void completion.catch(() => void 0);
+      await endWritableV1(
+        control,
+        encodeLocalExportControlFrameV1(intent, artifact.contentLength),
+        signal
+      );
       let received = 0;
       const forward = async (bytes2) => {
         received += bytes2.byteLength;
@@ -36707,26 +36960,16 @@ var LocalExportFileV1 = class {
           child?.kill("SIGTERM");
           return;
         }
-        await writeWithBackpressureV1(child, bytes2);
+        await writeWithBackpressureV1(child, bytes2, signal);
       };
       await forward(initial);
-      while (!overflow && signal?.aborted !== true) {
-        let next;
-        try {
-          next = await reader.read();
-        } catch (streamError) {
-          downloadFailed = true;
-          throw streamError;
-        }
+      while (!overflow) {
+        const next = await readNext();
         if (next.done) break;
         await forward(Buffer.from(next.value));
       }
-      child.stdin.end();
-      const [stdout, stderr, exited] = await Promise.all([
-        stdoutPromise,
-        stderrPromise,
-        exitPromise
-      ]);
+      await endWritableV1(child.stdin, Buffer.alloc(0), signal);
+      const [stdout, stderr, exited] = await completion;
       const diagnosticText = new TextDecoder("utf-8", { fatal: true }).decode(stderr);
       if (diagnosticText !== "" && !/^(?:SBEX\/1 io (?:openat|fstat|write|fsync|publish|unlink) errno=[0-9]+\n)+$/u.test(
         diagnosticText
@@ -36765,17 +37008,26 @@ var LocalExportFileV1 = class {
         error: error2(mapped[resultCode])
       };
     } catch {
-      child?.kill("SIGTERM");
-      await reader.cancel().catch(() => void 0);
+      if (child !== void 0) await terminateChildV1(child, control).catch(() => void 0);
+      this.release(intent);
+      if (rootDescriptor >= 0) {
+        closeSync(rootDescriptor);
+        rootDescriptor = -1;
+      }
+      cancelReaderBestEffortV1(reader);
       return {
         ok: false,
-        error: signal?.aborted === true ? error2("LOCAL_EXPORT_CANCELLED") : downloadFailed ? transportErrorV1() : error2("LOCAL_EXPORT_IO")
+        error: signal?.aborted === true ? error2("LOCAL_EXPORT_CANCELLED") : downloadFailed ? transportErrorV1() : overflow ? error2("LOCAL_EXPORT_CORRUPT") : error2("LOCAL_EXPORT_IO")
       };
     } finally {
       this.release(intent);
       signal?.removeEventListener("abort", abort);
       if (rootDescriptor >= 0) closeSync(rootDescriptor);
-      reader.releaseLock();
+      try {
+        reader.releaseLock();
+      } catch {
+        cancelReaderBestEffortV1(reader);
+      }
     }
   }
 };
@@ -36794,10 +37046,48 @@ var EXPORT_HTTP_FAILURES_V1 = Object.freeze({
   EXPORT_ENCODE_FAILED: [500, true, "Export encoding failed"],
   EXPORT_INTERNAL_ERROR: [500, true, "Export failed"]
 });
+var EXPORT_PREFLIGHT_FAILURE_CODES_V1 = Object.freeze({
+  UNAUTHENTICATED: "EXPORT_UNAUTHENTICATED",
+  FORBIDDEN: "EXPORT_FORBIDDEN",
+  BOARD_NOT_FOUND: "EXPORT_NOT_FOUND",
+  RATE_LIMITED: "EXPORT_RATE_LIMITED",
+  SERVICE_UNAVAILABLE: "EXPORT_RENDERER_UNAVAILABLE",
+  INTERNAL_ERROR: "EXPORT_INTERNAL_ERROR"
+});
+var exportPreflightFailureV1 = (value) => {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return null;
+  const root = value;
+  if (root.ok !== false || Object.hasOwn(root, "source")) return null;
+  if (Object.keys(root).sort().join("\0") !== ["error", "ok"].join("\0"))
+    return { ok: false, source: "local", error: { code: "RESPONSE_INVALID" } };
+  const parsed = BoardErrorParserV1.parse(root.error);
+  if (!parsed.ok)
+    return { ok: false, source: "local", error: { code: "RESPONSE_INVALID" } };
+  const boardCode = parsed.data.value.code;
+  if (!Object.hasOwn(EXPORT_PREFLIGHT_FAILURE_CODES_V1, boardCode))
+    return { ok: false, source: "local", error: { code: "RESPONSE_INVALID" } };
+  const exportCode = EXPORT_PREFLIGHT_FAILURE_CODES_V1[boardCode];
+  const definition = EXPORT_HTTP_FAILURES_V1[exportCode];
+  return {
+    ok: false,
+    source: "board",
+    error: {
+      code: exportCode,
+      message: definition[2],
+      retryable: definition[1]
+    }
+  };
+};
 var EXPORT_CONTENT_TYPES_V1 = Object.freeze({
   pdf: "application/pdf",
   pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 });
+var RENAME_TIMESTAMP_PATTERN_V1 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+var canonicalRenameTimestampV1 = (value) => {
+  if (typeof value !== "string" || !RENAME_TIMESTAMP_PATTERN_V1.test(value)) return false;
+  const instant = Date.parse(value);
+  return Number.isFinite(instant) && new Date(instant).toISOString() === value;
+};
 var gatewayDeadlineV1 = (timeoutMs, callerSignal) => {
   const controller = new AbortController();
   let cause = null;
@@ -36875,11 +37165,12 @@ var ProtectedBoardGatewayV1 = class {
       requestedOperations,
       operation,
       options.signal,
+      options.authorization,
       this.options.timeoutMs,
       (cause) => sdkDeadlineFailureV1(cause, this.options.timeoutMs)
     );
   }
-  async callWithinDeadline(toolName, requestedOperations, operation, callerSignal, timeoutMs, deadlineFailure) {
+  async callWithinDeadline(toolName, requestedOperations, operation, callerSignal, authorization, timeoutMs, deadlineFailure) {
     const deadline = gatewayDeadlineV1(timeoutMs, callerSignal);
     try {
       deadline.signal.throwIfAborted();
@@ -36895,17 +37186,25 @@ var ProtectedBoardGatewayV1 = class {
           ({ operations }) => operations.length === requestedOperations.length && operations.every((operation2, index) => operation2 === requestedOperations[index])
         );
         if (operationPlan2 === void 0) return { connected: false };
+        const targetRequired = operationPlan2.operations.some(
+          (requestedOperation) => requestedOperation !== "board.list" && requestedOperation !== "board.create"
+        );
+        if (targetRequired !== (authorization !== void 0) || authorization !== void 0 && !operationPlan2.operations.includes(authorization.operation))
+          return { connected: false };
         const connection = await waitWithinGatewayDeadlineV1(
           new ConnectionHttpClientV1({
             baseUrl: this.options.baseUrl,
             fetch: this.options.fetch,
             timeoutMs,
-            logger: this.options.logger
+            logger: this.options.logger,
+            ...this.options.now === void 0 ? {} : { now: this.options.now }
           }).get(
-            null,
+            authorization?.boardId ?? null,
             randomBytes7(16).toString("base64url"),
             snapshot.accessToken,
-            deadline.signal
+            deadline.signal,
+            "api_key",
+            authorization?.operation
           ),
           deadline.signal
         );
@@ -37037,7 +37336,7 @@ var ProtectedBoardGatewayV1 = class {
           return { ok: false, source: "board", error: error3.data.value };
         }
         const value = parsed.value !== null && typeof parsed.value === "object" && !Array.isArray(parsed.value) ? parsed.value : null;
-        if (value === null || Object.keys(value).sort().join("\0") !== ["boardId", "title", "updatedAt"].join("\0") || value.boardId !== input.boardId || value.title !== input.title || typeof value.updatedAt !== "string" || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value.updatedAt))
+        if (value === null || Object.keys(value).sort().join("\0") !== ["boardId", "title", "updatedAt"].join("\0") || value.boardId !== input.boardId || value.title !== input.title || !canonicalRenameTimestampV1(value.updatedAt))
           return {
             ok: false,
             source: "local",
@@ -37053,6 +37352,7 @@ var ProtectedBoardGatewayV1 = class {
         };
       },
       input.signal,
+      { boardId: input.boardId, operation: "board.rename" },
       this.options.timeoutMs,
       (cause) => ({
         ok: false,
@@ -37074,7 +37374,7 @@ var ProtectedBoardGatewayV1 = class {
     return result;
   }
   async exportBoard(input) {
-    return this.callWithinDeadline(
+    const result = await this.callWithinDeadline(
       "board_export",
       ["export.render"],
       async (_client, snapshot, signal) => {
@@ -37123,15 +37423,16 @@ var ProtectedBoardGatewayV1 = class {
             await response.body?.cancel().catch(() => void 0);
             return { ok: false, source: "local", error: { code: "RESPONSE_INVALID" } };
           }
-          return {
-            ok: true,
-            value: {
+          const published = await input.publish(
+            {
               format: input.format,
               contentType,
               contentLength,
               body: response.body
-            }
-          };
+            },
+            signal
+          );
+          return published.ok ? published : { ok: false, source: "publication", error: published.error };
         }
         if (contentType !== "application/json; charset=utf-8") {
           await response.body?.cancel().catch(() => void 0);
@@ -37170,13 +37471,17 @@ var ProtectedBoardGatewayV1 = class {
         };
       },
       input.signal,
-      12e4,
+      { boardId: input.boardId, operation: "export.render" },
+      this.options.exportTimeoutMs ?? 12e4,
       (cause) => ({
         ok: false,
         source: "local",
         error: cause === "caller" ? { code: "CANCELLED" } : { code: "TIMEOUT", timeoutMs: 12e4 }
       })
     );
+    if (!result.connected) return result;
+    const preflightFailure = exportPreflightFailureV1(result.value);
+    return preflightFailure === null ? result : { connected: true, value: preflightFailure };
   }
   async withAuthorizedBoardOperation(input, operation) {
     const deadline = gatewayDeadlineV1(this.options.timeoutMs, input.signal);
@@ -37207,8 +37512,9 @@ var ProtectedBoardGatewayV1 = class {
           baseUrl: this.options.baseUrl,
           fetch: this.options.fetch,
           timeoutMs: this.options.timeoutMs,
-          logger: this.options.logger
-        }).get(input.boardId, input.requestId, snapshot.accessToken, deadline.signal),
+          logger: this.options.logger,
+          ...this.options.now === void 0 ? {} : { now: this.options.now }
+        }).get(input.boardId, input.requestId, snapshot.accessToken, deadline.signal, "pairing"),
         deadline.signal
       );
       const connectionCause = deadline.cause();
@@ -37630,6 +37936,106 @@ var LOCAL_EXPORT_MESSAGES_V1 = Object.freeze({
   LOCAL_EXPORT_CORRUPT: "Export download or local helper response is invalid",
   LOCAL_EXPORT_CANCELLED: "Local export was cancelled"
 });
+var TIMESTAMP_PATTERN_V1 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+var PROFILE_PATTERN_V1 = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
+var exactKeysV1 = (value, keys) => {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
+  const actual = Object.keys(value).sort();
+  const expected = [...keys].sort();
+  return actual.length === expected.length && actual.every((key, index) => key === expected[index]);
+};
+var canonicalTimestampV1 = (value) => {
+  if (typeof value !== "string" || !TIMESTAMP_PATTERN_V1.test(value)) return false;
+  const instant = Date.parse(value);
+  return Number.isFinite(instant) && new Date(instant).toISOString() === value;
+};
+var canonicalBaseOriginV1 = (value) => {
+  if (typeof value !== "string" || value.length < 1 || value.length > 2048) return false;
+  try {
+    const url = new URL(value);
+    const loopback = url.hostname === "127.0.0.1" || url.hostname === "[::1]" || url.hostname === "::1";
+    return url.origin === value && url.pathname === "/" && url.username === "" && url.password === "" && url.search === "" && url.hash === "" && (url.protocol === "https:" || url.protocol === "http:" && loopback);
+  } catch {
+    return false;
+  }
+};
+var connectionBoardIdV1 = (connection) => {
+  if (!exactKeysV1(connection.selectedBoard, ["board", "capabilities"])) return null;
+  const board = connection.selectedBoard.board;
+  return exactKeysV1(board, [
+    "boardId",
+    "title",
+    "createdAt",
+    "updatedAt",
+    "archivedAt",
+    "headRevision"
+  ]) && typeof board.boardId === "string" ? board.boardId : null;
+};
+var exactPairingConfigV1 = (value) => exactKeysV1(value, ["source", "profile", "baseOrigin", "timeoutMs", "hasToken"]) && [
+  "process_option",
+  "board_config_env",
+  "nearest_board_file",
+  "user_config_file",
+  "environment"
+].includes(String(value.source)) && typeof value.profile === "string" && PROFILE_PATTERN_V1.test(value.profile) && canonicalBaseOriginV1(value.baseOrigin) && Number.isSafeInteger(value.timeoutMs) && Number(value.timeoutMs) >= 1e3 && Number(value.timeoutMs) <= 12e4 && typeof value.hasToken === "boolean";
+var exactConnectionStatusResultV1 = (value, requestId) => {
+  if (value.credentialMode === "api_key") {
+    if (!exactKeysV1(value, [
+      "credentialMode",
+      "state",
+      "config",
+      "connection",
+      "lastErrorCode",
+      "retryable"
+    ]) || !exactKeysV1(value.config, ["source", "referenceConfigured"]) || value.config.source !== "env" && value.config.source !== "private_store" || typeof value.config.referenceConfigured !== "boolean" || typeof value.retryable !== "boolean")
+      return false;
+    if (value.state === "connected") {
+      if (value.config.referenceConfigured !== true || value.lastErrorCode !== null || value.retryable !== false || !exactKeysV1(value.connection, ["principal", "credential", "selectedBoard", "versions"]))
+        return false;
+      return parseAuthorizedConnectionProjectionV1(
+        value.connection,
+        requestId,
+        connectionBoardIdV1(value.connection),
+        "api_key"
+      ) !== null;
+    }
+    if (value.connection !== null) return false;
+    if (value.state === "credential_missing")
+      return value.config.referenceConfigured === false && value.lastErrorCode === "API_KEY_CREDENTIAL_MISSING" && value.retryable === false;
+    if (value.state === "credential_invalid")
+      return value.config.referenceConfigured === true && value.lastErrorCode === "API_KEY_CREDENTIAL_INVALID" && value.retryable === false;
+    return value.state === "backend_unavailable" && value.config.referenceConfigured === true && (value.lastErrorCode === "API_KEY_BACKEND_UNAVAILABLE" || value.lastErrorCode === "API_KEY_BACKEND_RESPONSE_INVALID") && value.retryable === true;
+  }
+  if (!exactKeysV1(value, ["state", "config", "connection", "lastErrorCode"])) return false;
+  if (value.state === "not_configured")
+    return value.config === null && value.connection === null && value.lastErrorCode === "BOARD_MCP_CONFIG_INVALID";
+  if (!exactPairingConfigV1(value.config)) return false;
+  if (value.state === "connected") {
+    if (value.config.hasToken !== true || value.lastErrorCode !== null || !exactKeysV1(value.connection, ["principal", "grant", "selectedBoard", "versions"]))
+      return false;
+    const selectedBoard = value.connection.selectedBoard;
+    const boardId = exactKeysV1(selectedBoard, ["board", "capabilities", "browserPresence", "capabilityEpoch"]) && exactKeysV1(selectedBoard.board, [
+      "boardId",
+      "title",
+      "createdAt",
+      "updatedAt",
+      "archivedAt",
+      "headRevision"
+    ]) && typeof selectedBoard.board.boardId === "string" ? selectedBoard.board.boardId : null;
+    return parseAuthorizedConnectionProjectionV1(value.connection, requestId, boardId, "pairing") !== null;
+  }
+  if (value.connection !== null) return false;
+  if (value.state === "credential_missing")
+    return value.config.hasToken === false && value.lastErrorCode === null;
+  if (value.state === "credential_invalid")
+    return value.config.hasToken === false && value.lastErrorCode === "UNAUTHENTICATED";
+  return value.state === "backend_unavailable" && (value.lastErrorCode === "BOARD_MCP_TIMEOUT" || value.lastErrorCode === "BOARD_MCP_TRANSPORT_ERROR" || value.lastErrorCode === "BOARD_MCP_RESPONSE_INVALID");
+};
+var exactRenameResultV1 = (value) => {
+  if (!exactKeysV1(value, ["boardId", "title", "updatedAt"]) || typeof value.boardId !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(value.boardId) || typeof value.title !== "string" || [...value.title].length < 1 || [...value.title].length > 200 || /[\u0000-\u001f\u007f-\u009f\uD800-\uDFFF]/u.test(value.title))
+    return false;
+  return canonicalTimestampV1(value.updatedAt);
+};
 var toolOutputSchemaV1 = (tool, reachableCodes) => {
   const upstreamCode = external_exports.enum(reachableCodes);
   const value = (code) => external_exports.object({ code }).passthrough();
@@ -37709,6 +38115,24 @@ var toolOutputSchemaV1 = (tool, reachableCodes) => {
           path: ["result", "requestId"],
           message: "request IDs must match"
         });
+      }
+      if (tool === "board_connection_status") {
+        if (!exactConnectionStatusResultV1(output.result, output.requestId) || output.metadata !== null)
+          context.addIssue({
+            code: external_exports.ZodIssueCode.custom,
+            path: ["result"],
+            message: "connection status result is invalid"
+          });
+        return;
+      }
+      if (tool === "board_rename") {
+        if (!exactRenameResultV1(output.result) || output.metadata !== null)
+          context.addIssue({
+            code: external_exports.ZodIssueCode.custom,
+            path: ["result"],
+            message: "board rename result is invalid"
+          });
+        return;
       }
       if (tool === "board_export") {
         if (Object.keys(output.result).sort().join("\0") !== ["bytes", "fileName", "format"].join("\0") || output.result.format !== "pdf" && output.result.format !== "pptx" || !Number.isSafeInteger(output.result.bytes) || output.result.bytes < 1 || output.result.bytes > 536870912 || typeof output.result.fileName !== "string" || output.result.fileName.length < 1 || output.result.fileName.length > 120 || /[/\\]/u.test(output.result.fileName) || output.metadata !== null)
@@ -38008,6 +38432,7 @@ var mismatch = (tool, requestId, commandType) => toolFailureV1(tool, requestId, 
   }
 });
 var disconnected = (tool, requestId) => toolFailureV1(tool, requestId, "mcp", notConnectedV1());
+var isCallToolResult = (value) => value !== null && typeof value === "object" && !("ok" in value) && "content" in value && Array.isArray(value.content);
 var DocumentToolHandlersV2 = class {
   constructor(gateway) {
     this.gateway = gateway;
@@ -38019,7 +38444,10 @@ var DocumentToolHandlersV2 = class {
     const result = parsed.data.revisionId === null ? await this.gateway.call(
       "board_document_get",
       ["board.get"],
-      { signal },
+      {
+        signal,
+        authorization: { boardId: parsed.data.boardId, operation: "board.get" }
+      },
       (client, _snapshot, operationSignal) => client.getDocumentBoard(
         {
           protocolVersion: 1,
@@ -38032,7 +38460,10 @@ var DocumentToolHandlersV2 = class {
     ) : await this.gateway.call(
       "board_document_get",
       ["history.get"],
-      { signal },
+      {
+        signal,
+        authorization: { boardId: parsed.data.boardId, operation: "history.get" }
+      },
       (client, _snapshot, operationSignal) => client.getDocumentHistory(
         {
           protocolVersion: 1,
@@ -38135,75 +38566,76 @@ var DocumentToolHandlersV2 = class {
     const parsed = schema.safeParse(raw);
     if (!parsed.success) return validationFailureV1(tool, requestId, parsed.error);
     const value = parsed.data;
-    const head = await this.gateway.call(
-      tool,
-      ["board.get", "document.replace"],
-      { signal },
-      (client, _snapshot, operationSignal) => client.getDocumentBoard(
-        {
-          protocolVersion: 1,
-          requestId,
-          type: "board.get",
-          boardId: value.boardId
-        },
-        operationSignal
-      )
-    );
-    if (!head.connected) return disconnected(tool, requestId);
-    if (!head.value.ok) return sdkToolResultV1(tool, requestId, head.value, null);
-    const nested = head.value.result.result;
-    if (nested.type !== "board.get") throw new Error("board.get result invariant failed");
-    if (!("document" in nested.snapshot)) return mismatch(tool, requestId, "document.replace");
-    if (nested.snapshot.revision.revisionId !== value.expectedRevisionId)
-      return toolFailureV1(tool, requestId, "board", {
-        protocolVersion: 1,
-        type: "board.error",
-        code: "REVISION_CONFLICT",
-        message: "Revision conflict",
-        category: "conflict",
-        retryable: false,
-        httpStatusHint: 409,
-        details: {
-          boardId: value.boardId,
-          expectedRevisionId: value.expectedRevisionId,
-          actualRevisionId: nested.snapshot.revision.revisionId,
-          actualRevisionNumber: nested.snapshot.revision.revisionNumber,
-          recovery: "fetch_latest_then_retry"
-        }
-      });
-    const source = BoardDocumentParserV2.parse(nested.snapshot.document);
-    if (!source.ok)
-      return toolFailureV1(
-        tool,
-        requestId,
-        "board",
-        source.error
-      );
-    const transformed = applyDocumentTransformV2(source.data.value, operation(value));
-    if (!transformed.ok)
-      return toolFailureV1(
-        tool,
-        requestId,
-        "board",
-        transformed.error
-      );
     const result = await this.gateway.call(
       tool,
       ["board.get", "document.replace"],
-      { signal },
-      (client, _snapshot, operationSignal) => client.mutateDocument(
-        {
-          protocolVersion: 1,
-          requestId,
-          boardId: value.boardId,
-          expectedRevisionId: value.expectedRevisionId,
-          idempotencyKey: value.idempotencyKey,
-          command: { type: "document.replace", document: transformed.data.value }
-        },
-        operationSignal
-      )
+      {
+        signal,
+        authorization: { boardId: value.boardId, operation: "document.replace" }
+      },
+      async (client, _snapshot, operationSignal) => {
+        const head = await client.getDocumentBoard(
+          {
+            protocolVersion: 1,
+            requestId,
+            type: "board.get",
+            boardId: value.boardId
+          },
+          operationSignal
+        );
+        if (!head.ok) return head;
+        const nested = head.result.result;
+        if (nested.type !== "board.get") throw new Error("board.get result invariant failed");
+        if (!("document" in nested.snapshot)) return mismatch(tool, requestId, "document.replace");
+        if (nested.snapshot.revision.revisionId !== value.expectedRevisionId)
+          return toolFailureV1(tool, requestId, "board", {
+            protocolVersion: 1,
+            type: "board.error",
+            code: "REVISION_CONFLICT",
+            message: "Revision conflict",
+            category: "conflict",
+            retryable: false,
+            httpStatusHint: 409,
+            details: {
+              boardId: value.boardId,
+              expectedRevisionId: value.expectedRevisionId,
+              actualRevisionId: nested.snapshot.revision.revisionId,
+              actualRevisionNumber: nested.snapshot.revision.revisionNumber,
+              recovery: "fetch_latest_then_retry"
+            }
+          });
+        const source = BoardDocumentParserV2.parse(nested.snapshot.document);
+        if (!source.ok)
+          return toolFailureV1(
+            tool,
+            requestId,
+            "board",
+            source.error
+          );
+        const transformed = applyDocumentTransformV2(source.data.value, operation(value));
+        if (!transformed.ok)
+          return toolFailureV1(
+            tool,
+            requestId,
+            "board",
+            transformed.error
+          );
+        return client.mutateDocument(
+          {
+            protocolVersion: 1,
+            requestId,
+            boardId: value.boardId,
+            expectedRevisionId: value.expectedRevisionId,
+            idempotencyKey: value.idempotencyKey,
+            command: { type: "document.replace", document: transformed.data.value }
+          },
+          operationSignal
+        );
+      }
     );
-    return result.connected ? sdkToolResultV1(tool, requestId, result.value, null) : disconnected(tool, requestId);
+    if (!result.connected) return disconnected(tool, requestId);
+    if (isCallToolResult(result.value)) return result.value;
+    return sdkToolResultV1(tool, requestId, result.value, null);
   }
 };
 
@@ -38386,7 +38818,10 @@ var BoardToolHandlersV1 = class {
     const result = await this.gateway.call(
       "board_get",
       "board.get",
-      { signal },
+      {
+        signal,
+        authorization: { boardId: parsed.data.boardId, operation: "board.get" }
+      },
       (client, _snapshot, operationSignal) => client.getBoard(
         {
           protocolVersion: 1,
@@ -38452,7 +38887,10 @@ var BoardToolHandlersV1 = class {
     const result = await this.gateway.call(
       "board_archive",
       "board.archive",
-      { signal },
+      {
+        signal,
+        authorization: { boardId: parsed.data.boardId, operation: "board.archive" }
+      },
       (client, _snapshot, operationSignal) => client.archiveBoard(
         {
           protocolVersion: 1,
@@ -38474,7 +38912,10 @@ var BoardToolHandlersV1 = class {
     const result = await this.gateway.call(
       "board_capabilities_get",
       "capabilities.get",
-      { signal },
+      {
+        signal,
+        authorization: { boardId: parsed.data.boardId, operation: "capabilities.get" }
+      },
       (client, _snapshot, operationSignal) => client.getCapabilities(
         {
           protocolVersion: 1,
@@ -38707,7 +39148,10 @@ var HistoryToolHandlersV1 = class {
     const result = await this.gateway.call(
       "board_history_list",
       "history.list",
-      { signal },
+      {
+        signal,
+        authorization: { boardId: parsed.data.boardId, operation: "history.list" }
+      },
       (client, _snapshot, operationSignal) => client.listHistory(
         {
           protocolVersion: 1,
@@ -38739,7 +39183,10 @@ var HistoryToolHandlersV1 = class {
     const result = await this.gateway.call(
       "board_history_get",
       "history.get",
-      { signal },
+      {
+        signal,
+        authorization: { boardId: parsed.data.boardId, operation: "history.get" }
+      },
       (client, _snapshot, operationSignal) => client.getHistory(
         {
           protocolVersion: 1,
@@ -38771,7 +39218,10 @@ var HistoryToolHandlersV1 = class {
     const result = await this.gateway.call(
       "board_history_restore",
       "scene.restore",
-      { signal },
+      {
+        signal,
+        authorization: { boardId: parsed.data.boardId, operation: "scene.restore" }
+      },
       (client, _snapshot, operationSignal) => client.restoreRevision(
         {
           protocolVersion: 1,
@@ -38861,6 +39311,7 @@ var ExportToolHandlersV1 = class {
         boardId: parsed.data.boardId,
         revisionId: parsed.data.revisionId,
         format: parsed.data.format,
+        publish: (artifact, operationSignal) => this.localFiles.publish(prepared.value, artifact, operationSignal),
         ...signal === void 0 ? {} : { signal }
       });
       if (!remote.connected)
@@ -38878,6 +39329,13 @@ var ExportToolHandlersV1 = class {
             "board",
             remote.value.error
           );
+        if (remote.value.source === "publication")
+          return toolFailureV1(
+            "board_export",
+            requestId,
+            "mcp",
+            remote.value.error
+          );
         return toolFailureV1(
           "board_export",
           requestId,
@@ -38885,18 +39343,10 @@ var ExportToolHandlersV1 = class {
           localTransportErrorV1(remote.value.error)
         );
       }
-      const published = await this.localFiles.publish(prepared.value, remote.value.value, signal);
-      if (!published.ok)
-        return toolFailureV1(
-          "board_export",
-          requestId,
-          "mcp",
-          published.error
-        );
       return toolSuccessV1(
         "board_export",
         requestId,
-        published.value,
+        remote.value.value,
         null
       );
     } finally {
@@ -39144,7 +39594,7 @@ import { randomBytes as randomBytes9 } from "node:crypto";
 // sceneboard-mcp/src/media/local-media-file.ts
 import { createHash as createHash4 } from "node:crypto";
 import { constants as constants5 } from "node:fs";
-import { lstat as lstat6, open as open4 } from "node:fs/promises";
+import { lstat as lstat4, open as open5 } from "node:fs/promises";
 import { isAbsolute as isAbsolute4, normalize as normalize2, parse as parse4, sep } from "node:path";
 var LOCAL_MEDIA_MAX_BYTES_V1 = 10485760;
 var identity = (stat) => ({
@@ -39175,7 +39625,7 @@ var captureLocalMediaFileV1 = async (path) => {
   let bytes = null;
   let retained = false;
   try {
-    handle = await open4(path, constants5.O_RDONLY | constants5.O_NOFOLLOW | constants5.O_NONBLOCK);
+    handle = await open5(path, constants5.O_RDONLY | constants5.O_NOFOLLOW | constants5.O_NONBLOCK);
     const before = await handle.stat({ bigint: true });
     if (!before.isFile()) return changed();
     if (before.size < 1n) return changed();
@@ -39201,7 +39651,7 @@ var captureLocalMediaFileV1 = async (path) => {
     if (mime === null) return { ok: false, code: "LOCAL_MEDIA_UNSUPPORTED" };
     const digest = createHash4("sha256").update(bytes).digest();
     const afterDescriptor = await handle.stat({ bigint: true });
-    const afterPath = await lstat6(path, { bigint: true });
+    const afterPath = await lstat4(path, { bigint: true });
     if (!afterDescriptor.isFile() || !afterPath.isFile() || afterPath.isSymbolicLink() || !sameIdentity(first, identity(afterDescriptor)) || !sameIdentity(first, identity(afterPath)))
       return changed();
     retained = true;
@@ -39951,6 +40401,7 @@ var documentMismatch = (tool, requestId) => toolFailureV1(tool, requestId, "boar
     commandType: "scene.replace"
   }
 });
+var isCallToolResult2 = (value) => value !== null && typeof value === "object" && !("ok" in value) && "content" in value && Array.isArray(value.content);
 var SceneToolHandlersV1 = class {
   constructor(gateway) {
     this.gateway = gateway;
@@ -39963,7 +40414,10 @@ var SceneToolHandlersV1 = class {
       const result2 = await this.gateway.call(
         "board_scene_get",
         ["board.get"],
-        { signal },
+        {
+          signal,
+          authorization: { boardId: parsed.data.boardId, operation: "board.get" }
+        },
         (client, _snapshot, operationSignal) => client.getBoard(
           {
             protocolVersion: 1,
@@ -39986,7 +40440,10 @@ var SceneToolHandlersV1 = class {
     const result = await this.gateway.call(
       "board_scene_get",
       ["history.get"],
-      { signal },
+      {
+        signal,
+        authorization: { boardId: parsed.data.boardId, operation: "history.get" }
+      },
       (client, _snapshot, operationSignal) => client.getHistory(
         {
           protocolVersion: 1,
@@ -40027,7 +40484,10 @@ var SceneToolHandlersV1 = class {
     const result = await this.gateway.call(
       "board_scene_replace",
       "scene.replace",
-      { signal },
+      {
+        signal,
+        authorization: { boardId: parsed.data.boardId, operation: "scene.replace" }
+      },
       (client, _snapshot, operationSignal) => client.mutateBoard(
         {
           protocolVersion: 1,
@@ -40051,66 +40511,69 @@ var SceneToolHandlersV1 = class {
     const requestId = createRequestIdV1();
     const parsed = ScenePatchInputSchemaV1.safeParse(raw);
     if (!parsed.success) return validationFailureV1("board_scene_patch", requestId, parsed.error);
-    const head = await this.gateway.call(
+    let transformedFromRevisionId = null;
+    const result = await this.gateway.call(
       "board_scene_patch",
       ["board.get", "scene.replace"],
-      { signal },
-      (client, _snapshot, operationSignal) => client.getBoard(
-        {
-          protocolVersion: 1,
-          requestId,
-          type: "board.get",
-          boardId: parsed.data.boardId
-        },
-        operationSignal
-      )
+      {
+        signal,
+        authorization: { boardId: parsed.data.boardId, operation: "scene.replace" }
+      },
+      async (client, _snapshot, operationSignal) => {
+        const head = await client.getBoard(
+          {
+            protocolVersion: 1,
+            requestId,
+            type: "board.get",
+            boardId: parsed.data.boardId
+          },
+          operationSignal
+        );
+        if (!head.ok) return head;
+        const snapshot = head.result.result;
+        if (snapshot.type !== "board.get") throw new Error("board.get result invariant failed");
+        if ("document" in snapshot.snapshot)
+          return documentMismatch("board_scene_patch", requestId);
+        const transformed = applySceneTransformV1(
+          snapshot.snapshot.scene,
+          parsed.data.operations
+        );
+        if (!transformed.ok)
+          return toolFailureV1(
+            "board_scene_patch",
+            requestId,
+            "board",
+            transformed.error
+          );
+        transformedFromRevisionId = snapshot.snapshot.revision.revisionId;
+        return client.mutateBoard(
+          {
+            protocolVersion: 1,
+            requestId,
+            boardId: parsed.data.boardId,
+            expectedRevisionId: parsed.data.expectedRevisionId,
+            idempotencyKey: parsed.data.idempotencyKey,
+            command: { type: "scene.replace", scene: transformed.data.value }
+          },
+          operationSignal
+        );
+      }
     );
-    if (!head.connected)
+    if (!result.connected)
       return toolFailureV1(
         "board_scene_patch",
         requestId,
         "mcp",
         notConnectedV1()
       );
-    if (!head.value.ok) return sdkToolResultV1("board_scene_patch", requestId, head.value, null);
-    const snapshot = head.value.result.result;
-    if (snapshot.type !== "board.get") throw new Error("board.get result invariant failed");
-    if ("document" in snapshot.snapshot) return documentMismatch("board_scene_patch", requestId);
-    const transformed = applySceneTransformV1(
-      snapshot.snapshot.scene,
-      parsed.data.operations
-    );
-    if (!transformed.ok)
-      return toolFailureV1(
-        "board_scene_patch",
-        requestId,
-        "board",
-        transformed.error
-      );
-    const result = await this.gateway.call(
-      "board_scene_patch",
-      ["board.get", "scene.replace"],
-      { signal },
-      (client, _snapshot, operationSignal) => client.mutateBoard(
-        {
-          protocolVersion: 1,
-          requestId,
-          boardId: parsed.data.boardId,
-          expectedRevisionId: parsed.data.expectedRevisionId,
-          idempotencyKey: parsed.data.idempotencyKey,
-          command: { type: "scene.replace", scene: transformed.data.value }
-        },
-        operationSignal
-      )
-    );
-    return result.connected ? sdkToolResultV1("board_scene_patch", requestId, result.value, {
-      type: "scene-transform",
-      transformedFromRevisionId: snapshot.snapshot.revision.revisionId
-    }) : toolFailureV1(
+    if (isCallToolResult2(result.value)) return result.value;
+    if (result.value.ok && transformedFromRevisionId === null)
+      throw new Error("scene transform metadata invariant failed");
+    return sdkToolResultV1(
       "board_scene_patch",
       requestId,
-      "mcp",
-      notConnectedV1()
+      result.value,
+      result.value.ok ? { type: "scene-transform", transformedFromRevisionId } : null
     );
   }
   async clear(raw, signal) {
@@ -40120,7 +40583,10 @@ var SceneToolHandlersV1 = class {
     const result = await this.gateway.call(
       "board_scene_clear",
       "scene.clear",
-      { signal },
+      {
+        signal,
+        authorization: { boardId: parsed.data.boardId, operation: "scene.clear" }
+      },
       (client, _snapshot, operationSignal) => client.mutateBoard(
         {
           protocolVersion: 1,
@@ -40696,7 +41162,7 @@ var registerCoreToolsV1 = (server, options) => {
         }
         const structured = result.structuredContent;
         const error3 = structured?.error;
-        if (error3?.source === "board" && error3.value?.code === "UNAUTHENTICATED")
+        if (error3?.source === "board" && (error3.value?.code === "UNAUTHENTICATED" || error3.value?.code === "EXPORT_UNAUTHENTICATED"))
           setProtectedEnabled(false);
         return result;
       }

@@ -61,7 +61,7 @@ test('issues one key with the exact board-read default and safe metadata outcome
     accountApiKeyIssuanceEnabled: true,
     accountApiKeyAuthEnabled: true,
   });
-  const result = await service.issue({ actor, name: 'Automation', now });
+  const result = await service.issue({ actor, name: 'Automation', expiresInDays: 90, now });
   assert.equal(observedMask, 4);
   assert.deepEqual(Object.keys(result.metadata), [
     'apiKeyId',
@@ -77,18 +77,17 @@ test('issues one key with the exact board-read default and safe metadata outcome
   assert.equal(result.apiKey.length, 73);
 });
 
-test('forwards requested expiry and delegates the default to the database transaction', async () => {
-  const expiries: Array<number | undefined> = [];
+test('forwards every exact expiry duration to the database transaction', async () => {
+  const durations: number[] = [];
   const crypto = cryptoService();
   const repository = {
     issue: async (input: {
       keyPublicId: string;
       prefix: string;
-      expiresAt: number | undefined;
+      expiresInDays: number;
       name: string;
     }) => {
-      expiries.push(input.expiresAt);
-      const effectiveExpiry = input.expiresAt ?? now + 90 * 86_400_000;
+      durations.push(input.expiresInDays);
       return {
         kind: 'created' as const,
         metadata: {
@@ -98,7 +97,7 @@ test('forwards requested expiry and delegates the default to the database transa
           scopes: ['board:read'] as const,
           status: 'active' as const,
           createdAt: new Date(now).toISOString(),
-          expiresAt: new Date(effectiveExpiry).toISOString(),
+          expiresAt: new Date(now + input.expiresInDays * 86_400_000).toISOString(),
           lastUsedAt: null,
         },
       };
@@ -111,20 +110,20 @@ test('forwards requested expiry and delegates the default to the database transa
     { consume: async () => undefined } as never,
     { accountApiKeyIssuanceEnabled: true, accountApiKeyAuthEnabled: true },
   );
-  await service.issue({ actor, name: 'One day', expiresAt: now + 86_400_000, now });
-  await service.issue({ actor, name: 'Default', now });
-  await service.issue({ actor, name: 'One year', expiresAt: now + 365 * 86_400_000, now });
-  assert.deepEqual(expiries, [now + 86_400_000, undefined, now + 365 * 86_400_000]);
+  for (const expiresInDays of [30, 90, 365]) {
+    await service.issue({ actor, name: `${expiresInDays} days`, expiresInDays, now });
+  }
+  assert.deepEqual(durations, [30, 90, 365]);
 });
 
-test('maps database-clock expiry validation to the public invalid-payload contract', async () => {
+test('rejects missing, fractional, and out-of-contract expiry durations before persistence', async () => {
   const crypto = cryptoService();
-  let expiresAt: number | undefined;
+  let repositoryCalls = 0;
   const service = new AccountApiKeyService(
     {
-      issue: async (input: { expiresAt: number | undefined }) => {
-        expiresAt = input.expiresAt;
-        return { kind: 'invalid_expiry' as const };
+      issue: async () => {
+        repositoryCalls += 1;
+        throw new Error('invalid duration reached persistence');
       },
     } as never,
     new AccountApiKeyTokenCodec(crypto),
@@ -132,11 +131,42 @@ test('maps database-clock expiry validation to the public invalid-payload contra
     { consume: async () => undefined } as never,
     { accountApiKeyIssuanceEnabled: true, accountApiKeyAuthEnabled: true },
   );
-  await assert.rejects(
-    service.issue({ actor, name: 'Database clock bound', expiresAt: now + 86_400_000, now: 0 }),
-    (error: unknown) => error instanceof AppError && error.code === 'INVALID_PAYLOAD',
-  );
-  assert.equal(expiresAt, now + 86_400_000);
+  for (const expiresInDays of [undefined, 29, 30.5, 366]) {
+    await assert.rejects(
+      service.issue({ actor, name: 'Invalid duration', expiresInDays, now } as never),
+      (error: unknown) => error instanceof AppError && error.code === 'INVALID_PAYLOAD',
+    );
+  }
+  assert.equal(repositoryCalls, 0);
+});
+
+test('maps quota expiry metadata to a positive ceiling Retry-After delay', async () => {
+  for (const { remainingMs, retryAfterSeconds } of [
+    { remainingMs: 1, retryAfterSeconds: 1 },
+    { remainingMs: 1_001, retryAfterSeconds: 2 },
+  ]) {
+    const crypto = cryptoService();
+    const service = new AccountApiKeyService(
+      {
+        issue: async () => ({
+          kind: 'quota_exceeded' as const,
+          earliestActiveExpiry: now + remainingMs,
+          databaseNow: now,
+        }),
+      } as never,
+      new AccountApiKeyTokenCodec(crypto),
+      crypto,
+      { consume: async () => undefined } as never,
+      { accountApiKeyIssuanceEnabled: true, accountApiKeyAuthEnabled: true },
+    );
+    await assert.rejects(
+      service.issue({ actor, name: 'Quota', expiresInDays: 90, now }),
+      (error: unknown) =>
+        error instanceof AppError &&
+        error.code === 'RATE_LIMITED' &&
+        error.retryAfterSeconds === retryAfterSeconds,
+    );
+  }
 });
 
 test('applies account then IP management limits with the frozen tuples', async () => {
@@ -691,7 +721,7 @@ test('keeps issuance and authentication kill switches closed without touching cr
     { accountApiKeyIssuanceEnabled: false, accountApiKeyAuthEnabled: false },
   );
   await assert.rejects(
-    service.issue({ actor, name: 'Disabled', now }),
+    service.issue({ actor, name: 'Disabled', expiresInDays: 90, now }),
     (error: unknown) => error instanceof AppError && error.code === 'SERVICE_UNAVAILABLE',
   );
   await assert.rejects(
@@ -716,7 +746,7 @@ test('keeps raw tokens out of persistence, audit, and mark-used failure signals'
       keyPublicId: string;
       name: string;
       prefix: string;
-      expiresAt: number | undefined;
+      expiresInDays: number;
       scopeMask: number;
       tokenHash: Buffer;
     }) => {
@@ -730,7 +760,7 @@ test('keeps raw tokens out of persistence, audit, and mark-used failure signals'
           scopes: ['board:read'] as const,
           status: 'active' as const,
           createdAt: new Date(now).toISOString(),
-          expiresAt: new Date(input.expiresAt ?? now + 90 * 86_400_000).toISOString(),
+          expiresAt: new Date(now + input.expiresInDays * 86_400_000).toISOString(),
           lastUsedAt: null,
         },
       };
@@ -761,7 +791,12 @@ test('keeps raw tokens out of persistence, audit, and mark-used failure signals'
     { accountApiKeyIssuanceEnabled: true, accountApiKeyAuthEnabled: true },
     { warn: (input: unknown) => void warnings.push(input) },
   );
-  const { apiKey: rawToken } = await service.issue({ actor, name: 'Canary', now });
+  const { apiKey: rawToken } = await service.issue({
+    actor,
+    name: 'Canary',
+    expiresInDays: 90,
+    now,
+  });
   await service.resolveBearer(
     rawToken,
     { correlationId: 'correlation_canary', clientIp: '192.0.2.24' },
@@ -807,7 +842,7 @@ test('keeps raw tokens out of repository issue collision and rejection signals',
     );
     let failureSignal = '';
     await assert.rejects(
-      service.issue({ actor, name: `Canary ${failure}`, now }),
+      service.issue({ actor, name: `Canary ${failure}`, expiresInDays: 90, now }),
       (error: unknown) => {
         failureSignal = String(error);
         return (
@@ -855,10 +890,13 @@ test('keeps raw tokens out of mandatory issuance-audit rejection signals', async
     { warn: (input: unknown) => void warnings.push(input) },
   );
   let failureSignal = '';
-  await assert.rejects(service.issue({ actor, name: 'Canary audit', now }), (error: unknown) => {
-    failureSignal = String(error);
-    return error instanceof Error && error.message === 'simulated mandatory issuance audit failure';
-  });
+  await assert.rejects(
+    service.issue({ actor, name: 'Canary audit', expiresInDays: 90, now }),
+    (error: unknown) => {
+      failureSignal = String(error);
+      return error instanceof Error && error.message === 'simulated mandatory issuance audit failure';
+    },
+  );
   const sinks = JSON.stringify({ persisted, auditFailures, warnings, failureSignal });
   assert.equal(rawToken.length, 73);
   assert.equal(sinks.includes(rawToken), false);
@@ -926,5 +964,56 @@ test('normalizes an unknown or non-owned management revoke to the API-key 404', 
   await assert.rejects(
     service.revoke({ actor, keyPublicId: 'key_public_missing', now }),
     (error: unknown) => error instanceof AppError && error.code === 'API_KEY_NOT_FOUND',
+  );
+});
+
+test('returns active-owner list metadata and accepts an admitted idempotent revoke', async () => {
+  const metadata = {
+    apiKeyId: 'key_public_1',
+    name: 'Automation',
+    prefix: 'sbk_v1.AAAAAAAA…',
+    scopes: ['board:read'] as const,
+    status: 'active' as const,
+    createdAt: new Date(now).toISOString(),
+    expiresAt: new Date(now + 90 * 86_400_000).toISOString(),
+    lastUsedAt: null,
+  };
+  const service = new AccountApiKeyService(
+    {
+      list: async () => ({ kind: 'listed' as const, items: [metadata], nextBoundary: null }),
+      revoke: async () => ({ kind: 'already_revoked' as const }),
+    } as never,
+    new AccountApiKeyTokenCodec(cryptoService()),
+    cryptoService(),
+    { consume: async () => undefined } as never,
+    { accountApiKeyIssuanceEnabled: true, accountApiKeyAuthEnabled: true },
+  );
+
+  assert.deepEqual(await service.listMetadata({ actor, boundary: null, now }), {
+    items: [metadata],
+    nextBoundary: null,
+  });
+  await assert.doesNotReject(service.revoke({ actor, keyPublicId: 'key_public_1', now }));
+});
+
+test('maps transaction-time owner denial for list and revoke to unauthenticated', async () => {
+  const service = new AccountApiKeyService(
+    {
+      list: async () => ({ kind: 'owner_disabled' as const }),
+      revoke: async () => ({ kind: 'owner_disabled' as const }),
+    } as never,
+    new AccountApiKeyTokenCodec(cryptoService()),
+    cryptoService(),
+    { consume: async () => undefined } as never,
+    { accountApiKeyIssuanceEnabled: true, accountApiKeyAuthEnabled: true },
+  );
+
+  await assert.rejects(
+    service.listMetadata({ actor, boundary: null, now }),
+    (error: unknown) => error instanceof AppError && error.code === 'UNAUTHENTICATED',
+  );
+  await assert.rejects(
+    service.revoke({ actor, keyPublicId: 'key_public_1', now }),
+    (error: unknown) => error instanceof AppError && error.code === 'UNAUTHENTICATED',
   );
 });

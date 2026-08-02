@@ -5,6 +5,67 @@ import { join, resolve } from 'node:path';
 export const PRODUCTION_API_URL = 'https://sceneboard.dev';
 export const SERVER_NAME = 'sceneboard';
 
+const ACCOUNT_API_KEY_PATTERN = /^sbk_v1\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$/u;
+const RESERVED_API_KEY_NAME = 'SCENEBOARD_API_KEY';
+const CODEX_RESOLVER_ENVIRONMENT_NAMES = new Set([
+  'APPDATA',
+  'CODEX_HOME',
+  'COMSPEC',
+  'HOME',
+  'LANG',
+  'LANGUAGE',
+  'LC_ALL',
+  'LOCALAPPDATA',
+  'PATH',
+  'PATHEXT',
+  'SYSTEMROOT',
+  'TEMP',
+  'TMP',
+  'TMPDIR',
+  'USERPROFILE',
+  'WINDIR',
+  'XDG_CONFIG_HOME',
+]);
+const CONFIG_RESOLUTION_FAILURE_CODES_V1 = new Set([
+  'disabled_sceneboard_codex_config',
+  'invalid_sceneboard_codex_args',
+  'invalid_sceneboard_codex_command',
+  'invalid_sceneboard_codex_config',
+  'invalid_sceneboard_codex_cwd',
+  'invalid_sceneboard_codex_env',
+  'invalid_sceneboard_codex_env_vars',
+  'invalid_sceneboard_codex_json',
+  'invalid_sceneboard_codex_raw_api_key',
+  'invalid_sceneboard_codex_server',
+  'invalid_sceneboard_credential_mode',
+  'invalid_sceneboard_production_api_url',
+  'invalid_sceneboard_profile',
+  'invalid_sceneboard_project_args',
+  'invalid_sceneboard_project_command',
+  'invalid_sceneboard_project_config',
+  'invalid_sceneboard_project_config_file',
+  'invalid_sceneboard_project_config_size',
+  'invalid_sceneboard_project_cwd',
+  'invalid_sceneboard_project_env',
+  'invalid_sceneboard_project_env_vars',
+  'invalid_sceneboard_project_json',
+  'invalid_sceneboard_project_raw_api_key',
+  'invalid_sceneboard_project_server',
+  'recursive_sceneboard_launcher',
+  'sceneboard_project_config_read_failed',
+  'sceneboard_project_config_stat_failed',
+  'unsupported_sceneboard_codex_transport',
+  'unsupported_sceneboard_project_transport',
+]);
+
+export const configResolutionFailureCodeV1 = (failure) =>
+  failure instanceof Error && CONFIG_RESOLUTION_FAILURE_CODES_V1.has(failure.message)
+    ? failure.message
+    : 'config_resolution_failed';
+
+export const sceneBoardLaunchFailureLineV1 = (code) =>
+  `${JSON.stringify({ event: 'sceneboard_mcp_launch_failed', code, setupUrl: 'https://sceneboard.dev/integrations/codex' })}\n`;
+
 const isRecord = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 
 const stringArray = (value, field) => {
@@ -37,19 +98,29 @@ const normalizeStdioServer = (value, source, environment = {}) => {
   }
   const args = stringArray(value.args, `${source}_args`);
   const envVars = stringArray(value.env_vars, `${source}_env_vars`);
+  const env = stringRecord(value.env, `${source}_env`);
   if (envVars.some((name) => !/^[A-Za-z_][A-Za-z0-9_]*$/u.test(name))) {
     throw new TypeError(`invalid_sceneboard_${source}_env_vars`);
   }
-  if (isRecursiveLauncher(value.command, args)) return null;
+  if (Object.keys(env).some((name) => name.toUpperCase() === RESERVED_API_KEY_NAME)) {
+    throw new TypeError(`invalid_sceneboard_${source}_raw_api_key`);
+  }
+  if (Object.values(env).some((entry) => ACCOUNT_API_KEY_PATTERN.test(entry))) {
+    throw new TypeError(`invalid_sceneboard_${source}_raw_api_key`);
+  }
+  const recursive = isRecursiveLauncher(value.command, args);
+  if (!recursive && envVars.some((name) => name.toUpperCase() === RESERVED_API_KEY_NAME)) {
+    throw new TypeError(`invalid_sceneboard_${source}_raw_api_key`);
+  }
+  if (recursive) return null;
   if (value.cwd !== undefined && value.cwd !== null && typeof value.cwd !== 'string') {
     throw new TypeError(`invalid_sceneboard_${source}_cwd`);
   }
-  const env = stringRecord(value.env, `${source}_env`);
-  if (Object.hasOwn(env, 'SCENEBOARD_API_KEY')) {
-    throw new TypeError(`invalid_sceneboard_${source}_raw_api_key`);
-  }
   for (const name of envVars) {
     if (typeof environment[name] === 'string') env[name] = environment[name];
+  }
+  if (Object.values(env).some((entry) => ACCOUNT_API_KEY_PATTERN.test(entry))) {
+    throw new TypeError(`invalid_sceneboard_${source}_raw_api_key`);
   }
   return {
     command: value.command,
@@ -67,18 +138,35 @@ const parseJson = (text, source) => {
   }
 };
 
+const codexResolverEnvironment = (environment) => {
+  const resolverEnvironment = {};
+  for (const [name, value] of Object.entries(environment)) {
+    const canonicalName = name.toUpperCase();
+    if (
+      typeof value === 'string' &&
+      (CODEX_RESOLVER_ENVIRONMENT_NAMES.has(canonicalName) ||
+        /^LC_[A-Z0-9_]+$/u.test(canonicalName)) &&
+      !ACCOUNT_API_KEY_PATTERN.test(value)
+    ) {
+      resolverEnvironment[name] = value;
+    }
+  }
+  return resolverEnvironment;
+};
+
 export const readProjectRootServer = async ({
   projectRoot,
   environment = process.env,
   read = readFile,
+  stat = lstat,
 }) => {
   const configPath = join(projectRoot, '.mcp.json');
   let metadata;
   try {
-    metadata = await lstat(configPath);
+    metadata = await stat(configPath);
   } catch (error) {
     if (error?.code === 'ENOENT') return null;
-    throw error;
+    throw new TypeError('sceneboard_project_config_stat_failed');
   }
   if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size > 1024 * 1024) {
     throw new TypeError('invalid_sceneboard_project_config_file');
@@ -88,7 +176,7 @@ export const readProjectRootServer = async ({
     text = await read(configPath, 'utf8');
   } catch (error) {
     if (error?.code === 'ENOENT') return null;
-    throw error;
+    throw new TypeError('sceneboard_project_config_read_failed');
   }
   if (Buffer.byteLength(text, 'utf8') > 1024 * 1024)
     throw new TypeError('invalid_sceneboard_project_config_size');
@@ -101,10 +189,11 @@ export const readProjectRootServer = async ({
 };
 
 export const readCodexServer = ({ projectRoot, environment = process.env, run = spawnSync }) => {
-  const result = run(environment.CODEX_BINARY ?? 'codex', ['mcp', 'get', SERVER_NAME, '--json'], {
+  const executable = environment.CODEX_BINARY ?? 'codex';
+  const result = run(executable, ['mcp', 'get', SERVER_NAME, '--json'], {
     cwd: projectRoot,
     encoding: 'utf8',
-    env: environment,
+    env: codexResolverEnvironment(environment),
     maxBuffer: 1024 * 1024,
   });
   if (result.error || result.status !== 0 || typeof result.stdout !== 'string') return null;
@@ -138,7 +227,7 @@ export const productionServer = ({
   }
   const accessTokenRef =
     environment.BOARD_ACCESS_TOKEN_REF ??
-    (credentialMode === 'api_key' ? 'env://SCENEBOARD_API_KEY' : 'store://sceneboard');
+    (credentialMode === 'api_key' ? 'env://SCENEBOARD_API_KEY' : `store://${profile}`);
   return {
     source: 'production_default',
     server: {

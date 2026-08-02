@@ -231,3 +231,35 @@ test('a valid cursor bound to another board selects a fresh authorized-board sna
   assert.equal(authorizationReads, 1);
   assert.equal(cut.frames[0]?.envelope.data.type, 'board.snapshot');
 });
+
+test('fresh and reconnect cuts both delegate negotiated checkpoint reads to board get', async () => {
+  const snapshot = snapshotFixture();
+  const codec = new SseCursorCodec(new RedisStreamKeyspace(Buffer.alloc(32, 15)));
+  const calls: Array<{ boardId: BoardId; documentSchemaVersion: number | undefined }> = [];
+  const boards = {
+    get: async (input: { boardId: BoardId; documentSchemaVersion?: number }) => {
+      calls.push({ boardId: input.boardId, documentSchemaVersion: input.documentSchemaVersion });
+      return { result: { type: 'board.get', snapshot } };
+    },
+  };
+  const service = new BoardStreamCutService(
+    boards as never,
+    { listContiguousEvents: async () => [] } as never,
+    codec,
+    { generatePublicIdV1: () => 'request_1' } as never,
+  );
+  await service.prepare(principal as never, snapshot.boardId, null, 2);
+  const reconnectCursor = codec.encode({
+    v: 1,
+    k: 'snapshot',
+    b: snapshot.boardId,
+    s: snapshot.lastEventSequence,
+    e: 'sse_snapshot_AAAAAAAAAAAAAAAAAAAAAA' as EventId,
+    t: new Date().toISOString() as never,
+  });
+  await service.prepare(principal as never, snapshot.boardId, reconnectCursor, 3);
+  assert.deepEqual(calls, [
+    { boardId: snapshot.boardId, documentSchemaVersion: 2 },
+    { boardId: snapshot.boardId, documentSchemaVersion: 3 },
+  ]);
+});

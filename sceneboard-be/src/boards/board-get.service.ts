@@ -42,12 +42,12 @@ interface BoardHeadRow extends RowDataPacket {
   previousRevisionId: Buffer | null;
   sourceRevisionId: Buffer | null;
   originCode: string;
-  sceneSchemaVersion: string;
-  sceneCodec: string;
-  scenePayload: Buffer;
-  sceneCanonicalBytes: number;
-  sceneStoredBytes: number;
-  sceneSha256: Buffer;
+  sceneSchemaVersion: string | null;
+  sceneCodec: string | null;
+  scenePayload: Buffer | null;
+  sceneCanonicalBytes: number | null;
+  sceneStoredBytes: number | null;
+  sceneSha256: Buffer | null;
   actorKind: string;
   actorPrincipalId: string;
   revisionCreatedAt: string;
@@ -174,6 +174,18 @@ export class BoardGetService {
         if (boardId !== input.boardId) throw new BoardPersistenceError('row_integrity');
         const revisionNumber = safePositive(row.revisionNumber);
         const lastEventSequence = safePositive(row.lastEventSequence);
+        if (
+          typeof row.sceneSchemaVersion !== 'string' ||
+          typeof row.sceneCodec !== 'string' ||
+          !Buffer.isBuffer(row.scenePayload) ||
+          typeof row.sceneCanonicalBytes !== 'number' ||
+          !Number.isSafeInteger(row.sceneCanonicalBytes) ||
+          typeof row.sceneStoredBytes !== 'number' ||
+          !Number.isSafeInteger(row.sceneStoredBytes) ||
+          !Buffer.isBuffer(row.sceneSha256)
+        ) {
+          throw new BoardPersistenceError('row_integrity');
+        }
         const checkpoint = await this.checkpoints.decode({
           schemaVersion: row.sceneSchemaVersion,
           codec: row.sceneCodec,
@@ -310,12 +322,18 @@ export class BoardGetService {
         previous.revision_id AS previousRevisionId,
         source.revision_id AS sourceRevisionId,
         r.origin_code AS originCode,
-        r.scene_schema_version AS sceneSchemaVersion,
-        r.scene_codec AS sceneCodec,
-        r.scene_payload AS scenePayload,
-        r.scene_canonical_bytes AS sceneCanonicalBytes,
-        r.scene_stored_bytes AS sceneStoredBytes,
-        r.scene_sha256 AS sceneSha256,
+        CASE WHEN p.revision_pk IS NOT NULL
+          THEN p.schema_version ELSE r.scene_schema_version END AS sceneSchemaVersion,
+        CASE WHEN p.revision_pk IS NOT NULL
+          THEN p.codec ELSE r.scene_codec END AS sceneCodec,
+        CASE WHEN p.revision_pk IS NOT NULL
+          THEN p.payload ELSE r.scene_payload END AS scenePayload,
+        CASE WHEN p.revision_pk IS NOT NULL
+          THEN p.canonical_bytes ELSE r.scene_canonical_bytes END AS sceneCanonicalBytes,
+        CASE WHEN p.revision_pk IS NOT NULL
+          THEN p.stored_bytes ELSE r.scene_stored_bytes END AS sceneStoredBytes,
+        CASE WHEN p.revision_pk IS NOT NULL
+          THEN p.payload_sha256 ELSE r.scene_sha256 END AS sceneSha256,
         r.actor_kind AS actorKind,
         r.actor_principal_id AS actorPrincipalId,
         r.created_at AS revisionCreatedAt,
@@ -325,6 +343,8 @@ export class BoardGetService {
       JOIN board_revisions r
         ON r.board_pk = h.board_pk AND r.revision_pk = h.head_revision_pk
           AND r.revision_number = h.head_revision_number
+      LEFT JOIN board_revision_payloads p
+        ON p.revision_pk = r.revision_pk AND p.state = 'available'
       LEFT JOIN board_revisions previous
         ON previous.board_pk = r.board_pk AND previous.revision_pk = r.previous_revision_pk
       LEFT JOIN board_revisions source

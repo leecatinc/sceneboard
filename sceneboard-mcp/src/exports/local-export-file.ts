@@ -245,12 +245,15 @@ const signatureMatchesV1 = (format: LocalExportFormatV1, bytes: Buffer): boolean
 const writeWithBackpressureV1 = async (
   child: ChildProcessWithoutNullStreams,
   bytes: Buffer,
+  signal?: AbortSignal,
 ): Promise<void> => {
+  signal?.throwIfAborted();
   if (child.stdin.write(bytes)) return;
   await new Promise<void>((resolveDrain, reject) => {
     const cleanup = (): void => {
       child.stdin.off('drain', drained);
       child.stdin.off('error', failed);
+      signal?.removeEventListener('abort', aborted);
     };
     const drained = (): void => {
       cleanup();
@@ -260,8 +263,14 @@ const writeWithBackpressureV1 = async (
       cleanup();
       reject(streamError);
     };
+    const aborted = (): void => {
+      cleanup();
+      reject(signal?.reason);
+    };
     child.stdin.once('drain', drained);
     child.stdin.once('error', failed);
+    if (signal?.aborted) aborted();
+    else signal?.addEventListener('abort', aborted, { once: true });
   });
 };
 
@@ -270,37 +279,180 @@ const collectBoundedV1 = (
   stream: NodeJS.ReadableStream,
   limit: number,
   onOverflow: () => void,
+  signal?: AbortSignal,
 ): Promise<Buffer> =>
   new Promise((resolveBytes, reject) => {
     const chunks: Buffer[] = [];
     let size = 0;
-    stream.on('data', (chunk: Buffer | string) => {
+    const cleanup = (): void => {
+      stream.off('data', received);
+      stream.off('error', failed);
+      stream.off('end', ended);
+      child.off('error', failed);
+      signal?.removeEventListener('abort', aborted);
+    };
+    const failed = (streamError: Error): void => {
+      cleanup();
+      reject(streamError);
+    };
+    const ended = (): void => {
+      cleanup();
+      resolveBytes(Buffer.concat(chunks, size));
+    };
+    const aborted = (): void => {
+      cleanup();
+      reject(signal?.reason);
+    };
+    const received = (chunk: Buffer | string): void => {
       const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
       size += bytes.byteLength;
       if (size > limit) {
+        cleanup();
         onOverflow();
+        reject(new Error('local export helper output overflow'));
         return;
       }
       chunks.push(bytes);
-    });
-    stream.once('error', reject);
-    stream.once('end', () => resolveBytes(Buffer.concat(chunks, size)));
-    child.once('error', reject);
+    };
+    stream.on('data', received);
+    stream.once('error', failed);
+    stream.once('end', ended);
+    child.once('error', failed);
+    if (signal?.aborted) aborted();
+    else signal?.addEventListener('abort', aborted, { once: true });
   });
 
 const waitForExitV1 = (
   child: ChildProcessWithoutNullStreams,
+  signal?: AbortSignal,
 ): Promise<{ code: number | null; signal: NodeJS.Signals | null }> =>
   new Promise((resolveExit, reject) => {
-    child.once('error', reject);
-    child.once('exit', (code, signal) => resolveExit({ code, signal }));
+    const cleanup = (): void => {
+      child.off('error', failed);
+      child.off('exit', exited);
+      signal?.removeEventListener('abort', aborted);
+    };
+    const failed = (childError: Error): void => {
+      cleanup();
+      reject(childError);
+    };
+    const exited = (code: number | null, exitSignal: NodeJS.Signals | null): void => {
+      cleanup();
+      resolveExit({ code, signal: exitSignal });
+    };
+    const aborted = (): void => {
+      cleanup();
+      reject(signal?.reason);
+    };
+    child.once('error', failed);
+    child.once('exit', exited);
+    if (signal?.aborted) aborted();
+    else signal?.addEventListener('abort', aborted, { once: true });
   });
 
-const endWritableV1 = (stream: NodeJS.WritableStream, bytes: Buffer): Promise<void> =>
+const endWritableV1 = (
+  stream: NodeJS.WritableStream,
+  bytes: Buffer,
+  signal?: AbortSignal,
+): Promise<void> =>
   new Promise((resolveEnd, reject) => {
-    stream.once('error', reject);
-    stream.end(bytes, resolveEnd);
+    const cleanup = (): void => {
+      stream.removeListener('error', failed);
+      signal?.removeEventListener('abort', aborted);
+    };
+    const failed = (streamError: Error): void => {
+      cleanup();
+      reject(streamError);
+    };
+    const ended = (): void => {
+      cleanup();
+      resolveEnd();
+    };
+    const aborted = (): void => {
+      cleanup();
+      reject(signal?.reason);
+    };
+    stream.once('error', failed);
+    if (signal?.aborted) aborted();
+    else {
+      signal?.addEventListener('abort', aborted, { once: true });
+      stream.end(bytes, ended);
+    }
   });
+
+const readWithSignalV1 = async (
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  signal?: AbortSignal,
+): Promise<ReadableStreamReadResult<Uint8Array>> => {
+  signal?.throwIfAborted();
+  return new Promise((resolveRead, reject) => {
+    const cleanup = (): void => signal?.removeEventListener('abort', aborted);
+    const aborted = (): void => {
+      cleanup();
+      reject(signal?.reason);
+    };
+    reader.read().then(
+      (value) => {
+        cleanup();
+        if (signal?.aborted) reject(signal.reason);
+        else resolveRead(value);
+      },
+      (readError: unknown) => {
+        cleanup();
+        reject(readError);
+      },
+    );
+    signal?.addEventListener('abort', aborted, { once: true });
+  });
+};
+
+const cancelReaderBestEffortV1 = (reader: ReadableStreamDefaultReader<Uint8Array>): void => {
+  void reader.cancel().catch(() => undefined);
+};
+
+const destroyStreamV1 = (stream: NodeJS.ReadableStream | NodeJS.WritableStream | null): void => {
+  if (stream !== null && 'destroy' in stream && typeof stream.destroy === 'function')
+    stream.destroy();
+};
+
+const waitForChildExitBoundedV1 = async (
+  child: ChildProcessWithoutNullStreams,
+  timeoutMs: number,
+): Promise<boolean> => {
+  if (child.exitCode !== null || child.signalCode !== null) return true;
+  return new Promise<boolean>((resolveExit) => {
+    const cleanup = (): void => {
+      clearTimeout(timer);
+      child.off('exit', exited);
+      child.off('error', exited);
+    };
+    const exited = (): void => {
+      cleanup();
+      resolveExit(true);
+    };
+    const timer = setTimeout(() => {
+      cleanup();
+      resolveExit(false);
+    }, timeoutMs);
+    child.once('exit', exited);
+    child.once('error', exited);
+  });
+};
+
+const terminateChildV1 = async (
+  child: ChildProcessWithoutNullStreams,
+  control: NodeJS.WritableStream | undefined,
+): Promise<void> => {
+  destroyStreamV1(control ?? null);
+  destroyStreamV1(child.stdin);
+  destroyStreamV1(child.stdout);
+  destroyStreamV1(child.stderr);
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  child.kill('SIGTERM');
+  if (await waitForChildExitBoundedV1(child, 250)) return;
+  child.kill('SIGKILL');
+  await waitForChildExitBoundedV1(child, 250);
+};
 
 export class LocalExportFileV1 {
   private readonly platform: NodeJS.Platform;
@@ -437,48 +589,48 @@ export class LocalExportFileV1 {
     } catch {
       return closed({ ok: false, error: error('LOCAL_EXPORT_CORRUPT') });
     }
-    const prefix: Buffer[] = [];
-    let prefixBytes = 0;
-    try {
-      while (prefixBytes < 5) {
-        if (signal?.aborted === true) {
-          await reader.cancel().catch(() => undefined);
-          reader.releaseLock();
-          return closed({ ok: false, error: error('LOCAL_EXPORT_CANCELLED') });
-        }
-        const next = await reader.read();
-        if (next.done) {
-          reader.releaseLock();
-          return closed({ ok: false, error: error('LOCAL_EXPORT_SHORT') });
-        }
-        const bytes = Buffer.from(next.value);
-        prefix.push(bytes);
-        prefixBytes += bytes.byteLength;
-      }
-    } catch {
-      await reader.cancel().catch(() => undefined);
-      reader.releaseLock();
-      return closed({
-        ok: false,
-        error: signal?.aborted === true ? error('LOCAL_EXPORT_CANCELLED') : transportErrorV1(),
-      });
-    }
-    const initial = Buffer.concat(prefix, prefixBytes);
-    if (!signatureMatchesV1(intent.format, initial)) {
-      await reader.cancel().catch(() => undefined);
-      reader.releaseLock();
-      return closed({ ok: false, error: error('LOCAL_EXPORT_CORRUPT') });
-    }
-
     let rootDescriptor = -1;
     let child: ChildProcessWithoutNullStreams | undefined;
+    let control: NodeJS.WritableStream | undefined;
     let overflow = false;
     let downloadFailed = false;
     const abort = (): void => {
       child?.kill('SIGTERM');
-      void reader.cancel().catch(() => undefined);
+      if (child !== undefined) {
+        destroyStreamV1(control ?? null);
+        destroyStreamV1(child.stdin);
+        destroyStreamV1(child.stdout);
+        destroyStreamV1(child.stderr);
+      }
     };
+    signal?.addEventListener('abort', abort, { once: true });
+    if (signal?.aborted) abort();
     try {
+      const readNext = async (): Promise<ReadableStreamReadResult<Uint8Array>> => {
+        try {
+          return await readWithSignalV1(reader, signal);
+        } catch (readError) {
+          if (signal?.aborted !== true) downloadFailed = true;
+          throw readError;
+        }
+      };
+      const prefix: Buffer[] = [];
+      let prefixBytes = 0;
+      while (prefixBytes < 5) {
+        const next = await readNext();
+        if (next.done) return { ok: false, error: error('LOCAL_EXPORT_SHORT') };
+        const bytes = Buffer.from(next.value);
+        prefix.push(bytes);
+        prefixBytes += bytes.byteLength;
+      }
+      const initial = Buffer.concat(prefix, prefixBytes);
+      if (!signatureMatchesV1(intent.format, initial)) {
+        this.release(intent);
+        cancelReaderBestEffortV1(reader);
+        return { ok: false, error: error('LOCAL_EXPORT_CORRUPT') };
+      }
+
+      signal?.throwIfAborted();
       rootDescriptor = openSync('/', fsConstants.O_RDONLY | LINUX_O_DIRECTORY | LINUX_O_CLOEXEC);
       if (intent.helperHandle.released)
         return { ok: false, error: error('LOCAL_EXPORT_UNAVAILABLE') };
@@ -496,9 +648,8 @@ export class LocalExportFileV1 {
       )
         throw new Error('local export helper descriptors unavailable');
       child = spawned as ChildProcessWithoutNullStreams;
-      const control = child.stdio[4] as NodeJS.WritableStream;
+      control = child.stdio[4] as NodeJS.WritableStream;
       child.stdin.on('error', () => undefined);
-      signal?.addEventListener('abort', abort, { once: true });
       const stdoutPromise = collectBoundedV1(
         child,
         child.stdout,
@@ -507,6 +658,7 @@ export class LocalExportFileV1 {
           overflow = true;
           child?.kill('SIGTERM');
         },
+        signal,
       );
       const stderrPromise = collectBoundedV1(
         child,
@@ -516,9 +668,16 @@ export class LocalExportFileV1 {
           overflow = true;
           child?.kill('SIGTERM');
         },
+        signal,
       );
-      const exitPromise = waitForExitV1(child);
-      await endWritableV1(control, encodeLocalExportControlFrameV1(intent, artifact.contentLength));
+      const exitPromise = waitForExitV1(child, signal);
+      const completion = Promise.all([stdoutPromise, stderrPromise, exitPromise]);
+      void completion.catch(() => undefined);
+      await endWritableV1(
+        control,
+        encodeLocalExportControlFrameV1(intent, artifact.contentLength),
+        signal,
+      );
       let received = 0;
       const forward = async (bytes: Buffer): Promise<void> => {
         received += bytes.byteLength;
@@ -527,26 +686,16 @@ export class LocalExportFileV1 {
           child?.kill('SIGTERM');
           return;
         }
-        await writeWithBackpressureV1(child as ChildProcessWithoutNullStreams, bytes);
+        await writeWithBackpressureV1(child as ChildProcessWithoutNullStreams, bytes, signal);
       };
       await forward(initial);
-      while (!overflow && signal?.aborted !== true) {
-        let next: ReadableStreamReadResult<Uint8Array>;
-        try {
-          next = await reader.read();
-        } catch (streamError) {
-          downloadFailed = true;
-          throw streamError;
-        }
+      while (!overflow) {
+        const next = await readNext();
         if (next.done) break;
         await forward(Buffer.from(next.value));
       }
-      child.stdin.end();
-      const [stdout, stderr, exited] = await Promise.all([
-        stdoutPromise,
-        stderrPromise,
-        exitPromise,
-      ]);
+      await endWritableV1(child.stdin, Buffer.alloc(0), signal);
+      const [stdout, stderr, exited] = await completion;
       const diagnosticText = new TextDecoder('utf-8', { fatal: true }).decode(stderr);
       if (
         diagnosticText !== '' &&
@@ -596,8 +745,13 @@ export class LocalExportFileV1 {
         error: error(mapped[resultCode as Exclude<typeof resultCode, 'ok'>]),
       };
     } catch {
-      child?.kill('SIGTERM');
-      await reader.cancel().catch(() => undefined);
+      if (child !== undefined) await terminateChildV1(child, control).catch(() => undefined);
+      this.release(intent);
+      if (rootDescriptor >= 0) {
+        closeSync(rootDescriptor);
+        rootDescriptor = -1;
+      }
+      cancelReaderBestEffortV1(reader);
       return {
         ok: false,
         error:
@@ -605,13 +759,19 @@ export class LocalExportFileV1 {
             ? error('LOCAL_EXPORT_CANCELLED')
             : downloadFailed
               ? transportErrorV1()
-              : error('LOCAL_EXPORT_IO'),
+              : overflow
+                ? error('LOCAL_EXPORT_CORRUPT')
+                : error('LOCAL_EXPORT_IO'),
       };
     } finally {
       this.release(intent);
       signal?.removeEventListener('abort', abort);
       if (rootDescriptor >= 0) closeSync(rootDescriptor);
-      reader.releaseLock();
+      try {
+        reader.releaseLock();
+      } catch {
+        cancelReaderBestEffortV1(reader);
+      }
     }
   }
 }

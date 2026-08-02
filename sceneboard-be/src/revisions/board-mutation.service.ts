@@ -28,6 +28,7 @@ import {
   boardArchived,
   digest,
   documentVersionMismatch,
+  effectiveCheckpointFromLockedHead,
   insertedPk,
   internalFailure,
   invalidMutation,
@@ -61,7 +62,7 @@ export class BoardMutationService {
 
   constructor(
     private readonly accessPolicy: BoardAccessPolicy,
-    checkpoints: DocumentCheckpointCodec,
+    private readonly checkpoints: DocumentCheckpointCodec,
     runtime: Partial<MutationRuntime> = {},
     private readonly mediaOwnership: MediaOwnershipPort = new DenyAllMediaOwnershipProvider(),
     mediaReferences = new RevisionMediaReferenceExtractor(),
@@ -77,7 +78,6 @@ export class BoardMutationService {
     documentSchemaVersion?: 1 | 2 | 3;
   }): Promise<MutationResultV1 | MutationResultV2 | MutationResultV3> {
     const documentSchemaVersion = input.documentSchemaVersion ?? 1;
-    if (documentSchemaVersion === 3) this.assertV3WriteEnabled();
     const result = await this.applyCheckpointMutation({ ...input, documentSchemaVersion });
     if (documentSchemaVersion !== 1) return result;
     const parsed = MutationResultParserV1.parse(result);
@@ -91,7 +91,6 @@ export class BoardMutationService {
   }): Promise<MutationResultV2 | MutationResultV3> {
     if (input.request.command.type !== 'document.replace') throw invalidMutation();
     const documentSchemaVersion = input.request.command.document.schemaVersion;
-    if (documentSchemaVersion === 3) this.assertV3WriteEnabled();
     return this.applyCheckpointMutation({
       ...input,
       documentSchemaVersion,
@@ -159,15 +158,30 @@ export class BoardMutationService {
     const actualRevisionId = revisionIdFromBytes(head.headRevisionId);
     const headNumber = safePositive(head.headRevisionNumber);
     const lastSequence = safePositive(head.lastEventSequence);
-    const headSchemaVersion =
-      head.sceneSchemaVersion === '1.0.0'
-        ? 1
-        : head.sceneSchemaVersion === '2.0.0'
-          ? 2
-          : head.sceneSchemaVersion === '3.0.0'
-            ? 3
-            : null;
-    if (headSchemaVersion === null) throw new BoardPersistenceError('row_integrity');
+    const effectiveHeadCheckpoint = effectiveCheckpointFromLockedHead(head);
+    const decodedHead = await this.checkpoints.decode(effectiveHeadCheckpoint);
+    const headSchemaVersion = decodedHead.kind === 'scene' ? 1 : decodedHead.document.schemaVersion;
+    const replay = await this.replayRepository.replayOrReject(
+      connection,
+      context,
+      request,
+      prepared,
+      'return-null',
+    );
+    if (replay !== null) {
+      if (!('revision' in replay.result)) throw internalFailure();
+      const replayState = await this.restoreRepository.assertReplayRevisionIntegrity(
+        connection,
+        request.boardId,
+        replay.result.revision.revisionId,
+      );
+      await this.mediaOwnership.assertOwnedByBoard(
+        connection,
+        replayState.boardPk,
+        replayState.mediaReferences.map((reference) => reference.mediaId),
+      );
+      return replay;
+    }
     if (headSchemaVersion === 3 && documentSchemaVersion !== 3) {
       throw new BoardContractError({
         protocolVersion: 1,
@@ -184,27 +198,7 @@ export class BoardMutationService {
         },
       });
     }
-    const replay = await this.replayRepository.replayOrReject(
-      connection,
-      context,
-      request,
-      prepared,
-      'return-null',
-    );
-    if (replay !== null) {
-      if (!('revision' in replay.result)) throw internalFailure();
-      const replayState = await this.restoreRepository.assertReplayMediaIntegrity(
-        connection,
-        request.boardId,
-        replay.result.revision.revisionId,
-      );
-      await this.mediaOwnership.assertOwnedByBoard(
-        connection,
-        replayState.boardPk,
-        replayState.mediaReferences.map((reference) => reference.mediaId),
-      );
-      return replay;
-    }
+    if (documentSchemaVersion === 3) this.assertV3WriteEnabled();
     if (actualRevisionId !== request.expectedRevisionId) {
       throw revisionConflict(request, actualRevisionId, headNumber);
     }
@@ -230,7 +224,7 @@ export class BoardMutationService {
             connection,
             head.boardPk,
             restore,
-            head.sceneSchemaVersion,
+            effectiveHeadCheckpoint.schemaVersion,
             request.boardId,
             prepared.revisionId,
             documentSchemaVersion,
@@ -337,7 +331,7 @@ export class BoardMutationService {
       );
       if (raced === null) throw internalFailure();
       if (!('revision' in raced.result)) throw internalFailure();
-      const replayState = await this.restoreRepository.assertReplayMediaIntegrity(
+      const replayState = await this.restoreRepository.assertReplayRevisionIntegrity(
         connection,
         request.boardId,
         raced.result.revision.revisionId,
@@ -526,13 +520,26 @@ export class BoardMutationService {
         hr.revision_id AS headRevisionId,
         CAST(h.head_revision_number AS CHAR) AS headRevisionNumber,
         CAST(h.last_event_sequence AS CHAR) AS lastEventSequence,
-        hr.scene_schema_version AS sceneSchemaVersion
+        CASE WHEN p.revision_pk IS NOT NULL
+          THEN p.schema_version ELSE hr.scene_schema_version END AS sceneSchemaVersion,
+        CASE WHEN p.revision_pk IS NOT NULL
+          THEN p.codec ELSE hr.scene_codec END AS sceneCodec,
+        CASE WHEN p.revision_pk IS NOT NULL
+          THEN p.payload ELSE hr.scene_payload END AS scenePayload,
+        CASE WHEN p.revision_pk IS NOT NULL
+          THEN p.canonical_bytes ELSE hr.scene_canonical_bytes END AS sceneCanonicalBytes,
+        CASE WHEN p.revision_pk IS NOT NULL
+          THEN p.stored_bytes ELSE hr.scene_stored_bytes END AS sceneStoredBytes,
+        CASE WHEN p.revision_pk IS NOT NULL
+          THEN p.payload_sha256 ELSE hr.scene_sha256 END AS sceneSha256
       FROM boards b
       JOIN board_heads h ON h.board_pk = b.board_pk
       JOIN board_revisions hr
         ON hr.board_pk = h.board_pk
           AND hr.revision_pk = h.head_revision_pk
           AND hr.revision_number = h.head_revision_number
+      LEFT JOIN board_revision_payloads p
+        ON p.revision_pk = hr.revision_pk AND p.state = 'available'
       WHERE b.public_id = ?
       FOR UPDATE
     `,

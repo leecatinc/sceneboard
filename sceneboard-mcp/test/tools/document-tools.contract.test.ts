@@ -51,6 +51,7 @@ test('document page schemas reject extra fields and require an explicit update m
 
 test('page tools read the V2 head, apply the shared transform, and send one whole document', async () => {
   let submitted: MutationRequestV2 | null = null;
+  let gatewayCalls = 0;
   const caller = new AbortController();
   const owned = new AbortController();
   const receivedSignals: AbortSignal[] = [];
@@ -107,7 +108,12 @@ test('page tools read the V2 head, apply the shared transform, and send one whol
   };
   const gateway = {
     call: async <T>(...args: unknown[]) => {
-      const operation = args.at(-1) as (value: typeof client) => Promise<T>;
+      gatewayCalls += 1;
+      const operation = args.at(-1) as (
+        value: typeof client,
+        snapshot: never,
+        signal: AbortSignal,
+      ) => Promise<T>;
       return {
         connected: true as const,
         value: await operation(client, {} as never, owned.signal),
@@ -142,6 +148,85 @@ test('page tools read the V2 head, apply the shared transform, and send one whol
   }
   assert.deepEqual(receivedSignals, [owned.signal, owned.signal]);
   assert.equal(receivedSignals.includes(caller.signal), false);
+  assert.equal(gatewayCalls, 1);
+});
+
+test('scene patch reads and writes inside one gateway invocation', async () => {
+  const owned = new AbortController();
+  const receivedSignals: AbortSignal[] = [];
+  let gatewayCalls = 0;
+  const client = {
+    getBoard: async (_request: unknown, signal: AbortSignal) => {
+      receivedSignals.push(signal);
+      return {
+        ok: true as const,
+        result: {
+          protocolVersion: 1 as const,
+          type: 'board.operation.result' as const,
+          requestId: 'request_head',
+          replayed: false,
+          result: {
+            type: 'board.get' as const,
+            snapshot: {
+              boardId: 'board_1',
+              revision: { revisionId: 'revision_1' },
+              scene: { protocolVersion: 1 as const, type: 'scene' as const, root: null },
+            },
+          },
+        },
+        metadata: { history: null },
+      };
+    },
+    mutateBoard: async (_request: unknown, signal: AbortSignal) => {
+      receivedSignals.push(signal);
+      return {
+        ok: true as const,
+        result: {
+          protocolVersion: 1 as const,
+          type: 'mutation.result' as const,
+          requestId: 'request_mutation',
+          boardId: 'board_1',
+          replayed: false,
+          eventIds: [],
+          result: {
+            type: 'scene.replace' as const,
+            revision: {
+              revisionId: 'revision_2',
+              revisionNumber: 2,
+              createdAt: '2026-07-28T00:00:00.000Z',
+            },
+            originType: 'scene.replace' as const,
+            sourceRevisionId: null,
+            scene: { protocolVersion: 1 as const, type: 'scene' as const, root: null },
+          },
+        },
+        metadata: { history: null },
+      };
+    },
+  };
+  const gateway = {
+    call: async <T>(...args: unknown[]) => {
+      gatewayCalls += 1;
+      const operation = args.at(-1) as (
+        value: typeof client,
+        snapshot: never,
+        signal: AbortSignal,
+      ) => Promise<T>;
+      return {
+        connected: true as const,
+        value: await operation(client, {} as never, owned.signal),
+      };
+    },
+  };
+  const result = await new SceneToolHandlersV1(gateway as never).patch({
+    boardId: 'board_1',
+    expectedRevisionId: 'revision_1',
+    idempotencyKey: 'idempotency-key-1',
+    operations: [{ type: 'replace_root', root: null }],
+  });
+  assert.equal(result.isError, false);
+  assert.equal(gatewayCalls, 1);
+  assert.deepEqual(receivedSignals, [owned.signal, owned.signal]);
 });
 
 test('legacy scene get fails with the stable document mismatch on a V2 head', async () => {

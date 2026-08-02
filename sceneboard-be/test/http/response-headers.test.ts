@@ -5,6 +5,7 @@ import type { CallHandler, ExecutionContext } from '@nestjs/common';
 import { of } from 'rxjs';
 
 import { ResponseHeadersInterceptor } from '../../src/common/http/response-headers.interceptor.js';
+import { corsExposedHeadersV1 } from '../../src/common/http/cors-policy.middleware.js';
 import { CryptoService } from '../../src/common/security/crypto.service.js';
 
 const key = Buffer.alloc(32, 4);
@@ -143,4 +144,12 @@ test('account API-key management responses are private and vary only by browser 
     assert.equal(headers.get('Pragma'), 'no-cache');
     assert.equal(headers.get('Vary'), 'Origin, Cookie');
   }
+});
+
+test('account API-key management exposes Retry-After to credentialed browser callers', () => {
+  assert.deepEqual(corsExposedHeadersV1('/api/v1/account/api-keys'), [
+    'X-Request-Id',
+    'X-Auth-Generation',
+    'Retry-After',
+  ]);
 });

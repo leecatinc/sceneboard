@@ -86,6 +86,8 @@ export class ExportToolHandlersV1 {
         boardId: parsed.data.boardId,
         revisionId: parsed.data.revisionId,
         format: parsed.data.format,
+        publish: (artifact, operationSignal) =>
+          this.localFiles!.publish(prepared.value, artifact, operationSignal),
         ...(signal === undefined ? {} : { signal }),
       });
       if (!remote.connected)
@@ -103,6 +105,13 @@ export class ExportToolHandlersV1 {
             'board',
             remote.value.error as unknown as Record<string, unknown>,
           );
+        if (remote.value.source === 'publication')
+          return toolFailureV1(
+            'board_export',
+            requestId,
+            'mcp',
+            remote.value.error as unknown as Record<string, unknown>,
+          );
         return toolFailureV1(
           'board_export',
           requestId,
@@ -110,18 +119,10 @@ export class ExportToolHandlersV1 {
           localTransportErrorV1(remote.value.error),
         );
       }
-      const published = await this.localFiles.publish(prepared.value, remote.value.value, signal);
-      if (!published.ok)
-        return toolFailureV1(
-          'board_export',
-          requestId,
-          'mcp',
-          published.error as unknown as Record<string, unknown>,
-        );
       return toolSuccessV1(
         'board_export',
         requestId,
-        published.value as unknown as Record<string, unknown>,
+        remote.value.value as unknown as Record<string, unknown>,
         null,
       );
     } finally {

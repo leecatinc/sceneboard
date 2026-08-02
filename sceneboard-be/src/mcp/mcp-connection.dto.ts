@@ -8,6 +8,12 @@ import type {
 } from '@sceneboard/board-schema';
 
 import type { ResolvedMcpGrantProjectionV1 } from '../grants/board-access.policy.js';
+import type { AccountApiKeyBoardOperationV1 } from '../api-keys/account-api-key-authorization.policy.js';
+
+export type McpConnectionAuthorizationOperationV1 = Exclude<
+  AccountApiKeyBoardOperationV1,
+  'connection.get' | 'board.list' | 'board.create'
+>;
 
 type ConnectionVersionsV1 = {
   mcpServer: '0.0.0';
@@ -53,4 +59,5 @@ export type SafeAuthorizedConnectionV1 =
 export type McpConnectionQueryV1 = {
   requestId: string;
   boardId: BoardId | null;
+  authorizationOperation: McpConnectionAuthorizationOperationV1 | null;
 };

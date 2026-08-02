@@ -1,7 +1,9 @@
 import {
   adaptLegacySceneToDocumentV2,
-  projectDocumentV2ToV3,
+  GlobalIdStringParserV1,
+  MAX_ARTIFACT_REFERENCE_OCCURRENCES,
   MAX_MEDIA_REFERENCES,
+  projectDocumentV2ToV3,
   type BoardId,
   type RevisionId,
 } from '@sceneboard/board-schema';
@@ -343,7 +345,7 @@ export class BoardMutationRestoreRepository {
     if (insert.affectedRows !== input.references.length) throw internalFailure();
   }
 
-  async assertReplayMediaIntegrity(
+  async assertReplayRevisionIntegrity(
     connection: PoolConnection,
     boardId: BoardId,
     revisionId: RevisionId,
@@ -395,12 +397,25 @@ export class BoardMutationRestoreRepository {
       decoded.kind === 'document'
         ? decoded.document
         : adaptLegacySceneToDocumentV2({ boardId, scene: decoded.scene });
-    const stored = await this.readMediaReferences(connection, row.revisionPk, boardId, revisionId);
-    const expected = this.mediaReferences.extract({ boardId, revisionId, document });
-    if (!mediaReferenceRowsEqual(stored, expected)) {
+    const storedReferences = await this.readReferences(connection, row.revisionPk);
+    const expectedReferences =
+      decoded.kind === 'scene'
+        ? extractSceneArtifactReferences(decoded.scene)
+        : extractDocumentArtifactReferences(decoded.document);
+    const storedMediaReferences = await this.readMediaReferences(
+      connection,
+      row.revisionPk,
+      boardId,
+      revisionId,
+    );
+    const expectedMediaReferences = this.mediaReferences.extract({ boardId, revisionId, document });
+    if (
+      !referenceRowsEqual(storedReferences, expectedReferences) ||
+      !mediaReferenceRowsEqual(storedMediaReferences, expectedMediaReferences)
+    ) {
       throw new BoardPersistenceError('row_integrity');
     }
-    return { boardPk: BigInt(row.boardPk), mediaReferences: stored };
+    return { boardPk: BigInt(row.boardPk), mediaReferences: storedMediaReferences };
   }
 
   private async readReferences(
@@ -419,10 +434,12 @@ export class BoardMutationRestoreRepository {
     );
     return rows.map((row) => {
       if (
+        !GlobalIdStringParserV1.parse(row.artifactId).ok ||
+        !GlobalIdStringParserV1.parse(row.artifactVersionId).ok ||
         (row.referenceCode !== 'A' && row.referenceCode !== 'I') ||
         !Number.isSafeInteger(row.occurrenceCount) ||
         row.occurrenceCount < 1 ||
-        row.occurrenceCount > 500
+        row.occurrenceCount > MAX_ARTIFACT_REFERENCE_OCCURRENCES
       ) {
         throw new BoardPersistenceError('row_integrity');
       }

@@ -29,12 +29,12 @@ import { hitlNotFound, internalHitlFailure } from './hitl-errors.js';
 import { HitlWaitCoordinator } from './hitl-wait-coordinator.js';
 
 interface CurrentHeadCheckpointRow extends RowDataPacket {
-  schemaVersion: string;
-  codec: string;
-  payload: Buffer;
-  canonicalBytes: number;
-  storedBytes: number;
-  sha256: Buffer;
+  schemaVersion: string | null;
+  codec: string | null;
+  payload: Buffer | null;
+  canonicalBytes: number | null;
+  storedBytes: number | null;
+  sha256: Buffer | null;
 }
 
 const boardNotFound = (): BoardContractError =>
@@ -151,15 +151,23 @@ export class InteractionQueryService extends HitlQueryApplicationPortV1 {
     const [rows] = await connection.execute<CurrentHeadCheckpointRow[]>(
       `
       SELECT
-        r.scene_schema_version AS schemaVersion,
-        r.scene_codec AS codec,
-        r.scene_payload AS payload,
-        r.scene_canonical_bytes AS canonicalBytes,
-        r.scene_stored_bytes AS storedBytes,
-        r.scene_sha256 AS sha256
+        CASE WHEN p.revision_pk IS NOT NULL
+          THEN p.schema_version ELSE r.scene_schema_version END AS schemaVersion,
+        CASE WHEN p.revision_pk IS NOT NULL
+          THEN p.codec ELSE r.scene_codec END AS codec,
+        CASE WHEN p.revision_pk IS NOT NULL
+          THEN p.payload ELSE r.scene_payload END AS payload,
+        CASE WHEN p.revision_pk IS NOT NULL
+          THEN p.canonical_bytes ELSE r.scene_canonical_bytes END AS canonicalBytes,
+        CASE WHEN p.revision_pk IS NOT NULL
+          THEN p.stored_bytes ELSE r.scene_stored_bytes END AS storedBytes,
+        CASE WHEN p.revision_pk IS NOT NULL
+          THEN p.payload_sha256 ELSE r.scene_sha256 END AS sha256
       FROM board_heads h
       JOIN board_revisions r
         ON r.board_pk = h.board_pk AND r.revision_pk = h.head_revision_pk
+      LEFT JOIN board_revision_payloads p
+        ON p.revision_pk = r.revision_pk AND p.state = 'available'
       WHERE h.board_pk = ?
       LIMIT 1
     `,
@@ -169,12 +177,25 @@ export class InteractionQueryService extends HitlQueryApplicationPortV1 {
     if (
       rows.length !== 1 ||
       row === undefined ||
+      typeof row.schemaVersion !== 'string' ||
+      typeof row.codec !== 'string' ||
       !Buffer.isBuffer(row.payload) ||
+      typeof row.canonicalBytes !== 'number' ||
+      !Number.isSafeInteger(row.canonicalBytes) ||
+      typeof row.storedBytes !== 'number' ||
+      !Number.isSafeInteger(row.storedBytes) ||
       !Buffer.isBuffer(row.sha256)
     ) {
       throw boardNotFound();
     }
-    const checkpoint = await this.checkpoints.decode(row);
+    const checkpoint = await this.checkpoints.decode({
+      schemaVersion: row.schemaVersion,
+      codec: row.codec,
+      payload: row.payload,
+      canonicalBytes: row.canonicalBytes,
+      storedBytes: row.storedBytes,
+      sha256: row.sha256,
+    });
     const ids =
       checkpoint.kind === 'scene'
         ? extractUniqueSceneHitlRequestIds(checkpoint.scene)

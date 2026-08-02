@@ -2,6 +2,15 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import {
+  ARTIFACT_REQUEST_CAPABILITIES_V1,
+  BOARD_EVENT_TYPES_V1,
+  BOARD_LIMITS_V1,
+  BOARD_MUTATION_COMMAND_TYPES_V1,
+  BOARD_OPERATION_TYPES_V1,
+  HITL_KINDS_V1,
+  NODE_TYPES_V1,
+} from '@sceneboard/board-schema';
 
 import type { TokenProviderV1 } from '../../src/credentials/token-provider.js';
 import type { LocalExportFileV1 } from '../../src/exports/local-export-file.js';
@@ -103,17 +112,22 @@ test('success returns only format, byte count and basename-safe display', async 
     },
   });
   const gateway = {
-    exportBoard: async () => ({
-      connected: true,
-      value: {
-        ok: true,
-        value: {
-          format: 'pdf',
-          contentType: 'application/pdf',
-          contentLength: 5,
-          body,
+    exportBoard: async (request: {
+      publish: (
+        artifact: {
+          format: 'pdf';
+          contentType: string;
+          contentLength: number;
+          body: ReadableStream<Uint8Array>;
         },
-      },
+        signal: AbortSignal,
+      ) => Promise<unknown>;
+    }) => ({
+      connected: true,
+      value: await request.publish(
+        { format: 'pdf', contentType: 'application/pdf', contentLength: 5, body },
+        new AbortController().signal,
+      ),
     }),
   } as unknown as ProtectedBoardGatewayV1;
   const local = {
@@ -168,12 +182,13 @@ const exportFailures = [
 const connectionResponse = (
   requestId: string,
   scopes: readonly string[] = ['export:read'],
+  boardId = 'board_synthetic',
 ): Response =>
   new Response(
     JSON.stringify({
       principal: {
         principalKind: 'service',
-        principalId: 'service_synthetic',
+        principalId: 'key_synthetic',
         grantId: null,
       },
       credential: {
@@ -182,7 +197,37 @@ const connectionResponse = (
         status: 'active',
         expiresAt: '2027-07-30T00:00:00.000Z',
       },
-      selectedBoard: null,
+      selectedBoard: {
+        board: {
+          boardId,
+          title: 'Synthetic',
+          createdAt: '2026-07-16T15:00:00.000Z',
+          updatedAt: '2026-07-16T16:00:00.000Z',
+          archivedAt: null,
+          headRevision: {
+            revisionId: 'revision_1',
+            revisionNumber: 1,
+            createdAt: '2026-07-16T16:00:00.000Z',
+          },
+        },
+        capabilities: {
+          protocolVersion: 1,
+          type: 'board.capabilities',
+          schemaVersion: '1.0.0',
+          compatibilityMode: 'frozen-major',
+          supported: {
+            nodeTypes: [...NODE_TYPES_V1],
+            commandTypes: [...BOARD_MUTATION_COMMAND_TYPES_V1],
+            operationTypes: [...BOARD_OPERATION_TYPES_V1],
+            eventTypes: [...BOARD_EVENT_TYPES_V1],
+            hitlKinds: [...HITL_KINDS_V1],
+            artifactRequestCapabilities: [...ARTIFACT_REQUEST_CAPABILITIES_V1],
+          },
+          limits: { ...BOARD_LIMITS_V1 },
+          grantedCapabilities: [],
+          allowedArtifactRequestCapabilities: [],
+        },
+      },
       versions: { mcpServer: '0.0.0', boardProtocol: '1.0.0', api: 'v1' },
     }),
     {
@@ -224,12 +269,26 @@ test('gateway enforces the literal union for dynamic history and read-modify-wri
     const client = gateway(async (request) => {
       const url = new URL(request instanceof Request ? request.url : request);
       assert.equal(url.pathname, '/api/v1/mcp/connection');
-      return connectionResponse(url.searchParams.get('requestId') ?? '', scopes);
+      const boardId = url.searchParams.get('boardId') ?? '';
+      const operation = operations.at(-1) ?? '';
+      assert.equal(url.searchParams.get('authorizationOperation'), operation);
+      return connectionResponse(url.searchParams.get('requestId') ?? '', scopes, boardId);
     });
-    const result = await client.call(toolName, operations, async () => {
-      networkCalls += 1;
-      return { ok: true as const };
-    });
+    const result = await client.call(
+      toolName,
+      operations,
+      {
+        signal: undefined,
+        authorization: {
+          boardId: 'board_synthetic',
+          operation: operations.at(-1)!,
+        },
+      },
+      async () => {
+        networkCalls += 1;
+        return { ok: true as const };
+      },
+    );
     return { result, networkCalls };
   };
 
@@ -262,7 +321,11 @@ test('gateway preserves all eleven exact export failure tuples', async () => {
     const client = gateway(async (request) => {
       const url = new URL(request instanceof Request ? request.url : request);
       if (url.pathname === '/api/v1/mcp/connection')
-        return connectionResponse(url.searchParams.get('requestId') ?? '');
+        return connectionResponse(
+          url.searchParams.get('requestId') ?? '',
+          ['export:read'],
+          url.searchParams.get('boardId') ?? '',
+        );
       assert.equal(url.pathname, '/api/v1/boards/board_synthetic/exports');
       return new Response(JSON.stringify({ ok: false, error: { code, message, retryable } }), {
         status,
@@ -273,6 +336,9 @@ test('gateway preserves all eleven exact export failure tuples', async () => {
       boardId: 'board_synthetic',
       revisionId: null,
       format: 'pdf',
+      publish: async () => {
+        throw new Error('must not publish a failed export');
+      },
     });
     assert.equal(result.connected, true);
     if (!result.connected) continue;
@@ -289,7 +355,11 @@ test('gateway validates binary content type and declared size without buffering 
   const client = gateway(async (request, init) => {
     const url = new URL(request instanceof Request ? request.url : request);
     if (url.pathname === '/api/v1/mcp/connection')
-      return connectionResponse(url.searchParams.get('requestId') ?? '');
+      return connectionResponse(
+        url.searchParams.get('requestId') ?? '',
+        ['export:read'],
+        url.searchParams.get('boardId') ?? '',
+      );
     assert.equal(init?.method, 'POST');
     assert.deepEqual(JSON.parse(String(init?.body)), { format: 'pdf', revisionId: null });
     return new Response(bytes, {
@@ -304,10 +374,20 @@ test('gateway validates binary content type and declared size without buffering 
     boardId: 'board_synthetic',
     revisionId: null,
     format: 'pdf',
+    publish: async (artifact) => ({
+      ok: true,
+      value: {
+        format: artifact.format,
+        bytes: Buffer.from(await new Response(artifact.body).arrayBuffer()).byteLength,
+        fileName: 'synthetic.pdf',
+      },
+    }),
   });
   assert.equal(result.connected, true);
   if (!result.connected || !result.value.ok) return;
-  assert.equal(result.value.value.contentLength, bytes.byteLength);
-  assert.equal(result.value.value.contentType, 'application/pdf');
-  assert.deepEqual(Buffer.from(await new Response(result.value.value.body).arrayBuffer()), bytes);
+  assert.deepEqual(result.value.value, {
+    format: 'pdf',
+    bytes: bytes.byteLength,
+    fileName: 'synthetic.pdf',
+  });
 });

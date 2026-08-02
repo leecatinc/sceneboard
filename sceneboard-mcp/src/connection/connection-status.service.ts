@@ -174,7 +174,7 @@ export class ConnectionStatusServiceV1 implements ConnectionStatusPortV1 {
       let result;
       try {
         result = await waitWithinDeadline(
-          this.client.get(boardId, requestId, snapshot.accessToken, deadline.signal),
+          this.client.get(boardId, requestId, snapshot.accessToken, deadline.signal, 'pairing'),
           deadline.signal,
         );
       } catch {
@@ -266,7 +266,7 @@ export class ConnectionStatusServiceV1 implements ConnectionStatusPortV1 {
 
   async probeWithToken(accessToken: string, signal?: AbortSignal): Promise<boolean> {
     const requestId = randomBytes(16).toString('base64url');
-    return (await this.client.get(null, requestId, accessToken, signal)).ok;
+    return (await this.client.get(null, requestId, accessToken, signal, 'pairing')).ok;
   }
 }
 
@@ -337,7 +337,14 @@ export class ApiKeyConnectionStatusServiceV1 implements ConnectionStatusPortV1 {
       let result;
       try {
         result = await waitWithinDeadline(
-          this.client.get(boardId, requestId, snapshot.accessToken, deadline.signal),
+          this.client.get(
+            boardId,
+            requestId,
+            snapshot.accessToken,
+            deadline.signal,
+            'api_key',
+            boardId === null ? undefined : 'board.get',
+          ),
           deadline.signal,
         );
       } catch {

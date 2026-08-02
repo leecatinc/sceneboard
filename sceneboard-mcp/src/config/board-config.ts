@@ -1,4 +1,5 @@
-import { readFile } from 'node:fs/promises';
+import type { BigIntStats } from 'node:fs';
+import type { FileHandle } from 'node:fs/promises';
 
 export const BOARD_CONFIG_MAX_BYTES_V1 = 65_536;
 export const BOARD_PROFILE_PATTERN_V1 = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
@@ -228,15 +229,43 @@ export const parseBoardConfigV1 = (
   return value.credentialMode === 'pairing' ? { ...pairing, credentialMode: 'pairing' } : pairing;
 };
 
+const sameFileStatus = (left: BigIntStats, right: BigIntStats): boolean =>
+  left.dev === right.dev &&
+  left.ino === right.ino &&
+  left.uid === right.uid &&
+  left.mode === right.mode &&
+  left.nlink === right.nlink &&
+  left.size === right.size &&
+  left.mtimeNs === right.mtimeNs &&
+  left.ctimeNs === right.ctimeNs;
+
+const readBoundedFileHandle = async (handle: FileHandle): Promise<Uint8Array> => {
+  const buffer = new Uint8Array(BOARD_CONFIG_MAX_BYTES_V1 + 1);
+  let offset = 0;
+  while (offset < buffer.byteLength) {
+    const { bytesRead } = await handle.read(buffer, offset, buffer.byteLength - offset, offset);
+    if (bytesRead === 0) break;
+    offset += bytesRead;
+  }
+  return buffer.subarray(0, offset);
+};
+
 export const readBoardConfigFileV1 = async (
-  path: string,
+  handle: FileHandle,
   source: SafeConfigSourceV1,
+  approvedStatus: BigIntStats,
 ): Promise<BoardConfigFileV1> => {
+  let before: BigIntStats;
   let bytes: Uint8Array;
+  let after: BigIntStats;
   try {
-    bytes = await readFile(path);
+    before = await handle.stat({ bigint: true });
+    if (!sameFileStatus(approvedStatus, before)) throw new BoardConfigError(source, null);
+    bytes = await readBoundedFileHandle(handle);
+    after = await handle.stat({ bigint: true });
   } catch {
     throw new BoardConfigError(source, null);
   }
+  if (!sameFileStatus(before, after)) throw new BoardConfigError(source, null);
   return parseBoardConfigV1(parseJsonBytes(bytes, source), source);
 };

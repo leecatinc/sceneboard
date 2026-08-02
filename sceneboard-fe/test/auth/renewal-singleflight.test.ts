@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { BoardErrorV1, BoardId } from '@sceneboard/board-schema';
+import type { BoardError, BoardErrorV1, BoardId } from '@sceneboard/board-schema';
 
 import {
   SessionRequestCoordinator,
@@ -239,7 +239,7 @@ test('response loss after intent publication leaves unknown and forbids a follow
   assert.equal(value.requests.length, 2);
 });
 
-const boardError = (error: BoardErrorV1, status: number, retryAfter?: number): Response =>
+const boardError = (error: BoardError, status: number, retryAfter?: number): Response =>
   new Response(JSON.stringify({ error }), {
     status,
     headers: {
@@ -258,6 +258,21 @@ const forbidden: BoardErrorV1 = {
   retryable: false,
   httpStatusHint: 403,
   details: null,
+};
+
+const upgradeRequired: BoardError = {
+  protocolVersion: 1,
+  type: 'board.error',
+  code: 'UPGRADE_REQUIRED',
+  message: 'A newer document client is required',
+  category: 'conflict',
+  retryable: false,
+  httpStatusHint: 409,
+  details: {
+    headSchemaVersion: 3,
+    requestedDocumentSchemaVersion: 1,
+    surface: 'board.stream',
+  },
 };
 
 test('closed board stream request releases its shared coordinator lease before consuming the long-lived response', async () => {
@@ -341,6 +356,39 @@ test('stream dispatch keeps 403 distinct and maps 401 to acquisition-generation 
     error: unauthenticated,
     acquisitionGeneration: generationA,
     retryAfterMs: null,
+  });
+});
+
+test('stream dispatch admits only the exact 409 upgrade-required compatibility response', async () => {
+  const input = {
+    apiOrigin: 'https://sceneboard.dev',
+    boardId,
+    tabId: 'abcdefghijklmnopqrstuv',
+    presenceState: 'online' as const,
+    cursor: null,
+    signal: new AbortController().signal,
+  };
+  const admitted = setup([
+    json(snapshot('session_1'), 200, generationA),
+    boardError(upgradeRequired, 409),
+  ]);
+  await admitted.coordinator.reconcileSessionGeneration();
+  assert.deepEqual(await admitted.coordinator.open(input, async () => null), {
+    kind: 'http_error',
+    sourceStatus: 409,
+    error: upgradeRequired,
+    retryAfterMs: null,
+  });
+
+  const mismatched = setup([
+    json(snapshot('session_1'), 200, generationA),
+    boardError(upgradeRequired, 400),
+  ]);
+  await mismatched.coordinator.reconcileSessionGeneration();
+  assert.deepEqual(await mismatched.coordinator.open(input, async () => null), {
+    kind: 'protocol_error',
+    sourceStatus: 400,
+    error: upgradeRequired,
   });
 });
 

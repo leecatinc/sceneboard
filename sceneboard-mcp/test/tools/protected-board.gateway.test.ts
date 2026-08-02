@@ -134,10 +134,18 @@ test('API-key preflight and invalidation share the original deadline and block t
     },
     fetch: async () => preflightPending.promise,
   });
-  const preflightResult = await preflightClient.call('board_get', 'board.get', async () => {
-    operationCalls += 1;
-    return { ok: true as const };
-  });
+  const preflightResult = await preflightClient.call(
+    'board_get',
+    'board.get',
+    {
+      signal: undefined,
+      authorization: { boardId: 'board_1', operation: 'board.get' },
+    },
+    async () => {
+      operationCalls += 1;
+      return { ok: true as const };
+    },
+  );
   assert.equal(resultCode(preflightResult), 'TIMEOUT');
   assert.equal(operationCalls, 0);
   preflightPending.resolve(new Response());
@@ -183,10 +191,18 @@ test('API-key preflight and invalidation share the original deadline and block t
       );
     },
   });
-  const invalidationResult = await invalidationClient.call('board_get', 'board.get', async () => {
-    operationCalls += 1;
-    return { ok: true as const };
-  });
+  const invalidationResult = await invalidationClient.call(
+    'board_get',
+    'board.get',
+    {
+      signal: undefined,
+      authorization: { boardId: 'board_1', operation: 'board.get' },
+    },
+    async () => {
+      operationCalls += 1;
+      return { ok: true as const };
+    },
+  );
   assert.equal(resultCode(invalidationResult), 'TIMEOUT');
   assert.equal(invalidationSignal?.aborted, true);
   assert.equal(operationCalls, 0);
@@ -237,10 +253,142 @@ test('media authorization, rename, and export reject pre-aborted work before net
     revisionId: null,
     format: 'pdf',
     signal: controller.signal,
+    publish: async () => {
+      operationCalls += 1;
+      throw new Error('must not publish');
+    },
   });
   assert.equal(exported.connected, true);
   if (exported.connected && !exported.value.ok)
     assert.equal(exported.value.error.code, 'CANCELLED');
   assert.equal(fetchCalls, 0);
   assert.equal(operationCalls, 0);
+});
+
+test('API-key board probes carry exact ownership context and reject before operation or export publication', async () => {
+  const probes: Array<{ boardId: string | null; operation: string | null }> = [];
+  let operationCalls = 0;
+  let publications = 0;
+  const client = gateway({
+    credentialMode: 'api_key',
+    tokens: {
+      snapshot: async () => snapshot(apiKey),
+      invalidate: async () => undefined,
+    },
+    fetch: async (request) => {
+      const url = new URL(request instanceof Request ? request.url : request);
+      const requestId = url.searchParams.get('requestId') ?? '';
+      probes.push({
+        boardId: url.searchParams.get('boardId'),
+        operation: url.searchParams.get('authorizationOperation'),
+      });
+      return new Response(
+        JSON.stringify({
+          error: {
+            protocolVersion: 1,
+            type: 'board.error',
+            code: 'BOARD_NOT_FOUND',
+            message: 'Board not found',
+            category: 'not_found',
+            retryable: false,
+            httpStatusHint: 404,
+            details: null,
+          },
+        }),
+        {
+          status: 404,
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8',
+            'Cache-Control': 'no-store, private',
+            Pragma: 'no-cache',
+            Vary: 'Origin, Cookie, Authorization',
+            'X-Request-Id': requestId,
+          },
+        },
+      );
+    },
+  });
+  const history = await client.call(
+    'board_history_get',
+    'history.get',
+    {
+      signal: undefined,
+      authorization: { boardId: 'board_1', operation: 'history.get' },
+    },
+    async () => {
+      operationCalls += 1;
+      return { ok: true as const };
+    },
+  );
+  assert.equal(resultCode(history), 'BOARD_NOT_FOUND');
+  const renamed = await client.renameBoard({ boardId: 'board_3', title: 'Never' });
+  assert.equal(resultCode(renamed), 'BOARD_NOT_FOUND');
+  const exported = await client.exportBoard({
+    boardId: 'board_2',
+    revisionId: null,
+    format: 'pdf',
+    publish: async () => {
+      publications += 1;
+      return {
+        ok: true,
+        value: { format: 'pdf', bytes: 5, fileName: 'never.pdf' },
+      };
+    },
+  });
+  assert.equal(exported.connected, true);
+  if (exported.connected && !exported.value.ok)
+    assert.equal(exported.value.error.code, 'EXPORT_NOT_FOUND');
+  assert.deepEqual(probes, [
+    { boardId: 'board_1', operation: 'history.get' },
+    { boardId: 'board_3', operation: 'board.rename' },
+    { boardId: 'board_2', operation: 'export.render' },
+  ]);
+  assert.equal(operationCalls, 0);
+  assert.equal(publications, 0);
+});
+
+test('export keeps one owned deadline alive through publication after response headers', async () => {
+  let snapshots = 0;
+  let publications = 0;
+  let publicationSignal: AbortSignal | undefined;
+  const client = new ProtectedBoardGatewayV1({
+    baseUrl: 'https://sceneboard.dev',
+    timeoutMs: 30_000,
+    exportTimeoutMs: 10,
+    credentialMode: 'pairing',
+    tokens: {
+      snapshot: async () => {
+        snapshots += 1;
+        return snapshot();
+      },
+      invalidate: async () => undefined,
+    },
+    fetch: async () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(Buffer.from('%PDF-', 'ascii'));
+          },
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/pdf', 'Content-Length': '10' },
+        },
+      ),
+    logger: { log() {} },
+  });
+  const result = await client.exportBoard({
+    boardId: 'board_1',
+    revisionId: null,
+    format: 'pdf',
+    publish: async (_artifact, signal) => {
+      publications += 1;
+      publicationSignal = signal;
+      return new Promise(() => undefined);
+    },
+  });
+  assert.equal(resultCode(result), 'TIMEOUT');
+  assert.equal(snapshots, 1);
+  assert.equal(publications, 1);
+  assert.equal(publicationSignal?.aborted, true);
 });

@@ -5,6 +5,7 @@ import { ArtifactApplicationService } from '../../src/artifacts/artifact-applica
 import { BoardContractError } from '../../src/common/errors/app-error.js';
 import { InteractionQueryService } from '../../src/interactions/application/interaction-query.service.js';
 import { HitlWaitCoordinator } from '../../src/interactions/application/hitl-wait-coordinator.js';
+import { DocumentCheckpointCodec } from '../../src/revisions/document-checkpoint.codec.js';
 
 const viewerContext = {
   membership: {
@@ -133,26 +134,23 @@ test('viewer scope admits artifact and HITL references from the authorized curre
     { artifactId: 'artifact_1', versionId: 'version_1' },
   );
 
+  const checkpoints = new DocumentCheckpointCodec();
+  const checkpoint = await checkpoints.encodeScene({
+    protocolVersion: 1,
+    type: 'scene',
+    root: {
+      id: 'hitl',
+      type: 'content.hitl',
+      hitlRequestId: 'hitl_1',
+    },
+  });
   const interactionService = new InteractionQueryService(
     {} as never,
     {} as never,
     {} as never,
     new HitlWaitCoordinator(),
     () => Date.parse('2026-07-28T00:00:00.000Z'),
-    {
-      decode: async () => ({
-        kind: 'scene',
-        scene: {
-          protocolVersion: 1,
-          type: 'scene',
-          root: {
-            id: 'hitl',
-            type: 'content.hitl',
-            hitlRequestId: 'hitl_1',
-          },
-        },
-      }),
-    } as never,
+    checkpoints,
   );
   const hitlProbe = interactionService as unknown as {
     assertViewerCurrentHeadReference(
@@ -161,21 +159,25 @@ test('viewer scope admits artifact and HITL references from the authorized curre
       hitlRequestId: string,
     ): Promise<void>;
   };
+  const checkpointQueries: string[] = [];
   await hitlProbe.assertViewerCurrentHeadReference(
     {
-      execute: async () => [
-        [
-          {
-            schemaVersion: '1',
-            codec: 'json',
-            payload: Buffer.from('{}'),
-            canonicalBytes: 2,
-            storedBytes: 2,
-            sha256: Buffer.alloc(32),
-          },
-        ],
-        [],
-      ],
+      execute: async (sql: string) => {
+        checkpointQueries.push(sql.replace(/\s+/g, ' ').trim());
+        return [
+          [
+            {
+              schemaVersion: checkpoint.schemaVersion,
+              codec: checkpoint.codec,
+              payload: checkpoint.payload,
+              canonicalBytes: checkpoint.canonicalBytes,
+              storedBytes: checkpoint.storedBytes,
+              sha256: checkpoint.sha256,
+            },
+          ],
+          [],
+        ];
+      },
     },
     {
       ...viewerContext,
@@ -183,4 +185,10 @@ test('viewer scope admits artifact and HITL references from the authorized curre
     },
     'hitl_1',
   );
+  const sql = checkpointQueries[0] ?? '';
+  assert.match(
+    sql,
+    /LEFT JOIN board_revision_payloads p ON p\.revision_pk = r\.revision_pk AND p\.state = 'available'/u,
+  );
+  assert.equal((sql.match(/CASE WHEN p\.revision_pk IS NOT NULL/gu) ?? []).length, 6);
 });

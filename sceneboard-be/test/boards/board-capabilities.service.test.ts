@@ -1,11 +1,55 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import type { BoardId, GrantId, PrincipalId, RequestId } from '@sceneboard/board-schema';
+import {
+  BoardCapabilitiesParserV1,
+  BoardCapabilitiesParserV2,
+  BoardCapabilitiesParserV3,
+  MAX_ARTIFACT_REFERENCE_OCCURRENCES,
+  type BoardId,
+  type GrantId,
+  type PrincipalId,
+  type RequestId,
+} from '@sceneboard/board-schema';
 
 import type { BoardAccessPolicy } from '../../src/grants/board-access.policy.js';
 import { BoardCapabilitiesService } from '../../src/boards/board-capabilities.service.js';
-import { currentBoardSessionAccessFromContext } from '../../src/grants/current-board-capabilities.js';
+import {
+  currentBoardCapabilitiesFromContext,
+  currentBoardSessionAccessFromContext,
+} from '../../src/grants/current-board-capabilities.js';
+
+const authorizedContext = {
+  actor: {
+    principalKind: 'mcp_client' as const,
+    principalId: 'principal_1' as PrincipalId,
+    grantId: 'grant_1' as GrantId,
+    scopes: ['board.read' as const],
+  },
+  artifactCapabilityPolicy: {
+    allowedArtifactRequestCapabilities: ['download' as const],
+    policyEpoch: 'epoch',
+  },
+};
+
+test('projects frozen V1/V2 and occurrence-aware V3 capability selectors', () => {
+  const v1 = currentBoardCapabilitiesFromContext(authorizedContext, 1);
+  const v2 = currentBoardCapabilitiesFromContext(authorizedContext, 2);
+  const v3 = currentBoardCapabilitiesFromContext(authorizedContext, 3);
+
+  assert.equal(BoardCapabilitiesParserV1.parse(v1).ok, true);
+  assert.equal(BoardCapabilitiesParserV2.parse(v2).ok, true);
+  assert.equal(BoardCapabilitiesParserV3.parse(v3).ok, true);
+  assert.equal(v1.schemaVersion, '1.0.0');
+  assert.equal(v2.schemaVersion, '1.1.0');
+  assert.equal(v3.schemaVersion, '1.2.0');
+  assert.equal('maxArtifactReferenceOccurrences' in v1.limits, false);
+  assert.equal('maxArtifactReferenceOccurrences' in v2.limits, false);
+  assert.equal(
+    v3.limits.maxArtifactReferenceOccurrences,
+    MAX_ARTIFACT_REFERENCE_OCCURRENCES,
+  );
+});
 
 test('projects current authorized capabilities in one repeatable-read board cut', async () => {
   const boardId = 'board_1' as BoardId;

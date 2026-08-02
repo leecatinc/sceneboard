@@ -11,7 +11,11 @@ import {
   HITL_KINDS_V1,
   NODE_TYPES_V1,
 } from './catalogs.js';
-import { BOARD_DOCUMENT_LIMITS_V2, BOARD_LIMITS_V1 } from './limits.js';
+import {
+  BOARD_DOCUMENT_LIMITS_V2,
+  BOARD_DOCUMENT_LIMITS_V3,
+  BOARD_LIMITS_V1,
+} from './limits.js';
 import { PROTOCOL_SEMVER, PROTOCOL_VERSION } from './protocol-version.js';
 
 const exactCatalog = <T extends readonly [string, ...string[]]>(catalog: T) =>
@@ -84,6 +88,18 @@ const BoardLimitsSchemaV2 = z
     ) as {
       [K in keyof typeof BOARD_DOCUMENT_LIMITS_V2]: z.ZodLiteral<
         (typeof BOARD_DOCUMENT_LIMITS_V2)[K]
+      >;
+    },
+  )
+  .strict();
+
+const BoardLimitsSchemaV3 = z
+  .object(
+    Object.fromEntries(
+      Object.entries(BOARD_DOCUMENT_LIMITS_V3).map(([key, value]) => [key, z.literal(value)]),
+    ) as {
+      [K in keyof typeof BOARD_DOCUMENT_LIMITS_V3]: z.ZodLiteral<
+        (typeof BOARD_DOCUMENT_LIMITS_V3)[K]
       >;
     },
   )
@@ -187,7 +203,7 @@ export const BoardCapabilitiesSchemaV3 = z
         artifactRequestCapabilities: exactCatalog(ARTIFACT_REQUEST_CAPABILITIES_V1),
       })
       .strict(),
-    limits: BoardLimitsSchemaV2,
+    limits: BoardLimitsSchemaV3,
     grantedCapabilities: sortedSubset(CLIENT_GRANT_CAPABILITIES_V1),
     allowedArtifactRequestCapabilities: sortedSubset(ARTIFACT_REQUEST_CAPABILITIES_V1),
   })
@@ -196,6 +212,7 @@ export const BoardCapabilitiesSchemaV3 = z
 export const DEFAULT_BOARD_CAPABILITIES_V3 = {
   ...DEFAULT_BOARD_CAPABILITIES_V2,
   schemaVersion: '1.2.0',
+  limits: { ...BOARD_DOCUMENT_LIMITS_V3 },
 } as const;
 
 export const BoardCapabilitiesSchema = z.union([

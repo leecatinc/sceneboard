@@ -47,7 +47,10 @@ export class HistoryToolHandlersV1 {
     const result = await this.gateway.call(
       'board_history_list',
       'history.list',
-      { signal },
+      {
+        signal,
+        authorization: { boardId: parsed.data.boardId, operation: 'history.list' },
+      },
       (client, _snapshot, operationSignal) =>
         client.listHistory(
           {
@@ -83,7 +86,10 @@ export class HistoryToolHandlersV1 {
     const result = await this.gateway.call(
       'board_history_get',
       'history.get',
-      { signal },
+      {
+        signal,
+        authorization: { boardId: parsed.data.boardId, operation: 'history.get' },
+      },
       (client, _snapshot, operationSignal) =>
         client.getHistory(
           {
@@ -119,7 +125,10 @@ export class HistoryToolHandlersV1 {
     const result = await this.gateway.call(
       'board_history_restore',
       'scene.restore',
-      { signal },
+      {
+        signal,
+        authorization: { boardId: parsed.data.boardId, operation: 'scene.restore' },
+      },
       (client, _snapshot, operationSignal) =>
         client.restoreRevision(
           {

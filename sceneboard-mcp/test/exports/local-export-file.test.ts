@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
-import { closeSync, openSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { EventEmitter } from 'node:events';
+import { closeSync, fstatSync, openSync } from 'node:fs';
 import {
   chmod,
   copyFile,
@@ -18,6 +20,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
+import { PassThrough, Writable } from 'node:stream';
 import test from 'node:test';
 
 import {
@@ -130,6 +133,165 @@ const createRoot = async (): Promise<string> => {
   const root = await mkdtemp(join(testRoot, 'sceneboard-local-export-'));
   await chmod(root, 0o700);
   return root;
+};
+
+const deferred = () => {
+  let resolve!: () => void;
+  const promise = new Promise<void>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+};
+
+const promptly = async <Value>(promise: Promise<Value>, timeoutMs = 1_200): Promise<Value> => {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error('operation did not settle promptly')), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+};
+
+const stallingSink = async (
+  root: string,
+  mode: 'prefix' | 'body' | 'control' | 'control_error' | 'backpressure' | 'exit',
+  uncooperative = false,
+): Promise<{
+  local: LocalExportFileV1;
+  reached: Promise<void>;
+  kills: NodeJS.Signals[];
+  spawnCalls: () => number;
+  rootDescriptorReleased: () => boolean;
+  streamsDestroyed: () => boolean;
+}> => {
+  const bundle = `${root}/fake-helper-${mode}`;
+  const native = `${bundle}/linux-x64-gnu`;
+  await mkdir(native, { recursive: true, mode: 0o700 });
+  const fixtureManifest = `${bundle}/local-export-helper.manifest.json`;
+  const fixtureHelper = `${native}/local-export-helper`;
+  const helperBytes = Buffer.from(`synthetic-${mode}`, 'ascii');
+  const digest = createHash('sha256').update(helperBytes).digest('hex');
+  await writeFile(fixtureHelper, helperBytes, { mode: 0o500 });
+  await writeFile(
+    fixtureManifest,
+    JSON.stringify({
+      version: 1,
+      targets: {
+        'linux-x64-gnu': {
+          path: 'linux-x64-gnu/local-export-helper',
+          sha256: digest,
+          mode: '0500',
+        },
+      },
+    }),
+    { mode: 0o400 },
+  );
+  await chmod(fixtureHelper, 0o500);
+  await chmod(fixtureManifest, 0o400);
+
+  const milestone = deferred();
+  let milestoneReached = false;
+  const reach = (): void => {
+    if (milestoneReached) return;
+    milestoneReached = true;
+    milestone.resolve();
+  };
+  const stdout = new PassThrough();
+  const stderr = new PassThrough();
+  const stdin = new Writable({
+    highWaterMark: mode === 'backpressure' ? 1 : undefined,
+    write(_chunk, _encoding, callback) {
+      if (mode === 'body' || mode === 'backpressure') reach();
+      if (mode !== 'backpressure') callback();
+    },
+    final(callback) {
+      if (mode === 'exit') {
+        stdout.end('SBEX/1 ok 5\n');
+        stderr.end();
+        reach();
+      }
+      callback();
+    },
+  });
+  const control = new Writable({
+    write(_chunk, _encoding, callback) {
+      if (mode === 'control') reach();
+      if (mode !== 'control') callback();
+    },
+  });
+  if (mode === 'control_error') {
+    control.end = (() => {
+      reach();
+      throw new Error('synthetic control failure');
+    }) as typeof control.end;
+  }
+  const child = new EventEmitter() as EventEmitter & {
+    stdin: Writable;
+    stdout: PassThrough;
+    stderr: PassThrough;
+    stdio: unknown[];
+    exitCode: number | null;
+    signalCode: NodeJS.Signals | null;
+    kill(signal?: NodeJS.Signals): boolean;
+  };
+  child.stdin = stdin;
+  child.stdout = stdout;
+  child.stderr = stderr;
+  child.stdio = [stdin, stdout, stderr, null, control, null];
+  child.exitCode = null;
+  child.signalCode = null;
+  const kills: NodeJS.Signals[] = [];
+  let exited = false;
+  child.kill = (signal = 'SIGTERM') => {
+    kills.push(signal);
+    if (exited || ((mode === 'exit' || uncooperative) && signal !== 'SIGKILL')) return true;
+    exited = true;
+    setImmediate(() => {
+      child.signalCode = signal;
+      child.emit('exit', null, signal);
+    });
+    return true;
+  };
+  let spawnCalls = 0;
+  let rootDescriptor: number | null = null;
+  const local = new LocalExportFileV1({
+    manifestPath: fixtureManifest,
+    platform: 'linux',
+    architecture: 'x64',
+    glibc: true,
+    spawn: ((
+      _command: string,
+      _args: readonly string[],
+      options: { stdio?: readonly unknown[] },
+    ) => {
+      spawnCalls += 1;
+      const descriptor = options.stdio?.[3];
+      rootDescriptor = typeof descriptor === 'number' ? descriptor : null;
+      return child as never;
+    }) as unknown as typeof spawn,
+  });
+  return {
+    local,
+    reached: milestone.promise,
+    kills,
+    spawnCalls: () => spawnCalls,
+    rootDescriptorReleased: () => {
+      if (rootDescriptor === null) return false;
+      try {
+        fstatSync(rootDescriptor);
+        return false;
+      } catch {
+        return true;
+      }
+    },
+    streamsDestroyed: () =>
+      stdin.destroyed && stdout.destroyed && stderr.destroyed && control.destroyed,
+  };
 };
 
 const sink = (): LocalExportFileV1 =>
@@ -433,6 +595,147 @@ test('signature, short body and abort failures publish nothing and clean helper 
     );
     for (const path of [invalidPath, shortPath, abortPath])
       await assert.rejects(lstat(path), { code: 'ENOENT' });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('abort cancels a stalled prefix read before spawning the local helper', async () => {
+  const root = await createRoot();
+  try {
+    const fixture = await stallingSink(root, 'prefix');
+    const target = `${root}/stalled-prefix.pdf`;
+    const controller = new AbortController();
+    const pending = fixture.local.publish(
+      prepared(fixture.local, target, 'pdf'),
+      {
+        format: 'pdf',
+        contentType: 'application/pdf',
+        contentLength: 5,
+        body: new ReadableStream<Uint8Array>({ pull() {} }),
+      },
+      controller.signal,
+    );
+    setImmediate(() => controller.abort());
+    const result = await pending;
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.error.code, 'LOCAL_EXPORT_CANCELLED');
+    assert.equal(fixture.spawnCalls(), 0);
+    await assert.rejects(lstat(target), { code: 'ENOENT' });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('pre-spawn corruption does not await a never-settling response cancellation', async () => {
+  const root = await createRoot();
+  try {
+    const fixture = await stallingSink(root, 'prefix');
+    const target = `${root}/never-cancel-prefix.pdf`;
+    let cancelCalls = 0;
+    const intent = prepared(fixture.local, target, 'pdf');
+    const pending = fixture.local.publish(intent, {
+      format: 'pdf',
+      contentType: 'application/pdf',
+      contentLength: 9,
+      body: new ReadableStream<Uint8Array>({
+        start(streamController) {
+          streamController.enqueue(Buffer.from('not-a-pdf', 'ascii'));
+        },
+        cancel() {
+          cancelCalls += 1;
+          return new Promise<void>(() => undefined);
+        },
+      }),
+    });
+    const result = await promptly(pending);
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.error.code, 'LOCAL_EXPORT_CORRUPT');
+    assert.equal(cancelCalls, 1);
+    assert.equal(fixture.spawnCalls(), 0);
+    assert.equal(intent.helperHandle.released, true);
+    await assert.rejects(lstat(target), { code: 'ENOENT' });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('post-spawn failure reaps and releases before ignoring never-settling cancellation', async () => {
+  const root = await createRoot();
+  try {
+    const fixture = await stallingSink(root, 'control_error', true);
+    const target = `${root}/never-cancel-body.pdf`;
+    let cancelCalls = 0;
+    const intent = prepared(fixture.local, target, 'pdf');
+    const pending = fixture.local.publish(intent, {
+      format: 'pdf',
+      contentType: 'application/pdf',
+      contentLength: 10,
+      body: new ReadableStream<Uint8Array>({
+        start(streamController) {
+          streamController.enqueue(Buffer.from('%PDF-', 'ascii'));
+        },
+        cancel() {
+          cancelCalls += 1;
+          return new Promise<void>(() => undefined);
+        },
+      }),
+    });
+    await fixture.reached;
+    const result = await promptly(pending);
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.error.code, 'LOCAL_EXPORT_IO');
+    assert.equal(cancelCalls, 1);
+    assert.equal(fixture.kills.includes('SIGTERM'), true);
+    assert.equal(fixture.kills.includes('SIGKILL'), true);
+    assert.equal(intent.helperHandle.released, true);
+    assert.equal(fixture.rootDescriptorReleased(), true);
+    assert.equal(fixture.streamsDestroyed(), true);
+    await assert.rejects(lstat(target), { code: 'ENOENT' });
+    assert.deepEqual(
+      (await readdir(root)).filter((name) => name.startsWith('.sceneboard-export-')),
+      [],
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('abort bounds stalled body, control, backpressure, and helper-exit waits', async () => {
+  const root = await createRoot();
+  try {
+    for (const mode of ['body', 'control', 'backpressure', 'exit'] as const) {
+      const fixture = await stallingSink(root, mode);
+      const target = `${root}/stalled-${mode}.pdf`;
+      const controller = new AbortController();
+      const body =
+        mode === 'body'
+          ? new ReadableStream<Uint8Array>({
+              start(streamController) {
+                streamController.enqueue(Buffer.from('%PDF-', 'ascii'));
+              },
+            })
+          : stream(Buffer.from('%PDF-', 'ascii'));
+      const pending = fixture.local.publish(
+        prepared(fixture.local, target, 'pdf'),
+        {
+          format: 'pdf',
+          contentType: 'application/pdf',
+          contentLength: mode === 'body' ? 10 : 5,
+          body,
+        },
+        controller.signal,
+      );
+      await fixture.reached;
+      controller.abort();
+      const result = await pending;
+      assert.equal(result.ok, false, mode);
+      if (!result.ok) assert.equal(result.error.code, 'LOCAL_EXPORT_CANCELLED', mode);
+      assert.equal(fixture.spawnCalls(), 1, mode);
+      assert.equal(fixture.kills.includes('SIGTERM'), true, mode);
+      if (mode === 'exit') assert.equal(fixture.kills.includes('SIGKILL'), true, mode);
+      await assert.rejects(lstat(target), { code: 'ENOENT' });
+    }
   } finally {
     await rm(root, { recursive: true, force: true });
   }

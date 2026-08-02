@@ -16,6 +16,16 @@ interface InlineRow extends RowDataPacket {
   sha256: Buffer;
 }
 
+interface DetachedRow extends RowDataPacket {
+  schemaVersion: string;
+  codec: string;
+  canonicalBytes: number;
+  storedBytes: number;
+  sha256: Buffer;
+  payload: Buffer;
+  state: string;
+}
+
 export interface RevisionPayloadCutoverBatchV1 {
   processed: number;
   storedBytes: number;
@@ -43,6 +53,16 @@ const bounded = (rows: readonly InlineRow[]): InlineRow[] => {
   return result;
 };
 
+const tuplesMatch = (inline: InlineRow, detached: DetachedRow): boolean =>
+  inline.schemaVersion === detached.schemaVersion &&
+  inline.codec === detached.codec &&
+  inline.canonicalBytes === detached.canonicalBytes &&
+  inline.storedBytes === detached.storedBytes &&
+  Buffer.isBuffer(detached.sha256) &&
+  inline.sha256.equals(detached.sha256) &&
+  Buffer.isBuffer(detached.payload) &&
+  inline.payload.equals(detached.payload);
+
 export class RevisionPayloadCutoverService {
   async backfillBatch(
     connection: PoolConnection,
@@ -50,27 +70,42 @@ export class RevisionPayloadCutoverService {
   ): Promise<RevisionPayloadCutoverBatchV1> {
     const rows = bounded(await this.readInlineBatch(connection, afterRevisionPk));
     for (const row of rows) {
-      const [result] = await connection.execute<ResultSetHeader>(
-        `
-        INSERT INTO board_revision_payloads (
-          revision_pk, schema_version, codec, canonical_bytes, stored_bytes,
-          payload_sha256, payload, state
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'available')
-        ON DUPLICATE KEY UPDATE revision_pk = VALUES(revision_pk)
-      `,
-        [
-          row.revisionPk,
-          row.schemaVersion,
-          row.codec,
-          row.canonicalBytes,
-          row.storedBytes,
-          row.sha256,
-          row.payload,
-        ],
-      );
-      if (result.affectedRows !== 1 && result.affectedRows !== 2) {
-        throw new BoardPersistenceError('row_integrity');
+      const detached = await this.readDetachedCheckpoint(connection, row.revisionPk);
+      if (detached === null) {
+        const [inserted] = await connection.execute<ResultSetHeader>(
+          `
+          INSERT INTO board_revision_payloads (
+            revision_pk, schema_version, codec, canonical_bytes, stored_bytes,
+            payload_sha256, payload, state
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, 'available')
+        `,
+          [
+            row.revisionPk,
+            row.schemaVersion,
+            row.codec,
+            row.canonicalBytes,
+            row.storedBytes,
+            row.sha256,
+            row.payload,
+          ],
+        );
+        if (inserted.affectedRows !== 1) throw new BoardPersistenceError('row_integrity');
+        continue;
       }
+
+      if (!tuplesMatch(row, detached)) throw new BoardPersistenceError('checkpoint_integrity');
+      if (detached.state === 'available') continue;
+      if (detached.state !== 'reclaiming') throw new BoardPersistenceError('checkpoint_integrity');
+
+      const [recovered] = await connection.execute<ResultSetHeader>(
+        `
+        UPDATE board_revision_payloads
+        SET state = 'available'
+        WHERE revision_pk = ? AND state = 'reclaiming'
+      `,
+        [row.revisionPk],
+      );
+      if (recovered.affectedRows !== 1) throw new BoardPersistenceError('row_integrity');
     }
     return this.report(rows);
   }
@@ -88,6 +123,7 @@ export class RevisionPayloadCutoverService {
         SET r.scene_schema_version = NULL, r.scene_codec = NULL, r.scene_payload = NULL,
             r.scene_canonical_bytes = NULL, r.scene_stored_bytes = NULL, r.scene_sha256 = NULL
         WHERE r.revision_pk = ?
+          AND p.state = 'available'
           AND p.schema_version = r.scene_schema_version
           AND p.codec = r.scene_codec
           AND p.canonical_bytes = r.scene_canonical_bytes
@@ -106,20 +142,41 @@ export class RevisionPayloadCutoverService {
     const [rows] = await connection.execute<RowDataPacket[]>(
       `
       SELECT
-        SUM(CASE WHEN p.revision_pk IS NULL THEN 1 ELSE 0 END) AS missingDetached,
-        SUM(CASE WHEN p.revision_pk IS NOT NULL AND (
-          p.schema_version <> r.scene_schema_version OR p.codec <> r.scene_codec
+        COALESCE(SUM(CASE WHEN p.revision_pk IS NULL THEN 1 ELSE 0 END), 0) AS missingDetached,
+        COALESCE(SUM(CASE WHEN p.revision_pk IS NOT NULL AND (
+          p.state <> 'available'
+          OR p.schema_version <> r.scene_schema_version OR p.codec <> r.scene_codec
           OR p.canonical_bytes <> r.scene_canonical_bytes
           OR p.stored_bytes <> r.scene_stored_bytes
           OR p.payload_sha256 <> r.scene_sha256 OR p.payload <> r.scene_payload
-        ) THEN 1 ELSE 0 END) AS parityMismatch
+        ) THEN 1 ELSE 0 END), 0) AS parityMismatch
       FROM board_revisions r
       LEFT JOIN board_revision_payloads p ON p.revision_pk = r.revision_pk
       WHERE r.scene_payload IS NOT NULL
     `,
     );
     const row = rows[0] as { missingDetached?: unknown; parityMismatch?: unknown } | undefined;
-    return Number(row?.missingDetached ?? -1) === 0 && Number(row?.parityMismatch ?? -1) === 0;
+    const isZero = (value: unknown): boolean => value === 0 || value === '0';
+    return rows.length === 1 && isZero(row?.missingDetached) && isZero(row?.parityMismatch);
+  }
+
+  private async readDetachedCheckpoint(
+    connection: PoolConnection,
+    revisionPk: string,
+  ): Promise<DetachedRow | null> {
+    const [rows] = await connection.execute<DetachedRow[]>(
+      `
+      SELECT schema_version AS schemaVersion, codec,
+             canonical_bytes AS canonicalBytes, stored_bytes AS storedBytes,
+             payload_sha256 AS sha256, payload, state
+      FROM board_revision_payloads
+      WHERE revision_pk = ?
+      FOR UPDATE
+    `,
+      [revisionPk],
+    );
+    if (rows.length > 1) throw new BoardPersistenceError('row_integrity');
+    return rows[0] ?? null;
   }
 
   private async readInlineBatch(

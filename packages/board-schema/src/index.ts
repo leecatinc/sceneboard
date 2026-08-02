@@ -49,13 +49,15 @@ export type {
 export { accountApiKeyActorContextV1 } from './actors.js';
 export {
   BOARD_DOCUMENT_LIMITS_V2,
+  BOARD_DOCUMENT_LIMITS_V3,
   BOARD_LIMITS_V1,
   MAX_BOARD_MEDIA_BYTES,
+  MAX_ARTIFACT_REFERENCE_OCCURRENCES,
   MAX_MEDIA_BYTES,
   MAX_MEDIA_PIXELS,
   MAX_MEDIA_REFERENCES,
 } from './limits.js';
-export type { BoardLimitKeyV1, BoardLimitKeyV2 } from './limits.js';
+export type { BoardLimitKeyV1, BoardLimitKeyV2, BoardLimitKeyV3 } from './limits.js';
 export type { JsonValue } from './json.js';
 export type { BoardAuthorizationPrincipalV1, BoardMembershipV1 } from './memberships.js';
 export { BoardAuthorizationPrincipalSchemaV1, BoardMembershipSchemaV1 } from './memberships.js';

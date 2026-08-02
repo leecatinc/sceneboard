@@ -11,10 +11,14 @@ export function ClipboardCopyButton({
   value,
   className = 'button',
   onCopied,
+  onCopyFailed,
+  autoFocus = false,
 }: {
   value: string;
   className?: string;
   onCopied?: () => void;
+  onCopyFailed?: () => void;
+  autoFocus?: boolean;
 }) {
   const { t } = useI18n();
   const [copied, setCopied] = useState(false);
@@ -31,9 +35,13 @@ export function ClipboardCopyButton({
     try {
       await navigator.clipboard.writeText(value);
     } catch {
+      onCopyFailed?.();
       return;
     }
-    onCopied?.();
+    if (onCopied !== undefined) {
+      onCopied();
+      return;
+    }
     setCopied(true);
     if (timeoutRef.current !== null) window.clearTimeout(timeoutRef.current);
     timeoutRef.current = window.setTimeout(() => {
@@ -44,7 +52,7 @@ export function ClipboardCopyButton({
 
   return (
     <>
-      <button type="button" className={className} onClick={() => void copy()}>
+      <button type="button" className={className} autoFocus={autoFocus} onClick={() => void copy()}>
         {t('ai.copyCode')}
       </button>
       {copied && (

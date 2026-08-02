@@ -362,55 +362,64 @@ export const assessDocumentV3CheckpointPostcondition = (
   const projections = new Map(
     rows.map((row) => [`${row.tableName}.${row.constraintName}`, canonicalCheck(row.checkClause)]),
   );
-  const expected = new Map([
+  const expected: ReadonlyMap<string, string> = new Map([
     [
       'board_revision_payloads.chk_revision_payloads_checkpoint',
-      [
-        "codec='B'",
-        'stored_bytes=length(payload)',
-        "schema_version='1.0.0'",
-        'canonical_bytesbetween1and786432',
-        'stored_bytesbetween1and800000',
-        "schema_version='2.0.0'",
-        "schema_version='3.0.0'",
-        'canonical_bytesbetween1and20971520',
-        'stored_bytesbetween1and33554432',
-      ],
+      canonicalCheck(`
+        codec = 'B'
+        AND stored_bytes = LENGTH(payload)
+        AND (
+          (schema_version = '1.0.0'
+            AND canonical_bytes BETWEEN 1 AND 786432
+            AND stored_bytes BETWEEN 1 AND 800000)
+          OR (schema_version = '2.0.0'
+            AND canonical_bytes BETWEEN 1 AND 20971520
+            AND stored_bytes BETWEEN 1 AND 33554432)
+          OR (schema_version = '3.0.0'
+            AND canonical_bytes BETWEEN 1 AND 20971520
+            AND stored_bytes BETWEEN 1 AND 33554432)
+        )
+      `),
     ],
     [
       'board_revisions.chk_revisions_retained_checkpoint',
-      [
-        'scene_schema_versionisnull',
-        'scene_codecisnull',
-        'scene_payloadisnull',
-        'scene_canonical_bytesisnull',
-        'scene_stored_bytesisnull',
-        'scene_sha256isnull',
-        'scene_schema_versionisnotnull',
-        "scene_codec='B'",
-        'scene_payloadisnotnull',
-        'scene_canonical_bytesisnotnull',
-        'scene_stored_bytes=length(scene_payload)',
-        'scene_sha256isnotnull',
-        "scene_schema_version='1.0.0'",
-        "scene_schema_version='2.0.0'",
-        "scene_schema_version='3.0.0'",
-        'scene_canonical_bytesbetween1and786432',
-        'scene_stored_bytesbetween1and800000',
-        'scene_canonical_bytesbetween1and20971520',
-        'scene_stored_bytesbetween1and33554432',
-      ],
+      canonicalCheck(`
+        (scene_schema_version IS NULL
+          AND scene_codec IS NULL
+          AND scene_payload IS NULL
+          AND scene_canonical_bytes IS NULL
+          AND scene_stored_bytes IS NULL
+          AND scene_sha256 IS NULL)
+        OR
+        (scene_schema_version IS NOT NULL
+          AND scene_codec = 'B'
+          AND scene_payload IS NOT NULL
+          AND scene_canonical_bytes IS NOT NULL
+          AND scene_stored_bytes = LENGTH(scene_payload)
+          AND scene_sha256 IS NOT NULL
+          AND (
+            (scene_schema_version = '1.0.0'
+              AND scene_canonical_bytes BETWEEN 1 AND 786432
+              AND scene_stored_bytes BETWEEN 1 AND 800000)
+            OR (scene_schema_version = '2.0.0'
+              AND scene_canonical_bytes BETWEEN 1 AND 20971520
+              AND scene_stored_bytes BETWEEN 1 AND 33554432)
+            OR (scene_schema_version = '3.0.0'
+              AND scene_canonical_bytes BETWEEN 1 AND 20971520
+              AND scene_stored_bytes BETWEEN 1 AND 33554432)
+          )
+        )
+      `),
     ],
-  ] as const);
+  ]);
   if (
     projections.size !== expected.size ||
     [...expected.keys()].some((name) => !projections.has(name))
   ) {
     throw new Error('document V3 checkpoint constraint projection mismatch');
   }
-  for (const [name, fragments] of expected) {
-    const clause = projections.get(name) ?? '';
-    if (fragments.some((fragment) => !clause.includes(fragment))) {
+  for (const [name, expectedClause] of expected) {
+    if (projections.get(name) !== expectedClause) {
       throw new Error(`document V3 checkpoint clause mismatch: ${name}`);
     }
   }

@@ -10,7 +10,12 @@ import {
   type PageId,
   type RevisionId,
 } from './identifiers.js';
-import { MAX_DOCUMENT_NODES, MAX_DOCUMENT_PAGES, MAX_TITLE_CHARS } from './limits.js';
+import {
+  MAX_ARTIFACT_REFERENCE_OCCURRENCES,
+  MAX_DOCUMENT_NODES,
+  MAX_DOCUMENT_PAGES,
+  MAX_TITLE_CHARS,
+} from './limits.js';
 import { collectSceneNodesV1, SceneSchemaV1, type BoardNodeV1, type SceneV1 } from './scene.js';
 
 export const PageDisplayModeSchemaV1 = z.enum(['fit-page', 'fit-width', 'actual-size']);
@@ -106,6 +111,7 @@ const validateDocumentPages = (
 
   const pageIds = new Set<string>();
   const nodeIds = new Map<string, Array<string | number>>();
+  const artifactReferenceCounts = new Map<string, number>();
   let nodeCount = 0;
   document.pages.forEach((page, pageIndex) => {
     if (pageIds.has(page.pageId))
@@ -118,6 +124,7 @@ const validateDocumentPages = (
     pageIds.add(page.pageId);
 
     for (const item of collectSceneNodesV1(page.scene.root)) {
+      const node = item.node as BoardNodeV1;
       nodeCount += 1;
       const path = ['pages', pageIndex, 'scene', ...item.path, 'id'] as Array<string | number>;
       const firstPath = nodeIds.get(item.node.id);
@@ -129,6 +136,25 @@ const validateDocumentPages = (
           `duplicate node ID ${item.node.id}; first path ${JSON.stringify(firstPath)}`,
         );
       else nodeIds.set(item.node.id, path);
+
+      const reference =
+        node.type === 'content.artifact'
+          ? { artifact: node.artifact, code: 'A' as const }
+          : node.type === 'content.image' && node.source.type === 'artifact.resource'
+            ? { artifact: node.source.artifact, code: 'I' as const }
+            : null;
+      if (reference !== null) {
+        const key = `${reference.artifact.artifactId}\0${reference.artifact.versionId}\0${reference.code}`;
+        const occurrenceCount = (artifactReferenceCounts.get(key) ?? 0) + 1;
+        artifactReferenceCounts.set(key, occurrenceCount);
+        if (occurrenceCount === MAX_ARTIFACT_REFERENCE_OCCURRENCES + 1)
+          invalidDocument(
+            context,
+            ['pages', pageIndex, 'scene', ...item.path],
+            'limit',
+            'artifact reference occurrence count exceeded',
+          );
+      }
     }
   });
 
@@ -355,8 +381,14 @@ export const collectArtifactReferencesAcrossSnapshotV2 = (input: {
   const output: SnapshotArtifactReferenceV2[] = [];
   const seen = new Set<string>();
   for (const item of collectDocumentNodesV2(document)) {
-    if (item.node.type !== 'content.artifact') continue;
-    const key = artifactKey(item.node.artifact);
+    const artifact =
+      item.node.type === 'content.artifact'
+        ? item.node.artifact
+        : item.node.type === 'content.image' && item.node.source.type === 'artifact.resource'
+          ? item.node.source.artifact
+          : null;
+    if (artifact === null) continue;
+    const key = artifactKey(artifact);
     if (seen.has(key)) continue;
     if (inventory.get(key) !== 1)
       throw new TypeError('artifact reference does not have exactly one inventory entry');
@@ -365,8 +397,8 @@ export const collectArtifactReferencesAcrossSnapshotV2 = (input: {
       boardId: input.boardId,
       revisionId: input.revisionId,
       firstPageId: item.page.pageId,
-      artifactId: item.node.artifact.artifactId,
-      versionId: item.node.artifact.versionId,
+      artifactId: artifact.artifactId,
+      versionId: artifact.versionId,
       ordinal: output.length + 1,
     });
   }

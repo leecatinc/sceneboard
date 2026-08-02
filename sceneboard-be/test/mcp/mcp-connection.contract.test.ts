@@ -13,6 +13,8 @@ import type {
   AuthorizedBrowserPresencePortV1,
   AuthorizedBrowserPresenceSubjectV1,
 } from '../../src/presence/ports/authorized-browser-presence.port.js';
+import { BoardContractError } from '../../src/common/errors/app-error.js';
+import { McpConnectionController } from '../../src/mcp/mcp-connection.controller.js';
 import { McpConnectionService } from '../../src/mcp/mcp-connection.service.js';
 
 const principal = {
@@ -221,7 +223,7 @@ test('API-key null status returns only safe credential metadata without board or
   assert.equal(JSON.stringify(result).includes('apiKeyPk'), false);
 });
 
-test('API-key targeted status selects a board only through board.get authorization', async () => {
+test('API-key targeted probes authorize the exact read, write, history, or export operation', async () => {
   const connection = {
     async execute() {
       return [
@@ -241,18 +243,19 @@ test('API-key targeted status selects a board only through board.get authorizati
       ];
     },
   } as unknown as PoolConnection;
-  let policyCalls = 0;
+  const policyInputs: unknown[] = [];
   const policy = {
     async withAuthorizedBoardTransaction(
       input: unknown,
       apply: (connection: PoolConnection, context: AuthorizedBoardContextV1) => Promise<unknown>,
     ) {
-      policyCalls += 1;
+      policyInputs.push(input);
+      const operation = (input as { operation: string }).operation;
       assert.deepEqual(input, {
         principal: accountPrincipal,
-        operation: 'board.get',
+        operation,
         boardId: 'board_1',
-        isolation: 'REPEATABLE_READ_CUT',
+        isolation: operation === 'board.rename' ? 'READ_COMMITTED_WRITE' : 'REPEATABLE_READ_CUT',
       });
       return apply(connection, {
         actor: accountPrincipal.actor,
@@ -268,9 +271,9 @@ test('API-key targeted status selects a board only through board.get authorizati
           membershipVersion: 1,
           capabilityEpoch: 1,
           capabilityEpochEnforced: true,
-          operation: 'board.get',
+          operation: operation as never,
           surface: 'account_api_key',
-          write: false,
+          write: operation === 'board.rename',
         },
         artifactCapabilityPolicy: {
           allowedArtifactRequestCapabilities: [],
@@ -287,12 +290,65 @@ test('API-key targeted status selects a board only through board.get authorizati
       throw new Error('API keys must not touch browser presence');
     },
   } as AuthorizedBrowserPresencePortV1;
-  const result = await new McpConnectionService(policy, presence).get({
-    principal: accountPrincipal,
-    requestId: 'request_key_1' as never,
-    boardId: 'board_1' as never,
-  });
-  assert.equal(policyCalls, 1);
-  assert.equal(result.selectedBoard?.board.boardId, 'board_1');
-  assert.deepEqual(result.selectedBoard?.capabilities.grantedCapabilities, []);
+  const service = new McpConnectionService(policy, presence);
+  for (const authorizationOperation of [
+    'board.get',
+    'board.rename',
+    'history.get',
+    'export.render',
+  ] as const) {
+    const result = await service.get({
+      principal: accountPrincipal,
+      requestId: 'request_key_1' as never,
+      boardId: 'board_1' as never,
+      authorizationOperation,
+    });
+    assert.equal(result.selectedBoard?.board.boardId, 'board_1');
+    assert.deepEqual(result.selectedBoard?.capabilities.grantedCapabilities, []);
+  }
+  assert.deepEqual(
+    policyInputs.map((value) => (value as { operation: string }).operation),
+    ['board.get', 'board.rename', 'history.get', 'export.render'],
+  );
+});
+
+test('controller requires a strict operation only for targeted API-key probes', async () => {
+  const calls: unknown[] = [];
+  const controller = new McpConnectionController({
+    get: async (value: unknown) => {
+      calls.push(value);
+      return { selectedBoard: null };
+    },
+  } as never);
+  const accountRequest = { boardPrincipal: accountPrincipal } as never;
+  await controller.get(
+    {
+      requestId: 'request_key_1',
+      boardId: 'board_1',
+      authorizationOperation: 'export.render',
+    },
+    accountRequest,
+  );
+  assert.equal(
+    (calls[0] as { authorizationOperation: string }).authorizationOperation,
+    'export.render',
+  );
+  for (const query of [
+    { requestId: 'request_key_2', boardId: 'board_1' },
+    {
+      requestId: 'request_key_3',
+      boardId: 'board_1',
+      authorizationOperation: 'board.list',
+    },
+    { requestId: 'request_key_4', authorizationOperation: 'board.get' },
+  ]) {
+    await assert.rejects(
+      controller.get(query, { boardPrincipal: accountPrincipal } as never),
+      BoardContractError,
+    );
+  }
+  await controller.get({ requestId: 'request_pairing_1', boardId: 'board_1' }, {
+    boardPrincipal: principal,
+  } as never);
+  assert.equal((calls[1] as { authorizationOperation: unknown }).authorizationOperation, null);
 });

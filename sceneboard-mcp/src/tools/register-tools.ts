@@ -660,7 +660,11 @@ export const registerCoreToolsV1 = (
         const error = structured?.error as
           | { source?: unknown; value?: { code?: unknown } }
           | undefined;
-        if (error?.source === 'board' && error.value?.code === 'UNAUTHENTICATED')
+        if (
+          error?.source === 'board' &&
+          (error.value?.code === 'UNAUTHENTICATED' ||
+            error.value?.code === 'EXPORT_UNAUTHENTICATED')
+        )
           setProtectedEnabled(false);
         return result;
       },

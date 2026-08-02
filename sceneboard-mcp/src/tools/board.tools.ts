@@ -94,7 +94,10 @@ export class BoardToolHandlersV1 {
     const result = await this.gateway.call(
       'board_get',
       'board.get',
-      { signal },
+      {
+        signal,
+        authorization: { boardId: parsed.data.boardId, operation: 'board.get' },
+      },
       (client, _snapshot, operationSignal) =>
         client.getBoard(
           {
@@ -185,7 +188,10 @@ export class BoardToolHandlersV1 {
     const result = await this.gateway.call(
       'board_archive',
       'board.archive',
-      { signal },
+      {
+        signal,
+        authorization: { boardId: parsed.data.boardId, operation: 'board.archive' },
+      },
       (client, _snapshot, operationSignal) =>
         client.archiveBoard(
           {
@@ -211,7 +217,10 @@ export class BoardToolHandlersV1 {
     const result = await this.gateway.call(
       'board_capabilities_get',
       'capabilities.get',
-      { signal },
+      {
+        signal,
+        authorization: { boardId: parsed.data.boardId, operation: 'capabilities.get' },
+      },
       (client, _snapshot, operationSignal) =>
         client.getCapabilities(
           {

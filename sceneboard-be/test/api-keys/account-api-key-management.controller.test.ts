@@ -78,12 +78,17 @@ test('session management keeps default scope, limiter inputs, and safe responses
   });
 
   const created = await value.create(
-    request({ displayName: 'Automation', expiresAt: metadata.expiresAt }),
+    request({ displayName: 'Automation', expiresInDays: 90 }),
   );
   assert.equal(created.metadata, metadata);
   assert.equal(
     (calls.find(([name]) => name === 'issue-service')?.[1] as { scopes?: unknown }).scopes,
     undefined,
+  );
+  assert.equal(
+    (calls.find(([name]) => name === 'issue-service')?.[1] as { expiresInDays?: unknown })
+      .expiresInDays,
+    90,
   );
   assert.deepEqual(await value.list({ limit: '20' }, request()), {
     items: [metadata],
@@ -137,38 +142,81 @@ test('route source is session, origin, and CSRF protected without board-principa
   assert.doesNotMatch(source, /RequireBoardPrincipal/u);
 });
 
-test('create DTO requires a canonical expiry and preserves exact scope selection semantics', () => {
-  const expiresAt = '2026-10-28T00:00:00.000Z';
-  assert.deepEqual(parseAccountApiKeyCreateDto({ displayName: 'Read only', expiresAt }), {
+test('create DTO requires a closed duration and preserves exact scope selection semantics', () => {
+  assert.deepEqual(parseAccountApiKeyCreateDto({ displayName: 'Read only', expiresInDays: 90 }), {
     displayName: 'Read only',
     scopes: undefined,
-    expiresAt: Date.parse(expiresAt),
+    expiresInDays: 90,
   });
   assert.deepEqual(
     parseAccountApiKeyCreateDto({
       displayName: 'Writer',
       scopes: ['board:create', 'board:write'],
-      expiresAt,
+      expiresInDays: 365,
     }),
     {
       displayName: 'Writer',
       scopes: ['board:create', 'board:write'],
-      expiresAt: Date.parse(expiresAt),
+      expiresInDays: 365,
     },
   );
   for (const body of [
     { displayName: 'Missing expiry' },
-    { displayName: 'Invalid month', expiresAt: '2026-13-01T00:00:00.000Z' },
-    { displayName: 'Invalid day', expiresAt: '2026-02-30T00:00:00.000Z' },
-    { displayName: 'Empty', scopes: [], expiresAt },
-    { displayName: 'Unknown', scopes: ['unknown'], expiresAt },
-    { displayName: 'Duplicate', scopes: ['board:read', 'board:read'], expiresAt },
-    { displayName: 'Unsorted', scopes: ['board:write', 'board:read'], expiresAt },
-    { displayName: 'Extra', expiresAt, apiKey: 'must-not-enter' },
+    { displayName: 'Lower boundary', expiresInDays: 29 },
+    { displayName: 'Fractional', expiresInDays: 30.5 },
+    { displayName: 'Upper boundary', expiresInDays: 366 },
+    { displayName: 'String duration', expiresInDays: '90' },
+    { displayName: 'Empty', scopes: [], expiresInDays: 90 },
+    { displayName: 'Unknown', scopes: ['unknown'], expiresInDays: 90 },
+    { displayName: 'Duplicate', scopes: ['board:read', 'board:read'], expiresInDays: 90 },
+    { displayName: 'Unsorted', scopes: ['board:write', 'board:read'], expiresInDays: 90 },
+    { displayName: 'Extra', expiresInDays: 90, expiresAt: metadata.expiresAt },
   ]) {
     assert.throws(
       () => parseAccountApiKeyCreateDto(body),
       (error) => error instanceof AppError && error.code === 'INVALID_PAYLOAD',
     );
   }
+});
+
+test('create DTO admits every exact database-clock expiry duration', () => {
+  for (const expiresInDays of [30, 90, 365] as const) {
+    assert.deepEqual(
+      parseAccountApiKeyCreateDto({ displayName: 'Automation', expiresInDays }),
+      { displayName: 'Automation', scopes: undefined, expiresInDays },
+    );
+  }
+});
+
+test('controller preserves every duration across positive and negative application clock skew', async () => {
+  const calls: Array<{ expiresInDays: number; now: number }> = [];
+  const value = controller({
+    async consumeManagementLimits() {},
+    async issue(input) {
+      calls.push({ expiresInDays: input.expiresInDays, now: input.now });
+      return {
+        apiKey: 'sbk_v1.AAAAAAAAAAAAAAAAAAAAAA.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        metadata,
+      };
+    },
+  });
+  const originalNow = Date.now;
+  try {
+    for (const browserNow of [0, Date.parse('2099-01-01T00:00:00.000Z')]) {
+      Date.now = () => browserNow;
+      for (const expiresInDays of [30, 90, 365]) {
+        await value.create(request({ displayName: 'Automation', expiresInDays }));
+      }
+    }
+  } finally {
+    Date.now = originalNow;
+  }
+  assert.deepEqual(calls, [
+    { expiresInDays: 30, now: 0 },
+    { expiresInDays: 90, now: 0 },
+    { expiresInDays: 365, now: 0 },
+    { expiresInDays: 30, now: Date.parse('2099-01-01T00:00:00.000Z') },
+    { expiresInDays: 90, now: Date.parse('2099-01-01T00:00:00.000Z') },
+    { expiresInDays: 365, now: Date.parse('2099-01-01T00:00:00.000Z') },
+  ]);
 });

@@ -34,6 +34,7 @@ type AccountApiKeyFailureBucket = {
 };
 
 const MAX_SATURATED_FAILURE_BUCKETS = 4_096;
+const ACCOUNT_API_KEY_EXPIRY_DAYS = new Set([30, 90, 365]);
 
 export interface AccountApiKeyManagementActor {
   ownerUserPk: string;
@@ -109,13 +110,19 @@ export class AccountApiKeyService {
     actor: AccountApiKeyManagementActor;
     name: string;
     scopes?: readonly string[] | undefined;
-    expiresAt?: number | undefined;
+    expiresInDays: number;
     now: number;
   }): Promise<{ apiKey: string; metadata: AccountApiKeyMetadata }> {
     if (!this.environment.accountApiKeyIssuanceEnabled) throw new AppError('SERVICE_UNAVAILABLE');
     const name = parseName(input.name);
     const scopes = parseAccountApiKeyScopes(input.scopes);
     const scopeMask = accountApiKeyScopeMask(scopes);
+    if (
+      !Number.isSafeInteger(input.expiresInDays) ||
+      !ACCOUNT_API_KEY_EXPIRY_DAYS.has(input.expiresInDays)
+    ) {
+      throw new AppError('INVALID_PAYLOAD');
+    }
     for (let attempt = 0; attempt < 5; attempt += 1) {
       const issued = this.tokens.issue();
       const keyPublicId = this.crypto.generatePublicIdV1();
@@ -126,14 +133,21 @@ export class AccountApiKeyService {
         locator: issued.locator,
         tokenHash: issued.tokenHash,
         scopeMask,
-        expiresAt: input.expiresAt,
+        expiresInDays: input.expiresInDays,
         prefix: this.tokens.prefix(issued.locator),
         auditContext: auditContext(input.actor),
       });
       if (result.kind === 'collision') continue;
       if (result.kind === 'owner_disabled') throw new AppError('UNAUTHENTICATED');
       if (result.kind === 'invalid_expiry') throw new AppError('INVALID_PAYLOAD');
-      if (result.kind === 'quota_exceeded') throw new AppError('RATE_LIMITED');
+      if (result.kind === 'quota_exceeded') {
+        throw new AppError('RATE_LIMITED', {
+          retryAfterSeconds: Math.max(
+            1,
+            Math.ceil((result.earliestActiveExpiry - result.databaseNow) / 1_000),
+          ),
+        });
+      }
       return { apiKey: issued.token, metadata: result.metadata };
     }
     throw new AppError('SERVICE_UNAVAILABLE');
@@ -149,13 +163,15 @@ export class AccountApiKeyService {
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 50) {
       throw new AppError('INVALID_PAYLOAD');
     }
-    return this.repository.list({
+    const result = await this.repository.list({
       ownerUserPk: input.actor.ownerUserPk,
       boundary: input.boundary,
       limit,
       prefixFromLocator: (locator) => this.tokens.prefix(locator),
       auditContext: auditContext(input.actor),
     });
+    if (result.kind === 'owner_disabled') throw new AppError('UNAUTHENTICATED');
+    return { items: result.items, nextBoundary: result.nextBoundary };
   }
 
   async revoke(input: {
@@ -171,6 +187,7 @@ export class AccountApiKeyService {
       keyPublicId: input.keyPublicId,
       auditContext: auditContext(input.actor),
     });
+    if (result.kind === 'owner_disabled') throw new AppError('UNAUTHENTICATED');
     if (result.kind === 'not_found') throw new AppError('API_KEY_NOT_FOUND');
   }
 

@@ -1,7 +1,17 @@
 import assert from 'node:assert/strict';
+import { constants } from 'node:fs';
+import { chmod, mkdtemp, open, rename, rm, symlink, truncate, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 
-import { BoardConfigError, parseBoardConfigV1 } from '../../src/config/board-config.js';
+import {
+  BOARD_CONFIG_MAX_BYTES_V1,
+  BoardConfigError,
+  parseBoardConfigV1,
+  readBoardConfigFileV1,
+} from '../../src/config/board-config.js';
+import { discoverBoardConfigV1 } from '../../src/config/config-discovery.js';
 import { resolveSecretReferenceV1 } from '../../src/config/secret-reference.js';
 import { redactSecretsV1 } from '../../src/diagnostics/redact-secrets.js';
 
@@ -91,6 +101,67 @@ test('explicit API-key mode accepts only its environment reference or matching p
     { ...config, credentialMode: 'unknown' },
   ])
     assert.throws(() => parseBoardConfigV1(invalid, 'environment'), BoardConfigError);
+});
+
+test('selected config files use one no-follow handle and reject unsafe size or metadata changes', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'board-config-held-handle-'));
+  const selected = join(root, 'selected.json');
+  const replacement = join(root, 'replacement.json');
+  const link = join(root, 'linked.json');
+  const oversized = join(root, 'oversized.json');
+  const originalBytes = JSON.stringify(config);
+  const replacementConfig = { ...config, baseUrl: 'https://replacement.sceneboard.dev' };
+  try {
+    await writeFile(selected, originalBytes, { mode: 0o600 });
+    await writeFile(replacement, JSON.stringify(replacementConfig), { mode: 0o600 });
+    const handle = await open(selected, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const approvedStatus = await handle.stat({ bigint: true });
+    await rename(replacement, selected);
+    try {
+      await assert.rejects(
+        readBoardConfigFileV1(handle, 'process_option', approvedStatus),
+        BoardConfigError,
+      );
+    } finally {
+      await handle.close();
+    }
+
+    await symlink(selected, link);
+    await assert.rejects(
+      discoverBoardConfigV1({
+        argv: [`--config=${link}`],
+        cwd: root,
+        env: {},
+        ...(process.geteuid === undefined ? {} : { effectiveUserId: process.geteuid() }),
+      }),
+      BoardConfigError,
+    );
+
+    await writeFile(oversized, originalBytes, { mode: 0o600 });
+    await truncate(oversized, BOARD_CONFIG_MAX_BYTES_V1 + 1);
+    await chmod(oversized, 0o600);
+    await assert.rejects(
+      discoverBoardConfigV1({
+        argv: [`--config=${oversized}`],
+        cwd: root,
+        env: {},
+        ...(process.geteuid === undefined ? {} : { effectiveUserId: process.geteuid() }),
+      }),
+      BoardConfigError,
+    );
+
+    const mutable = await open(selected, constants.O_RDWR | constants.O_NOFOLLOW);
+    const statusBeforeMutation = await mutable.stat({ bigint: true });
+    await mutable.truncate(0);
+    await mutable.writeFile(originalBytes);
+    await assert.rejects(
+      readBoardConfigFileV1(mutable, 'process_option', statusBeforeMutation),
+      BoardConfigError,
+    );
+    await mutable.close();
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test('redaction recursively removes credential, proof, code, and path fields', () => {

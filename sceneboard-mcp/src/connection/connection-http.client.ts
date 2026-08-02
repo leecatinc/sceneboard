@@ -17,6 +17,7 @@ import {
   type PrincipalId,
 } from '@sceneboard/board-schema';
 import { BoardSdkHttpClient } from '@sceneboard/board-sdk/http';
+import type { AccountApiKeyOperationV1 } from '../tools/account-api-key-tool-policy.js';
 
 const TOKEN_PATTERN = /^(?:lcbg_v1|sbk_v1)\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$/;
 const TIMESTAMP_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
@@ -83,6 +84,8 @@ export type SafeAuthorizedConnectionV1 =
   | SafePairingAuthorizedConnectionV1
   | SafeApiKeyAuthorizedConnectionV1;
 
+export type ConnectionCredentialModeV1 = 'pairing' | 'api_key';
+
 export type ConnectionHttpLocalErrorV1 =
   | { code: 'CANCELLED'; retryable: false }
   | { code: 'TIMEOUT'; retryable: true; timeoutMs: number }
@@ -119,6 +122,7 @@ export type ConnectionHttpClientOptionsV1 = {
       resultCode: string;
     }): void;
   };
+  now?: () => number;
 };
 
 const exactRecord = (value: unknown, keys: readonly string[]): Record<string, unknown> | null => {
@@ -346,7 +350,13 @@ const parseApiKeyConnection = (
   const principalId = PrincipalIdParserV1.parse(principal.principalId);
   const keyPublicId = PrincipalIdParserV1.parse(credential.keyPublicId);
   const scopes = exactCatalogSubset(credential.scopes, ACCOUNT_API_KEY_SCOPES_V1, 1);
-  if (!principalId.ok || !keyPublicId.ok || scopes === null) return null;
+  if (
+    !principalId.ok ||
+    !keyPublicId.ok ||
+    principalId.data.value !== keyPublicId.data.value ||
+    scopes === null
+  )
+    return null;
   let selectedBoard: SafeApiKeyAuthorizedConnectionV1['selectedBoard'] = null;
   if (root.selectedBoard !== null) {
     if (boardId === null) return null;
@@ -377,13 +387,40 @@ const parseApiKeyConnection = (
   };
 };
 
-const parseConnection = (
+export const parseAuthorizedConnectionProjectionV1 = (
   value: unknown,
   requestId: string,
   boardId: string | null,
-): SafeAuthorizedConnectionV1 | null =>
-  parsePairingConnection(value, requestId, boardId) ??
-  parseApiKeyConnection(value, requestId, boardId);
+  expectedCredentialMode: ConnectionCredentialModeV1,
+): SafeAuthorizedConnectionV1 | null => {
+  return expectedCredentialMode === 'pairing'
+    ? parsePairingConnection(value, requestId, boardId)
+    : parseApiKeyConnection(value, requestId, boardId);
+};
+
+export const parseAuthorizedConnectionV1 = (
+  value: unknown,
+  requestId: string,
+  boardId: string | null,
+  expectedCredentialMode: ConnectionCredentialModeV1,
+  now: number,
+): SafeAuthorizedConnectionV1 | null => {
+  if (!Number.isFinite(now)) return null;
+  const projection = parseAuthorizedConnectionProjectionV1(
+    value,
+    requestId,
+    boardId,
+    expectedCredentialMode,
+  );
+  if (
+    projection === null ||
+    (expectedCredentialMode === 'api_key' &&
+      'credential' in projection &&
+      Date.parse(projection.credential.expiresAt) <= now)
+  )
+    return null;
+  return projection;
+};
 
 const local = (error: ConnectionHttpLocalErrorV1): ConnectionHttpResultV1 => ({
   ok: false,
@@ -399,15 +436,25 @@ export class ConnectionHttpClientV1 {
     requestId: string,
     accessToken: string,
     outerSignal?: AbortSignal,
+    expectedCredentialMode?: ConnectionCredentialModeV1,
+    authorizationOperation?: AccountApiKeyOperationV1,
   ): Promise<ConnectionHttpResultV1> {
     if (!TOKEN_PATTERN.test(accessToken))
       return local({ code: 'TRANSPORT_ERROR', retryable: true, phase: 'connect' });
+    const tokenCredentialMode: ConnectionCredentialModeV1 = accessToken.startsWith('sbk_v1.')
+      ? 'api_key'
+      : 'pairing';
+    const responseCredentialMode = expectedCredentialMode ?? tokenCredentialMode;
+    if (responseCredentialMode !== tokenCredentialMode)
+      return local({ code: 'RESPONSE_INVALID', retryable: false, reason: 'schema' });
     const timeoutSignal = AbortSignal.timeout(this.options.timeoutMs);
     const signal =
       outerSignal === undefined ? timeoutSignal : AbortSignal.any([outerSignal, timeoutSignal]);
     if (signal.aborted) return local({ code: 'CANCELLED', retryable: false });
     const query = new URLSearchParams({ requestId });
     if (boardId !== null) query.set('boardId', boardId);
+    if (authorizationOperation !== undefined)
+      query.set('authorizationOperation', authorizationOperation);
     const url = new URL('/api/v1/mcp/connection', this.options.baseUrl);
     url.search = query.toString();
     const startedAt = performance.now();
@@ -461,7 +508,13 @@ export class ConnectionHttpClientV1 {
     if (!parsed.ok)
       return local({ code: 'RESPONSE_INVALID', retryable: false, reason: parsed.reason });
     if (response.status === 200) {
-      const value = parseConnection(parsed.value, requestId, boardId);
+      const value = parseAuthorizedConnectionV1(
+        parsed.value,
+        requestId,
+        boardId,
+        responseCredentialMode,
+        this.options.now?.() ?? Date.now(),
+      );
       if (value === null)
         return local({ code: 'RESPONSE_INVALID', retryable: false, reason: 'schema' });
       this.options.logger.log({

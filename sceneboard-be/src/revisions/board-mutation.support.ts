@@ -14,8 +14,12 @@ import { formatPublicUuidV4, parsePublicUuidV4 } from '../common/ids/public-uuid
 import { parseMysqlTimestampUtc } from '../common/time/mysql-timestamp.js';
 import type { AuthorizedBoardContextV1 } from '../grants/board-access.policy.js';
 import type { SceneArtifactReferenceRowV1 } from './scene-artifact-reference.extractor.js';
-import type { SceneMutationTypeV1 } from './board-mutation.types.js';
-import type { CheckpointMutationRequest } from './board-mutation.types.js';
+import type {
+  CheckpointMutationRequest,
+  LockedHeadRow,
+  SceneMutationTypeV1,
+} from './board-mutation.types.js';
+import type { StoredBoardCheckpoint } from './document-checkpoint.codec.js';
 
 export const digest = (value: Uint8Array): Buffer => createHash('sha256').update(value).digest();
 
@@ -144,6 +148,28 @@ export const safePositive = (value: string): number => {
   const parsed = Number(value);
   if (!Number.isSafeInteger(parsed)) throw new BoardPersistenceError('row_integrity');
   return parsed;
+};
+
+export const effectiveCheckpointFromLockedHead = (head: LockedHeadRow): StoredBoardCheckpoint => {
+  if (
+    typeof head.sceneSchemaVersion !== 'string' ||
+    typeof head.sceneCodec !== 'string' ||
+    !Buffer.isBuffer(head.scenePayload) ||
+    typeof head.sceneCanonicalBytes !== 'number' ||
+    !Number.isSafeInteger(head.sceneCanonicalBytes) ||
+    typeof head.sceneStoredBytes !== 'number' ||
+    !Number.isSafeInteger(head.sceneStoredBytes) ||
+    !Buffer.isBuffer(head.sceneSha256)
+  )
+    throw new BoardPersistenceError('row_integrity');
+  return {
+    schemaVersion: head.sceneSchemaVersion,
+    codec: head.sceneCodec,
+    payload: head.scenePayload,
+    canonicalBytes: head.sceneCanonicalBytes,
+    storedBytes: head.sceneStoredBytes,
+    sha256: head.sceneSha256,
+  };
 };
 
 export const uuidBytesOrNull = (value: string): Buffer | null => {

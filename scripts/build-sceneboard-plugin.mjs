@@ -18,6 +18,7 @@ const exportDigestTarget = resolve(pluginRoot, 'native/linux-x64-gnu/local-expor
 const exportManifestTarget = resolve(pluginRoot, 'native/local-export-helper.manifest.json');
 const exportSource = resolve(root, 'sceneboard-mcp/native/local-export-helper.c');
 const checkOnly = process.argv.includes('--check');
+const runtimeOnly = process.argv.includes('--runtime-only');
 const temporaryRoot = await mkdtemp(resolve(tmpdir(), 'sceneboard-plugin-release-'));
 const runtimeCandidate = resolve(temporaryRoot, 'index.js');
 const helperCandidate = resolve(temporaryRoot, 'profile-lease-helper');
@@ -95,7 +96,7 @@ const makeWritable = async (path) => {
 };
 
 try {
-  await Promise.all([
+  const buildSteps = [
     build({
       entryPoints: [resolve(root, 'sceneboard-mcp/src/index.ts')],
       outfile: runtimeCandidate,
@@ -106,72 +107,103 @@ try {
       legalComments: 'none',
       logLevel: 'silent',
     }),
-    compileHelper(),
-    compileExportHelper(),
-  ]);
-  const helperBytes = await readFile(helperCandidate);
-  const digest = `${createHash('sha256').update(helperBytes).digest('hex')}\n`;
-  const exportHelperBytes = await readFile(exportHelperCandidate);
-  const exportDigestValue = createHash('sha256').update(exportHelperBytes).digest('hex');
-  const exportDigest = `${exportDigestValue}\n`;
-  const exportManifest = `${JSON.stringify(
-    {
-      version: 1,
-      targets: {
-        'linux-x64-gnu': {
-          path: 'linux-x64-gnu/local-export-helper',
-          sha256: exportDigestValue,
-          mode: '0500',
+  ];
+  if (!runtimeOnly) buildSteps.push(compileHelper(), compileExportHelper());
+  await Promise.all(buildSteps);
+
+  let nativeArtifacts = null;
+  if (!runtimeOnly) {
+    const helperBytes = await readFile(helperCandidate);
+    const digest = `${createHash('sha256').update(helperBytes).digest('hex')}\n`;
+    const exportHelperBytes = await readFile(exportHelperCandidate);
+    const exportDigestValue = createHash('sha256').update(exportHelperBytes).digest('hex');
+    nativeArtifacts = {
+      digest,
+      exportDigest: `${exportDigestValue}\n`,
+      exportManifest: `${JSON.stringify(
+        {
+          version: 1,
+          targets: {
+            'linux-x64-gnu': {
+              path: 'linux-x64-gnu/local-export-helper',
+              sha256: exportDigestValue,
+              mode: '0500',
+            },
+          },
         },
-      },
-    },
-    null,
-    2,
-  )}\n`;
+        null,
+        2,
+      )}\n`,
+    };
+  }
 
   if (checkOnly) {
-    await Promise.all([
-      assertEqualFile(runtimeCandidate, runtimeTarget, 'plugin runtime'),
-      assertEqualFile(helperCandidate, helperTarget, 'plugin native helper'),
-      assertEqualFile(exportHelperCandidate, exportHelperTarget, 'plugin local export helper'),
-    ]);
-    if ((await readFile(digestTarget, 'utf8')) !== digest)
+    const checks = [assertEqualFile(runtimeCandidate, runtimeTarget, 'plugin runtime')];
+    if (nativeArtifacts !== null) {
+      checks.push(
+        assertEqualFile(helperCandidate, helperTarget, 'plugin native helper'),
+        assertEqualFile(exportHelperCandidate, exportHelperTarget, 'plugin local export helper'),
+      );
+    }
+    await Promise.all(checks);
+    if (
+      nativeArtifacts !== null &&
+      (await readFile(digestTarget, 'utf8')) !== nativeArtifacts.digest
+    )
       throw new Error('plugin native helper digest is stale');
-    if ((await readFile(exportDigestTarget, 'utf8')) !== exportDigest)
+    if (
+      nativeArtifacts !== null &&
+      (await readFile(exportDigestTarget, 'utf8')) !== nativeArtifacts.exportDigest
+    )
       throw new Error('plugin local export helper digest is stale');
-    if ((await readFile(exportManifestTarget, 'utf8')) !== exportManifest)
+    if (
+      nativeArtifacts !== null &&
+      (await readFile(exportManifestTarget, 'utf8')) !== nativeArtifacts.exportManifest
+    )
       throw new Error('plugin local export helper manifest is stale');
     console.log(JSON.stringify({ status: 'PASS', runtime: 'runtime/index.js' }));
   } else {
-    await Promise.all([
-      mkdir(dirname(runtimeTarget), { recursive: true }),
-      mkdir(dirname(helperTarget), { recursive: true }),
-      mkdir(dirname(exportHelperTarget), { recursive: true }),
-    ]);
-    await Promise.all([
-      makeWritable(runtimeTarget),
-      makeWritable(helperTarget),
-      makeWritable(digestTarget),
-      makeWritable(exportHelperTarget),
-      makeWritable(exportDigestTarget),
-      makeWritable(exportManifestTarget),
-    ]);
-    await Promise.all([
-      copyFile(runtimeCandidate, runtimeTarget),
-      copyFile(helperCandidate, helperTarget),
-      writeFile(digestTarget, digest, { mode: 0o400 }),
-      copyFile(exportHelperCandidate, exportHelperTarget),
-      writeFile(exportDigestTarget, exportDigest, { mode: 0o400 }),
-      writeFile(exportManifestTarget, exportManifest, { mode: 0o400 }),
-    ]);
-    await Promise.all([
-      chmod(runtimeTarget, 0o644),
-      setExactMode(helperTarget, 0o500),
-      setExactMode(digestTarget, 0o400),
-      setExactMode(exportHelperTarget, 0o500),
-      setExactMode(exportDigestTarget, 0o400),
-      setExactMode(exportManifestTarget, 0o400),
-    ]);
+    const directories = [dirname(runtimeTarget)];
+    if (nativeArtifacts !== null) {
+      directories.push(dirname(helperTarget), dirname(exportHelperTarget));
+    }
+    await Promise.all(directories.map((directory) => mkdir(directory, { recursive: true })));
+
+    const writableTargets = [runtimeTarget];
+    if (nativeArtifacts !== null) {
+      writableTargets.push(
+        helperTarget,
+        digestTarget,
+        exportHelperTarget,
+        exportDigestTarget,
+        exportManifestTarget,
+      );
+    }
+    await Promise.all(writableTargets.map(makeWritable));
+
+    const publications = [copyFile(runtimeCandidate, runtimeTarget)];
+    if (nativeArtifacts !== null) {
+      publications.push(
+        copyFile(helperCandidate, helperTarget),
+        writeFile(digestTarget, nativeArtifacts.digest, { mode: 0o400 }),
+        copyFile(exportHelperCandidate, exportHelperTarget),
+        writeFile(exportDigestTarget, nativeArtifacts.exportDigest, { mode: 0o400 }),
+        writeFile(exportManifestTarget, nativeArtifacts.exportManifest, { mode: 0o400 }),
+      );
+    }
+    await Promise.all(publications);
+
+    const finalModes = [chmod(runtimeTarget, 0o644)];
+    if (nativeArtifacts !== null) {
+      finalModes.push(
+        setExactMode(helperTarget, 0o500),
+        setExactMode(digestTarget, 0o400),
+        setExactMode(exportHelperTarget, 0o500),
+        setExactMode(exportDigestTarget, 0o400),
+        setExactMode(exportManifestTarget, 0o400),
+      );
+    }
+    await Promise.all(finalModes);
     console.log(JSON.stringify({ status: 'BUILT', runtime: 'runtime/index.js' }));
   }
 } finally {

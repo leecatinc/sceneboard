@@ -64,6 +64,11 @@ interface DatabaseClockRow extends RowDataPacket {
   databaseNow: string;
 }
 
+interface ActiveQuotaRow extends RowDataPacket {
+  activeCount: number;
+  earliestActiveExpiry: string | null;
+}
+
 interface MetadataRow extends RowDataPacket {
   id: string;
   publicId: string;
@@ -104,14 +109,22 @@ export type AccountApiKeyIssuePersistenceResult =
   | { kind: 'created'; metadata: AccountApiKeyMetadata }
   | { kind: 'owner_disabled' }
   | { kind: 'invalid_expiry' }
-  | { kind: 'quota_exceeded' }
+  | { kind: 'quota_exceeded'; earliestActiveExpiry: number; databaseNow: number }
   | { kind: 'collision' };
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
 
-export type AccountApiKeyRevokePersistenceResult = {
-  kind: 'revoked' | 'already_revoked' | 'not_found';
-};
+export type AccountApiKeyListPersistenceResult =
+  | {
+      kind: 'listed';
+      items: AccountApiKeyMetadata[];
+      nextBoundary: AccountApiKeyListBoundary | null;
+    }
+  | { kind: 'owner_disabled' };
+
+export type AccountApiKeyRevokePersistenceResult =
+  | { kind: 'revoked' | 'already_revoked' | 'not_found' }
+  | { kind: 'owner_disabled' };
 
 const mysqlDate = (value: number): string =>
   new Date(value).toISOString().slice(0, 23).replace('T', ' ');
@@ -147,7 +160,7 @@ export class AccountApiKeyRepository {
     locator: Buffer;
     tokenHash: Buffer;
     scopeMask: number;
-    expiresAt: number | undefined;
+    expiresInDays: number;
     prefix: string;
     auditContext: AccountApiKeyAuditContext;
   }): Promise<AccountApiKeyIssuePersistenceResult> {
@@ -158,18 +171,32 @@ export class AccountApiKeyRepository {
           if (owner === null || owner.status !== 1) return { kind: 'owner_disabled' as const };
           const databaseNow = await this.databaseNow(connection);
           const databaseNowMs = millis(databaseNow);
-          const expiresAt = input.expiresAt ?? databaseNowMs + 90 * DAY_MS;
-          const duration = expiresAt - databaseNowMs;
-          if (!Number.isSafeInteger(expiresAt) || duration < DAY_MS || duration > 365 * DAY_MS) {
+          if (
+            !Number.isSafeInteger(input.expiresInDays) ||
+            ![30, 90, 365].includes(input.expiresInDays)
+          ) {
             return { kind: 'invalid_expiry' as const };
           }
-          const [counts] = await connection.execute<Array<RowDataPacket & { activeCount: number }>>(
-            `SELECT COUNT(*) AS activeCount
+          const expiresAt = databaseNowMs + input.expiresInDays * DAY_MS;
+          const [counts] = await connection.execute<ActiveQuotaRow[]>(
+            `SELECT
+               COUNT(*) AS activeCount,
+               MIN(expires_at) AS earliestActiveExpiry
              FROM account_api_keys
              WHERE owner_user_id = ? AND status = 1 AND expires_at > ?`,
             [input.ownerUserPk, databaseNow],
           );
-          if (Number(counts[0]?.activeCount ?? 0) >= 10) return { kind: 'quota_exceeded' as const };
+          const quota = counts[0];
+          if (Number(quota?.activeCount ?? 0) >= 10) {
+            if (quota?.earliestActiveExpiry === null || quota?.earliestActiveExpiry === undefined) {
+              throw new Error('active API-key quota expiry missing');
+            }
+            return {
+              kind: 'quota_exceeded' as const,
+              earliestActiveExpiry: parseMysqlTimestampUtc(quota.earliestActiveExpiry).valueOf(),
+              databaseNow: databaseNowMs,
+            };
+          }
           let inserted: ResultSetHeader;
           try {
             [inserted] = await connection.execute<ResultSetHeader>(
@@ -222,9 +249,11 @@ export class AccountApiKeyRepository {
     limit: number;
     prefixFromLocator: (locator: Uint8Array) => string;
     auditContext: AccountApiKeyAuditContext;
-  }): Promise<{ items: AccountApiKeyMetadata[]; nextBoundary: AccountApiKeyListBoundary | null }> {
+  }): Promise<AccountApiKeyListPersistenceResult> {
     return this.mysql.withConnection((connection) =>
       withTransaction(connection, 'READ COMMITTED', async () => {
+        const owner = await this.lockOwner(connection, input.ownerUserPk);
+        if (owner === null || owner.status !== 1) return { kind: 'owner_disabled' as const };
         const cursorClause =
           input.boundary === null ? '' : ' AND (created_at < ? OR (created_at = ? AND id < ?))';
         const cursorValues =
@@ -264,6 +293,7 @@ export class AccountApiKeyRepository {
         );
         const last = emitted.at(-1);
         return {
+          kind: 'listed' as const,
           items,
           nextBoundary:
             hasNext && last !== undefined ? { createdAt: iso(last.createdAt), id: last.id } : null,
@@ -279,6 +309,8 @@ export class AccountApiKeyRepository {
   }): Promise<AccountApiKeyRevokePersistenceResult> {
     return this.mysql.withConnection((connection) =>
       withTransaction(connection, 'READ COMMITTED', async () => {
+        const owner = await this.lockOwner(connection, input.ownerUserPk);
+        if (owner === null || owner.status !== 1) return { kind: 'owner_disabled' as const };
         const [rows] = await connection.execute<
           Array<RowDataPacket & { id: string; status: number; databaseNow: string }>
         >(

@@ -45,6 +45,7 @@ export const MAX_MEDIA_BYTES = 10_485_760;
 export const MAX_MEDIA_PIXELS = 40_000_000;
 export const MAX_BOARD_MEDIA_BYTES = 536_870_912;
 export const MAX_MEDIA_REFERENCES = 5_000;
+export const MAX_ARTIFACT_REFERENCE_OCCURRENCES = 500;
 
 export const BOARD_LIMITS_V1 = {
   maxEnvelopeBytes: MAX_ENVELOPE_BYTES,
@@ -102,4 +103,10 @@ export const BOARD_DOCUMENT_LIMITS_V2 = {
   maxMediaReferences: MAX_MEDIA_REFERENCES,
 } as const;
 
+export const BOARD_DOCUMENT_LIMITS_V3 = {
+  ...BOARD_DOCUMENT_LIMITS_V2,
+  maxArtifactReferenceOccurrences: MAX_ARTIFACT_REFERENCE_OCCURRENCES,
+} as const;
+
 export type BoardLimitKeyV2 = keyof typeof BOARD_DOCUMENT_LIMITS_V2;
+export type BoardLimitKeyV3 = keyof typeof BOARD_DOCUMENT_LIMITS_V3;

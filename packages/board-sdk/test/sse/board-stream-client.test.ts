@@ -51,6 +51,21 @@ const documentMismatchError: BoardError = {
   },
 };
 
+const upgradeRequiredError: BoardError = {
+  protocolVersion: 1,
+  type: 'board.error',
+  code: 'UPGRADE_REQUIRED',
+  message: 'A newer document client is required',
+  category: 'conflict',
+  retryable: false,
+  httpStatusHint: 409,
+  details: {
+    headSchemaVersion: 3,
+    requestedDocumentSchemaVersion: 1,
+    surface: 'board.stream',
+  },
+};
+
 const snapshotEvent = (): BoardEventEnvelopeV1 => {
   const parsed = BoardEventEnvelopeParserV1.parse(
     JSON.parse(readFileSync(new URL('event-board-snapshot.v1.json', fixtureRoot), 'utf8')),
@@ -190,6 +205,36 @@ test('preserves a pre-header V1-to-V2 stream mismatch as a terminal error', asyn
       kind: 'document_version_mismatch',
       sourceStatus: 409,
       error: documentMismatchError,
+    },
+  });
+});
+
+test('preserves a pre-header V1-to-V3 upgrade requirement as a terminal version mismatch', async () => {
+  const states: BoardStreamStateV1[] = [];
+  const dispatch: BoardStreamDispatchPortV1 = {
+    open: async () => ({
+      kind: 'http_error',
+      sourceStatus: 409,
+      error: upgradeRequiredError,
+      retryAfterMs: null,
+    }),
+  };
+  const client = createBoardStreamClientV1({
+    apiOrigin: 'https://sceneboard.dev',
+    boardId: BOARD_ID,
+    tabId: TAB_ID,
+    initialPresenceState: 'online',
+    minimumSnapshotSequence: 1,
+    dispatch,
+    callbacks: callbacks(states),
+    routeSignal: new AbortController().signal,
+  });
+  assert.deepEqual(await client.start(), {
+    kind: 'terminal',
+    failure: {
+      kind: 'document_version_mismatch',
+      sourceStatus: 409,
+      error: upgradeRequiredError,
     },
   });
 });

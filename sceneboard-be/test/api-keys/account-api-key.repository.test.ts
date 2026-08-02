@@ -32,7 +32,12 @@ const mysqlWith = (connection: PoolConnection): MysqlService =>
 
 test('lists one newest-first keyset page with database-time statuses and a cut boundary', async () => {
   const auditEvents: unknown[] = [];
+  const calls: string[] = [];
   const connection = transactionalConnection(async (sql) => {
+    calls.push(sql);
+    if (sql.includes('FROM users')) {
+      return [[{ status: 1, publicId: 'user_public_1' } as RowDataPacket], []];
+    }
     if (sql.includes('FROM account_api_keys') && sql.includes('ORDER BY created_at DESC')) {
       return [
         [
@@ -96,6 +101,8 @@ test('lists one newest-first keyset page with database-time statuses and a cut b
       actorPublicId: 'user_public_1',
     },
   });
+  assert.equal(result.kind, 'listed');
+  if (result.kind !== 'listed') assert.fail('expected a listed result');
   assert.deepEqual(
     result.items.map(({ apiKeyId, status, prefix }) => ({ apiKeyId, status, prefix })),
     [
@@ -108,6 +115,53 @@ test('lists one newest-first keyset page with database-time statuses and a cut b
     id: '11',
   });
   assert.equal(auditEvents.length, 1);
+  assert.equal(calls[0]?.includes('FROM users'), true);
+  assert.equal(calls[0]?.endsWith('FOR UPDATE'), true);
+});
+
+test('denies list for missing and disabled owners before key reads, publication, or audit', async () => {
+  for (const ownerStatus of [null, 0] as const) {
+    const calls: string[] = [];
+    let prefixCalls = 0;
+    let auditCalls = 0;
+    const connection = transactionalConnection(async (sql) => {
+      calls.push(sql);
+      if (sql.includes('FROM users')) {
+        return ownerStatus === null
+          ? [[], []]
+          : [[{ status: ownerStatus, publicId: 'user_public_1' } as RowDataPacket], []];
+      }
+      throw new Error(`list denial reached a key query: ${sql}`);
+    });
+    const repository = new AccountApiKeyRepository(mysqlWith(connection), {
+      writeMandatory: async () => {
+        auditCalls += 1;
+      },
+    } as never);
+
+    const result = await repository.list({
+      ownerUserPk: '1',
+      boundary: null,
+      limit: 20,
+      prefixFromLocator: () => {
+        prefixCalls += 1;
+        return 'unexpected';
+      },
+      auditContext: {
+        correlationId: 'correlation_list_denied',
+        ownerPublicId: 'user_public_1',
+        sessionPublicId: 'session_public_1',
+        actorPublicId: 'user_public_1',
+      },
+    });
+
+    assert.deepEqual(result, { kind: 'owner_disabled' }, String(ownerStatus));
+    assert.equal(calls.length, 1, String(ownerStatus));
+    assert.equal(calls[0]?.includes('FROM users'), true, String(ownerStatus));
+    assert.equal(calls[0]?.endsWith('FOR UPDATE'), true, String(ownerStatus));
+    assert.equal(prefixCalls, 0, String(ownerStatus));
+    assert.equal(auditCalls, 0, String(ownerStatus));
+  }
 });
 
 test('enforces the ten-active-key quota while holding the owner row lock', async () => {
@@ -121,7 +175,15 @@ test('enforces the ten-active-key quota while holding the owner row lock', async
       return [[{ databaseNow: '2027-02-01 00:00:00.000' } as RowDataPacket], []];
     }
     if (sql.includes('COUNT(*) AS activeCount')) {
-      return [[{ activeCount: 10 } as RowDataPacket], []];
+      return [
+        [
+          {
+            activeCount: 10,
+            earliestActiveExpiry: '2027-02-01 00:00:01.001',
+          } as RowDataPacket,
+        ],
+        [],
+      ];
     }
     throw new Error('unexpected query');
   });
@@ -135,7 +197,7 @@ test('enforces the ten-active-key quota while holding the owner row lock', async
     locator: Buffer.alloc(16, 1),
     tokenHash: Buffer.alloc(32, 2),
     scopeMask: 4,
-    expiresAt: Date.parse('2027-05-02T00:00:00.000Z'),
+    expiresInDays: 90,
     prefix: 'sbk_v1.AAAAAAAA…',
     auditContext: {
       correlationId: 'correlation_2',
@@ -144,7 +206,11 @@ test('enforces the ten-active-key quota while holding the owner row lock', async
       actorPublicId: 'user_public_1',
     },
   });
-  assert.deepEqual(result, { kind: 'quota_exceeded' });
+  assert.deepEqual(result, {
+    kind: 'quota_exceeded',
+    earliestActiveExpiry: Date.parse('2027-02-01T00:00:01.001Z'),
+    databaseNow: Date.parse('2027-02-01T00:00:00.000Z'),
+  });
   assert.equal(calls[0]?.endsWith('FOR UPDATE'), true);
   assert.equal(
     calls.some((sql) => sql.startsWith('INSERT')),
@@ -181,7 +247,7 @@ test('uses one database clock for quota evaluation and persisted issue metadata'
     locator: Buffer.alloc(16, 1),
     tokenHash: Buffer.alloc(32, 2),
     scopeMask: 4,
-    expiresAt: Date.parse('2027-05-02T00:00:00.000Z'),
+    expiresInDays: 90,
     prefix: 'sbk_v1.AAAAAAAA…',
     auditContext: {
       correlationId: 'correlation_2',
@@ -200,7 +266,7 @@ test('uses one database clock for quota evaluation and persisted issue metadata'
   assert.equal((insert?.values as unknown[]).at(-1), databaseNow);
 });
 
-test('validates requested and default issue expiry against the transaction database clock', async () => {
+test('derives every closed expiry duration from the transaction database clock', async () => {
   const databaseNow = '2027-02-01 00:00:03.000';
   const calls: Array<{ sql: string; values?: unknown }> = [];
   const connection = transactionalConnection(async (sql, values) => {
@@ -236,19 +302,55 @@ test('validates requested and default issue expiry against the transaction datab
     },
   };
   const databaseNowMs = Date.parse('2027-02-01T00:00:03.000Z');
-  assert.deepEqual(await repository.issue({ ...base, expiresAt: databaseNowMs + 86_400_000 - 1 }), {
-    kind: 'invalid_expiry',
-  });
-  const created = await repository.issue({ ...base, expiresAt: undefined });
-  assert.equal(created.kind, 'created');
-  if (created.kind !== 'created') assert.fail('expected a created result');
-  assert.equal(created.metadata.expiresAt, new Date(databaseNowMs + 90 * 86_400_000).toISOString());
+  for (const expiresInDays of [30, 90, 365]) {
+    const created = await repository.issue({ ...base, expiresInDays });
+    assert.equal(created.kind, 'created');
+    if (created.kind !== 'created') assert.fail('expected a created result');
+    assert.equal(
+      created.metadata.expiresAt,
+      new Date(databaseNowMs + expiresInDays * 86_400_000).toISOString(),
+    );
+  }
   const inserts = calls.filter(({ sql }) => sql.startsWith('INSERT INTO account_api_keys'));
-  assert.equal(inserts.length, 1);
-  assert.deepEqual((inserts[0]?.values as unknown[]).slice(-2), [
-    '2027-05-02 00:00:03.000',
-    databaseNow,
-  ]);
+  assert.equal(inserts.length, 3);
+  assert.equal((inserts.at(-1)?.values as unknown[]).at(-2), '2028-02-01 00:00:03.000');
+  assert.equal((inserts.at(-1)?.values as unknown[]).at(-1), databaseNow);
+});
+
+test('rejects missing, fractional, and out-of-contract expiry durations in persistence', async () => {
+  let inserts = 0;
+  const connection = transactionalConnection(async (sql) => {
+    if (sql.includes('FROM users')) {
+      return [[{ status: 1, publicId: 'user_public_1' } as RowDataPacket], []];
+    }
+    if (sql.includes('UTC_TIMESTAMP(3) AS databaseNow')) {
+      return [[{ databaseNow: '2027-02-01 00:00:03.000' } as RowDataPacket], []];
+    }
+    if (sql.startsWith('INSERT INTO account_api_keys')) inserts += 1;
+    return [[], []];
+  });
+  const repository = new AccountApiKeyRepository(mysqlWith(connection), {} as AuditRepository);
+  const base = {
+    ownerUserPk: '1',
+    keyPublicId: 'key_public_1',
+    name: 'Automation',
+    locator: Buffer.alloc(16, 1),
+    tokenHash: Buffer.alloc(32, 2),
+    scopeMask: 4,
+    prefix: 'sbk_v1.AAAAAAAA…',
+    auditContext: {
+      correlationId: 'correlation_invalid_duration',
+      ownerPublicId: 'user_public_1',
+      sessionPublicId: 'session_public_1',
+      actorPublicId: 'user_public_1',
+    },
+  };
+  for (const expiresInDays of [undefined, 29, 30.5, 366]) {
+    assert.deepEqual(await repository.issue({ ...base, expiresInDays } as never), {
+      kind: 'invalid_expiry',
+    });
+  }
+  assert.equal(inserts, 0);
 });
 
 test('returns credential expiry together with the same query database clock', async () => {
@@ -313,6 +415,9 @@ test('revokes and marks use with constraint-safe database time when application 
   const calls: Array<{ sql: string; values?: unknown }> = [];
   const connection = transactionalConnection(async (sql, values) => {
     calls.push({ sql, values });
+    if (sql.includes('FROM users')) {
+      return [[{ status: 1, publicId: 'user_public_1' } as RowDataPacket], []];
+    }
     if (sql.includes('FROM account_api_keys') && sql.endsWith('FOR UPDATE')) {
       return [
         [
@@ -349,6 +454,100 @@ test('revokes and marks use with constraint-safe database time when application 
   assert.match(markUsed?.sql ?? '', /GREATEST\(UTC_TIMESTAMP\(3\), created_at\)/u);
   assert.match(markUsed?.sql ?? '', /last_used_at < UTC_TIMESTAMP\(3\) - INTERVAL 60 SECOND/u);
   assert.deepEqual(markUsed?.values, ['9']);
+  assert.equal(calls[0]?.sql.includes('FROM users'), true);
+  assert.equal(calls[0]?.sql.endsWith('FOR UPDATE'), true);
+});
+
+test('denies revoke for missing and disabled owners before key locks, mutation, or audit', async () => {
+  for (const ownerStatus of [null, 0] as const) {
+    const calls: string[] = [];
+    let auditCalls = 0;
+    const connection = transactionalConnection(async (sql) => {
+      calls.push(sql);
+      if (sql.includes('FROM users')) {
+        return ownerStatus === null
+          ? [[], []]
+          : [[{ status: ownerStatus, publicId: 'user_public_1' } as RowDataPacket], []];
+      }
+      throw new Error(`revoke denial reached a key query or mutation: ${sql}`);
+    });
+    const repository = new AccountApiKeyRepository(mysqlWith(connection), {
+      writeMandatory: async () => {
+        auditCalls += 1;
+      },
+    } as never);
+
+    const result = await repository.revoke({
+      ownerUserPk: '1',
+      keyPublicId: 'key_public_9',
+      auditContext: {
+        correlationId: 'correlation_revoke_denied',
+        ownerPublicId: 'user_public_1',
+        sessionPublicId: 'session_public_1',
+        actorPublicId: 'user_public_1',
+      },
+    });
+
+    assert.deepEqual(result, { kind: 'owner_disabled' }, String(ownerStatus));
+    assert.equal(calls.length, 1, String(ownerStatus));
+    assert.equal(calls[0]?.includes('FROM users'), true, String(ownerStatus));
+    assert.equal(calls[0]?.endsWith('FOR UPDATE'), true, String(ownerStatus));
+    assert.equal(auditCalls, 0, String(ownerStatus));
+  }
+});
+
+test('serializes list and revoke against an owner disable committed after guard admission', async () => {
+  for (const operation of ['list', 'revoke'] as const) {
+    let ownerStatus = 1;
+    let resumeOwnerLock!: () => void;
+    let observeOwnerLock!: () => void;
+    const ownerLockObserved = new Promise<void>((resolve) => {
+      observeOwnerLock = resolve;
+    });
+    const ownerLockResume = new Promise<void>((resolve) => {
+      resumeOwnerLock = resolve;
+    });
+    const calls: string[] = [];
+    const connection = transactionalConnection(async (sql) => {
+      calls.push(sql);
+      if (!sql.includes('FROM users')) {
+        throw new Error(`${operation} raced past owner revalidation: ${sql}`);
+      }
+      observeOwnerLock();
+      await ownerLockResume;
+      return [[{ status: ownerStatus, publicId: 'user_public_1' } as RowDataPacket], []];
+    });
+    const repository = new AccountApiKeyRepository(mysqlWith(connection), {
+      writeMandatory: async () => assert.fail(`${operation} denial must not audit success`),
+    } as never);
+    const auditContext = {
+      correlationId: `correlation_${operation}_race`,
+      ownerPublicId: 'user_public_1',
+      sessionPublicId: 'session_public_1',
+      actorPublicId: 'user_public_1',
+    };
+    const pending =
+      operation === 'list'
+        ? repository.list({
+            ownerUserPk: '1',
+            boundary: null,
+            limit: 20,
+            prefixFromLocator: () => 'unexpected',
+            auditContext,
+          })
+        : repository.revoke({
+            ownerUserPk: '1',
+            keyPublicId: 'key_public_9',
+            auditContext,
+          });
+
+    await ownerLockObserved;
+    ownerStatus = 0;
+    resumeOwnerLock();
+
+    assert.deepEqual(await pending, { kind: 'owner_disabled' }, operation);
+    assert.equal(calls.length, 1, operation);
+  }
 });
 
 test('coalesces last-used writes in SQL and rechecks the full active snapshot under lock', async () => {

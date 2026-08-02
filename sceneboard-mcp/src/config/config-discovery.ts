@@ -1,14 +1,17 @@
-import { access, lstat } from 'node:fs/promises';
-import { constants } from 'node:fs';
+import { access, open } from 'node:fs/promises';
+import { constants, type BigIntStats } from 'node:fs';
 import { dirname, isAbsolute, join, parse, resolve } from 'node:path';
 
 import {
+  BOARD_CONFIG_MAX_BYTES_V1,
   BoardConfigError,
   parseBoardConfigV1,
   readBoardConfigFileV1,
   type LoadedBoardConfigV1,
   type SafeConfigSourceV1,
 } from './board-config.js';
+
+const IMPLICIT_REPOSITORY_BASE_URLS_V1 = new Set(['https://sceneboard.dev']);
 
 export type BoardConfigDiscoveryOptionsV1 = {
   argv: readonly string[];
@@ -64,21 +67,21 @@ const environmentTimeout = (value: string | undefined): number => {
   return /^\d+$/u.test(value) ? Number(value) : Number.NaN;
 };
 
-const assertSafeFile = async (
-  path: string,
+const assertSafeFile = (
+  status: BigIntStats,
   source: SafeConfigSourceV1,
   effectiveUserId?: number,
-): Promise<void> => {
-  let status;
-  try {
-    status = await lstat(path);
-  } catch {
+): void => {
+  if (
+    !status.isFile() ||
+    status.nlink !== 1n ||
+    status.size < 1n ||
+    status.size > BigInt(BOARD_CONFIG_MAX_BYTES_V1) ||
+    (status.mode & 0o022n) !== 0n
+  ) {
     throw new BoardConfigError(source, null);
   }
-  if (!status.isFile() || status.isSymbolicLink() || (status.mode & 0o022) !== 0) {
-    throw new BoardConfigError(source, null);
-  }
-  if (effectiveUserId !== undefined && status.uid !== effectiveUserId)
+  if (effectiveUserId === undefined || status.uid !== BigInt(effectiveUserId))
     throw new BoardConfigError(source, null);
 };
 
@@ -87,8 +90,21 @@ const loadFile = async (
   source: SafeConfigSourceV1,
   effectiveUserId?: number,
 ): Promise<LoadedBoardConfigV1> => {
-  await assertSafeFile(path, source, effectiveUserId);
-  return { config: await readBoardConfigFileV1(path, source), source, path };
+  let handle;
+  try {
+    handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+    const approvedStatus = await handle.stat({ bigint: true });
+    assertSafeFile(approvedStatus, source, effectiveUserId);
+    const config = await readBoardConfigFileV1(handle, source, approvedStatus);
+    if (source === 'nearest_board_file' && !IMPLICIT_REPOSITORY_BASE_URLS_V1.has(config.baseUrl))
+      throw new BoardConfigError(source, 'baseUrl');
+    return { config, source, path };
+  } catch (error) {
+    if (error instanceof BoardConfigError) throw error;
+    throw new BoardConfigError(source, null);
+  } finally {
+    await handle?.close().catch(() => undefined);
+  }
 };
 
 export const discoverBoardConfigV1 = async (

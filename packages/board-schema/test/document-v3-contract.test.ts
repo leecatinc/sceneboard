@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import {
   BoardDocumentParserV2,
   BoardDocumentParserV3,
+  MAX_ARTIFACT_REFERENCE_OCCURRENCES,
   PublicBoardProjectionParserV1,
   presentationFormatDescriptorV1,
   projectDocumentV2ToV3,
@@ -22,6 +23,68 @@ const documentV2: BoardDocumentV2 = {
       scene: { protocolVersion: 1, type: 'scene', root: null },
     },
   ],
+};
+
+const artifactReferenceDocumentV3 = (groups: readonly { code: 'A' | 'I'; count: number }[]) => {
+  let pageIndex = 0;
+  const pages: unknown[] = [];
+  for (const group of groups) {
+    let remaining = group.count;
+    while (remaining > 0) {
+      const count = Math.min(remaining, 200);
+      const currentPageIndex = pageIndex;
+      pageIndex += 1;
+      pages.push({
+        pageId: `reference_page_${currentPageIndex}`,
+        title: '',
+        displayMode: 'fit-page',
+        scene: {
+          protocolVersion: 1,
+          type: 'scene',
+          root: {
+            id: `reference_root_${currentPageIndex}`,
+            type: 'layout.canvas',
+            width: 1_000,
+            height: 10,
+            children: Array.from({ length: count }, (_, nodeIndex) => ({
+              node:
+                group.code === 'A'
+                  ? {
+                      id: `reference_a_${currentPageIndex}_${nodeIndex}`,
+                      type: 'content.artifact',
+                      artifact: { artifactId: 'asset_1', versionId: 'version_1' },
+                      fallbackText: 'fallback',
+                    }
+                  : {
+                      id: `reference_i_${currentPageIndex}_${nodeIndex}`,
+                      type: 'content.image',
+                      source: {
+                        type: 'artifact.resource',
+                        artifact: { artifactId: 'asset_1', versionId: 'version_1' },
+                        path: 'image.png',
+                        sha256: 'a'.repeat(64),
+                      },
+                      alt: 'image',
+                      fit: 'contain',
+                    },
+              x: nodeIndex,
+              y: 0,
+              width: 1,
+              height: 1,
+              zIndex: nodeIndex,
+            })),
+          },
+        },
+      });
+      remaining -= count;
+    }
+  }
+  return {
+    schemaVersion: 3,
+    format: 'wide_16_9',
+    defaultPageId: 'reference_page_0',
+    pages,
+  };
 };
 
 test('freezes all presentation format descriptors', () => {
@@ -64,6 +127,46 @@ test('projects V2 to strict V3 and back without changing page content', () => {
   assert.equal(BoardDocumentParserV2.parse(documentV2).ok, true);
   assert.equal(BoardDocumentParserV3.parse({ ...documentV3, format: 'unknown' }).ok, false);
   assert.equal(BoardDocumentParserV3.parse({ ...documentV3, extra: true }).ok, false);
+});
+
+test('enforces separate exact A and I occurrence ceilings across V3 pages', () => {
+  for (const code of ['A', 'I'] as const) {
+    assert.equal(
+      BoardDocumentParserV3.parse(
+        artifactReferenceDocumentV3([{ code, count: MAX_ARTIFACT_REFERENCE_OCCURRENCES }]),
+      ).ok,
+      true,
+    );
+    const over = BoardDocumentParserV3.parse(
+      artifactReferenceDocumentV3([{ code, count: MAX_ARTIFACT_REFERENCE_OCCURRENCES + 1 }]),
+    );
+    assert.equal(over.ok, false);
+    if (!over.ok) {
+      assert.equal(over.error.code, 'INVALID_DOCUMENT');
+      assert.equal(over.error.httpStatusHint, 422);
+      assert.equal(over.error.details.reason, 'limit');
+    }
+  }
+  assert.equal(
+    BoardDocumentParserV3.parse(
+      artifactReferenceDocumentV3([
+        { code: 'A', count: MAX_ARTIFACT_REFERENCE_OCCURRENCES },
+        { code: 'I', count: MAX_ARTIFACT_REFERENCE_OCCURRENCES },
+      ]),
+    ).ok,
+    true,
+  );
+  const mixedOver = BoardDocumentParserV3.parse(
+    artifactReferenceDocumentV3([
+      { code: 'A', count: MAX_ARTIFACT_REFERENCE_OCCURRENCES + 1 },
+      { code: 'I', count: MAX_ARTIFACT_REFERENCE_OCCURRENCES },
+    ]),
+  );
+  assert.equal(mixedOver.ok, false);
+  if (!mixedOver.ok) {
+    assert.equal(mixedOver.error.code, 'INVALID_DOCUMENT');
+    assert.equal(mixedOver.error.httpStatusHint, 422);
+  }
 });
 
 test('public projection admits a sanitized V3 document and preserves only its presentation format', () => {

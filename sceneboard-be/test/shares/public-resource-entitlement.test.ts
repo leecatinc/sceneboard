@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import {
   assertPublicArtifactEntitlement,
   assertPublicMediaEntitlement,
+  PublicResourceEntitlementService,
   type PublicArtifactEntitlement,
   type PublicMediaEntitlement,
 } from '../../src/shares/public-resource-entitlement.js';
@@ -64,4 +65,75 @@ test('public entitlement path is context-bound and does not import account autho
   assert.match(source, /authorizeArtifact/u);
   assert.match(source, /authorizeMedia/u);
   assert.doesNotMatch(source, /RequireBoardPrincipal|ActorContextService|authSession/u);
+});
+
+test('artifact-backed image projection grants the same bound public package entitlement', async () => {
+  const contextId = 'A'.repeat(43);
+  const familyDigest = Buffer.alloc(32, 4);
+  const boardId = 'AAECAwQFBgcICQoLDA0ODw';
+  const revisionId = '00112233-4455-4677-8899-aabbccddeeff';
+  const connection = {};
+  const resolved = {
+    connection,
+    boardId,
+    share: {
+      sharePk: 60n,
+      shareId: 'share_1',
+      boardPk: 50n,
+      pinnedRevisionPk: 70n,
+      pinnedRevisionId: revisionId,
+      publicationGeneration: 1,
+      accessGeneration: 1,
+    },
+  };
+  const service = new PublicResourceEntitlementService(
+    {
+      read: async () => ({
+        contextId,
+        familyDigest,
+        sharePk: 60n,
+        boardPk: 50n,
+        revisionPk: 70n,
+        publicationGeneration: 1,
+        accessGeneration: 1,
+        validUntil: '2026-08-02T00:01:00.000Z',
+        familyExpiresAt: '2026-08-02T00:30:00.000Z',
+      }),
+    } as never,
+    { inspect: () => ({ kind: 'valid', token: 'token', digest: familyDigest }) } as never,
+    { inspectFamilyHeader: () => ({ kind: 'absent' }) } as never,
+    {
+      withContext: async (input: { operation: (value: unknown) => Promise<unknown> }) =>
+        input.operation(resolved),
+    } as never,
+    {
+      build: async () => ({
+        artifacts: [
+          {
+            artifactId: 'asset_1',
+            versionId: 'version_1',
+            status: 'ready',
+            packageUrl: '/image-only-package',
+          },
+        ],
+      }),
+    } as never,
+    'https://sceneboard.dev',
+  );
+  const result = await service.authorizeArtifact({
+    shareId: 'share_1',
+    revisionId,
+    publicationGeneration: '1',
+    accessGeneration: '1',
+    artifactId: 'asset_1',
+    versionId: 'version_1',
+    contextId,
+    cookieHeader: 'context=cookie',
+    operation: async (authorizedConnection, entitlement) => {
+      assert.equal(authorizedConnection, connection);
+      assert.doesNotThrow(() => assertPublicArtifactEntitlement(entitlement));
+      return `${entitlement.artifactId}:${entitlement.versionId}`;
+    },
+  });
+  assert.equal(result, 'asset_1:version_1');
 });

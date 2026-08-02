@@ -67,7 +67,12 @@ const request = (): { requestId: RequestId; boardId: BoardId } => {
   };
 };
 
-const setup = async (referenceMismatch = false, documentMode: boolean | 3 = false) => {
+const setup = async (
+  referenceMismatch = false,
+  documentMode: boolean | 3 = false,
+  checkpointOverrides: Record<string, unknown> = {},
+  inlineCheckpointCleared = false,
+) => {
   const checkpoint = documentMode
     ? documentMode === 3
       ? await new DocumentCheckpointCodec().encodeDocumentV3({
@@ -106,6 +111,11 @@ const setup = async (referenceMismatch = false, documentMode: boolean | 3 = fals
       const normalized = sql.replace(/\s+/g, ' ').trim();
       calls.push(normalized);
       if (normalized.includes('FROM boards b') && normalized.includes('JOIN board_heads h')) {
+        const detachedSelected = normalized.includes(
+          "LEFT JOIN board_revision_payloads p ON p.revision_pk = r.revision_pk AND p.state = 'available'",
+        );
+        const effectiveCheckpoint =
+          !inlineCheckpointCleared || detachedSelected ? checkpoint : null;
         return [
           [
             {
@@ -123,12 +133,13 @@ const setup = async (referenceMismatch = false, documentMode: boolean | 3 = fals
                 : null,
               sourceRevisionId: null,
               originCode: documentMode ? 'D' : 'C',
-              sceneSchemaVersion: checkpoint.schemaVersion,
-              sceneCodec: checkpoint.codec,
-              scenePayload: checkpoint.payload,
-              sceneCanonicalBytes: checkpoint.canonicalBytes,
-              sceneStoredBytes: checkpoint.storedBytes,
-              sceneSha256: checkpoint.sha256,
+              sceneSchemaVersion: effectiveCheckpoint?.schemaVersion ?? null,
+              sceneCodec: effectiveCheckpoint?.codec ?? null,
+              scenePayload: effectiveCheckpoint?.payload ?? null,
+              sceneCanonicalBytes: effectiveCheckpoint?.canonicalBytes ?? null,
+              sceneStoredBytes: effectiveCheckpoint?.storedBytes ?? null,
+              sceneSha256: effectiveCheckpoint?.sha256 ?? null,
+              ...checkpointOverrides,
               actorKind: 'U',
               actorPrincipalId: 'user_1',
               revisionCreatedAt: '2026-07-16 12:00:01.000',
@@ -272,4 +283,68 @@ test('V3 head requires an explicit capable selector and projects deterministical
   assert.equal(native.result.snapshot.document.schemaVersion, 3);
   if (native.result.snapshot.document.schemaVersion === 3)
     assert.equal(native.result.snapshot.document.format, 'a4_portrait');
+});
+
+test('reads every effective current-head checkpoint field from one available detached row before inline fallback', async () => {
+  const value = await setup(false, 3);
+  const result = await value.service.get({
+    principal: principal(),
+    ...request(),
+    documentSchemaVersion: 3,
+  });
+  assert.equal(BoardOperationResultParserV3.parse(result).ok, true);
+  const sql = value.calls[0] ?? '';
+  assert.match(
+    sql,
+    /LEFT JOIN board_revision_payloads p ON p\.revision_pk = r\.revision_pk AND p\.state = 'available'/u,
+  );
+  for (const [detached, inline] of [
+    ['p.schema_version', 'r.scene_schema_version'],
+    ['p.codec', 'r.scene_codec'],
+    ['p.payload', 'r.scene_payload'],
+    ['p.canonical_bytes', 'r.scene_canonical_bytes'],
+    ['p.stored_bytes', 'r.scene_stored_bytes'],
+    ['p.payload_sha256', 'r.scene_sha256'],
+  ] as const) {
+    assert.match(
+      sql,
+      new RegExp(
+        `CASE WHEN p\\.revision_pk IS NOT NULL THEN ${detached.replace('.', '\\.')} ELSE ${inline.replace('.', '\\.')} END`,
+        'u',
+      ),
+    );
+  }
+});
+
+test('decodes the available detached current head after all six inline fields are cleared', async () => {
+  const value = await setup(false, 3, {}, true);
+  const result = await value.service.get({
+    principal: principal(),
+    ...request(),
+    documentSchemaVersion: 3,
+  });
+  assert.equal(BoardOperationResultParserV3.parse(result).ok, true);
+  assert.equal(result.result.type, 'board.get');
+  if (result.result.type !== 'board.get' || !('document' in result.result.snapshot)) return;
+  assert.equal(result.result.snapshot.document.schemaVersion, 3);
+  assert.match(
+    value.calls[0] ?? '',
+    /LEFT JOIN board_revision_payloads p ON p\.revision_pk = r\.revision_pk AND p\.state = 'available'/u,
+  );
+});
+
+test('fails closed when neither detached nor inline current-head checkpoint is complete or intact', async () => {
+  const partial = await setup(false, false, { scenePayload: null });
+  await assert.rejects(
+    partial.service.get({ principal: principal(), ...request() }),
+    (error: unknown) =>
+      error instanceof BoardPersistenceError && error.category === 'row_integrity',
+  );
+
+  const corrupt = await setup(false, false, { sceneSha256: Buffer.alloc(32, 9) });
+  await assert.rejects(
+    corrupt.service.get({ principal: principal(), ...request() }),
+    (error: unknown) =>
+      error instanceof BoardPersistenceError && error.category === 'checkpoint_integrity',
+  );
 });

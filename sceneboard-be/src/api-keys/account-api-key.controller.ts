@@ -71,7 +71,7 @@ export class AccountApiKeyController {
       actor,
       name: input.displayName,
       scopes: input.scopes,
-      expiresAt: input.expiresAt,
+      expiresInDays: input.expiresInDays,
       now,
     });
   }

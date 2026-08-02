@@ -11,6 +11,7 @@ import {
 } from '../../src/credentials/token-provider.js';
 
 const apiKey = `sbk_v1.${'A'.repeat(22)}.${'B'.repeat(43)}`;
+const pairingToken = `lcbg_v1.${'a'.repeat(22)}.${'b'.repeat(43)}`;
 const requestId = 'abcdefghijklmnopqrstuv';
 const loaded: LoadedBoardConfigV1 = {
   config: {
@@ -37,7 +38,7 @@ const responseHeaders = (): Record<string, string> => ({
 const connection = {
   principal: {
     principalKind: 'service',
-    principalId: 'service_1',
+    principalId: 'key_1',
     grantId: null,
   },
   credential: {
@@ -53,6 +54,7 @@ const connection = {
 const service = (
   token: string | undefined,
   fetchImplementation: typeof fetch,
+  now: () => number = () => Date.parse('2026-08-02T00:00:00.000Z'),
 ): ApiKeyConnectionStatusServiceV1 =>
   new ApiKeyConnectionStatusServiceV1(
     loaded,
@@ -62,8 +64,30 @@ const service = (
       fetch: fetchImplementation,
       timeoutMs: loaded.config.timeoutMs,
       logger: { log() {} },
+      now,
     }),
   );
+
+const pairingConnection = {
+  principal: { principalKind: 'mcp_client', principalId: 'client_1', grantId: 'grant_1' },
+  grant: {
+    grantId: 'grant_1',
+    client: {
+      clientId: 'client_1',
+      clientName: 'SceneBoard Codex',
+      installationFingerprint: 'abcdefghijklmnop',
+    },
+    scopes: ['board.read'],
+    lifecyclePermissions: [],
+    boardIds: ['board_1'],
+    lifetime: 'persistent',
+    status: 'active',
+    activatedAt: '2026-07-16T16:00:00.000Z',
+    expiresAt: '2026-08-16T16:00:00.000Z',
+  },
+  selectedBoard: null,
+  versions: { mcpServer: '0.0.0', boardProtocol: '1.0.0', api: 'v1' },
+};
 
 test('API-key status has the exact six-key missing and connected union arms', async () => {
   const missing = await service(undefined, async () => {
@@ -136,6 +160,94 @@ test('API-key invalid, backend unavailable, and invalid response arms remain exa
     assert.equal(malformed.value.lastErrorCode, 'API_KEY_BACKEND_RESPONSE_INVALID');
     assert.equal(malformed.value.retryable, true);
   }
+});
+
+test('API-key decoding rejects mismatched canonical principal and key public IDs', async () => {
+  const mismatched = {
+    ...connection,
+    principal: { ...connection.principal, principalId: 'key_other' },
+  };
+  const client = new ConnectionHttpClientV1({
+    baseUrl: loaded.config.baseUrl,
+    fetch: async () =>
+      new Response(JSON.stringify(mismatched), { status: 200, headers: responseHeaders() }),
+    timeoutMs: loaded.config.timeoutMs,
+    logger: { log() {} },
+    now: () => Date.parse('2026-08-02T00:00:00.000Z'),
+  });
+  const decoded = await client.get(null, requestId, apiKey, undefined, 'api_key');
+  assert.equal(decoded.ok, false);
+  if (!decoded.ok && decoded.source === 'local') {
+    assert.equal(decoded.error.code, 'RESPONSE_INVALID');
+    if (decoded.error.code === 'RESPONSE_INVALID') assert.equal(decoded.error.reason, 'schema');
+  }
+
+  const status = await service(
+    apiKey,
+    async () =>
+      new Response(JSON.stringify(mismatched), { status: 200, headers: responseHeaders() }),
+  ).status(null, requestId);
+  assert.equal(status.ok && status.value.state, 'backend_unavailable');
+  if (status.ok) assert.equal(status.value.lastErrorCode, 'API_KEY_BACKEND_RESPONSE_INVALID');
+});
+
+test('connection decoding binds the response family and API-key expiry to the validation clock', async () => {
+  const wrongApiKeyFamily = await service(
+    apiKey,
+    async () =>
+      new Response(JSON.stringify(pairingConnection), {
+        status: 200,
+        headers: responseHeaders(),
+      }),
+  ).status(null, requestId);
+  assert.equal(wrongApiKeyFamily.ok && wrongApiKeyFamily.value.state, 'backend_unavailable');
+  if (wrongApiKeyFamily.ok)
+    assert.equal(wrongApiKeyFamily.value.lastErrorCode, 'API_KEY_BACKEND_RESPONSE_INVALID');
+
+  const pairingClient = new ConnectionHttpClientV1({
+    baseUrl: loaded.config.baseUrl,
+    fetch: async () =>
+      new Response(JSON.stringify(connection), { status: 200, headers: responseHeaders() }),
+    timeoutMs: loaded.config.timeoutMs,
+    logger: { log() {} },
+    now: () => Date.parse('2026-08-02T00:00:00.000Z'),
+  });
+  const wrongPairingFamily = await pairingClient.get(null, requestId, pairingToken);
+  assert.equal(wrongPairingFamily.ok, false);
+  if (!wrongPairingFamily.ok && wrongPairingFamily.source === 'local') {
+    assert.equal(wrongPairingFamily.error.code, 'RESPONSE_INVALID');
+    if (wrongPairingFamily.error.code === 'RESPONSE_INVALID')
+      assert.equal(wrongPairingFamily.error.reason, 'schema');
+  }
+
+  const validationInstant = Date.parse('2027-07-30T00:00:00.000Z');
+  for (const expiresAt of ['2027-07-29T23:59:59.999Z', '2027-07-30T00:00:00.000Z']) {
+    const result = await service(
+      apiKey,
+      async () =>
+        new Response(
+          JSON.stringify({ ...connection, credential: { ...connection.credential, expiresAt } }),
+          { status: 200, headers: responseHeaders() },
+        ),
+      () => validationInstant,
+    ).status(null, requestId);
+    assert.equal(result.ok && result.value.state, 'backend_unavailable');
+    if (result.ok) assert.equal(result.value.lastErrorCode, 'API_KEY_BACKEND_RESPONSE_INVALID');
+  }
+
+  const future = await service(
+    apiKey,
+    async () =>
+      new Response(
+        JSON.stringify({
+          ...connection,
+          credential: { ...connection.credential, expiresAt: '2027-07-30T00:00:00.001Z' },
+        }),
+        { status: 200, headers: responseHeaders() },
+      ),
+    () => validationInstant,
+  ).status(null, requestId);
+  assert.equal(future.ok && future.value.state, 'connected');
 });
 
 test('API-key 401 keeps the current process in invalid state without rereading the source', async () => {

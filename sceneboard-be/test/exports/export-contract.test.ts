@@ -1,12 +1,19 @@
 import assert from 'node:assert/strict';
-import { createHmac } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
+import type { BoardDocumentV3, BoardId, RevisionId } from '@sceneboard/board-schema';
+import type { PoolConnection } from 'mysql2/promise';
 
 import { EXPORT_FAILURE_DEFINITIONS_V1, ExportFailureV1 } from '../../src/exports/export-errors.js';
 import { ExportAuthorizationPolicyV1 } from '../../src/exports/export-authorization.policy.js';
 import { ExportGlobalAdmissionRepositoryV1 } from '../../src/exports/export-global-admission.repository.js';
-import { canonicalizeExportProjectionV1 } from '../../src/exports/export-projection.service.js';
+import {
+  canonicalizeExportProjectionV1,
+  ExportProjectionServiceV1,
+  type ExportProjectionResourceV1,
+} from '../../src/exports/export-projection.service.js';
+import { DocumentCheckpointCodec } from '../../src/revisions/document-checkpoint.codec.js';
 import { ExportRenderSessionRepositoryV1 } from '../../src/exports/export-render-session.repository.js';
 import { ExportRequestSchemaV1 } from '../../src/exports/export-request.schema.js';
 import type { RedisService } from '../../src/redis/redis.service.js';
@@ -209,4 +216,317 @@ test('global export admission uses one expiring four-slot anonymous semaphore', 
     calls.map(({ keys }) => keys.join(':')).join('\n'),
     /board|revision|api-key/u,
   );
+});
+
+const exportBoardId = 'AAECAwQFBgcICQoLDA0ODw' as BoardId;
+const exportRevisionId = '00112233-4455-4677-8899-aabbccddeeff' as RevisionId;
+
+const exportDocument = (roots: readonly unknown[]): BoardDocumentV3 =>
+  ({
+    schemaVersion: 3,
+    format: 'wide_16_9',
+    defaultPageId: 'page_1',
+    pages: roots.map((root, index) => ({
+      pageId: `page_${index + 1}`,
+      title: '',
+      displayMode: 'fit-page',
+      scene: { protocolVersion: 1, type: 'scene', root },
+    })),
+  }) as unknown as BoardDocumentV3;
+
+const artifactNode = (id: string, type: 'A' | 'I') =>
+  type === 'A'
+    ? {
+        id,
+        type: 'content.artifact',
+        artifact: { artifactId: 'asset_1', versionId: 'version_1' },
+        fallbackText: '',
+      }
+    : {
+        id,
+        type: 'content.image',
+        source: {
+          type: 'artifact.resource',
+          artifact: { artifactId: 'asset_1', versionId: 'version_1' },
+          path: 'image.png',
+          sha256: 'a'.repeat(64),
+        },
+        alt: '',
+        fit: 'contain',
+      };
+
+const mediaNode = (id: string) => ({
+  id,
+  type: 'content.image',
+  source: { type: 'media', mediaId: 'media_1' },
+  alt: '',
+  fit: 'contain',
+});
+
+const output = () => ({
+  descriptors: new Map<string, ExportProjectionResourceV1>(),
+  bytes: new Map<string, { mediaType: string; bytes: Buffer }>(),
+});
+
+const projectionConnection = (input: {
+  mediaReferences?: readonly unknown[];
+  mediaResources?: readonly unknown[];
+  artifactReferences?: readonly unknown[];
+}): PoolConnection =>
+  ({
+    async execute(sql: string) {
+      const normalized = sql.replace(/\s+/gu, ' ').trim();
+      if (normalized.includes('FROM board_revision_artifact_refs'))
+        return [input.artifactReferences ?? [], []];
+      if (normalized.includes('JOIN board_media')) return [input.mediaResources ?? [], []];
+      if (normalized.includes('FROM board_revision_media_refs'))
+        return [input.mediaReferences ?? [], []];
+      throw new Error(`unexpected SQL: ${normalized}`);
+    },
+  }) as unknown as PoolConnection;
+
+const projectionProbe = (packageReads: string[] = []) => {
+  const service = new ExportProjectionServiceV1(
+    new DocumentCheckpointCodec(),
+    {
+      readImmutablePackage: async (
+        _connection: PoolConnection,
+        _boardId: string,
+        artifact: { artifactId: string; versionId: string },
+      ) => {
+        packageReads.push(`${artifact.artifactId}:${artifact.versionId}`);
+        return { manifestBytes: Buffer.from('{}'), resources: [] };
+      },
+    } as never,
+    {} as never,
+    [],
+  );
+  return service as unknown as {
+    addMediaResources(
+      connection: PoolConnection,
+      revisionPk: bigint,
+      boardId: BoardId,
+      document: BoardDocumentV3,
+      revisionId: RevisionId,
+      sessionId: string,
+      output: unknown,
+    ): Promise<void>;
+    addArtifactResources(
+      connection: PoolConnection,
+      revisionPk: bigint,
+      boardId: BoardId,
+      document: BoardDocumentV3,
+      revisionId: RevisionId,
+      sessionId: string,
+      output: unknown,
+    ): Promise<void>;
+  };
+};
+
+const requiredContentFailure = (error: unknown): boolean =>
+  error instanceof ExportFailureV1 && error.code === 'EXPORT_REQUIRED_CONTENT_UNSUPPORTED';
+
+test('export accepts empty derived inventories and deduplicates repeated media', async () => {
+  const probe = projectionProbe();
+  const empty = exportDocument([null]);
+  const emptyOutput = output();
+  const emptyConnection = projectionConnection({});
+  await probe.addMediaResources(
+    emptyConnection,
+    1n,
+    exportBoardId,
+    empty,
+    exportRevisionId,
+    sessionId,
+    emptyOutput,
+  );
+  await probe.addArtifactResources(
+    emptyConnection,
+    1n,
+    exportBoardId,
+    empty,
+    exportRevisionId,
+    sessionId,
+    emptyOutput,
+  );
+  assert.equal(emptyOutput.descriptors.size, 0);
+
+  const bytes = Buffer.from('image');
+  const mediaId = Buffer.from('media_1', 'ascii');
+  const repeated = exportDocument([mediaNode('media_node_1'), mediaNode('media_node_2')]);
+  const repeatedOutput = output();
+  await probe.addMediaResources(
+    projectionConnection({
+      mediaReferences: [{ mediaId, firstPageId: Buffer.from('page_1', 'ascii'), ordinal: 1 }],
+      mediaResources: [
+        {
+          mediaId,
+          ordinal: 1,
+          mediaType: 'image/png',
+          bytes,
+          byteLength: bytes.byteLength,
+          sha256: createHash('sha256').update(bytes).digest(),
+        },
+      ],
+    }),
+    1n,
+    exportBoardId,
+    repeated,
+    exportRevisionId,
+    sessionId,
+    repeatedOutput,
+  );
+  assert.deepEqual(
+    [...repeatedOutput.descriptors.values()].map((descriptor) => descriptor.usage),
+    [{ kind: 'media', mediaId: 'media_1' }],
+  );
+});
+
+test('export fails closed for incomplete, inactive, malformed, or misordered media rows', async () => {
+  const probe = projectionProbe();
+  const document = exportDocument([mediaNode('media_node_1'), mediaNode('media_node_2')]);
+  const bytes = Buffer.from('image');
+  const exactReference = {
+    mediaId: Buffer.from('media_1', 'ascii'),
+    firstPageId: Buffer.from('page_1', 'ascii'),
+    ordinal: 1,
+  };
+  const exactResource = {
+    mediaId: Buffer.from('media_1', 'ascii'),
+    ordinal: 1,
+    mediaType: 'image/png',
+    bytes,
+    byteLength: bytes.byteLength,
+    sha256: createHash('sha256').update(bytes).digest(),
+  };
+  for (const scenario of [
+    { name: 'missing', mediaReferences: [], mediaResources: [exactResource] },
+    {
+      name: 'extra',
+      mediaReferences: [
+        exactReference,
+        {
+          mediaId: Buffer.from('media_2', 'ascii'),
+          firstPageId: Buffer.from('page_2', 'ascii'),
+          ordinal: 2,
+        },
+      ],
+      mediaResources: [exactResource],
+    },
+    {
+      name: 'malformed identifier',
+      mediaReferences: [{ ...exactReference, mediaId: Buffer.from([0xff]) }],
+      mediaResources: [exactResource],
+    },
+    {
+      name: 'wrong first page',
+      mediaReferences: [{ ...exactReference, firstPageId: Buffer.from('page_2', 'ascii') }],
+      mediaResources: [exactResource],
+    },
+    {
+      name: 'wrong ordinal',
+      mediaReferences: [{ ...exactReference, ordinal: 2 }],
+      mediaResources: [exactResource],
+    },
+    {
+      name: 'inactive or quarantined object',
+      mediaReferences: [exactReference],
+      mediaResources: [],
+    },
+    {
+      name: 'malformed active content',
+      mediaReferences: [exactReference],
+      mediaResources: [{ ...exactResource, sha256: Buffer.alloc(31) }],
+    },
+  ]) {
+    await assert.rejects(
+      probe.addMediaResources(
+        projectionConnection(scenario),
+        1n,
+        exportBoardId,
+        document,
+        exportRevisionId,
+        sessionId,
+        output(),
+      ),
+      requiredContentFailure,
+      scenario.name,
+    );
+  }
+});
+
+test('export validates exact A/I occurrence rows before deduplicating one artifact package', async () => {
+  const packageReads: string[] = [];
+  const probe = projectionProbe(packageReads);
+  const document = exportDocument([
+    artifactNode('artifact_1', 'A'),
+    artifactNode('image_1', 'I'),
+    artifactNode('image_2', 'I'),
+  ]);
+  const artifactReferences = [
+    {
+      artifactId: 'asset_1',
+      artifactVersionId: 'version_1',
+      referenceCode: 'A',
+      occurrenceCount: 1,
+    },
+    {
+      artifactId: 'asset_1',
+      artifactVersionId: 'version_1',
+      referenceCode: 'I',
+      occurrenceCount: 2,
+    },
+  ];
+  const resources = output();
+  await probe.addArtifactResources(
+    projectionConnection({ artifactReferences }),
+    1n,
+    exportBoardId,
+    document,
+    exportRevisionId,
+    sessionId,
+    resources,
+  );
+  assert.deepEqual(packageReads, ['asset_1:version_1']);
+  assert.deepEqual(
+    [...resources.descriptors.values()].map((descriptor) => descriptor.usage),
+    [{ kind: 'artifact', artifactId: 'asset_1', versionId: 'version_1' }],
+  );
+});
+
+test('export fails closed for missing, extra, malformed, stale, or miscounted A/I rows', async () => {
+  const packageReads: string[] = [];
+  const probe = projectionProbe(packageReads);
+  const document = exportDocument([artifactNode('artifact_1', 'A')]);
+  const exact = {
+    artifactId: 'asset_1',
+    artifactVersionId: 'version_1',
+    referenceCode: 'A',
+    occurrenceCount: 1,
+  };
+  for (const scenario of [
+    { name: 'missing', artifactReferences: [] },
+    {
+      name: 'extra',
+      artifactReferences: [exact, { ...exact, artifactId: 'asset_2' }],
+    },
+    { name: 'malformed', artifactReferences: [{ ...exact, referenceCode: 'X' }] },
+    { name: 'stale A/I code', artifactReferences: [{ ...exact, referenceCode: 'I' }] },
+    { name: 'wrong occurrence', artifactReferences: [{ ...exact, occurrenceCount: 2 }] },
+  ]) {
+    await assert.rejects(
+      probe.addArtifactResources(
+        projectionConnection(scenario),
+        1n,
+        exportBoardId,
+        document,
+        exportRevisionId,
+        sessionId,
+        output(),
+      ),
+      requiredContentFailure,
+      scenario.name,
+    );
+  }
+  assert.deepEqual(packageReads, []);
 });

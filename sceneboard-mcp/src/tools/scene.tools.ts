@@ -73,6 +73,13 @@ const documentMismatch = (
     },
   });
 
+const isCallToolResult = (value: unknown): value is CallToolResult =>
+  value !== null &&
+  typeof value === 'object' &&
+  !('ok' in value) &&
+  'content' in value &&
+  Array.isArray(value.content);
+
 export class SceneToolHandlersV1 {
   constructor(private readonly gateway: ProtectedBoardGatewayV1) {}
 
@@ -84,7 +91,10 @@ export class SceneToolHandlersV1 {
       const result = await this.gateway.call(
         'board_scene_get',
         ['board.get'],
-        { signal },
+        {
+          signal,
+          authorization: { boardId: parsed.data.boardId, operation: 'board.get' },
+        },
         (client, _snapshot, operationSignal) =>
           client.getBoard(
             {
@@ -115,7 +125,10 @@ export class SceneToolHandlersV1 {
     const result = await this.gateway.call(
       'board_scene_get',
       ['history.get'],
-      { signal },
+      {
+        signal,
+        authorization: { boardId: parsed.data.boardId, operation: 'history.get' },
+      },
       (client, _snapshot, operationSignal) =>
         client.getHistory(
           {
@@ -165,7 +178,10 @@ export class SceneToolHandlersV1 {
     const result = await this.gateway.call(
       'board_scene_replace',
       'scene.replace',
-      { signal },
+      {
+        signal,
+        authorization: { boardId: parsed.data.boardId, operation: 'scene.replace' },
+      },
       (client, _snapshot, operationSignal) =>
         client.mutateBoard(
           {
@@ -193,12 +209,16 @@ export class SceneToolHandlersV1 {
     const requestId = createRequestIdV1();
     const parsed = ScenePatchInputSchemaV1.safeParse(raw);
     if (!parsed.success) return validationFailureV1('board_scene_patch', requestId, parsed.error);
-    const head = await this.gateway.call(
+    let transformedFromRevisionId: string | null = null;
+    const result = await this.gateway.call(
       'board_scene_patch',
       ['board.get', 'scene.replace'],
-      { signal },
-      (client, _snapshot, operationSignal) =>
-        client.getBoard(
+      {
+        signal,
+        authorization: { boardId: parsed.data.boardId, operation: 'scene.replace' },
+      },
+      async (client, _snapshot, operationSignal) => {
+        const head = await client.getBoard(
           {
             protocolVersion: 1,
             requestId: requestId as RequestId,
@@ -206,36 +226,25 @@ export class SceneToolHandlersV1 {
             boardId: parsed.data.boardId as BoardId,
           },
           operationSignal,
-        ),
-    );
-    if (!head.connected)
-      return toolFailureV1(
-        'board_scene_patch',
-        requestId,
-        'mcp',
-        notConnectedV1() as unknown as Record<string, unknown>,
-      );
-    if (!head.value.ok) return sdkToolResultV1('board_scene_patch', requestId, head.value, null);
-    const snapshot = head.value.result.result;
-    if (snapshot.type !== 'board.get') throw new Error('board.get result invariant failed');
-    if ('document' in snapshot.snapshot) return documentMismatch('board_scene_patch', requestId);
-    const transformed = applySceneTransformV1(
-      snapshot.snapshot.scene,
-      parsed.data.operations as SceneTransformOperationV1[],
-    );
-    if (!transformed.ok)
-      return toolFailureV1(
-        'board_scene_patch',
-        requestId,
-        'board',
-        transformed.error as unknown as Record<string, unknown>,
-      );
-    const result = await this.gateway.call(
-      'board_scene_patch',
-      ['board.get', 'scene.replace'],
-      { signal },
-      (client, _snapshot, operationSignal) =>
-        client.mutateBoard(
+        );
+        if (!head.ok) return head;
+        const snapshot = head.result.result;
+        if (snapshot.type !== 'board.get') throw new Error('board.get result invariant failed');
+        if ('document' in snapshot.snapshot)
+          return documentMismatch('board_scene_patch', requestId);
+        const transformed = applySceneTransformV1(
+          snapshot.snapshot.scene,
+          parsed.data.operations as SceneTransformOperationV1[],
+        );
+        if (!transformed.ok)
+          return toolFailureV1(
+            'board_scene_patch',
+            requestId,
+            'board',
+            transformed.error as unknown as Record<string, unknown>,
+          );
+        transformedFromRevisionId = snapshot.snapshot.revision.revisionId;
+        return client.mutateBoard(
           {
             protocolVersion: 1,
             requestId: requestId as RequestId,
@@ -245,19 +254,25 @@ export class SceneToolHandlersV1 {
             command: { type: 'scene.replace', scene: transformed.data.value },
           },
           operationSignal,
-        ),
-    );
-    return result.connected
-      ? sdkToolResultV1('board_scene_patch', requestId, result.value, {
-          type: 'scene-transform',
-          transformedFromRevisionId: snapshot.snapshot.revision.revisionId,
-        })
-      : toolFailureV1(
-          'board_scene_patch',
-          requestId,
-          'mcp',
-          notConnectedV1() as unknown as Record<string, unknown>,
         );
+      },
+    );
+    if (!result.connected)
+      return toolFailureV1(
+        'board_scene_patch',
+        requestId,
+        'mcp',
+        notConnectedV1() as unknown as Record<string, unknown>,
+      );
+    if (isCallToolResult(result.value)) return result.value;
+    if (result.value.ok && transformedFromRevisionId === null)
+      throw new Error('scene transform metadata invariant failed');
+    return sdkToolResultV1(
+      'board_scene_patch',
+      requestId,
+      result.value,
+      result.value.ok ? { type: 'scene-transform', transformedFromRevisionId } : null,
+    );
   }
 
   async clear(raw: unknown, signal?: AbortSignal): Promise<CallToolResult> {
@@ -267,7 +282,10 @@ export class SceneToolHandlersV1 {
     const result = await this.gateway.call(
       'board_scene_clear',
       'scene.clear',
-      { signal },
+      {
+        signal,
+        authorization: { boardId: parsed.data.boardId, operation: 'scene.clear' },
+      },
       (client, _snapshot, operationSignal) =>
         client.mutateBoard(
           {

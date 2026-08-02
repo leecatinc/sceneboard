@@ -13,6 +13,8 @@ import type {
   BoardSdkHttpResultV1,
 } from '@sceneboard/board-sdk/http';
 
+import { parseAuthorizedConnectionProjectionV1 } from '../connection/connection-http.client.js';
+
 export type BoardToolNameV1 =
   | 'board_connection_status'
   | 'board_pair_request'
@@ -227,6 +229,192 @@ const LOCAL_EXPORT_MESSAGES_V1 = Object.freeze({
   LOCAL_EXPORT_CANCELLED: 'Local export was cancelled',
 } as const);
 
+const TIMESTAMP_PATTERN_V1 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+const PROFILE_PATTERN_V1 = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
+
+const exactKeysV1 = (value: unknown, keys: readonly string[]): value is Record<string, unknown> => {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
+  const actual = Object.keys(value as Record<string, unknown>).sort();
+  const expected = [...keys].sort();
+  return actual.length === expected.length && actual.every((key, index) => key === expected[index]);
+};
+
+const canonicalTimestampV1 = (value: unknown): value is string => {
+  if (typeof value !== 'string' || !TIMESTAMP_PATTERN_V1.test(value)) return false;
+  const instant = Date.parse(value);
+  return Number.isFinite(instant) && new Date(instant).toISOString() === value;
+};
+
+const canonicalBaseOriginV1 = (value: unknown): value is string => {
+  if (typeof value !== 'string' || value.length < 1 || value.length > 2_048) return false;
+  try {
+    const url = new URL(value);
+    const loopback =
+      url.hostname === '127.0.0.1' || url.hostname === '[::1]' || url.hostname === '::1';
+    return (
+      url.origin === value &&
+      url.pathname === '/' &&
+      url.username === '' &&
+      url.password === '' &&
+      url.search === '' &&
+      url.hash === '' &&
+      (url.protocol === 'https:' || (url.protocol === 'http:' && loopback))
+    );
+  } catch {
+    return false;
+  }
+};
+
+const connectionBoardIdV1 = (connection: Record<string, unknown>): string | null => {
+  if (!exactKeysV1(connection.selectedBoard, ['board', 'capabilities'])) return null;
+  const board = connection.selectedBoard.board;
+  return exactKeysV1(board, [
+    'boardId',
+    'title',
+    'createdAt',
+    'updatedAt',
+    'archivedAt',
+    'headRevision',
+  ]) && typeof board.boardId === 'string'
+    ? board.boardId
+    : null;
+};
+
+const exactPairingConfigV1 = (value: unknown): value is Record<string, unknown> =>
+  exactKeysV1(value, ['source', 'profile', 'baseOrigin', 'timeoutMs', 'hasToken']) &&
+  [
+    'process_option',
+    'board_config_env',
+    'nearest_board_file',
+    'user_config_file',
+    'environment',
+  ].includes(String(value.source)) &&
+  typeof value.profile === 'string' &&
+  PROFILE_PATTERN_V1.test(value.profile) &&
+  canonicalBaseOriginV1(value.baseOrigin) &&
+  Number.isSafeInteger(value.timeoutMs) &&
+  Number(value.timeoutMs) >= 1_000 &&
+  Number(value.timeoutMs) <= 120_000 &&
+  typeof value.hasToken === 'boolean';
+
+const exactConnectionStatusResultV1 = (
+  value: Record<string, unknown>,
+  requestId: string,
+): boolean => {
+  if (value.credentialMode === 'api_key') {
+    if (
+      !exactKeysV1(value, [
+        'credentialMode',
+        'state',
+        'config',
+        'connection',
+        'lastErrorCode',
+        'retryable',
+      ]) ||
+      !exactKeysV1(value.config, ['source', 'referenceConfigured']) ||
+      (value.config.source !== 'env' && value.config.source !== 'private_store') ||
+      typeof value.config.referenceConfigured !== 'boolean' ||
+      typeof value.retryable !== 'boolean'
+    )
+      return false;
+    if (value.state === 'connected') {
+      if (
+        value.config.referenceConfigured !== true ||
+        value.lastErrorCode !== null ||
+        value.retryable !== false ||
+        !exactKeysV1(value.connection, ['principal', 'credential', 'selectedBoard', 'versions'])
+      )
+        return false;
+      return (
+        parseAuthorizedConnectionProjectionV1(
+          value.connection,
+          requestId,
+          connectionBoardIdV1(value.connection),
+          'api_key',
+        ) !== null
+      );
+    }
+    if (value.connection !== null) return false;
+    if (value.state === 'credential_missing')
+      return (
+        value.config.referenceConfigured === false &&
+        value.lastErrorCode === 'API_KEY_CREDENTIAL_MISSING' &&
+        value.retryable === false
+      );
+    if (value.state === 'credential_invalid')
+      return (
+        value.config.referenceConfigured === true &&
+        value.lastErrorCode === 'API_KEY_CREDENTIAL_INVALID' &&
+        value.retryable === false
+      );
+    return (
+      value.state === 'backend_unavailable' &&
+      value.config.referenceConfigured === true &&
+      (value.lastErrorCode === 'API_KEY_BACKEND_UNAVAILABLE' ||
+        value.lastErrorCode === 'API_KEY_BACKEND_RESPONSE_INVALID') &&
+      value.retryable === true
+    );
+  }
+  if (!exactKeysV1(value, ['state', 'config', 'connection', 'lastErrorCode'])) return false;
+  if (value.state === 'not_configured')
+    return (
+      value.config === null &&
+      value.connection === null &&
+      value.lastErrorCode === 'BOARD_MCP_CONFIG_INVALID'
+    );
+  if (!exactPairingConfigV1(value.config)) return false;
+  if (value.state === 'connected') {
+    if (
+      value.config.hasToken !== true ||
+      value.lastErrorCode !== null ||
+      !exactKeysV1(value.connection, ['principal', 'grant', 'selectedBoard', 'versions'])
+    )
+      return false;
+    const selectedBoard = value.connection.selectedBoard;
+    const boardId =
+      exactKeysV1(selectedBoard, ['board', 'capabilities', 'browserPresence', 'capabilityEpoch']) &&
+      exactKeysV1(selectedBoard.board, [
+        'boardId',
+        'title',
+        'createdAt',
+        'updatedAt',
+        'archivedAt',
+        'headRevision',
+      ]) &&
+      typeof selectedBoard.board.boardId === 'string'
+        ? selectedBoard.board.boardId
+        : null;
+    return (
+      parseAuthorizedConnectionProjectionV1(value.connection, requestId, boardId, 'pairing') !== null
+    );
+  }
+  if (value.connection !== null) return false;
+  if (value.state === 'credential_missing')
+    return value.config.hasToken === false && value.lastErrorCode === null;
+  if (value.state === 'credential_invalid')
+    return value.config.hasToken === false && value.lastErrorCode === 'UNAUTHENTICATED';
+  return (
+    value.state === 'backend_unavailable' &&
+    (value.lastErrorCode === 'BOARD_MCP_TIMEOUT' ||
+      value.lastErrorCode === 'BOARD_MCP_TRANSPORT_ERROR' ||
+      value.lastErrorCode === 'BOARD_MCP_RESPONSE_INVALID')
+  );
+};
+
+const exactRenameResultV1 = (value: Record<string, unknown>): boolean => {
+  if (
+    !exactKeysV1(value, ['boardId', 'title', 'updatedAt']) ||
+    typeof value.boardId !== 'string' ||
+    !/^[A-Za-z0-9_-]{1,128}$/.test(value.boardId) ||
+    typeof value.title !== 'string' ||
+    [...value.title].length < 1 ||
+    [...value.title].length > 200 ||
+    /[\u0000-\u001f\u007f-\u009f\uD800-\uDFFF]/u.test(value.title)
+  )
+    return false;
+  return canonicalTimestampV1(value.updatedAt);
+};
+
 export const toolOutputSchemaV1 = (
   tool: BoardToolNameV1,
   reachableCodes: readonly [string, ...string[]],
@@ -324,6 +512,27 @@ export const toolOutputSchemaV1 = (
           path: ['result', 'requestId'],
           message: 'request IDs must match',
         });
+      }
+      if (tool === 'board_connection_status') {
+        if (
+          !exactConnectionStatusResultV1(output.result, output.requestId) ||
+          output.metadata !== null
+        )
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['result'],
+            message: 'connection status result is invalid',
+          });
+        return;
+      }
+      if (tool === 'board_rename') {
+        if (!exactRenameResultV1(output.result) || output.metadata !== null)
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['result'],
+            message: 'board rename result is invalid',
+          });
+        return;
       }
       if (tool === 'board_export') {
         if (

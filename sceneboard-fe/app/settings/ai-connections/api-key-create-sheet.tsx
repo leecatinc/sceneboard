@@ -21,11 +21,16 @@ export function ApiKeyCreateSheet({
   triggerRef,
 }: {
   busy: boolean;
-  onCreate(input: { displayName: string; scopes: AccountApiKeyScopeV1[]; expiresAt: string }): void;
+  onCreate(input: {
+    displayName: string;
+    scopes: AccountApiKeyScopeV1[];
+    expiresInDays: number;
+  }): void;
   triggerRef: RefObject<HTMLButtonElement | null>;
 }) {
   const { t } = useI18n();
   const [name, setName] = useState('');
+  const [nameError, setNameError] = useState(false);
   const [selected, setSelected] = useState<AccountApiKeyScopeV1[]>(['board:read']);
   const [days, setDays] = useState('90');
   const toggle = (scope: AccountApiKeyScopeV1) =>
@@ -39,11 +44,17 @@ export function ApiKeyCreateSheet({
       className={styles.form}
       onSubmit={(event) => {
         event.preventDefault();
-        if (selected.length === 0) return;
+        const displayName = name.trim();
+        if (selected.length === 0 || displayName.length === 0) {
+          setNameError(displayName.length === 0);
+          return;
+        }
+        setName(displayName);
+        setNameError(false);
         onCreate({
-          displayName: name,
+          displayName,
           scopes: selected,
-          expiresAt: new Date(Date.now() + Number(days) * 86_400_000).toISOString(),
+          expiresInDays: Number(days),
         });
       }}
     >
@@ -53,8 +64,18 @@ export function ApiKeyCreateSheet({
           value={name}
           maxLength={80}
           required
-          onChange={(event) => setName(event.target.value)}
+          aria-invalid={nameError}
+          aria-describedby={nameError ? 'api-key-name-error' : undefined}
+          onChange={(event) => {
+            setName(event.target.value);
+            if (nameError) setNameError(false);
+          }}
         />
+        {nameError && (
+          <span id="api-key-name-error" className={styles.error} role="alert">
+            {t('apiKey.nameRequired')}
+          </span>
+        )}
       </label>
       <fieldset>
         <legend>{t('apiKey.scopes')}</legend>

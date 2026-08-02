@@ -4,10 +4,12 @@ import { test } from 'node:test';
 
 import {
   BOARD_DOCUMENT_LIMITS_V2,
+  BOARD_DOCUMENT_LIMITS_V3,
   BOARD_LIMITS_V1,
   BOARD_MUTATION_COMMAND_TYPES_V1,
   BOARD_MUTATION_COMMAND_TYPES_V2,
   BoardCapabilitiesParserV2,
+  BoardCapabilitiesParserV3,
   BoardDocumentParserV2,
   BoardErrorParser,
   BoardEventEnvelopeParserV2,
@@ -16,6 +18,8 @@ import {
   BoardSnapshotParserV2,
   DEFAULT_BOARD_CAPABILITIES_V1,
   DEFAULT_BOARD_CAPABILITIES_V2,
+  DEFAULT_BOARD_CAPABILITIES_V3,
+  MAX_ARTIFACT_REFERENCE_OCCURRENCES,
   MutationRequestParserV2,
   MutationResultParserV2,
   adaptLegacySceneToDocumentV2,
@@ -25,6 +29,59 @@ import {
   type BoardSnapshotV2,
   type SceneV1,
 } from '../src/index.js';
+
+const LEGACY_BOARD_CAPABILITIES_V2 = {
+  ...DEFAULT_BOARD_CAPABILITIES_V2,
+  limits: {
+    maxEnvelopeBytes: 1_048_576,
+    maxSceneBytes: 786_432,
+    maxSceneDepth: 12,
+    maxSceneNodes: 500,
+    maxJsonDepth: 64,
+    maxJsonContainerEntries: 10_000,
+    maxSplitChildren: 12,
+    maxGridColumns: 24,
+    maxGridRows: 100,
+    maxGridItems: 200,
+    maxTabs: 20,
+    maxCanvasItems: 200,
+    maxCanvasExtent: 100_000,
+    maxTitleChars: 200,
+    maxImageAltChars: 500,
+    maxMarkdownChars: 100_000,
+    maxCodeChars: 200_000,
+    maxTableColumns: 50,
+    maxTableRows: 500,
+    maxTableCells: 10_000,
+    maxChartSeries: 32,
+    maxChartPoints: 10_000,
+    maxMapFeatures: 5_000,
+    maxDrawingElements: 5_000,
+    maxArtifactResources: 128,
+    maxArtifactResourceBytes: 5_242_880,
+    maxArtifactTotalBytes: 10_485_760,
+    maxBoardArtifacts: 100,
+    maxBoardArtifactVersions: 1_000,
+    maxBoardArtifactResourceRows: 10_000,
+    maxBoardArtifactChargedBytes: 536_870_912,
+    maxHitlOptions: 50,
+    maxHitlFields: 50,
+    maxHitlTextChars: 60_000,
+    maxHitlResponseBytes: 65_536,
+    maxPageSize: 100,
+    maxPageCursorChars: 512,
+    maxHitlWaitMs: 30_000,
+    maxDocumentPages: 100,
+    maxDocumentBytes: 20_971_520,
+    maxDocumentPageBytes: 1_048_576,
+    maxDocumentNodes: 5_000,
+    maxDocumentEnvelopeBytes: 33_554_432,
+    maxMediaBytes: 10_485_760,
+    maxMediaPixels: 40_000_000,
+    maxBoardMediaBytes: 536_870_912,
+    maxMediaReferences: 5_000,
+  },
+} as const;
 
 const emptyScene: SceneV1 = { protocolVersion: 1, type: 'scene', root: null };
 const page = (pageId: string, scene: SceneV1 = emptyScene) => ({
@@ -61,6 +118,61 @@ const sceneWithNodes = (prefix: string, count: number): SceneV1 =>
       })),
     },
   }) as unknown as SceneV1;
+
+const documentWithArtifactReferences = (groups: readonly { code: 'A' | 'I'; count: number }[]) => {
+  let pageIndex = 0;
+  const pages = groups.flatMap((group) => {
+    let remaining = group.count;
+    const output = [];
+    while (remaining > 0) {
+      const count = Math.min(remaining, 200);
+      const currentPageIndex = pageIndex;
+      pageIndex += 1;
+      output.push(
+        page(`reference_page_${currentPageIndex}`, {
+          protocolVersion: 1,
+          type: 'scene',
+          root: {
+            id: `reference_root_${currentPageIndex}`,
+            type: 'layout.canvas',
+            width: 1_000,
+            height: 10,
+            children: Array.from({ length: count }, (_, nodeIndex) => ({
+              node:
+                group.code === 'A'
+                  ? {
+                      id: `reference_a_${currentPageIndex}_${nodeIndex}`,
+                      type: 'content.artifact',
+                      artifact: { artifactId: 'asset_1', versionId: 'version_1' },
+                      fallbackText: 'fallback',
+                    }
+                  : {
+                      id: `reference_i_${currentPageIndex}_${nodeIndex}`,
+                      type: 'content.image',
+                      source: {
+                        type: 'artifact.resource',
+                        artifact: { artifactId: 'asset_1', versionId: 'version_1' },
+                        path: 'image.png',
+                        sha256: 'a'.repeat(64),
+                      },
+                      alt: 'image',
+                      fit: 'contain',
+                    },
+              x: nodeIndex,
+              y: 0,
+              width: 1,
+              height: 1,
+              zIndex: nodeIndex,
+            })),
+          },
+        } as SceneV1),
+      );
+      remaining -= count;
+    }
+    return output;
+  });
+  return document(pages, pages[0]?.pageId ?? 'reference_page_0');
+};
 
 const revision = {
   revisionId: 'revision_2',
@@ -159,6 +271,61 @@ test('accepts strict ordered documents and rejects page identity/default/display
   assert.equal(nodesOverLimit.ok, false);
   if (!nodesOverLimit.ok)
     assert.deepEqual(nodesOverLimit.error.details, { path: ['pages'], reason: 'limit' });
+});
+
+test('enforces the public per-artifact A and I occurrence limit across V2 pages', () => {
+  assert.equal(MAX_ARTIFACT_REFERENCE_OCCURRENCES, 500);
+
+  for (const code of ['A', 'I'] as const) {
+    assert.equal(
+      BoardDocumentParserV2.parse(
+        documentWithArtifactReferences([{ code, count: MAX_ARTIFACT_REFERENCE_OCCURRENCES }]),
+      ).ok,
+      true,
+    );
+    const over = BoardDocumentParserV2.parse(
+      documentWithArtifactReferences([{ code, count: MAX_ARTIFACT_REFERENCE_OCCURRENCES + 1 }]),
+    );
+    assert.equal(over.ok, false);
+    if (!over.ok) {
+      assert.equal(over.error.code, 'INVALID_DOCUMENT');
+      assert.equal(over.error.httpStatusHint, 422);
+      assert.equal(over.error.details.reason, 'limit');
+    }
+  }
+
+  assert.equal(
+    BoardDocumentParserV2.parse(
+      documentWithArtifactReferences([
+        { code: 'A', count: MAX_ARTIFACT_REFERENCE_OCCURRENCES },
+        { code: 'I', count: MAX_ARTIFACT_REFERENCE_OCCURRENCES },
+      ]),
+    ).ok,
+    true,
+  );
+  const mixedOver = BoardDocumentParserV2.parse(
+    documentWithArtifactReferences([
+      { code: 'A', count: MAX_ARTIFACT_REFERENCE_OCCURRENCES },
+      { code: 'I', count: MAX_ARTIFACT_REFERENCE_OCCURRENCES + 1 },
+    ]),
+  );
+  assert.equal(mixedOver.ok, false);
+  if (!mixedOver.ok) {
+    assert.equal(mixedOver.error.code, 'INVALID_DOCUMENT');
+    assert.equal(mixedOver.error.httpStatusHint, 422);
+  }
+});
+
+test('freezes legacy V2 capability limits while V3 advertises artifact occurrence capacity', () => {
+  assert.equal(BoardCapabilitiesParserV2.parse(LEGACY_BOARD_CAPABILITIES_V2).ok, true);
+  assert.deepEqual(DEFAULT_BOARD_CAPABILITIES_V2.limits, LEGACY_BOARD_CAPABILITIES_V2.limits);
+  assert.equal('maxArtifactReferenceOccurrences' in DEFAULT_BOARD_CAPABILITIES_V2.limits, false);
+  assert.equal(BoardCapabilitiesParserV3.parse(DEFAULT_BOARD_CAPABILITIES_V3).ok, true);
+  assert.deepEqual(DEFAULT_BOARD_CAPABILITIES_V3.limits, BOARD_DOCUMENT_LIMITS_V3);
+  assert.equal(
+    DEFAULT_BOARD_CAPABILITIES_V3.limits.maxArtifactReferenceOccurrences,
+    MAX_ARTIFACT_REFERENCE_OCCURRENCES,
+  );
 });
 
 test('keeps versions, catalogs, limits, and byte profiles exact', () => {
@@ -456,6 +623,89 @@ test('parses exact whole-document commands/results and emits stable artifact han
     true,
   );
 
+  const parsedSnapshot = BoardSnapshotParserV2.parse({
+    ...snapshot(parsedDocument.data.value),
+    artifacts: [
+      {
+        artifact: { artifactId: 'artifact_1', versionId: 'version_1' },
+        status: 'ready',
+        updatedAt: '2026-07-28T00:00:00.000Z',
+        failure: null,
+      },
+      {
+        artifact: { artifactId: 'artifact_2', versionId: 'version_2' },
+        status: 'ready',
+        updatedAt: '2026-07-28T00:00:00.000Z',
+        failure: null,
+      },
+    ],
+  });
+  assert.equal(parsedSnapshot.ok, true);
+  if (!parsedSnapshot.ok) return;
+  assert.deepEqual(
+    collectArtifactReferencesAcrossSnapshotV2({
+      boardId: parsedSnapshot.data.value.boardId,
+      revisionId: parsedSnapshot.data.value.revision.revisionId,
+      snapshot: parsedSnapshot.data.value,
+    }),
+    [
+      {
+        boardId: 'board_1',
+        revisionId: 'revision_2',
+        firstPageId: 'page_a',
+        artifactId: 'artifact_1',
+        versionId: 'version_1',
+        ordinal: 1,
+      },
+      {
+        boardId: 'board_1',
+        revisionId: 'revision_2',
+        firstPageId: 'page_c',
+        artifactId: 'artifact_2',
+        versionId: 'version_2',
+        ordinal: 2,
+      },
+    ],
+  );
+});
+
+test('orders and deduplicates direct and artifact-backed image packages by first use', () => {
+  const direct = (id: string, artifactId: string, versionId: string): SceneV1 => ({
+    protocolVersion: 1,
+    type: 'scene',
+    root: {
+      id: id as never,
+      type: 'content.artifact',
+      artifact: { artifactId: artifactId as never, versionId: versionId as never },
+      fallbackText: 'fallback',
+    },
+  });
+  const image = (id: string, artifactId: string, versionId: string): SceneV1 => ({
+    protocolVersion: 1,
+    type: 'scene',
+    root: {
+      id: id as never,
+      type: 'content.image',
+      source: {
+        type: 'artifact.resource',
+        artifact: { artifactId: artifactId as never, versionId: versionId as never },
+        path: 'image.png',
+        sha256: 'a'.repeat(64),
+      },
+      alt: 'image',
+      fit: 'contain',
+    },
+  });
+  const parsedDocument = BoardDocumentParserV2.parse(
+    document([
+      page('page_a', image('image_a', 'artifact_1', 'version_1')),
+      page('page_b', direct('artifact_b', 'artifact_1', 'version_1')),
+      page('page_c', image('image_c', 'artifact_2', 'version_2')),
+      page('page_d', image('image_d', 'artifact_2', 'version_2')),
+    ]),
+  );
+  assert.equal(parsedDocument.ok, true);
+  if (!parsedDocument.ok) return;
   const parsedSnapshot = BoardSnapshotParserV2.parse({
     ...snapshot(parsedDocument.data.value),
     artifacts: [

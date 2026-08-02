@@ -66,6 +66,19 @@ test('wraps D2 errors once and emits only safe public fields', () => {
   assert.equal(response.headers.has('Vary'), false);
 });
 
+test('account API-key quota errors emit the complete private 429 tuple', () => {
+  const response = capture(new AppError('RATE_LIMITED', { retryAfterSeconds: 2 }), {
+    url: '/api/v1/account/api-keys',
+  });
+  assert.equal(response.status, 429);
+  assert.deepEqual(response.body, {
+    error: { code: 'RATE_LIMITED', message: 'Too many requests' },
+  });
+  assert.equal(response.headers.get('Retry-After'), '2');
+  assert.equal(response.headers.get('Cache-Control'), 'no-store, private');
+  assert.equal(response.headers.get('Pragma'), 'no-cache');
+});
+
 test('nests the exact D1 board error without reshaping it', () => {
   const boardError = invalidBoardPayload('bad request');
   const response = capture(new BoardContractError(boardError));

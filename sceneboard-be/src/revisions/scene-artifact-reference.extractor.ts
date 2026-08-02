@@ -1,4 +1,9 @@
-import type { BoardDocument, BoardNodeV1, SceneV1 } from '@sceneboard/board-schema';
+import {
+  MAX_ARTIFACT_REFERENCE_OCCURRENCES,
+  type BoardDocument,
+  type BoardNodeV1,
+  type SceneV1,
+} from '@sceneboard/board-schema';
 
 import { BoardPersistenceError } from '../common/errors/board-persistence.error.js';
 
@@ -13,6 +18,17 @@ export type SceneArtifactPairV1 = {
   artifactId: string;
   artifactVersionId: string;
 };
+
+const compareAscii = (left: string, right: string): number =>
+  left === right ? 0 : left < right ? -1 : 1;
+
+const compareArtifactReferences = (
+  left: SceneArtifactReferenceRowV1,
+  right: SceneArtifactReferenceRowV1,
+): number =>
+  compareAscii(left.artifactId, right.artifactId) ||
+  compareAscii(left.artifactVersionId, right.artifactVersionId) ||
+  compareAscii(left.referenceCode, right.referenceCode);
 
 const childrenOf = (node: BoardNodeV1): BoardNodeV1[] => {
   if (
@@ -51,15 +67,11 @@ export const extractSceneArtifactReferences = (scene: SceneV1): SceneArtifactRef
       });
     } else {
       existing.occurrenceCount += 1;
-      if (existing.occurrenceCount > 500) throw new BoardPersistenceError('capacity_exhausted');
+      if (existing.occurrenceCount > MAX_ARTIFACT_REFERENCE_OCCURRENCES)
+        throw new BoardPersistenceError('row_integrity');
     }
   }
-  return [...counts.values()].sort(
-    (left, right) =>
-      left.artifactId.localeCompare(right.artifactId) ||
-      left.artifactVersionId.localeCompare(right.artifactVersionId) ||
-      left.referenceCode.localeCompare(right.referenceCode),
-  );
+  return [...counts.values()].sort(compareArtifactReferences);
 };
 
 export const extractDocumentArtifactReferences = (
@@ -73,16 +85,12 @@ export const extractDocumentArtifactReferences = (
       if (existing === undefined) counts.set(key, { ...reference });
       else {
         existing.occurrenceCount += reference.occurrenceCount;
-        if (existing.occurrenceCount > 500) throw new BoardPersistenceError('capacity_exhausted');
+        if (existing.occurrenceCount > MAX_ARTIFACT_REFERENCE_OCCURRENCES)
+          throw new BoardPersistenceError('row_integrity');
       }
     }
   }
-  return [...counts.values()].sort(
-    (left, right) =>
-      left.artifactId.localeCompare(right.artifactId) ||
-      left.artifactVersionId.localeCompare(right.artifactVersionId) ||
-      left.referenceCode.localeCompare(right.referenceCode),
-  );
+  return [...counts.values()].sort(compareArtifactReferences);
 };
 
 export const extractUniqueSceneArtifactPairs = (scene: SceneV1): SceneArtifactPairV1[] => {

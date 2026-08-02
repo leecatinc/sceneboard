@@ -24,29 +24,32 @@
 .error {
   color: var(--danger);
 }
-.backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 80;
-  display: grid;
-  place-items: center;
-  padding: 16px;
-  background: rgba(15, 28, 27, 0.5);
-}
 .dialog {
-  display: grid;
+  position: fixed;
+  z-index: 80;
   width: min(560px, 100%);
-  gap: 14px;
+  max-width: calc(100% - 32px);
+  border: 0;
   border-radius: 12px;
   background: var(--surface);
   padding: 24px;
   box-shadow: 0 28px 90px rgba(17, 36, 33, 0.28);
+}
+.dialog::backdrop {
+  background: rgba(15, 28, 27, 0.5);
+}
+.dialog section {
+  display: grid;
+  gap: 14px;
 }
 .dialog code {
   overflow-wrap: anywhere;
   border-radius: 8px;
   background: var(--surface-muted);
   padding: 14px;
+}
+.copyStatus:empty {
+  display: none;
 }
 @media (max-width: 320px) {
   .dialog {

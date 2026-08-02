@@ -20,6 +20,10 @@ import {
 import type { RevisionMediaReferenceRowV1 } from '../media/media-reference.types.js';
 import { RevisionMediaReferenceExtractor } from '../media/revision-media-reference.extractor.js';
 import type { DocumentCheckpointCodec } from '../revisions/document-checkpoint.codec.js';
+import {
+  extractDocumentArtifactReferences,
+  type SceneArtifactReferenceRowV1,
+} from '../revisions/scene-artifact-reference.extractor.js';
 import type { ResolvedPublicShare } from './public-share.resolver.js';
 import type { PublicMediaProjectionPort } from './public-media-projection.port.js';
 import { PublicShareHttpError } from './public-share.error.js';
@@ -38,6 +42,7 @@ interface RevisionRow extends RowDataPacket {
 interface ArtifactReferenceRow extends RowDataPacket {
   artifactId: string;
   versionId: string;
+  referenceCode: string;
   occurrenceCount: number;
 }
 
@@ -92,7 +97,11 @@ export class PublicShareProjectionRepository {
         artifacts: runtimes,
       },
     });
-    await this.assertArtifactReferences(resolved.connection, revision.revisionPk, orderedArtifacts);
+    await this.assertArtifactReferences(
+      resolved.connection,
+      revision.revisionPk,
+      extractDocumentArtifactReferences(document),
+    );
     const publicArtifacts: PublicArtifactSummaryV1[] = orderedArtifacts.map((reference) => {
       const runtime = runtimes.find(
         (candidate) =>
@@ -186,8 +195,13 @@ export class PublicShareProjectionRepository {
       )
         stack.unshift(...node.children.map((child) => child.node));
       else if (node.type === 'layout.tabs') stack.unshift(...node.tabs.map((tab) => tab.node));
-      if (node.type !== 'content.artifact') continue;
-      const pair = node.artifact;
+      const pair =
+        node.type === 'content.artifact'
+          ? node.artifact
+          : node.type === 'content.image' && node.source.type === 'artifact.resource'
+            ? node.source.artifact
+            : null;
+      if (pair === null) continue;
       if (!pairs.has(artifactKey(pair))) pairs.set(artifactKey(pair), pair);
     }
     const output: ArtifactRuntimeSummaryV1[] = [];
@@ -211,27 +225,32 @@ export class PublicShareProjectionRepository {
   private async assertArtifactReferences(
     connection: PoolConnection,
     revisionPk: bigint,
-    fresh: readonly { artifactId: string; versionId: string }[],
+    fresh: readonly SceneArtifactReferenceRowV1[],
   ): Promise<void> {
     const [rows] = await connection.execute<ArtifactReferenceRow[]>(
       `SELECT artifact_id AS artifactId, artifact_version_id AS versionId,
-              occurrence_count AS occurrenceCount
+              reference_code AS referenceCode, occurrence_count AS occurrenceCount
        FROM board_revision_artifact_refs
-       WHERE revision_pk = ? AND reference_code = 'A'
-       ORDER BY artifact_id, artifact_version_id`,
+       WHERE revision_pk = ?
+       ORDER BY artifact_id, artifact_version_id, reference_code`,
       [revisionPk.toString()],
     );
-    const stored = new Map<string, number>();
+    const stored: SceneArtifactReferenceRowV1[] = [];
     for (const row of rows) {
-      if (!Number.isSafeInteger(row.occurrenceCount) || row.occurrenceCount < 1)
+      if (
+        (row.referenceCode !== 'A' && row.referenceCode !== 'I') ||
+        !Number.isSafeInteger(row.occurrenceCount) ||
+        row.occurrenceCount < 1
+      )
         throw new PublicShareHttpError(503);
-      const key = artifactKey(row);
-      if (stored.has(key)) throw new PublicShareHttpError(503);
-      stored.set(key, row.occurrenceCount);
+      stored.push({
+        artifactId: row.artifactId,
+        artifactVersionId: row.versionId,
+        referenceCode: row.referenceCode,
+        occurrenceCount: row.occurrenceCount,
+      });
     }
-    const keys = new Set(fresh.map(artifactKey));
-    if (stored.size !== keys.size || [...keys].some((key) => !stored.has(key)))
-      throw new PublicShareHttpError(503);
+    if (JSON.stringify(stored) !== JSON.stringify(fresh)) throw new PublicShareHttpError(503);
   }
 
   private async assertMediaReferences(

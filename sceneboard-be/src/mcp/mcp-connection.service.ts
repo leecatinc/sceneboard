@@ -15,6 +15,7 @@ import { formatPublicUuidV4 } from '../common/ids/public-uuid.storage.js';
 import { parseMysqlTimestampUtc } from '../common/time/mysql-timestamp.js';
 import {
   ACCOUNT_API_KEY_SNAPSHOT,
+  authorizationRuleFor,
   type BoardAccessPolicy,
   type ResolvedBoardPrincipalV1,
 } from '../grants/board-access.policy.js';
@@ -23,7 +24,10 @@ import type {
   AuthorizedBrowserPresencePortV1,
   AuthorizedBrowserPresenceSubjectV1,
 } from '../presence/ports/authorized-browser-presence.port.js';
-import type { SafeAuthorizedConnectionV1 } from './mcp-connection.dto.js';
+import type {
+  McpConnectionAuthorizationOperationV1,
+  SafeAuthorizedConnectionV1,
+} from './mcp-connection.dto.js';
 
 interface BoardSummaryRow extends RowDataPacket {
   boardId: string;
@@ -86,21 +90,25 @@ export class McpConnectionService {
     principal: Extract<ResolvedBoardPrincipalV1, { kind: 'mcp' }>;
     requestId: RequestId;
     boardId: BoardId | null;
+    authorizationOperation?: null;
   }): Promise<Extract<SafeAuthorizedConnectionV1, { grant: unknown }>>;
   async get(input: {
     principal: Extract<ResolvedBoardPrincipalV1, { kind: 'account_api_key' }>;
     requestId: RequestId;
     boardId: BoardId | null;
+    authorizationOperation?: McpConnectionAuthorizationOperationV1 | null;
   }): Promise<Extract<SafeAuthorizedConnectionV1, { credential: unknown }>>;
   async get(input: {
     principal: ResolvedBoardPrincipalV1;
     requestId: RequestId;
     boardId: BoardId | null;
+    authorizationOperation?: McpConnectionAuthorizationOperationV1 | null;
   }): Promise<SafeAuthorizedConnectionV1>;
   async get(input: {
     principal: ResolvedBoardPrincipalV1;
     requestId: RequestId;
     boardId: BoardId | null;
+    authorizationOperation?: McpConnectionAuthorizationOperationV1 | null;
   }): Promise<SafeAuthorizedConnectionV1> {
     if (input.principal.kind === 'account_api_key') {
       const snapshot = input.principal[ACCOUNT_API_KEY_SNAPSHOT];
@@ -123,12 +131,14 @@ export class McpConnectionService {
         },
       };
       if (input.boardId === null) return { ...base, selectedBoard: null };
+      const authorizationOperation = input.authorizationOperation ?? 'board.get';
+      const authorizationRule = authorizationRuleFor(authorizationOperation);
       const selectedBoard = await this.accessPolicy.withAuthorizedBoardTransaction(
         {
           principal: input.principal,
-          operation: 'board.get',
+          operation: authorizationOperation,
           boardId: input.boardId,
-          isolation: 'REPEATABLE_READ_CUT',
+          isolation: authorizationRule.isolation,
         },
         async (connection, context) => ({
           board: await this.readBoardSummary(connection, input.requestId, input.boardId!),

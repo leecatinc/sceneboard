@@ -58,6 +58,7 @@ export interface SessionCoordinatorDependencies {
   storage: GenerationStoragePort;
   fetcher: typeof fetch;
   randomBytes(length: number): Uint8Array;
+  prepareCoordination?(): boolean;
   notify?(): void;
   subscribeGenerationHints?(listener: () => void): () => void;
 }
@@ -87,12 +88,23 @@ export interface ConsumedResponse {
 }
 
 declare const AUTHORING_BINDING: unique symbol;
+declare const CURRENT_GENERATION_BINDING: unique symbol;
 declare const BOARD_BINARY_ATTEMPT: unique symbol;
 
 export type AuthoringGenerationBindingV1 = Readonly<{
   [AUTHORING_BINDING]: true;
   sessionGeneration: string;
 }>;
+
+export type CurrentGenerationBindingV1 = Readonly<{
+  [CURRENT_GENERATION_BINDING]: true;
+  sessionGeneration: string;
+}>;
+
+export type CurrentGenerationBindResultV1 =
+  | { kind: 'bound'; binding: CurrentGenerationBindingV1 }
+  | { kind: 'stale_attempt' }
+  | { kind: 'unsupported_browser' };
 
 export type BoardBinaryAttemptV1 = Readonly<{
   [BOARD_BINARY_ATTEMPT]: true;
@@ -140,7 +152,9 @@ export class SessionRequestCoordinator implements BoardStreamDispatchPortV1 {
   private supported: boolean | null = null;
   private renewal: Promise<CoordinatorResult<AuthSessionSnapshot>> | null = null;
   private readonly authoringBindings = new WeakSet<object>();
+  private readonly currentGenerationBindings = new WeakSet<object>();
   private readonly binaryAttempts = new WeakSet<object>();
+  private readonly localGenerationListeners = new Set<() => void>();
 
   constructor(
     private readonly apiOrigin: string,
@@ -152,6 +166,28 @@ export class SessionRequestCoordinator implements BoardStreamDispatchPortV1 {
 
   currentSnapshot(): AuthSessionSnapshot | null {
     return this.snapshot;
+  }
+
+  async bindCurrentGeneration(): Promise<CurrentGenerationBindResultV1> {
+    if (!this.ensureSupported()) return { kind: 'unsupported_browser' };
+    const result = await this.withApplicationLease('shared', async (lease) => {
+      const csrfToken = this.snapshot?.csrfToken;
+      const generation = lease.expectedGeneration;
+      if (
+        csrfToken === undefined ||
+        generation === null ||
+        !this.provesCurrentGeneration(lease, generation, csrfToken)
+      )
+        return { kind: 'stale_attempt' as const };
+      const binding = Object.freeze({
+        sessionGeneration: generation,
+      }) as CurrentGenerationBindingV1;
+      this.currentGenerationBindings.add(binding);
+      return { kind: 'bound' as const, binding };
+    });
+    if (result.kind === 'reconciliation_required' || result.kind === 'ok')
+      return { kind: 'stale_attempt' };
+    return result;
   }
 
   async bindBoardBinaryAttempt(input: BoardBinaryAttemptInputV1): Promise<BoardBinaryBindResultV1> {
@@ -244,11 +280,11 @@ export class SessionRequestCoordinator implements BoardStreamDispatchPortV1 {
   }
 
   async dispatchSharedForGeneration(
-    binding: AuthoringGenerationBindingV1,
+    binding: AuthoringGenerationBindingV1 | CurrentGenerationBindingV1,
     request: SharedCookieRequest,
   ): Promise<GenerationBoundDispatchResultV1> {
     if (!this.ensureSupported()) return { kind: 'unsupported_browser' };
-    if (!this.authoringBindings.has(binding)) return { kind: 'stale_attempt' };
+    if (!this.hasGenerationBinding(binding)) return { kind: 'stale_attempt' };
     let fetched = false;
     try {
       const result = await this.withApplicationLease('shared', async (lease) => {
@@ -276,7 +312,6 @@ export class SessionRequestCoordinator implements BoardStreamDispatchPortV1 {
         const consumed = await consume(response, request.signal, request.responseKind);
         if (
           response.status === 401 ||
-          response.status === 503 ||
           !this.provesCurrentGeneration(lease, binding.sessionGeneration, csrfToken)
         )
           return { kind: 'stale_attempt' as const };
@@ -295,32 +330,37 @@ export class SessionRequestCoordinator implements BoardStreamDispatchPortV1 {
   }
 
   subscribeGenerationInvalidation(
-    binding: AuthoringGenerationBindingV1,
+    binding: AuthoringGenerationBindingV1 | CurrentGenerationBindingV1,
     listener: () => void,
   ): () => void {
-    if (!this.authoringBindings.has(binding)) {
+    if (!this.hasGenerationBinding(binding)) {
       queueMicrotask(listener);
       return () => undefined;
     }
     let active = true;
+    let notified = false;
+    const invalidate = () => {
+      if (!active || notified) return;
+      notified = true;
+      listener();
+    };
     const inspect = () => {
-      void this.withApplicationLease('shared', async (lease) => {
-        const csrfToken = this.snapshot?.csrfToken;
-        if (
-          csrfToken === undefined ||
-          !this.provesCurrentGeneration(lease, binding.sessionGeneration, csrfToken)
-        )
-          if (active) listener();
-      }).then((result) => {
-        if (active && result?.kind === 'reconciliation_required') listener();
-      });
+      const csrfToken = this.snapshot?.csrfToken;
+      if (
+        csrfToken === undefined ||
+        !this.provesCurrentGenerationNow(binding.sessionGeneration, csrfToken)
+      )
+        invalidate();
     };
     const unsubscribe = this.dependencies.subscribeGenerationHints?.(() => {
       if (active) inspect();
     });
+    this.localGenerationListeners.add(inspect);
+    queueMicrotask(inspect);
     return () => {
       active = false;
       unsubscribe?.();
+      this.localGenerationListeners.delete(inspect);
     };
   }
 
@@ -525,7 +565,8 @@ export class SessionRequestCoordinator implements BoardStreamDispatchPortV1 {
         (response.status === 400 && error.code === 'INVALID_PAYLOAD') ||
         (response.status === 403 && error.code === 'FORBIDDEN') ||
         (response.status === 404 && error.code === 'BOARD_NOT_FOUND') ||
-        (response.status === 409 && error.code === 'DOCUMENT_VERSION_MISMATCH') ||
+        (response.status === 409 &&
+          (error.code === 'DOCUMENT_VERSION_MISMATCH' || error.code === 'UPGRADE_REQUIRED')) ||
         (response.status === 429 && error.code === 'RATE_LIMITED') ||
         (response.status === 500 && error.code === 'INTERNAL_ERROR')
       ) {
@@ -711,6 +752,8 @@ export class SessionRequestCoordinator implements BoardStreamDispatchPortV1 {
         throw new TypeError('generation storage is unreliable');
       if (prior === null) this.dependencies.storage.removeItem(GENERATION_KEY);
       else this.dependencies.storage.setItem(GENERATION_KEY, prior);
+      if (this.dependencies.prepareCoordination?.() === false)
+        throw new TypeError('browser coordination is unavailable');
       this.observedGeneration = isCommittedGeneration(prior) ? prior : null;
       this.supported = true;
     } catch {
@@ -753,10 +796,17 @@ export class SessionRequestCoordinator implements BoardStreamDispatchPortV1 {
     );
   }
 
+  private hasGenerationBinding(
+    binding: AuthoringGenerationBindingV1 | CurrentGenerationBindingV1,
+  ): boolean {
+    return this.authoringBindings.has(binding) || this.currentGenerationBindings.has(binding);
+  }
+
   private writeGeneration(value: string): void {
     this.dependencies.storage.setItem(GENERATION_KEY, value);
     if (this.dependencies.storage.getItem(GENERATION_KEY) !== value)
       throw new TypeError('generation storage write failed');
+    for (const listener of this.localGenerationListeners) listener();
     this.dependencies.notify?.();
   }
 }
@@ -917,11 +967,41 @@ const consume = async (
 };
 
 export const browserSessionCoordinator = (apiOrigin: string): SessionRequestCoordinator => {
-  if (!('locks' in navigator) || navigator.locks === undefined)
-    throw new TypeError('Web Locks are required');
-  const locks = navigator.locks;
-  const storage = localStorage;
-  const channel = new BroadcastChannel(CHANNEL_NAME);
+  let locks: LockManagerPort;
+  let storage: Storage;
+  try {
+    if (
+      typeof navigator === 'undefined' ||
+      !('locks' in navigator) ||
+      navigator.locks === undefined
+    )
+      throw new TypeError('Web Locks are required');
+    locks = navigator.locks;
+    if (typeof localStorage === 'undefined') throw new TypeError('local storage is required');
+    storage = localStorage;
+  } catch {
+    return new SessionRequestCoordinator(apiOrigin, {
+      locks: {
+        request: async () => {
+          throw new TypeError('Web Locks are unavailable');
+        },
+      },
+      storage: {
+        getItem: () => {
+          throw new TypeError('generation storage is unavailable');
+        },
+        setItem: () => {
+          throw new TypeError('generation storage is unavailable');
+        },
+        removeItem: () => {
+          throw new TypeError('generation storage is unavailable');
+        },
+      },
+      fetcher: (...arguments_) => fetch(...arguments_),
+      randomBytes: (length) => crypto.getRandomValues(new Uint8Array(length)),
+    });
+  }
+  let channel: BroadcastChannel | null = null;
   return new SessionRequestCoordinator(apiOrigin, {
     locks: {
       async request<T>(
@@ -939,16 +1019,28 @@ export const browserSessionCoordinator = (apiOrigin: string): SessionRequestCoor
     },
     fetcher: (...arguments_) => fetch(...arguments_),
     randomBytes: (length) => crypto.getRandomValues(new Uint8Array(length)),
-    notify: () => channel.postMessage({ type: 'generation-changed' }),
+    prepareCoordination: () => {
+      if (channel !== null) return true;
+      if (typeof BroadcastChannel !== 'function') return false;
+      try {
+        channel = new BroadcastChannel(CHANNEL_NAME);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    notify: () => channel?.postMessage({ type: 'generation-changed' }),
     subscribeGenerationHints: (listener) => {
+      const currentChannel = channel;
+      if (currentChannel === null) return () => undefined;
       const onMessage = () => listener();
       const onStorage = (event: StorageEvent) => {
         if (event.storageArea === storage && event.key === GENERATION_KEY) listener();
       };
-      channel.addEventListener('message', onMessage);
+      currentChannel.addEventListener('message', onMessage);
       window.addEventListener('storage', onStorage);
       return () => {
-        channel.removeEventListener('message', onMessage);
+        currentChannel.removeEventListener('message', onMessage);
         window.removeEventListener('storage', onStorage);
       };
     },

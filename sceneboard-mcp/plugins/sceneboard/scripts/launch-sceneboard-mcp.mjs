@@ -4,14 +4,36 @@ import { access, chmod, lstat } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { resolveSceneBoardServer } from './sceneboard-mcp-config.mjs';
+import {
+  configResolutionFailureCodeV1,
+  resolveSceneBoardServer,
+  sceneBoardLaunchFailureLineV1,
+} from './sceneboard-mcp-config.mjs';
 
 const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const accountApiKeyPattern = /^sbk_v1\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$/u;
+const runtimeSafeEnvironmentNames = [
+  'APPDATA',
+  'COMSPEC',
+  'HOME',
+  'LANG',
+  'LC_ALL',
+  'LOCALAPPDATA',
+  'PATH',
+  'PATHEXT',
+  'SYSTEMROOT',
+  'SystemRoot',
+  'TEMP',
+  'TMP',
+  'TMPDIR',
+  'USERPROFILE',
+  'WINDIR',
+  'XDG_CONFIG_HOME',
+  'XDG_STATE_HOME',
+];
 
 const fail = (code) => {
-  process.stderr.write(
-    `${JSON.stringify({ event: 'sceneboard_mcp_launch_failed', code, setupUrl: 'https://sceneboard.dev/integrations/codex' })}\n`,
-  );
+  process.stderr.write(sceneBoardLaunchFailureLineV1(code));
   process.exitCode = 78;
 };
 
@@ -53,6 +75,24 @@ const normalizeProductionHelpers = async () => {
   ]);
 };
 
+const childEnvironment = (selected) => {
+  const environment = {};
+  for (const name of runtimeSafeEnvironmentNames) {
+    const value = process.env[name];
+    if (typeof value === 'string' && !accountApiKeyPattern.test(value)) environment[name] = value;
+  }
+  Object.assign(environment, selected.server.env, { SCENEBOARD_CONFIG_DEPTH: '1' });
+  if (
+    selected.source === 'production_default' &&
+    selected.server.env.BOARD_CREDENTIAL_MODE === 'api_key' &&
+    selected.server.env.BOARD_ACCESS_TOKEN_REF === 'env://SCENEBOARD_API_KEY' &&
+    typeof process.env.SCENEBOARD_API_KEY === 'string'
+  ) {
+    environment.SCENEBOARD_API_KEY = process.env.SCENEBOARD_API_KEY;
+  }
+  return environment;
+};
+
 try {
   const selected = await resolveSceneBoardServer({ pluginRoot });
   if (selected.source === 'production_default') {
@@ -66,11 +106,7 @@ try {
 
   const child = spawn(selected.server.command, selected.server.args, {
     cwd: selected.server.cwd ?? process.cwd(),
-    env: {
-      ...process.env,
-      ...selected.server.env,
-      SCENEBOARD_CONFIG_DEPTH: '1',
-    },
+    env: childEnvironment(selected),
     stdio: 'inherit',
   });
   const forward = (signal) => {
@@ -84,5 +120,5 @@ try {
     else process.exitCode = code ?? 1;
   });
 } catch (error) {
-  fail(error instanceof Error ? error.message : 'config_resolution_failed');
+  fail(configResolutionFailureCodeV1(error));
 }

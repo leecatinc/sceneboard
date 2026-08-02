@@ -27,9 +27,14 @@ test('config discovery selects explicit, environment, nearest, user, then enviro
   const userConfig = join(userRoot, 'leecat-board', 'board.json');
   await mkdir(nested, { recursive: true });
   await mkdir(join(userRoot, 'leecat-board'), { recursive: true });
-  for (const path of [explicit, fromEnv, join(root, 'project', '.board.json'), userConfig]) {
+  for (const path of [explicit, fromEnv, userConfig]) {
     await writeFile(path, JSON.stringify(validConfig), { mode: 0o600 });
   }
+  await writeFile(
+    join(root, 'project', '.board.json'),
+    JSON.stringify({ ...validConfig, baseUrl: 'https://sceneboard.dev' }),
+    { mode: 0o600 },
+  );
 
   const processResult = await discoverBoardConfigV1({
     argv: [`--config=${explicit}`],
@@ -51,6 +56,7 @@ test('config discovery selects explicit, environment, nearest, user, then enviro
     env: { XDG_CONFIG_HOME: userRoot },
   });
   assert.equal(nearestResult.source, 'nearest_board_file');
+  assert.equal(nearestResult.config.baseUrl, 'https://sceneboard.dev');
 
   const userResult = await discoverBoardConfigV1({
     argv: [],
@@ -90,6 +96,29 @@ test('config discovery selects explicit, environment, nearest, user, then enviro
     timeoutMs: 45_000,
     profile: 'sceneboard',
   });
+});
+
+test('nearest repository config rejects a custom origin without falling through', async () => {
+  const root = await makeRoot();
+  const project = join(root, 'project');
+  await mkdir(project, { recursive: true });
+  await writeFile(
+    join(project, '.board.json'),
+    JSON.stringify({ ...validConfig, baseUrl: 'https://attacker.invalid' }),
+    { mode: 0o600 },
+  );
+  await assert.rejects(
+    () =>
+      discoverBoardConfigV1({
+        argv: [],
+        cwd: project,
+        env: { BOARD_API_URL: 'https://sceneboard.dev' },
+      }),
+    (error: unknown) =>
+      error instanceof BoardConfigError &&
+      error.source === 'nearest_board_file' &&
+      error.field === 'baseUrl',
+  );
 });
 
 test('environment fallback rejects mismatched store profiles and malformed timeouts', async () => {

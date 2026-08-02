@@ -105,6 +105,13 @@ const mismatch = (
 const disconnected = (tool: BoardToolNameV1, requestId: string): CallToolResult =>
   toolFailureV1(tool, requestId, 'mcp', notConnectedV1() as unknown as Record<string, unknown>);
 
+const isCallToolResult = (value: unknown): value is CallToolResult =>
+  value !== null &&
+  typeof value === 'object' &&
+  !('ok' in value) &&
+  'content' in value &&
+  Array.isArray(value.content);
+
 export class DocumentToolHandlersV2 {
   constructor(private readonly gateway: ProtectedBoardGatewayV1) {}
 
@@ -117,7 +124,10 @@ export class DocumentToolHandlersV2 {
         ? await this.gateway.call(
             'board_document_get',
             ['board.get'],
-            { signal },
+            {
+              signal,
+              authorization: { boardId: parsed.data.boardId, operation: 'board.get' },
+            },
             (client, _snapshot, operationSignal) =>
               client.getDocumentBoard(
                 {
@@ -132,7 +142,10 @@ export class DocumentToolHandlersV2 {
         : await this.gateway.call(
             'board_document_get',
             ['history.get'],
-            { signal },
+            {
+              signal,
+              authorization: { boardId: parsed.data.boardId, operation: 'history.get' },
+            },
             (client, _snapshot, operationSignal) =>
               client.getDocumentHistory(
                 {
@@ -258,12 +271,15 @@ export class DocumentToolHandlersV2 {
     const parsed = schema.safeParse(raw);
     if (!parsed.success) return validationFailureV1(tool, requestId, parsed.error);
     const value = parsed.data as Record<string, unknown>;
-    const head = await this.gateway.call(
+    const result = await this.gateway.call(
       tool,
       ['board.get', 'document.replace'],
-      { signal },
-      (client, _snapshot, operationSignal) =>
-        client.getDocumentBoard(
+      {
+        signal,
+        authorization: { boardId: value.boardId as string, operation: 'document.replace' },
+      },
+      async (client, _snapshot, operationSignal) => {
+        const head = await client.getDocumentBoard(
           {
             protocolVersion: 1,
             requestId: requestId as RequestId,
@@ -271,52 +287,45 @@ export class DocumentToolHandlersV2 {
             boardId: value.boardId as BoardId,
           },
           operationSignal,
-        ),
-    );
-    if (!head.connected) return disconnected(tool, requestId);
-    if (!head.value.ok) return sdkToolResultV1(tool, requestId, head.value, null);
-    const nested = head.value.result.result;
-    if (nested.type !== 'board.get') throw new Error('board.get result invariant failed');
-    if (!('document' in nested.snapshot)) return mismatch(tool, requestId, 'document.replace');
-    if (nested.snapshot.revision.revisionId !== value.expectedRevisionId)
-      return toolFailureV1(tool, requestId, 'board', {
-        protocolVersion: 1,
-        type: 'board.error',
-        code: 'REVISION_CONFLICT',
-        message: 'Revision conflict',
-        category: 'conflict',
-        retryable: false,
-        httpStatusHint: 409,
-        details: {
-          boardId: value.boardId,
-          expectedRevisionId: value.expectedRevisionId,
-          actualRevisionId: nested.snapshot.revision.revisionId,
-          actualRevisionNumber: nested.snapshot.revision.revisionNumber,
-          recovery: 'fetch_latest_then_retry',
-        },
-      });
-    const source = BoardDocumentParserV2.parse(nested.snapshot.document);
-    if (!source.ok)
-      return toolFailureV1(
-        tool,
-        requestId,
-        'board',
-        source.error as unknown as Record<string, unknown>,
-      );
-    const transformed = applyDocumentTransformV2(source.data.value, operation(value));
-    if (!transformed.ok)
-      return toolFailureV1(
-        tool,
-        requestId,
-        'board',
-        transformed.error as unknown as Record<string, unknown>,
-      );
-    const result = await this.gateway.call(
-      tool,
-      ['board.get', 'document.replace'],
-      { signal },
-      (client, _snapshot, operationSignal) =>
-        client.mutateDocument(
+        );
+        if (!head.ok) return head;
+        const nested = head.result.result;
+        if (nested.type !== 'board.get') throw new Error('board.get result invariant failed');
+        if (!('document' in nested.snapshot)) return mismatch(tool, requestId, 'document.replace');
+        if (nested.snapshot.revision.revisionId !== value.expectedRevisionId)
+          return toolFailureV1(tool, requestId, 'board', {
+            protocolVersion: 1,
+            type: 'board.error',
+            code: 'REVISION_CONFLICT',
+            message: 'Revision conflict',
+            category: 'conflict',
+            retryable: false,
+            httpStatusHint: 409,
+            details: {
+              boardId: value.boardId,
+              expectedRevisionId: value.expectedRevisionId,
+              actualRevisionId: nested.snapshot.revision.revisionId,
+              actualRevisionNumber: nested.snapshot.revision.revisionNumber,
+              recovery: 'fetch_latest_then_retry',
+            },
+          });
+        const source = BoardDocumentParserV2.parse(nested.snapshot.document);
+        if (!source.ok)
+          return toolFailureV1(
+            tool,
+            requestId,
+            'board',
+            source.error as unknown as Record<string, unknown>,
+          );
+        const transformed = applyDocumentTransformV2(source.data.value, operation(value));
+        if (!transformed.ok)
+          return toolFailureV1(
+            tool,
+            requestId,
+            'board',
+            transformed.error as unknown as Record<string, unknown>,
+          );
+        return client.mutateDocument(
           {
             protocolVersion: 1,
             requestId: requestId as RequestId,
@@ -326,10 +335,11 @@ export class DocumentToolHandlersV2 {
             command: { type: 'document.replace', document: transformed.data.value },
           },
           operationSignal,
-        ),
+        );
+      },
     );
-    return result.connected
-      ? sdkToolResultV1(tool, requestId, result.value, null)
-      : disconnected(tool, requestId);
+    if (!result.connected) return disconnected(tool, requestId);
+    if (isCallToolResult(result.value)) return result.value;
+    return sdkToolResultV1(tool, requestId, result.value, null);
   }
 }

@@ -2,6 +2,7 @@ import {
   ARTIFACT_REQUEST_CAPABILITIES_V1,
   BOARD_AUTHORIZATION_CAPABILITIES_V1,
   BOARD_DOCUMENT_LIMITS_V2,
+  BOARD_DOCUMENT_LIMITS_V3,
   BOARD_EVENT_TYPES_V1,
   BOARD_LIMITS_V1,
   BOARD_MUTATION_COMMAND_TYPES_V1,
@@ -135,7 +136,7 @@ export function currentBoardCapabilitiesFromContext(
               ...common.supported,
               commandTypes: [...BOARD_MUTATION_COMMAND_TYPES_V2],
             },
-            limits: { ...BOARD_DOCUMENT_LIMITS_V2 },
+            limits: { ...BOARD_DOCUMENT_LIMITS_V3 },
           });
   if (!parsed.ok) throw new BoardPersistenceError('row_integrity');
   return parsed.data.value;
