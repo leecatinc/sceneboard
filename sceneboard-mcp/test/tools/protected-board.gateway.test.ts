@@ -22,6 +22,7 @@ const resultCode = (result: unknown): string | undefined =>
 
 const gateway = (input: {
   timeoutMs?: number;
+  exportTimeoutMs?: number;
   credentialMode?: 'pairing' | 'api_key';
   tokens: TokenProviderV1;
   fetch?: typeof fetch;
@@ -29,6 +30,7 @@ const gateway = (input: {
   new ProtectedBoardGatewayV1({
     baseUrl: 'https://sceneboard.dev',
     timeoutMs: input.timeoutMs ?? 25,
+    ...(input.exportTimeoutMs === undefined ? {} : { exportTimeoutMs: input.exportTimeoutMs }),
     credentialMode: input.credentialMode ?? 'pairing',
     tokens: input.tokens,
     fetch:
@@ -347,7 +349,7 @@ test('API-key board probes carry exact ownership context and reject before opera
   assert.equal(publications, 0);
 });
 
-test('export keeps one owned deadline alive through publication after response headers', async () => {
+test('export bounds terminal settlement after the owned publication deadline', async () => {
   let snapshots = 0;
   let publications = 0;
   let publicationSignal: AbortSignal | undefined;
@@ -377,6 +379,7 @@ test('export keeps one owned deadline alive through publication after response h
       ),
     logger: { log() {} },
   });
+  const startedAt = Date.now();
   const result = await client.exportBoard({
     boardId: 'board_1',
     revisionId: null,
@@ -391,4 +394,92 @@ test('export keeps one owned deadline alive through publication after response h
   assert.equal(snapshots, 1);
   assert.equal(publications, 1);
   assert.equal(publicationSignal?.aborted, true);
+  assert.equal(Date.now() - startedAt < 2_000, true);
+});
+
+test('export accepts acknowledged success after caller cancellation once publication starts', async () => {
+  const controller = new AbortController();
+  const publicationStarted = deferred<void>();
+  const finalPaths = new Set<string>();
+  const reserveTarget = (path: string): boolean => {
+    if (finalPaths.has(path)) return false;
+    finalPaths.add(path);
+    return true;
+  };
+  const client = gateway({
+    timeoutMs: 30_000,
+    exportTimeoutMs: 30_000,
+    tokens: { snapshot: async () => snapshot(), invalidate: async () => undefined },
+    fetch: async () =>
+      new Response(Buffer.from('%PDF-', 'ascii'), {
+        status: 200,
+        headers: { 'Content-Type': 'application/pdf', 'Content-Length': '5' },
+      }),
+  });
+  const exported = client.exportBoard({
+    boardId: 'board_1',
+    revisionId: 'revision_1',
+    format: 'pdf',
+    signal: controller.signal,
+    publish: async (_artifact, signal) => {
+      assert.equal(reserveTarget('acknowledged.pdf'), true);
+      publicationStarted.resolve();
+      await new Promise<void>((resolve) =>
+        signal.addEventListener('abort', () => resolve(), { once: true }),
+      );
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 350));
+      return { ok: true, value: { format: 'pdf', bytes: 5, fileName: 'acknowledged.pdf' } };
+    },
+  });
+  await publicationStarted.promise;
+  controller.abort();
+  const result = await exported;
+  assert.equal(result.connected, true);
+  if (result.connected) assert.equal(result.value.ok, true);
+  assert.equal(finalPaths.has('acknowledged.pdf'), true);
+  assert.equal(reserveTarget('acknowledged.pdf'), false);
+});
+
+test('export deadline preserves rollback failure and leaves the target retryable', async () => {
+  const finalPaths = new Set<string>();
+  const reserveTarget = (path: string): boolean => {
+    if (finalPaths.has(path)) return false;
+    finalPaths.add(path);
+    return true;
+  };
+  const client = gateway({
+    timeoutMs: 30_000,
+    exportTimeoutMs: 10,
+    tokens: { snapshot: async () => snapshot(), invalidate: async () => undefined },
+    fetch: async () =>
+      new Response(Buffer.from('%PDF-', 'ascii'), {
+        status: 200,
+        headers: { 'Content-Type': 'application/pdf', 'Content-Length': '5' },
+      }),
+  });
+  const result = await client.exportBoard({
+    boardId: 'board_1',
+    revisionId: 'revision_1',
+    format: 'pdf',
+    publish: async (_artifact, signal) => {
+      assert.equal(reserveTarget('rolled-back.pdf'), true);
+      await new Promise<void>((resolve) =>
+        signal.addEventListener('abort', () => resolve(), { once: true }),
+      );
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 350));
+      finalPaths.delete('rolled-back.pdf');
+      return {
+        ok: false,
+        error: {
+          code: 'LOCAL_EXPORT_CANCELLED',
+          message: 'Local export was cancelled',
+          retryable: false,
+          details: null,
+        },
+      };
+    },
+  });
+  assert.equal(resultCode(result), 'TIMEOUT');
+  assert.equal(finalPaths.has('rolled-back.pdf'), false);
+  assert.equal(reserveTarget('rolled-back.pdf'), true);
 });

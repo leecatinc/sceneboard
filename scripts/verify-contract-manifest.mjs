@@ -80,7 +80,7 @@ const expectedGroups = new Map([
   ['D2-HTTP-CONFIG', 9],
   ['D3-PUBLISHER', 2],
   ['D3-PERSISTENCE', 10],
-  ['D3-BOARD-SEAMS', 24],
+  ['D3-BOARD-SEAMS', 25],
   ['D4-SEAMS', 10],
   ['D2-D5-D7-D8-BROWSER-PUBLISHERS', 9],
   ['D5-BROWSER-API-SEAMS', 27],
@@ -89,7 +89,7 @@ const expectedGroups = new Map([
   ['D6-INSTALLED-SKILL', 45],
   ['D7-ARTIFACT-SEAM', 7],
   ['D8-HITL-SEAM', 6],
-  ['MIGRATION-REGISTRY-ASSETS', 35],
+  ['MIGRATION-REGISTRY-ASSETS', 36],
   ['D2-MIGRATION-RUNNER', 5],
   ['RUNTIME-TOPOLOGY', 3],
   ['DEPENDENCY-EVIDENCE', 11],
@@ -623,7 +623,20 @@ const validatePublishers = async (observedById) => {
           ),
       )
       .map(nameText);
-    equal(publicMethods, memberNames, 'CONTRACT_OWNER_PUBLISHER_STALE');
+    const supplementalMembers = observedItems
+      .filter(
+        ({ result, selector }) =>
+          result.owner === 'D3' &&
+          result.canonicalPath === path &&
+          selector.startsWith(`ClassDeclaration[name=${className}]/MethodDeclaration[name=`),
+      )
+      .map(({ selector }) => /MethodDeclaration\[name=([^\]]+)\]/u.exec(selector)?.[1])
+      .filter((value) => value !== undefined && !memberNames.includes(value));
+    equal(
+      [...publicMethods].sort(),
+      [...memberNames, ...supplementalMembers].sort(),
+      'CONTRACT_OWNER_PUBLISHER_STALE',
+    );
   }
   return publishers;
 };
@@ -718,7 +731,7 @@ const observeMigrations = async (observedById) => {
   const versions = [...source.matchAll(/\bversion: '([^']+)'/gu)].map((match) => match[1]);
   const upAssets = [...source.matchAll(/\bupAsset: '([^']+)'/gu)].map((match) => match[1]);
   const downAssets = [...source.matchAll(/\bdownAsset: '([^']+)'/gu)].map((match) => match[1]);
-  if (versions.length !== 31 || upAssets.length !== 31 || downAssets.length !== 3)
+  if (versions.length !== 32 || upAssets.length !== 32 || downAssets.length !== 3)
     fail('MIGRATION_REGISTRY_DRIFT');
   const assets = [...observedById.values()].filter(({ resourceId }) =>
     resourceId.startsWith('MIGRATION-ASSET-'),

@@ -34,6 +34,24 @@ test('export control has closed confirming, generating, completed, failed and re
   assert.match(control, /requestRef\.current\?\.abort\(\)/u);
 });
 
+test('initial export exceptions leave generating through the browser-unavailable failure contract', () => {
+  const control = source('components/board/BoardExportControl.tsx');
+  assert.match(control, /setState\(\{ phase: retry \? 'retry' : 'generating', failure: null \}\)/u);
+  assert.match(
+    control,
+    /try \{[\s\S]*await api\.export\([\s\S]*publishBoardExportDownloadV1\([\s\S]*\} catch \{[\s\S]*phase: 'failed',[\s\S]*code: 'EXPORT_BROWSER_UNAVAILABLE', retryable: false/u,
+  );
+});
+
+test('retry exceptions fail deterministically while aborted or stale requests preserve newer state', () => {
+  const control = source('components/board/BoardExportControl.tsx');
+  assert.match(control, /const requestFormat = retry \? requestFormatRef\.current : format/u);
+  assert.match(
+    control,
+    /\} catch \{\s*if \(controller\.signal\.aborted \|\| requestRef\.current !== controller\) return;\s*requestRef\.current = null;\s*setState\(\{\s*phase: 'failed',\s*failure: \{ code: 'EXPORT_BROWSER_UNAVAILABLE', retryable: false \}/u,
+  );
+});
+
 test('export dialog restores focus, announces status and remains usable at 320px', () => {
   const control = source('components/board/BoardExportControl.tsx');
   const styles = source('components/board/BoardExportControl.module.css');

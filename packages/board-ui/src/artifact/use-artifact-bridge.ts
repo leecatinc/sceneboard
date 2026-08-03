@@ -333,6 +333,13 @@ export const useArtifactBridgeV1 = (input: ArtifactHostInputV1): ArtifactBridgeV
           clearTimeout(waiter.timer);
           waiter.resolve(message);
         } catch (error) {
+          for (const sink of [
+            'DOM',
+            'BROWSER_STORAGE_CACHE_OR_SERVICE_WORKER',
+            'SCREENSHOT_TRACE_OR_VIDEO',
+          ] as const) {
+            endpoint?.rejectSecretSink(sink, error, { observe: () => {} });
+          }
           rejectWaiters(error instanceof Error ? error : new TypeError('artifact bridge failed'));
           cleanup('protocol_error');
           setCorrelationId(randomId());

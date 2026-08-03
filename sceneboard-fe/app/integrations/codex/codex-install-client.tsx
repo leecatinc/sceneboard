@@ -11,7 +11,8 @@ import styles from './codex-install.module.css';
 
 const INSTALL_COMMAND = `codex plugin marketplace add leecatinc/sceneboard
 codex plugin add sceneboard@sceneboard`;
-const UPDATE_COMMAND = 'codex plugin marketplace upgrade sceneboard';
+const UPDATE_COMMAND = `codex plugin marketplace upgrade sceneboard
+codex plugin add sceneboard@sceneboard`;
 const REMOVE_COMMAND = 'codex plugin remove sceneboard@sceneboard';
 
 function CopyBlock({ value, labelKey }: { value: string; labelKey: MessageKey }) {

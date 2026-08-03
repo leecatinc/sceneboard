@@ -1,11 +1,28 @@
 import { createHash } from 'node:crypto';
-import { readFile, writeFile } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { lstat, open, realpath } from 'node:fs/promises';
+import { dirname, relative, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { canonicalJson, sha256 } from './lib/certification/canonical-json.mjs';
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const inputByteLimit = 64 * 1024;
+const expectedKeys = {
+  'frontend env': ['NEXT_PUBLIC_ARTIFACT_RUNTIME_ORIGIN', 'NEXT_PUBLIC_BOARD_API_URL'],
+  'backend env': ['APP_ENV', 'BOARD_ALLOWED_ORIGINS', 'BOARD_PUBLIC_API_ORIGIN'],
+  'runtime env': [
+    'ARTIFACT_RUNTIME_API_ORIGIN',
+    'ARTIFACT_RUNTIME_APP_ORIGIN',
+    'ARTIFACT_RUNTIME_ORIGIN',
+  ],
+};
 
 const usage =
   'usage: verify-auth-origin-topology.mjs --frontend-env <json> --backend-env <json> --runtime-env <json> --out <json>';
 
 const parseArguments = (arguments_) => {
-  if (arguments_.length === 0) return { inline: true };
+  if (arguments_.length === 1 && arguments_[0] === '--self-test') return { selfTest: true };
   if (
     arguments_.length !== 8 ||
     arguments_[0] !== '--frontend-env' ||
@@ -15,12 +32,70 @@ const parseArguments = (arguments_) => {
   )
     throw new Error(usage);
   return {
-    inline: false,
+    selfTest: false,
     frontendPath: arguments_[1],
     backendPath: arguments_[3],
     runtimePath: arguments_[5],
     outputPath: arguments_[7],
   };
+};
+
+const readCanonicalInput = async (path, label) => {
+  if (typeof path !== 'string' || path !== resolve(path))
+    throw new Error(`${label} must be one canonical regular file`);
+  const [workspace, canonicalPath, before, workspaceMetadata] = await Promise.all([
+    realpath(root),
+    realpath(path),
+    lstat(path, { bigint: true }),
+    lstat(root, { bigint: true }),
+  ]);
+  const offset = relative(workspace, canonicalPath);
+  const acceptedOwners = new Set([
+    workspaceMetadata.uid,
+    ...(process.getuid === undefined ? [] : [BigInt(process.getuid())]),
+  ]);
+  const invalidReason =
+    canonicalPath !== path
+      ? 'non-canonical'
+      : offset === '' || offset === '..' || offset.startsWith(`..${sep}`)
+        ? 'outside-workspace'
+        : !before.isFile() || before.isSymbolicLink()
+          ? 'not-regular'
+          : before.nlink !== 1n
+            ? 'linked'
+            : before.size > BigInt(inputByteLimit)
+              ? 'oversized'
+              : !acceptedOwners.has(before.uid)
+                ? 'wrong-owner'
+                : (before.mode & 0o077n) !== 0n
+                  ? 'permissive-mode'
+                  : null;
+  if (invalidReason !== null)
+    throw new Error(`${label} must be one owned private contained regular file: ${invalidReason}`);
+  const descriptor = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+  try {
+    const opened = await descriptor.stat({ bigint: true });
+    if (
+      opened.dev !== before.dev ||
+      opened.ino !== before.ino ||
+      opened.size !== before.size ||
+      opened.nlink !== 1n
+    )
+      throw new Error(`${label} changed while it was acquired`);
+    const bytes = await descriptor.readFile();
+    const after = await descriptor.stat({ bigint: true });
+    if (
+      bytes.length > inputByteLimit ||
+      after.dev !== opened.dev ||
+      after.ino !== opened.ino ||
+      after.size !== opened.size ||
+      after.nlink !== 1n
+    )
+      throw new Error(`${label} changed while it was read`);
+    return bytes;
+  } finally {
+    await descriptor.close();
+  }
 };
 
 const parseJsonObject = (bytes, label) => {
@@ -32,6 +107,11 @@ const parseJsonObject = (bytes, label) => {
   }
   if (value === null || typeof value !== 'object' || Array.isArray(value))
     throw new Error(`${label} must be a JSON object`);
+  if (
+    canonicalJson(Object.keys(value).sort()) !== canonicalJson(expectedKeys[label]) ||
+    bytes.toString('utf8') !== `${canonicalJson(value)}\n`
+  )
+    throw new Error(`${label} must use the exact canonical schema`);
   return value;
 };
 
@@ -63,35 +143,40 @@ const canonicalOrigin = (value, key) => {
   return url;
 };
 
-const main = async () => {
-  const arguments_ = parseArguments(process.argv.slice(2));
-  const [frontendBytes, backendBytes, runtimeBytes] = arguments_.inline
+export const verifyAuthOriginTopology = async ({
+  frontendPath,
+  backendPath,
+  runtimePath,
+  identity,
+  selfTest = false,
+} = {}) => {
+  const [frontendBytes, backendBytes, runtimeBytes] = selfTest
     ? [
         Buffer.from(
-          JSON.stringify({
+          `${canonicalJson({
             NEXT_PUBLIC_BOARD_API_URL: 'http://127.0.0.1:3411',
             NEXT_PUBLIC_ARTIFACT_RUNTIME_ORIGIN: 'http://127.0.0.2:3412',
-          }),
+          })}\n`,
         ),
         Buffer.from(
-          JSON.stringify({
+          `${canonicalJson({
             APP_ENV: 'test',
             BOARD_ALLOWED_ORIGINS: 'http://127.0.0.1:3410',
             BOARD_PUBLIC_API_ORIGIN: 'http://127.0.0.1:3411',
-          }),
+          })}\n`,
         ),
         Buffer.from(
-          JSON.stringify({
+          `${canonicalJson({
             ARTIFACT_RUNTIME_APP_ORIGIN: 'http://127.0.0.1:3410',
             ARTIFACT_RUNTIME_API_ORIGIN: 'http://127.0.0.1:3411',
             ARTIFACT_RUNTIME_ORIGIN: 'http://127.0.0.2:3412',
-          }),
+          })}\n`,
         ),
       ]
     : await Promise.all([
-        readFile(arguments_.frontendPath),
-        readFile(arguments_.backendPath),
-        readFile(arguments_.runtimePath),
+        readCanonicalInput(frontendPath, 'frontend env'),
+        readCanonicalInput(backendPath, 'backend env'),
+        readCanonicalInput(runtimePath, 'runtime env'),
       ]);
   const frontend = parseJsonObject(frontendBytes, 'frontend env');
   const backend = parseJsonObject(backendBytes, 'backend env');
@@ -99,6 +184,8 @@ const main = async () => {
   const appEnv = stringField(backend, 'APP_ENV');
   if (!['development', 'test', 'staging', 'production'].includes(appEnv))
     throw new Error('APP_ENV is invalid');
+  if (!selfTest && (identity === undefined || identity.environment !== appEnv))
+    throw new Error('APP_ENV differs from the certification attempt environment');
 
   const frontendApi = canonicalOrigin(
     stringField(frontend, 'NEXT_PUBLIC_BOARD_API_URL'),
@@ -171,7 +258,9 @@ const main = async () => {
   const generatedAt = new Date();
   const expiresAt = new Date(generatedAt.getTime() + 15 * 60 * 1_000);
   const evidence = {
-    schemaVersion: 'auth-artifact-origin-evidence/v2',
+    schemaVersion: selfTest
+      ? 'auth-artifact-origin-evidence/self-test-v1'
+      : 'auth-artifact-origin-evidence/v3',
     generatedAt: generatedAt.toISOString(),
     expiresAt: expiresAt.toISOString(),
     frontendOrigin: browser.origin,
@@ -181,17 +270,42 @@ const main = async () => {
     frontendInputSha256: createHash('sha256').update(frontendBytes).digest('hex'),
     backendInputSha256: createHash('sha256').update(backendBytes).digest('hex'),
     runtimeInputSha256: createHash('sha256').update(runtimeBytes).digest('hex'),
+    ...(selfTest
+      ? {}
+      : {
+          identity,
+          target: {
+            kind: 'submitted-deployment-topology',
+            bindingSha256: sha256(
+              canonicalJson({
+                identity,
+                frontendOrigin: browser.origin,
+                apiOrigin: publicApi.origin,
+                runtimeOrigin: runtimeOrigin.origin,
+                frontendInputSha256: createHash('sha256').update(frontendBytes).digest('hex'),
+                backendInputSha256: createHash('sha256').update(backendBytes).digest('hex'),
+                runtimeInputSha256: createHash('sha256').update(runtimeBytes).digest('hex'),
+              }),
+            ),
+          },
+        }),
   };
-  const evidenceJson = `${JSON.stringify(evidence, null, 2)}\n`;
-  if (arguments_.inline) process.stdout.write(evidenceJson);
-  else
-    await writeFile(arguments_.outputPath, evidenceJson, {
-      encoding: 'utf8',
-      flag: 'w',
-    });
+  return evidence;
 };
 
-main().catch((error) => {
-  process.stderr.write(`${error instanceof Error ? error.message : 'origin preflight failed'}\n`);
-  process.exitCode = 1;
-});
+const main = async () => {
+  const arguments_ = parseArguments(process.argv.slice(2));
+  if (!arguments_.selfTest)
+    throw new Error(
+      'release topology verification is available only through an owned certification attempt',
+    );
+  process.stdout.write(
+    `${JSON.stringify(await verifyAuthOriginTopology({ selfTest: true }), null, 2)}\n`,
+  );
+};
+
+if (process.argv[1] === fileURLToPath(import.meta.url))
+  main().catch((error) => {
+    process.stderr.write(`${error instanceof Error ? error.message : 'origin preflight failed'}\n`);
+    process.exitCode = 1;
+  });

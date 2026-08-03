@@ -136,34 +136,44 @@ export function BoardExportControl({
       const controller = new AbortController();
       requestRef.current = controller;
       setState({ phase: retry ? 'retry' : 'generating', failure: null });
-      const result = await api.export({
-        boardId: target.boardId,
-        revisionId: target.revisionId,
-        format: requestFormat,
-        signal: controller.signal,
-      });
-      if (controller.signal.aborted || requestRef.current !== controller) return;
-      requestRef.current = null;
-      if (result.kind === 'error') {
-        setState({ phase: 'failed', failure: result.error });
-        return;
+      try {
+        const result = await api.export({
+          boardId: target.boardId,
+          revisionId: target.revisionId,
+          format: requestFormat,
+          signal: controller.signal,
+        });
+        if (controller.signal.aborted || requestRef.current !== controller) return;
+        if (result.kind === 'error') {
+          requestRef.current = null;
+          setState({ phase: 'failed', failure: result.error });
+          return;
+        }
+        publishBoardExportDownloadV1(result.value, {
+          createObjectUrl: (blob) => URL.createObjectURL(blob),
+          revokeObjectUrl: (url) => {
+            setTimeout(() => URL.revokeObjectURL(url), 0);
+          },
+          clickDownload: ({ url, fileName }) => {
+            const anchor = document.createElement('a');
+            anchor.href = url;
+            anchor.download = fileName;
+            anchor.rel = 'noopener';
+            document.body.append(anchor);
+            anchor.click();
+            anchor.remove();
+          },
+        });
+        requestRef.current = null;
+        setState({ phase: 'completed', failure: null });
+      } catch {
+        if (controller.signal.aborted || requestRef.current !== controller) return;
+        requestRef.current = null;
+        setState({
+          phase: 'failed',
+          failure: { code: 'EXPORT_BROWSER_UNAVAILABLE', retryable: false },
+        });
       }
-      publishBoardExportDownloadV1(result.value, {
-        createObjectUrl: (blob) => URL.createObjectURL(blob),
-        revokeObjectUrl: (url) => {
-          setTimeout(() => URL.revokeObjectURL(url), 0);
-        },
-        clickDownload: ({ url, fileName }) => {
-          const anchor = document.createElement('a');
-          anchor.href = url;
-          anchor.download = fileName;
-          anchor.rel = 'noopener';
-          document.body.append(anchor);
-          anchor.click();
-          anchor.remove();
-        },
-      });
-      setState({ phase: 'completed', failure: null });
     },
     [api, format, target],
   );

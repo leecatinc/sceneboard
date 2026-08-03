@@ -12,6 +12,7 @@ import type {
   BoardStreamOperationalHealthPortV1,
   BoardStreamOperationalHealthV1,
 } from './ports/board-stream-operational-health.port.js';
+import { dispatchBackendSecretSinkV1 } from '../common/security/secret-sink-observability.js';
 
 const INITIAL: BoardStreamOperationalHealthV1 = Object.freeze({
   live: true,
@@ -32,6 +33,7 @@ export class BoardStreamHealthService
   #recoverSamples = 0;
   #timer: NodeJS.Timeout | null = null;
   #stopped = false;
+  #lastMetricRecord = '';
 
   constructor(
     @Inject(BOARD_EVENT_OUTBOX_HEALTH_PORT_V1)
@@ -99,6 +101,11 @@ export class BoardStreamHealthService
         redisSubscriberReady: false,
       });
     }
+    dispatchBackendSecretSinkV1({
+      sink: 'METRIC',
+      rawPayload: this.#health,
+      observer: { observe: (record) => (this.#lastMetricRecord = record) },
+    });
     return this.#health;
   }
 

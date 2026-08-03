@@ -21,7 +21,9 @@ export function resolveSceneBoardServer(options: {
   read?: (path: string, encoding: 'utf8') => Promise<string>;
   run?: (...args: unknown[]) => {
     status?: number | null;
+    signal?: NodeJS.Signals | null;
     stdout?: string;
+    stderr?: string;
     error?: Error;
   };
 }): Promise<ResolvedSceneBoardServer>;

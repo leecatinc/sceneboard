@@ -8,7 +8,8 @@
         "BOARD_CREDENTIAL_MODE",
         "BOARD_ACCESS_TOKEN_REF",
         "BOARD_PROFILE",
-        "SCENEBOARD_API_KEY"
+        "SCENEBOARD_API_KEY",
+        "SCENEBOARD_ACCESS_TOKEN"
       ],
       "env": {
         "SCENEBOARD_PRODUCTION_API_URL": "https://sceneboard.dev"

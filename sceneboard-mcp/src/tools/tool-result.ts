@@ -14,6 +14,7 @@ import type {
 } from '@sceneboard/board-sdk/http';
 
 import { parseAuthorizedConnectionProjectionV1 } from '../connection/connection-http.client.js';
+import { redactSecretsV1 } from '../diagnostics/redact-secrets.js';
 
 export type BoardToolNameV1 =
   | 'board_connection_status'
@@ -385,7 +386,8 @@ const exactConnectionStatusResultV1 = (
         ? selectedBoard.board.boardId
         : null;
     return (
-      parseAuthorizedConnectionProjectionV1(value.connection, requestId, boardId, 'pairing') !== null
+      parseAuthorizedConnectionProjectionV1(value.connection, requestId, boardId, 'pairing') !==
+      null
     );
   }
   if (value.connection !== null) return false;
@@ -850,12 +852,44 @@ export const toolFailureV1 = (
   requestId: string,
   source: 'board' | 'pairing' | 'mcp',
   value: Record<string, unknown>,
-): CallToolResult =>
-  asCallResult(
-    { ok: false, tool, requestId, error: { source, value } },
+): CallToolResult => {
+  const safeValue = redactSecretsV1(value) as Record<string, unknown>;
+  if (typeof value.code === 'string') safeValue.code = value.code;
+  const preserveSchemaPaths = (sourceValue: unknown, safe: unknown): void => {
+    if (
+      sourceValue === null ||
+      safe === null ||
+      typeof sourceValue !== 'object' ||
+      typeof safe !== 'object' ||
+      Array.isArray(sourceValue) ||
+      Array.isArray(safe)
+    )
+      return;
+    const sourceRecord = sourceValue as Record<string, unknown>;
+    const safeRecord = safe as Record<string, unknown>;
+    for (const [key, nested] of Object.entries(sourceRecord)) {
+      if (
+        key === 'path' &&
+        Array.isArray(nested) &&
+        nested.every(
+          (segment) =>
+            (typeof segment === 'string' && /^[A-Za-z0-9_-]{1,128}$/u.test(segment)) ||
+            (Number.isSafeInteger(segment) && Number(segment) >= 0),
+        )
+      ) {
+        safeRecord.path = [...nested];
+      } else {
+        preserveSchemaPaths(nested, safeRecord[key]);
+      }
+    }
+  };
+  preserveSchemaPaths(value, safeValue);
+  return asCallResult(
+    { ok: false, tool, requestId, error: { source, value: safeValue } },
     true,
-    `${tool} failed: ${String(value.code ?? 'UNKNOWN')} (${requestId})`,
+    `${tool} failed: ${String(safeValue.code ?? 'UNKNOWN')} (${requestId})`,
   );
+};
 
 export const sdkToolResultV1 = <K extends string>(
   tool: BoardToolNameV1,

@@ -1,9 +1,19 @@
 import { constants } from 'node:fs';
 import { access, lstat, mkdir, realpath } from 'node:fs/promises';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
-import { CertificationError } from './canonical-json.mjs';
+import { CertificationError, sha256 } from './canonical-json.mjs';
 
 export const GENERATED_PARENT_PATHS = ['.artifacts/certification', '.certification-fixtures'];
+
+export const certificationDatabaseName = (attemptId) => {
+  safeSegment(attemptId, 'attemptId');
+  return `sceneboard_cert_${sha256(attemptId).slice(0, 20)}`;
+};
+
+export const certificationDatabaseOwnerSha256 = (attemptId) => {
+  safeSegment(attemptId, 'attemptId');
+  return sha256(`sceneboard-certification-database:${attemptId}`);
+};
 
 const safeSegment = (value, name) => {
   if (

@@ -63,9 +63,16 @@ test('account menu contains only account actions while AI connections links to p
   assert.match(connections, /<SkillInstallGuide \/>/);
   assert.match(guide, /href="\/integrations\/codex"/);
   assert.match(guide, /ai\.skillMcpPrerequisite/);
-  assert.match(install, /codex plugin marketplace add leecatinc\/sceneboard/);
+  assert.match(
+    install,
+    /const INSTALL_COMMAND = `codex plugin marketplace add leecatinc\/sceneboard\ncodex plugin add sceneboard@sceneboard`;/,
+  );
   assert.doesNotMatch(install, /leecatinc\/sceneboard-mcp/);
-  assert.match(install, /codex plugin add sceneboard@sceneboard/);
+  assert.match(
+    install,
+    /const UPDATE_COMMAND = `codex plugin marketplace upgrade sceneboard\ncodex plugin add sceneboard@sceneboard`;/,
+  );
+  assert.match(install, /const REMOVE_COMMAND = 'codex plugin remove sceneboard@sceneboard';/);
   assert.match(install, /&lt;project&gt;\/\.mcp\.json/);
   assert.match(install, /https:\/\/sceneboard\.dev/);
   assert.equal(

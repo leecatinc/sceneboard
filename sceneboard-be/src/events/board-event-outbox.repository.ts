@@ -12,6 +12,7 @@ import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 
 import { formatPublicUuidV4, parsePublicUuidV4 } from '../common/ids/public-uuid.storage.js';
 import { MysqlService } from '../database/mysql.service.js';
+import { dispatchBackendSecretSinkV1 } from '../common/security/secret-sink-observability.js';
 import type {
   BoardEventDeliveryPortV1,
   BoardEventHeadV1,
@@ -82,6 +83,7 @@ export class BoardEventOutboxRepository
 {
   #quarantinedCorruptPending = false;
   readonly #deferredCorruptCandidates = new Map<string, number>();
+  readonly #retryBoundaryRecords = new Map<string, string>();
 
   constructor(@Inject(MysqlService) private readonly mysql: MysqlService) {}
 
@@ -91,7 +93,10 @@ export class BoardEventOutboxRepository
     return this.mysql.withConnection(async (connection) => {
       const now = Date.now();
       for (const [eventPk, retryAt] of this.#deferredCorruptCandidates) {
-        if (retryAt <= now) this.#deferredCorruptCandidates.delete(eventPk);
+        if (retryAt <= now) {
+          this.#deferredCorruptCandidates.delete(eventPk);
+          this.#retryBoundaryRecords.delete(eventPk);
+        }
       }
       const deferredEventPks = [...this.#deferredCorruptCandidates.keys()];
       const deferredPredicate =
@@ -120,6 +125,13 @@ export class BoardEventOutboxRepository
             eventPk.toString(),
             now + CORRUPT_PENDING_RETRY_DELAY_MS_V1,
           );
+          dispatchBackendSecretSinkV1({
+            sink: 'RETRY_QUEUE_OR_OUTBOX',
+            rawPayload: { eventPk: eventPk.toString(), reason: 'invalid stored event id' },
+            observer: {
+              observe: (record) => this.#retryBoundaryRecords.set(eventPk.toString(), record),
+            },
+          });
         }
       }
       return candidates;
@@ -159,6 +171,14 @@ export class BoardEventOutboxRepository
           candidate.eventPk.toString(),
           Date.now() + CORRUPT_PENDING_RETRY_DELAY_MS_V1,
         );
+        dispatchBackendSecretSinkV1({
+          sink: 'RETRY_QUEUE_OR_OUTBOX',
+          rawPayload: { eventPk: candidate.eventPk.toString(), error },
+          observer: {
+            observe: (record) =>
+              this.#retryBoundaryRecords.set(candidate.eventPk.toString(), record),
+          },
+        });
         throw error;
       }
     });

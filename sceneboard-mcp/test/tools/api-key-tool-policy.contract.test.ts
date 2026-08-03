@@ -477,10 +477,7 @@ test('export preflight maps every endpoint failure to an exact schema-valid expo
       invalidates: false,
     },
   ] as const;
-  const outputSchema = toolOutputSchemaV1(
-    'board_export',
-    BOARD_TOOL_ERROR_CODES_V1.board_export,
-  );
+  const outputSchema = toolOutputSchemaV1('board_export', BOARD_TOOL_ERROR_CODES_V1.board_export);
 
   for (const fixture of cases) {
     let fetchCalls = 0;
@@ -507,23 +504,20 @@ test('export preflight maps every endpoint failure to an exact schema-valid expo
         invalidations += 1;
       },
     );
-    const handler = new ExportToolHandlersV1(
-      gateway,
-      {
-        preflight: () => ({ ok: true, value: { reservation: 'test' } }),
-        publish: async () => {
-          publications += 1;
-          throw new Error('must not publish');
-        },
-        release: () => {
-          releases += 1;
-        },
-      } as never,
-    );
+    const handler = new ExportToolHandlersV1(gateway, {
+      preflight: () => ({ ok: true, value: { reservation: 'test' } }),
+      publish: async () => {
+        publications += 1;
+        throw new Error('must not publish');
+      },
+      release: () => {
+        releases += 1;
+      },
+    } as never);
 
     const handled = await handler.export({
       boardId: 'board_1',
-      revisionId: null,
+      revisionId: 'revision_1',
       format: 'pdf',
       outputFile: '/tmp/sceneboard-export-not-written.pdf',
     });

@@ -1,4 +1,4 @@
-import { Catch, Inject, type ArgumentsHost, type ExceptionFilter } from '@nestjs/common';
+import { Catch, Inject, Optional, type ArgumentsHost, type ExceptionFilter } from '@nestjs/common';
 
 import { AppError, BoardContractError, ShareContractError } from '../errors/app-error.js';
 import { ArtifactBrokerError } from '../errors/artifact-broker.error.js';
@@ -20,6 +20,12 @@ import {
 import { applyAccountMediaErrorHeaders } from '../../media/media-response-policy.js';
 import { ShareAnalyticsError } from '../errors/share-analytics.error.js';
 import { ExportFailureV1 } from '../../exports/export-errors.js';
+import {
+  BACKEND_ERROR_SINK_OBSERVER_V1,
+  dispatchBackendSecretSinkV1,
+  productionBackendErrorSinkObserverV1,
+  type SecretSinkObserverV1,
+} from '../security/secret-sink-observability.js';
 
 interface HttpResponse {
   headersSent?: boolean;
@@ -192,7 +198,16 @@ const sourceRetryAfterSeconds = (exception: unknown): number | null => {
 
 @Catch()
 export class HttpErrorFilter implements ExceptionFilter {
-  constructor(@Inject(CryptoService) private readonly crypto: CryptoService) {}
+  private readonly errorSinkObserver: SecretSinkObserverV1;
+
+  constructor(
+    @Inject(CryptoService) private readonly crypto: CryptoService,
+    @Optional()
+    @Inject(BACKEND_ERROR_SINK_OBSERVER_V1)
+    errorSinkObserver?: SecretSinkObserverV1,
+  ) {
+    this.errorSinkObserver = errorSinkObserver ?? productionBackendErrorSinkObserverV1;
+  }
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const http = host.switchToHttp();
@@ -331,6 +346,11 @@ export class HttpErrorFilter implements ExceptionFilter {
     }
 
     const error = exception instanceof AppError ? exception : new AppError('INTERNAL_ERROR');
+    dispatchBackendSecretSinkV1({
+      sink: 'ERROR',
+      rawPayload: {},
+      observer: this.errorSinkObserver,
+    });
     if (
       error.code === 'INVITATION_NOT_FOUND' ||
       error.code === 'INVITATION_CONFLICT' ||
@@ -352,6 +372,11 @@ export class HttpErrorFilter implements ExceptionFilter {
       const retryAfter = Math.max(1, Math.ceil(error.retryAfterSeconds));
       response.setHeader('Retry-After', String(retryAfter));
     }
+    dispatchBackendSecretSinkV1({
+      sink: 'HTTP_RESPONSE_OR_URL',
+      rawPayload: error.toPayload(),
+      observer: { observe: () => {} },
+    });
     response.status(error.status).json({ error: error.toPayload() });
   }
 }

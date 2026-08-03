@@ -79,6 +79,8 @@ const publisherKinds = new Set([
   'exclusion-record',
 ]);
 const excludedCampaigns = ['database-capacity', 'multi-client-capacity', 'redis-loss-capacity'];
+const presentationFirstMigration = 13;
+const presentationTerminalMigration = 27;
 const infrastructurePublishers = new Set([
   'PUB-MANIFEST-SCHEMA',
   'PUB-EXCLUSION-SCHEMA',
@@ -291,7 +293,10 @@ export const validatePresentationInventory = async ({ inventoryValue, inventoryB
 
   equal(
     inventory.migrations.map(({ version }) => version),
-    Array.from({ length: 11 }, (_, index) => String(13 + index).padStart(3, '0')),
+    Array.from(
+      { length: presentationTerminalMigration - presentationFirstMigration + 1 },
+      (_, index) => String(presentationFirstMigration + index).padStart(3, '0'),
+    ),
     'PRESENTATION_MIGRATION_SEQUENCE_DRIFT',
   );
   for (const migration of inventory.migrations) {
@@ -309,10 +314,13 @@ export const validatePresentationInventory = async ({ inventoryValue, inventoryB
     'utf8',
   );
   const presentationVersions = inventory.migrations.map(({ version }) => version);
-  const presentationVersionSet = new Set(presentationVersions);
   const actualPresentationVersions = [...registry.matchAll(/\bversion: '(\d{3})_/gu)]
     .map((match) => match[1])
-    .filter((version) => presentationVersionSet.has(version));
+    .filter(
+      (version) =>
+        Number(version) >= presentationFirstMigration &&
+        Number(version) <= presentationTerminalMigration,
+    );
   equal(actualPresentationVersions, presentationVersions, 'PRESENTATION_MIGRATION_SEQUENCE_DRIFT');
 
   if (inventory.exclusions.length !== 1) fail('PRESENTATION_EXCLUSION_INVALID');

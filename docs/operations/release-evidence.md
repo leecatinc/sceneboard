@@ -17,6 +17,13 @@ drift fails closed.
 
 `evidenceTreeSha256` hashes sorted finalized records, attachments, and phase indexes. It excludes the release index and owner record, avoiding self-reference. A rerun uses a new attempt ID and cannot replace earlier evidence.
 
+Independent verification reopens every evidence leaf with no-follow descriptor semantics and
+requires the current process owner, private mode, a regular single-link file, and a stable inode.
+It recomputes the same sorted evidence tree and rejects a stale release-index hash, an altered
+phase identity, hard-link aliases, permissive modes, and concurrent path substitution.
+The public verifier and CLI require `release-index.json`; only the release finalizer may perform
+the explicitly internal pre-finalization verification used immediately before create-once sealing.
+
 ## Release verdict
 
 - `PASS`: every required live/static/manual row passed, watched inputs remained unchanged, and cleanup passed.
@@ -40,15 +47,38 @@ environment and are recorded separately when available.
 
 I-53 records the exact seven-package test/typecheck/build matrix, artifact runtime tree hash,
 migration 027, deterministic PDF/PPTX, owner browser/API-key parity, export runtime, native local
-helper, secret scan and traceability rows under
-`.hpipe/plan/evidence/I-53-certification/`. Pairing remains a required regression surface and is
-never replaced by API-key evidence.
+helper, secret scan, traceability, and manual acceptance rows inside the canonical attempt root.
+The same closed row set requires current-attempt live security and quarantine-restore evidence,
+plus deterministic backup/restore contract, database-boundary, and workspace-boundary evidence.
+Catalog registration is not live evidence: all catalog case rows must be executed by the
+repository-owned producer, authenticated with the trusted producer authority, retained as immutable
+leaf attachments, and independently reverified with cleanup PASS. The restore producer derives its
+identity from the trusted release attempt, performs the backup and quarantine restore itself, and
+must pass byte integrity, projection, freshness, restricted-operator, and zero-residue checks.
+The manifest is create-once and every row binds the same source commit, manifest SHA-256, profile,
+environment, and attempt ID. A verifier accepts only that owned path and the exact canonical row
+definitions; duplicate, extra, reduced, mixed-identity, stale, symlinked, or semantically mismatched
+evidence fails closed. Pairing remains a required regression surface and is never replaced by
+API-key evidence.
 
 Browser export evidence must pin an explicit retained revision and prove that owner session and
 properly scoped API-key paths succeed while viewer, editor, public-share and cross-account paths
 fail closed. It also proves that cancel, retry and download do not mutate board/head/revision
 payloads. A browser, MySQL, Redis, Chromium image or font prerequisite that is unavailable is
 recorded as `BLOCKED` or `UNVERIFIED`, not inferred from unit tests.
+
+The browser artifact contains one independently identified result for every mandatory principal,
+format, failure, retry, focus, layout, pairing, retained-revision, payload-invariance, and cleanup
+scenario. The rollup cannot treat a partial scenario set as PASS. Its MySQL schema name and owner
+marker are derived from the attempt, and the complete schema is removed and checked for zero
+residue in the first-failure-preserving cleanup path.
+
+The retained and head fixture revisions use independent visual markers for both logical pages.
+The certification decoder reads PDF page image streams and PPTX slide relationships/media in
+logical order, requires the two retained markers, and rejects any head marker. Counts, container
+signatures, requested revision IDs, or hard-coded page IDs alone cannot satisfy this gate. Browser
+services are explicitly recorded as an isolated loopback fixture topology bound to the attempt;
+they are not presented as the submitted deployment auth-origin topology.
 
 No evidence/log/config/archive may contain a raw account key, bearer value, pairing proof/code,
 real board or revision identifier, or absolute private path. Examples use synthetic identifiers

@@ -114,7 +114,7 @@ const classifyHitlRespondOutcome = (input: JsonRecord): string => {
   return input.definitionCompatible === false ? 'INVALID_PAYLOAD' : 'success';
 };
 
-const evaluateScenario = async (fixture: ScenarioDocument): Promise<void> => {
+export const evaluateScenario = async (fixture: ScenarioDocument): Promise<void> => {
   const expected = asRecord(fixture.expected);
 
   switch (fixture.scenario) {
@@ -375,28 +375,30 @@ const evaluateScenario = async (fixture: ScenarioDocument): Promise<void> => {
   }
 };
 
-test('pins the frozen v1 protocol identity', () => {
-  assert.equal(PROTOCOL_VERSION, 1);
-  assert.equal(PROTOCOL_SEMVER, '1.0.0');
-});
-
-test('accepts exact v1 and rejects added fields and both major mismatches', async () => {
-  assert.equal(SceneParserV1.parse(await loadFixture('valid/scene-empty.v1.json')).ok, true);
-  assert.equal(
-    SceneParserV1.parse(await loadFixture('invalid/protocol-v1-added-field.v1.json')).ok,
-    false,
-  );
-  const future = SceneParserV1.parse({ protocolVersion: 2, type: 'scene', root: null });
-  assert.equal(future.ok, false);
-  if (!future.ok) assert.equal(future.error.code, 'PROTOCOL_VERSION_MISMATCH');
-});
-
-for (const entry of FIXTURE_CATALOG) {
-  if (entry.kind !== 'scenario') continue;
-  test(`executes deterministic scenario: ${entry.evaluator}`, async () => {
-    const fixture = (await loadFixture(entry.path)) as ScenarioDocument;
-    assert.equal(fixture.scenario, entry.evaluator);
-    assert.equal(fixture.expectedRelation, entry.expectedRelation);
-    await evaluateScenario(fixture);
+if (process.env.SCENEBOARD_SCENARIO_EVALUATOR_LIBRARY !== '1') {
+  test('pins the frozen v1 protocol identity', () => {
+    assert.equal(PROTOCOL_VERSION, 1);
+    assert.equal(PROTOCOL_SEMVER, '1.0.0');
   });
+
+  test('accepts exact v1 and rejects added fields and both major mismatches', async () => {
+    assert.equal(SceneParserV1.parse(await loadFixture('valid/scene-empty.v1.json')).ok, true);
+    assert.equal(
+      SceneParserV1.parse(await loadFixture('invalid/protocol-v1-added-field.v1.json')).ok,
+      false,
+    );
+    const future = SceneParserV1.parse({ protocolVersion: 2, type: 'scene', root: null });
+    assert.equal(future.ok, false);
+    if (!future.ok) assert.equal(future.error.code, 'PROTOCOL_VERSION_MISMATCH');
+  });
+
+  for (const entry of FIXTURE_CATALOG) {
+    if (entry.kind !== 'scenario') continue;
+    test(`executes deterministic scenario: ${entry.evaluator}`, async () => {
+      const fixture = (await loadFixture(entry.path)) as ScenarioDocument;
+      assert.equal(fixture.scenario, entry.evaluator);
+      assert.equal(fixture.expectedRelation, entry.expectedRelation);
+      await evaluateScenario(fixture);
+    });
+  }
 }

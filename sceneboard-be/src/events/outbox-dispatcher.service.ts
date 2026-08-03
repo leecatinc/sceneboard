@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 
 import { RedisStreamKeyspace } from '../redis/redis-stream-keyspace.js';
+import { dispatchBackendSecretSinkV1 } from '../common/security/secret-sink-observability.js';
 import { encodeDurableBoardEventHintV1 } from './board-event-hint.js';
 import type { BoardEventDeliveryPortV1 } from './ports/board-event-delivery.port.js';
 import { BOARD_EVENT_DELIVERY_PORT_V1 } from './ports/board-event-delivery.tokens.js';
@@ -73,9 +74,13 @@ export class OutboxDispatcherService implements OnApplicationBootstrap, OnModule
         await this.redis.publish(this.keyspace.boardHintChannel(event.boardId), hint);
         result.published += 1;
         if (await this.delivery.markDelivered(event.eventPk)) result.markedDelivered += 1;
-      } catch {
+      } catch (error) {
         result.failures += 1;
-        this.#logger.error('outbox event dispatch failed');
+        dispatchBackendSecretSinkV1({
+          sink: 'APPLICATION_LOG',
+          rawPayload: { event: 'outbox event dispatch failed', error },
+          observer: { observe: (record) => this.#logger.error(record.trimEnd()) },
+        });
       }
     }
     return result;
@@ -93,9 +98,13 @@ export class OutboxDispatcherService implements OnApplicationBootstrap, OnModule
     try {
       const result = await this.dispatchOnce();
       this.#emptyDelayMs = result.candidates === 0 ? Math.min(this.#emptyDelayMs * 2, 2_000) : 250;
-    } catch {
+    } catch (error) {
       this.#emptyDelayMs = Math.min(this.#emptyDelayMs * 2, 2_000);
-      this.#logger.error('outbox candidate poll failed');
+      dispatchBackendSecretSinkV1({
+        sink: 'APPLICATION_LOG',
+        rawPayload: { event: 'outbox candidate poll failed', error },
+        observer: { observe: (record) => this.#logger.error(record.trimEnd()) },
+      });
     } finally {
       this.#active = null;
       this.#schedule(this.#emptyDelayMs);

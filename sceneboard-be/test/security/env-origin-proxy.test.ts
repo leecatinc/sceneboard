@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { test } from 'node:test';
 
 import {
@@ -123,6 +124,57 @@ test('parses persistence settings without requiring unrelated application secret
   );
   assert.equal(persistence.mysql.database, 'sceneboard');
   assert.equal(persistence.redis.keyPrefix, 'sceneboard:');
+});
+
+test('admits only an exact test-owned disposable certification database', () => {
+  const attemptId = 'attempt-browser-001';
+  const purpose = 'browser';
+  const fixtureAttemptId = `${attemptId}.${purpose}`;
+  const database = `sceneboard_cert_${createHash('sha256')
+    .update(fixtureAttemptId)
+    .digest('hex')
+    .slice(0, 20)}`;
+  const ownerSha256 = createHash('sha256')
+    .update(`sceneboard-certification-database:${fixtureAttemptId}`)
+    .digest('hex');
+  const disposable = {
+    ...validEnvironment(),
+    APP_ENV: 'test',
+    NODE_ENV: 'test',
+    MYSQL_DATABASE: database,
+    SCENEBOARD_CERTIFICATION_DISPOSABLE_DATABASE: 'true',
+    SCENEBOARD_CERTIFICATION_ATTEMPT_ID: attemptId,
+    SCENEBOARD_CERTIFICATION_DATABASE_PURPOSE: purpose,
+    SCENEBOARD_CERTIFICATION_DATABASE_OWNER_SHA256: ownerSha256,
+  };
+  assert.equal(parseEnvironment(disposable).mysql.database, database);
+
+  for (const [label, patch] of [
+    ['non-test application', { APP_ENV: 'development' }],
+    ['non-test node process', { NODE_ENV: 'development' }],
+    ['false disposable gate', { SCENEBOARD_CERTIFICATION_DISPOSABLE_DATABASE: 'false' }],
+    ['missing attempt', { SCENEBOARD_CERTIFICATION_ATTEMPT_ID: undefined }],
+    ['unsafe attempt', { SCENEBOARD_CERTIFICATION_ATTEMPT_ID: '../attempt' }],
+    ['unknown purpose', { SCENEBOARD_CERTIFICATION_DATABASE_PURPOSE: 'release' }],
+    ['default database', { MYSQL_DATABASE: 'sceneboard' }],
+    ['mismatched database', { MYSQL_DATABASE: 'sceneboard_cert_00000000000000000000' }],
+    ['mismatched owner', { SCENEBOARD_CERTIFICATION_DATABASE_OWNER_SHA256: '0'.repeat(64) }],
+  ] as const) {
+    assert.throws(
+      () => parseEnvironment({ ...disposable, ...patch }),
+      EnvironmentValidationError,
+      label,
+    );
+  }
+  assert.throws(
+    () =>
+      parseEnvironment({
+        ...validEnvironment(),
+        MYSQL_DATABASE: database,
+      }),
+    EnvironmentValidationError,
+    'derived database without the disposable gate',
+  );
 });
 
 test('rejects non-canonical, multi-origin, different-host, insecure production, and placeholder values', () => {

@@ -2335,6 +2335,15 @@
           "selector": "ClassDeclaration[name=BoardGetService]/MethodDeclaration[name=get]"
         },
         {
+          "resourceId": "D3-BOARD-GET-AUTHORIZED-HEAD",
+          "owner": "D3",
+          "path": "sceneboard-be/src/boards/board-get.service.ts",
+          "exportName": "BoardGetService",
+          "exportKind": "class",
+          "projectionId": "D3-BOARD-GET-AUTHORIZED-HEAD",
+          "selector": "ClassDeclaration[name=BoardGetService]/MethodDeclaration[name=getAuthorizedHead]"
+        },
+        {
           "resourceId": "D3-BOARD-CREATE",
           "owner": "D3",
           "path": "sceneboard-be/src/boards/board-create.service.ts",
@@ -2533,7 +2542,7 @@
           "selector": "ClassDeclaration[name=MembershipRepository]/MethodDeclaration[name=createOwner]"
         }
       ],
-      "expectedCardinality": 24,
+      "expectedCardinality": 25,
       "canonicalization": "typescript-ast",
       "materializationPredecessor": "D3-PUBLISHER",
       "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"
@@ -4152,17 +4161,26 @@
       "projectionId": null,
       "selector": "whole-file"
     },
-    {
-      "resourceId": "MIGRATION-ASSET-34",
-      "owner": "D3",
-      "path": "sceneboard-be/src/database/migrations/sql/028_d10_document_replace_idempotency.up.sql",
+        {
+          "resourceId": "MIGRATION-ASSET-34",
+          "owner": "D3",
+          "path": "sceneboard-be/src/database/migrations/sql/028_d10_document_replace_idempotency.up.sql",
       "exportName": null,
       "exportKind": null,
-      "projectionId": null,
-      "selector": "whole-file"
-    }
-  ],
-  "expectedCardinality": 35,
+          "projectionId": null,
+          "selector": "whole-file"
+        },
+        {
+          "resourceId": "MIGRATION-ASSET-35",
+          "owner": "D2",
+          "path": "sceneboard-be/src/database/migrations/sql/029_d10_export_terminal_audit.up.sql",
+          "exportName": null,
+          "exportKind": null,
+          "projectionId": null,
+          "selector": "whole-file"
+        }
+      ],
+      "expectedCardinality": 36,
       "canonicalization": "utf8-lf",
       "materializationPredecessor": null,
       "missingOrExtraResult": "CONTRACT_INPUT_DRIFT"

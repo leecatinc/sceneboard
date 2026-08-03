@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
-import { mkdir, rm } from 'node:fs/promises';
+import { chmod, link, mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import { containsSecretLikeMaterial } from '../../scripts/lib/certification/canonical-json.mjs';
 import { CertificationEvidenceWriter } from '../../scripts/lib/certification/evidence-writer.mjs';
 import { assertSafeCommand } from '../../scripts/lib/certification/safe-command-policy.mjs';
 
@@ -51,6 +52,16 @@ test('evidence writer is append-only, token-bound, bounded, and non-self-referen
     status: 'PASS',
     recordIds: ['STATIC-001'],
   });
+  await assert.rejects(
+    () =>
+      writer.finalizePhase(writer.ownerToken, 'static', {
+        schemaVersion: 1,
+        phase: 'static',
+        status: 'PASS',
+        recordIds: ['STATIC-001'],
+      }),
+    (error) => error?.code === 'EVIDENCE_OUTPUT_OWNERSHIP_VIOLATION',
+  );
   const exclusion = await writer.writeRunExclusion(writer.ownerToken, {
     schemaVersion: 1,
     status: 'excluded-by-user-current-run',
@@ -116,6 +127,85 @@ test('evidence writer is append-only, token-bound, bounded, and non-self-referen
   assert.match(released.evidenceTreeSha256, /^[0-9a-f]{64}$/u);
   await assert.rejects(
     () => writer.finalizeRelease(writer.ownerToken, {}),
+    (error) => error?.code === 'EVIDENCE_OUTPUT_OWNERSHIP_VIOLATION',
+  );
+});
+
+test('evidence writer applies the comprehensive detector to records and text attachments', async (context) => {
+  const root = `${tempRoot}-secret`;
+  await mkdir(root, { recursive: true, mode: 0o700 });
+  context.after(() => rm(root, { recursive: true, force: true }));
+  const writer = await CertificationEvidenceWriter.create({
+    workspaceRoot: root,
+    sourceCommit: 'b'.repeat(40),
+    manifestSha256: 'c'.repeat(64),
+    profile: 'test',
+    attemptId: 'attempt-secret',
+  });
+  await assert.rejects(
+    () =>
+      writer.writeRecord(writer.ownerToken, {
+        schemaVersion: 1,
+        rowId: 'SECRET-001',
+        summary: `PairingProof ${'p'.repeat(32)}`,
+      }),
+    (error) => error?.code === 'EVIDENCE_SECRET_CANARY_MATCH',
+  );
+  await assert.rejects(
+    () =>
+      writer.writeAttachment(
+        writer.ownerToken,
+        Buffer.from('/opt/private/leecat-board/credentials/profile/credential.json'),
+        'text/plain',
+      ),
+    (error) => error?.code === 'EVIDENCE_SECRET_CANARY_MATCH',
+  );
+  await assert.rejects(
+    () =>
+      writer.writeRecord(writer.ownerToken, {
+        schemaVersion: 1,
+        rowId: 'SECRET-API-KEY',
+        apiKey: 'synthetic-but-raw',
+      }),
+    (error) => error?.code === 'EVIDENCE_SECRET_FIELD_FORBIDDEN',
+  );
+  assert.equal(containsSecretLikeMaterial(`sbk_v1.${'a'.repeat(22)}.${'b'.repeat(43)}`), true);
+});
+
+test('finalized evidence tree rejects mutable modes and hard-linked leaves', async (context) => {
+  const root = `${tempRoot}-immutable`;
+  await mkdir(root, { recursive: true, mode: 0o700 });
+  context.after(() => rm(root, { recursive: true, force: true }));
+  const writer = await CertificationEvidenceWriter.create({
+    workspaceRoot: root,
+    sourceCommit: 'd'.repeat(40),
+    manifestSha256: 'e'.repeat(64),
+    profile: 'test',
+    attemptId: 'attempt-immutable',
+  });
+  const recordPath = join(writer.attemptRoot, 'records', 'STATIC-IMMUTABLE.json');
+  await writer.writeRecord(writer.ownerToken, {
+    schemaVersion: 1,
+    rowId: 'STATIC-IMMUTABLE',
+    status: 'PASS',
+  });
+  await writer.finalizePhase(writer.ownerToken, 'static', {
+    schemaVersion: 1,
+    phase: 'static',
+    status: 'PASS',
+    recordIds: ['STATIC-IMMUTABLE'],
+  });
+  await writer.finalizeRelease(writer.ownerToken, { schemaVersion: 1, status: 'PASS' });
+
+  await chmod(recordPath, 0o644);
+  await assert.rejects(
+    () => writer.evidenceTreeSha256(),
+    (error) => error?.code === 'EVIDENCE_OUTPUT_OWNERSHIP_VIOLATION',
+  );
+  await chmod(recordPath, 0o600);
+  await link(recordPath, join(root, 'record-alias.json'));
+  await assert.rejects(
+    () => writer.evidenceTreeSha256(),
     (error) => error?.code === 'EVIDENCE_OUTPUT_OWNERSHIP_VIOLATION',
   );
 });

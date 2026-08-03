@@ -22,13 +22,47 @@ import { BOARD_TOOL_ERROR_CODES_V1 } from '../../src/tools/register-tools.js';
 const apiKey = `sbk_v1.${'A'.repeat(22)}.${'B'.repeat(43)}`;
 const input = {
   boardId: 'board_synthetic',
-  revisionId: null,
+  revisionId: 'revision_synthetic',
   format: 'pdf' as const,
   outputFile: '/tmp/sceneboard-export/synthetic.pdf',
 };
 
 const structured = (result: CallToolResult): Record<string, unknown> =>
   result.structuredContent as Record<string, unknown>;
+
+test('missing and null revisions fail before local preflight, gateway access, or publication', async () => {
+  let gatewayCalls = 0;
+  let preflightCalls = 0;
+  let publicationCalls = 0;
+  const gateway = {
+    exportBoard: async () => {
+      gatewayCalls += 1;
+      return { connected: false };
+    },
+  } as unknown as ProtectedBoardGatewayV1;
+  const local = {
+    preflight: () => {
+      preflightCalls += 1;
+      return { ok: false };
+    },
+    publish: async () => {
+      publicationCalls += 1;
+      throw new Error('must not publish');
+    },
+  } as unknown as LocalExportFileV1;
+  const handler = new ExportToolHandlersV1(gateway, local);
+
+  for (const invalid of [
+    { boardId: input.boardId, format: input.format, outputFile: input.outputFile },
+    { ...input, revisionId: null },
+  ]) {
+    const result = await handler.export(invalid);
+    assert.equal(result.isError, true);
+  }
+  assert.equal(preflightCalls, 0);
+  assert.equal(gatewayCalls, 0);
+  assert.equal(publicationCalls, 0);
+});
 
 test('unsupported local export fails before any gateway/network operation', async () => {
   let gatewayCalls = 0;

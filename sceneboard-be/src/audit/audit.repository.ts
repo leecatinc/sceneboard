@@ -36,3 +36,27 @@ export class AuditRepository implements AuditWriterPort {
     );
   }
 }
+
+export const observeMandatoryAuditWriteV1 = async ({
+  input,
+  observe,
+}: {
+  input: Parameters<AuditWriterPort['writeMandatory']>[1];
+  observe(sql: string, parameters: readonly unknown[]): void;
+}): Promise<void> => {
+  const repository = new AuditRepository();
+  const transaction = {
+    connection: {
+      execute: async (sql: string, parameters: readonly unknown[]) => {
+        observe(sql, parameters);
+        return [{ affectedRows: 1 }, undefined];
+      },
+    },
+  } as unknown as PersistenceTransaction;
+  try {
+    await repository.writeMandatory(transaction, input);
+  } catch (error) {
+    observe('AUDIT_SECRET_FIELD_REJECTED', []);
+    throw error;
+  }
+};

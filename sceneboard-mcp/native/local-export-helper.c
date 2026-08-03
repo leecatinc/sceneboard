@@ -14,6 +14,7 @@
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -166,9 +167,33 @@ static int safe_directory(int descriptor, int root) {
   if (fstat(descriptor, &status) != 0 || !S_ISDIR(status.st_mode) || status.st_nlink < 2)
     return 0;
   if (root) return status.st_uid == 0 && (status.st_mode & 0022) == 0;
-  if (status.st_uid == geteuid()) return 1;
-  return status.st_uid == 0 &&
-         (((status.st_mode & 0022) == 0) || (status.st_mode & S_ISVTX) != 0);
+  if (status.st_uid == 0)
+    return (status.st_mode & 0022) == 0 || (status.st_mode & S_ISVTX) != 0;
+  return status.st_uid == geteuid() && (status.st_mode & 0022) == 0;
+}
+
+static int parent_chain_matches(int root, char *const components[],
+                                uint8_t component_count, int expected_directory) {
+  int current = dup(root);
+  if (current < 0) return 0;
+  for (uint8_t index = 0; index + 1 < component_count; index += 1) {
+    int next = openat(current, components[index],
+                      O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    close(current);
+    if (next < 0 || !safe_directory(next, 0)) {
+      if (next >= 0) close(next);
+      return 0;
+    }
+    current = next;
+  }
+  struct stat current_status;
+  struct stat expected_status;
+  int matches = fstat(current, &current_status) == 0 &&
+                fstat(expected_directory, &expected_status) == 0 &&
+                current_status.st_dev == expected_status.st_dev &&
+                current_status.st_ino == expected_status.st_ino;
+  close(current);
+  return matches;
 }
 
 static int random_temp_name(char output[58]) {
@@ -298,6 +323,66 @@ static void rollback_publication(int directory, const char *temporary, const cha
   (void)sync_directory(directory);
 }
 
+struct publication_guardian {
+  int commit_descriptor;
+  pid_t process;
+};
+
+static void guard_publication(int commit_descriptor, int directory, const char *temporary,
+                              const char *final, uint64_t expected_bytes) {
+  unsigned char command = 0;
+  ssize_t count;
+  do {
+    count = read(commit_descriptor, &command, 1);
+  } while (count < 0 && errno == EINTR);
+  close(commit_descriptor);
+  if (count == 1 && command == 1U && result("ok", expected_bytes) == 0) _exit(0);
+
+  volatile sig_atomic_t final_owned = 1;
+  volatile sig_atomic_t temporary_owned = 1;
+  (void)cleanup_active_entry(directory, final, &final_owned, "rollback-final");
+  (void)cleanup_active_entry(directory, temporary, &temporary_owned, "rollback-temporary");
+  (void)sync_directory(directory);
+  _exit(count == 1 && command == 1U ? 1 : 0);
+}
+
+static int start_publication_guardian(int directory, const char *temporary, const char *final,
+                                      uint64_t expected_bytes,
+                                      struct publication_guardian *guardian) {
+  int descriptors[2];
+  if (pipe2(descriptors, O_CLOEXEC) != 0) return -1;
+  pid_t process = fork();
+  if (process < 0) {
+    int fork_error = errno;
+    close(descriptors[0]);
+    close(descriptors[1]);
+    errno = fork_error;
+    return -1;
+  }
+  if (process == 0) {
+    close(descriptors[1]);
+    guard_publication(descriptors[0], directory, temporary, final, expected_bytes);
+  }
+  close(descriptors[0]);
+  guardian->commit_descriptor = descriptors[1];
+  guardian->process = process;
+  return 0;
+}
+
+static int commit_publication_guardian(struct publication_guardian *guardian) {
+  unsigned char command = 1U;
+  int committed = write_all(guardian->commit_descriptor, &command, 1) == 0;
+  close(guardian->commit_descriptor);
+  guardian->commit_descriptor = -1;
+  int status = 0;
+  pid_t waited;
+  do {
+    waited = waitpid(guardian->process, &status, 0);
+  } while (waited < 0 && errno == EINTR);
+  guardian->process = -1;
+  return committed && waited >= 0 && WIFEXITED(status) && WEXITSTATUS(status) == 0 ? 0 : -1;
+}
+
 static int publish_no_replace(int directory, const char *temporary, const char *final) {
   int rename_signal =
       fault_signal_requested("post-rename-sigterm", "post-rename-sigint");
@@ -359,6 +444,10 @@ static int replace_final_for_test(int directory, const char *final) {
 int main(void) {
   close(5);
   struct sigaction action;
+  memset(&action, 0, sizeof(action));
+  action.sa_handler = SIG_IGN;
+  if (sigemptyset(&action.sa_mask) != 0 || sigaction(SIGPIPE, &action, NULL) != 0)
+    return 1;
   memset(&action, 0, sizeof(action));
   action.sa_handler = terminate_cleanly;
   sigemptyset(&action.sa_mask);
@@ -445,7 +534,6 @@ int main(void) {
     goto invalid;
 
   int directory = dup(3);
-  close(3);
   if (directory < 0) goto io;
   for (uint8_t index = 0; index + 1 < component_count; index += 1) {
     int next = openat(directory, components[index],
@@ -562,6 +650,27 @@ int main(void) {
     close(directory);
     goto io;
   }
+  if (!parent_chain_matches(3, components, component_count, directory)) {
+    close(output);
+    (void)cleanup_temporary(directory, temporary);
+    active_identity_ready = 0;
+    active_directory = -1;
+    close(directory);
+    goto invalid;
+  }
+  memcpy(active_final_name, components[component_count - 1],
+         component_lengths[component_count - 1] + 1U);
+  active_final_created = 0;
+  struct publication_guardian guardian = {.commit_descriptor = -1, .process = -1};
+  if (start_publication_guardian(directory, temporary, components[component_count - 1],
+                                 expected_bytes, &guardian) != 0) {
+    close(output);
+    (void)cleanup_temporary(directory, temporary);
+    active_identity_ready = 0;
+    active_directory = -1;
+    close(directory);
+    goto io;
+  }
   sigset_t publication_previous_mask;
   if (block_termination_signals(&publication_previous_mask) != 0) {
     close(output);
@@ -571,9 +680,6 @@ int main(void) {
     close(directory);
     goto io;
   }
-  memcpy(active_final_name, components[component_count - 1],
-         component_lengths[component_count - 1] + 1U);
-  active_final_created = 0;
   int published =
       publish_no_replace(directory, temporary, components[component_count - 1]);
   int publication_error = published < 0 ? errno : 0;
@@ -652,7 +758,8 @@ int main(void) {
     close(directory);
     goto io;
   }
-  if (!active_entry_matches(directory, components[component_count - 1])) {
+  if (!active_entry_matches(directory, components[component_count - 1]) ||
+      !parent_chain_matches(3, components, component_count, directory)) {
     rollback_publication(directory, temporary, components[component_count - 1]);
     close(output);
     active_identity_ready = 0;
@@ -661,24 +768,63 @@ int main(void) {
     (void)restore_signal_mask(&commit_previous_mask);
     goto io;
   }
-  active_temporary = 0;
-  active_final_created = 0;
-  if (restore_signal_mask(&commit_previous_mask) != 0) {
-    active_final_created = 1;
+#ifdef SCENEBOARD_HELPER_FAULT_INJECTION
+  int before_result_signal =
+      fault_signal_requested("before-result-sigterm", "before-result-sigint");
+  if (before_result_signal != 0 && raise(before_result_signal) != 0) {
     rollback_publication(directory, temporary, components[component_count - 1]);
     close(output);
     active_identity_ready = 0;
     active_directory = -1;
     close(directory);
+    (void)restore_signal_mask(&commit_previous_mask);
     goto io;
   }
+#endif
+  active_temporary = 0;
+  close(output);
+#ifdef SCENEBOARD_HELPER_FAULT_INJECTION
+  int during_result_signal =
+      fault_signal_requested("during-result-sigterm", "during-result-sigint");
+  if (during_result_signal != 0 && raise(during_result_signal) != 0) {
+    rollback_publication(directory, temporary, components[component_count - 1]);
+    active_identity_ready = 0;
+    active_directory = -1;
+    close(directory);
+    (void)restore_signal_mask(&commit_previous_mask);
+    goto io;
+  }
+#endif
+#ifdef SCENEBOARD_HELPER_FAULT_INJECTION
+  if (fault_requested("delay-before-result")) {
+    struct timespec remaining = {.tv_sec = 0, .tv_nsec = 650000000L};
+    while (nanosleep(&remaining, &remaining) != 0 && errno == EINTR) {
+    }
+  }
+#endif
+  if (commit_publication_guardian(&guardian) != 0) {
+    rollback_publication(directory, temporary, components[component_count - 1]);
+    active_identity_ready = 0;
+    active_directory = -1;
+    close(directory);
+    (void)restore_signal_mask(&commit_previous_mask);
+    free(frame);
+    for (uint8_t index = 0; index < component_count; index += 1) free(components[index]);
+    return 1;
+  }
+#ifdef SCENEBOARD_HELPER_FAULT_INJECTION
+  int after_result_signal =
+      fault_signal_requested("after-result-sigterm", "after-result-sigint");
+  if (after_result_signal != 0) (void)raise(after_result_signal);
+#endif
+  active_final_created = 0;
   active_identity_ready = 0;
   active_directory = -1;
-  close(output);
   close(directory);
+  close(3);
   free(frame);
   for (uint8_t index = 0; index < component_count; index += 1) free(components[index]);
-  return result("ok", expected_bytes);
+  return 0;
 
 invalid:
   free(frame);

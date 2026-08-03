@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { isIP } from 'node:net';
 
 import { createCursorMacKeyV1, type CursorMacKeyV1 } from '../common/security/cursor-mac-key.js';
@@ -86,6 +87,9 @@ const CONTROL_PATTERN = /[\u0000-\u001f\u007f]/u;
 const ASCII_HOST_PATTERN =
   /^(?=.{1,253}$)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)(?:\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?))*$/;
 const DECIMAL_PATTERN = /^(?:0|[1-9][0-9]*)$/;
+const CERTIFICATION_ATTEMPT_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u;
+const CERTIFICATION_DATABASE_PATTERN = /^sceneboard_cert_[a-f0-9]{20}$/u;
+const CERTIFICATION_DATABASE_PURPOSES = new Set(['browser', 'migration']);
 
 const required = (input: EnvironmentInput, key: string): string => {
   const value = input[key];
@@ -279,8 +283,43 @@ const parseTrustedProxyCidrs = (input: EnvironmentInput): string[] => {
 
 export const parsePersistenceEnvironment = (input: EnvironmentInput): PersistenceEnvironment => {
   const mysqlDatabase = required(input, 'MYSQL_DATABASE');
-  if (mysqlDatabase !== 'sceneboard')
-    throw new EnvironmentValidationError('MYSQL_DATABASE', 'must be sceneboard');
+  const disposableDatabase = input.SCENEBOARD_CERTIFICATION_DISPOSABLE_DATABASE;
+  if (disposableDatabase === undefined) {
+    if (mysqlDatabase !== 'sceneboard')
+      throw new EnvironmentValidationError('MYSQL_DATABASE', 'must be sceneboard');
+  } else {
+    const attemptId = required(input, 'SCENEBOARD_CERTIFICATION_ATTEMPT_ID');
+    const purpose = required(input, 'SCENEBOARD_CERTIFICATION_DATABASE_PURPOSE');
+    if (
+      disposableDatabase !== 'true' ||
+      input.APP_ENV !== 'test' ||
+      input.NODE_ENV !== 'test' ||
+      !CERTIFICATION_ATTEMPT_PATTERN.test(attemptId) ||
+      !CERTIFICATION_DATABASE_PURPOSES.has(purpose) ||
+      !CERTIFICATION_DATABASE_PATTERN.test(mysqlDatabase)
+    ) {
+      throw new EnvironmentValidationError(
+        'SCENEBOARD_CERTIFICATION_DISPOSABLE_DATABASE',
+        'requires an exact test-only certification identity',
+      );
+    }
+    const fixtureAttemptId = `${attemptId}.${purpose}`;
+    const expectedDatabase = `sceneboard_cert_${createHash('sha256')
+      .update(fixtureAttemptId)
+      .digest('hex')
+      .slice(0, 20)}`;
+    const expectedOwnerSha256 = createHash('sha256')
+      .update(`sceneboard-certification-database:${fixtureAttemptId}`)
+      .digest('hex');
+    if (mysqlDatabase !== expectedDatabase)
+      throw new EnvironmentValidationError('MYSQL_DATABASE', 'does not match the attempt');
+    if (input.SCENEBOARD_CERTIFICATION_DATABASE_OWNER_SHA256 !== expectedOwnerSha256) {
+      throw new EnvironmentValidationError(
+        'SCENEBOARD_CERTIFICATION_DATABASE_OWNER_SHA256',
+        'does not match the attempt',
+      );
+    }
+  }
   const redisKeyPrefix = required(input, 'REDIS_KEY_PREFIX');
   if (redisKeyPrefix !== 'sceneboard:')
     throw new EnvironmentValidationError('REDIS_KEY_PREFIX', 'must be sceneboard:');

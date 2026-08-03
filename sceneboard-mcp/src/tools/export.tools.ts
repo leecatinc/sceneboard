@@ -14,7 +14,7 @@ import {
 export const BoardExportInputSchemaV1 = z
   .object({
     boardId: GlobalIdSchemaV1,
-    revisionId: GlobalIdSchemaV1.nullable(),
+    revisionId: GlobalIdSchemaV1,
     format: z.enum(['pdf', 'pptx']),
     outputFile: z.string().min(1).max(4_096),
   })

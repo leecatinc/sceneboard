@@ -2,6 +2,8 @@ const SENSITIVE_KEY_PATTERN =
   /(?:authorization|cookie|credential|csrf|password|passwd|proof|secret|sessiontoken|accesstoken|refreshtoken|tokenhash|token|verifier|pairingcode|rawcode|otp|code|challenge|hash)/i;
 const ACCOUNT_API_KEY_NAME_PATTERN = /^(?:apiKey|api_key)$/i;
 const ACCOUNT_API_KEY_VALUE_PATTERN = /^sbk_v1\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$/;
+const EMBEDDED_SECRET_VALUE_PATTERN =
+  /(?:lcbg_v1|sbk_v1)\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}|(?:Bearer|PairingProof)\s+[A-Za-z0-9_-]{43}|sk-[A-Za-z0-9_-]{43}|[A-Z]{6}-[A-Z]{6}/g;
 const MAX_REDACTION_DEPTH = 32;
 const MAX_REDACTION_ENTRIES = 2_000;
 
@@ -13,7 +15,9 @@ interface RedactionState {
 const redact = (value: unknown, state: RedactionState, depth: number): unknown => {
   if (value === null || typeof value === 'boolean' || typeof value === 'number') return value;
   if (typeof value === 'string')
-    return ACCOUNT_API_KEY_VALUE_PATTERN.test(value) ? '[REDACTED]' : value;
+    return ACCOUNT_API_KEY_VALUE_PATTERN.test(value)
+      ? '[REDACTED]'
+      : value.replace(EMBEDDED_SECRET_VALUE_PATTERN, '[REDACTED]');
   if (typeof value === 'undefined') return '[UNDEFINED]';
   if (typeof value === 'bigint') return value.toString(10);
   if (typeof value === 'symbol' || typeof value === 'function') return '[UNSUPPORTED]';

@@ -123,14 +123,12 @@ const exportPreflightFailureV1 = (value: unknown): BoardExportGatewayResultV1 | 
   if (Object.keys(root).sort().join('\0') !== ['error', 'ok'].join('\0'))
     return { ok: false, source: 'local', error: { code: 'RESPONSE_INVALID' } };
   const parsed = BoardErrorParserV1.parse(root.error);
-  if (!parsed.ok)
-    return { ok: false, source: 'local', error: { code: 'RESPONSE_INVALID' } };
+  if (!parsed.ok) return { ok: false, source: 'local', error: { code: 'RESPONSE_INVALID' } };
   const boardCode = parsed.data.value.code;
   if (!Object.hasOwn(EXPORT_PREFLIGHT_FAILURE_CODES_V1, boardCode))
     return { ok: false, source: 'local', error: { code: 'RESPONSE_INVALID' } };
-  const exportCode = EXPORT_PREFLIGHT_FAILURE_CODES_V1[
-    boardCode as keyof typeof EXPORT_PREFLIGHT_FAILURE_CODES_V1
-  ];
+  const exportCode =
+    EXPORT_PREFLIGHT_FAILURE_CODES_V1[boardCode as keyof typeof EXPORT_PREFLIGHT_FAILURE_CODES_V1];
   const definition = EXPORT_HTTP_FAILURES_V1[exportCode];
   return {
     ok: false,
@@ -174,6 +172,14 @@ type GatewayCallOptionsV1 = Readonly<{
   authorization?: ApiKeyAuthorizationTargetV1;
 }>;
 
+type GatewayTerminalArbitrationV1<Value> = Readonly<{
+  awaitAfterAbort(): boolean;
+  acceptAfterAbort(value: Value): boolean;
+  settlementTimeoutMs: number;
+}>;
+
+const EXPORT_PUBLICATION_SETTLEMENT_TIMEOUT_MS_V1 = 1_000;
+
 const gatewayDeadlineV1 = (timeoutMs: number, callerSignal?: AbortSignal): GatewayDeadlineV1 => {
   const controller = new AbortController();
   let cause: GatewayDeadlineCauseV1 | null = null;
@@ -202,17 +208,35 @@ const gatewayDeadlineV1 = (timeoutMs: number, callerSignal?: AbortSignal): Gatew
 const waitWithinGatewayDeadlineV1 = async <Value>(
   operation: Promise<Value>,
   signal: AbortSignal,
+  terminalArbitration?: Pick<
+    GatewayTerminalArbitrationV1<Value>,
+    'awaitAfterAbort' | 'settlementTimeoutMs'
+  >,
 ): Promise<Value> => {
   return new Promise<Value>((resolve, reject) => {
-    const cleanup = (): void => signal.removeEventListener('abort', onAbort);
+    let settlementTimer: ReturnType<typeof setTimeout> | null = null;
+    let awaitingTerminalSettlement = false;
+    const cleanup = (): void => {
+      signal.removeEventListener('abort', onAbort);
+      if (settlementTimer !== null) clearTimeout(settlementTimer);
+    };
     const onAbort = (): void => {
+      if (terminalArbitration?.awaitAfterAbort() === true) {
+        awaitingTerminalSettlement = true;
+        signal.removeEventListener('abort', onAbort);
+        settlementTimer = setTimeout(() => {
+          cleanup();
+          reject(signal.reason);
+        }, terminalArbitration.settlementTimeoutMs);
+        return;
+      }
       cleanup();
       reject(signal.reason);
     };
     operation.then(
       (value) => {
         cleanup();
-        if (signal.aborted) reject(signal.reason);
+        if (signal.aborted && !awaitingTerminalSettlement) reject(signal.reason);
         else resolve(value);
       },
       (error: unknown) => {
@@ -368,6 +392,7 @@ export class ProtectedBoardGatewayV1 {
     authorization: ApiKeyAuthorizationTargetV1 | undefined,
     timeoutMs: number,
     deadlineFailure: (cause: GatewayDeadlineCauseV1) => T,
+    terminalArbitration?: GatewayTerminalArbitrationV1<T>,
   ): Promise<ProtectedGatewayResultV1<T>> {
     const deadline = gatewayDeadlineV1(timeoutMs, callerSignal);
     try {
@@ -456,9 +481,10 @@ export class ProtectedBoardGatewayV1 {
       const value = await waitWithinGatewayDeadlineV1(
         operation(client, snapshot, deadline.signal),
         deadline.signal,
+        terminalArbitration,
       );
       const operationCause = deadline.cause();
-      if (operationCause !== null)
+      if (operationCause !== null && terminalArbitration?.acceptAfterAbort(value) !== true)
         return { connected: true, value: deadlineFailure(operationCause) };
       if (
         value !== null &&
@@ -636,6 +662,7 @@ export class ProtectedBoardGatewayV1 {
       signal: AbortSignal,
     ): Promise<LocalExportPublishResultV1>;
   }): Promise<ProtectedGatewayResultV1<BoardExportGatewayResultV1>> {
+    let publicationStarted = false;
     const result = await this.callWithinDeadline<BoardExportGatewayResultV1>(
       'board_export',
       ['export.render'],
@@ -694,6 +721,7 @@ export class ProtectedBoardGatewayV1 {
             await response.body?.cancel().catch(() => undefined);
             return { ok: false, source: 'local', error: { code: 'RESPONSE_INVALID' } };
           }
+          publicationStarted = true;
           const published = await input.publish(
             {
               format: input.format,
@@ -778,12 +806,15 @@ export class ProtectedBoardGatewayV1 {
         source: 'local',
         error: cause === 'caller' ? { code: 'CANCELLED' } : { code: 'TIMEOUT', timeoutMs: 120_000 },
       }),
+      {
+        awaitAfterAbort: () => publicationStarted,
+        acceptAfterAbort: (value) => value.ok,
+        settlementTimeoutMs: EXPORT_PUBLICATION_SETTLEMENT_TIMEOUT_MS_V1,
+      },
     );
     if (!result.connected) return result;
     const preflightFailure = exportPreflightFailureV1(result.value);
-    return preflightFailure === null
-      ? result
-      : { connected: true, value: preflightFailure };
+    return preflightFailure === null ? result : { connected: true, value: preflightFailure };
   }
 
   async withAuthorizedBoardOperation<T>(

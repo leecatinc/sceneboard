@@ -7,5 +7,32 @@
     "reciprocal"
   ],
   "unresolvedResult": "LICENSE_AMBIGUOUS",
-  "productionApproval": false
+  "productionApproval": false,
+  "installScriptApproval": [
+    {
+      "path": "node_modules/esbuild",
+      "name": "esbuild",
+      "version": "0.25.12"
+    },
+    {
+      "path": "node_modules/fsevents",
+      "name": "fsevents",
+      "version": "2.3.2"
+    },
+    {
+      "path": "node_modules/sharp",
+      "name": "sharp",
+      "version": "0.34.5"
+    },
+    {
+      "path": "node_modules/tsx/node_modules/esbuild",
+      "name": "esbuild",
+      "version": "0.28.1"
+    },
+    {
+      "path": "node_modules/tsx/node_modules/fsevents",
+      "name": "fsevents",
+      "version": "2.3.3"
+    }
+  ]
 }

@@ -2,13 +2,16 @@ const SECRET_KEY =
   /(authorization|token|proof|challenge|code|password|cookie|secret|path|generation)/i;
 const TOKEN_PATTERN = /(?:lcbg_v1|sbk_v1)\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}/g;
 const PAIRING_PROOF_PATTERN = /PairingProof\s+[A-Za-z0-9_-]+/gi;
+const EMBEDDED_SECRET_PATTERN =
+  /Bearer\s+[A-Za-z0-9_-]{43}|sk-[A-Za-z0-9_-]{43}|[A-Z]{6}-[A-Z]{6}/g;
 
 export const redactSecretsV1 = (value: unknown, depth = 0): unknown => {
   if (depth > 8) return '[REDACTED]';
   if (typeof value === 'string') {
     return value
       .replace(TOKEN_PATTERN, '[REDACTED]')
-      .replace(PAIRING_PROOF_PATTERN, 'PairingProof [REDACTED]');
+      .replace(PAIRING_PROOF_PATTERN, 'PairingProof [REDACTED]')
+      .replace(EMBEDDED_SECRET_PATTERN, '[REDACTED]');
   }
   if (Array.isArray(value)) return value.map((item) => redactSecretsV1(item, depth + 1));
   if (value !== null && typeof value === 'object') {

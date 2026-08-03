@@ -6,6 +6,7 @@ const manifestStatus = await lstat(manifestUrl);
 if (
   !manifestStatus.isFile() ||
   manifestStatus.isSymbolicLink() ||
+  (manifestStatus.mode & 0o777) !== 0o400 ||
   manifestStatus.uid !== process.geteuid?.()
 )
   throw new Error('local export helper manifest is invalid');
@@ -40,6 +41,7 @@ if (
   helperStatus.uid !== process.geteuid?.() ||
   !digestStatus.isFile() ||
   digestStatus.isSymbolicLink() ||
+  (digestStatus.mode & 0o777) !== 0o400 ||
   digestStatus.uid !== process.geteuid?.()
 )
   throw new Error('local export helper permissions are invalid');

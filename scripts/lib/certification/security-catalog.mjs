@@ -1,5 +1,9 @@
-import { readFile, writeFile } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   CertificationError,
@@ -26,9 +30,548 @@ const rowKeys = [
   'evidenceRowId',
   'transportOnlyCanaryAllowance',
   'evidenceClass',
+  'producerId',
+  'producerEntrypoint',
 ];
 const tag = (value) =>
   value.replaceAll('.', '-').replaceAll('_', '-').replaceAll(':', '-').toUpperCase();
+
+const securityProducerId = 'sceneboard-security-boundary-producer-v1';
+const securityProducerKeyId = 'sceneboard-security-certification-v1';
+const liveEvidenceTtlMs = 15 * 60 * 1_000;
+const securityOwnerFiles = [
+  'test/security/artifact-sandbox-and-capability.e2e.test.mjs',
+  'test/security/auth-session-pairing.e2e.test.mjs',
+  'test/security/authorization-order-and-cross-board.e2e.test.mjs',
+  'test/security/hitl-race-and-non-approval.e2e.test.mjs',
+  'test/security/hostile-payload-corpus.e2e.test.mjs',
+  'test/security/mcp-tool-registry.e2e.test.mjs',
+  'test/security/secret-canary.e2e.test.mjs',
+];
+const securityImplementationAuthorityId = 'sceneboard-security-implementation-authority-v1';
+const securityBoundaryAuthorityFile = 'scripts/lib/certification/security-boundary-producers.mjs';
+const securityProducerEntries = Object.freeze({
+  'test/security/auth-session-pairing.e2e.test.mjs': Object.freeze({
+    producerId: 'sceneboard.security.auth-session-pairing.v1',
+    adapterEntrypoint: 'executeAuthBoundary',
+  }),
+  'test/security/authorization-order-and-cross-board.e2e.test.mjs': Object.freeze({
+    producerId: 'sceneboard.security.authorization-cross-board.v1',
+    adapterEntrypoint: 'executeAuthorizationBoundary',
+  }),
+  'test/security/hitl-race-and-non-approval.e2e.test.mjs': Object.freeze({
+    producerId: 'sceneboard.security.hitl-race.v1',
+    adapterEntrypoint: 'executeHitlBoundary',
+  }),
+  'test/security/secret-canary.e2e.test.mjs': Object.freeze({
+    producerId: 'sceneboard.security.secret-canary.v1',
+    adapterEntrypoint: 'executeSecretBoundary',
+  }),
+  'test/security/artifact-sandbox-and-capability.e2e.test.mjs': Object.freeze({
+    producerId: 'sceneboard.security.artifact-boundary.v1',
+    adapterEntrypoint: 'executeArtifactBoundary',
+  }),
+  'test/security/hostile-payload-corpus.e2e.test.mjs': Object.freeze({
+    producerId: 'sceneboard.security.hostile-payload.v1',
+    adapterEntrypoint: 'executePayloadBoundary',
+  }),
+  'test/security/mcp-tool-registry.e2e.test.mjs': Object.freeze({
+    producerId: 'sceneboard.security.mcp-registry.v1',
+    adapterEntrypoint: 'executeMcpBoundary',
+  }),
+});
+const securityImplementationEntries = Object.freeze({
+  'test/security/auth-session-pairing.e2e.test.mjs:AUTH_SESSION': {
+    entrypoint: 'executeAuthBoundary',
+    sources: [
+      'test/security/auth-session-pairing.e2e.test.mjs',
+      'sceneboard-be/src/auth/session.service.ts',
+      'sceneboard-be/src/common/guards/authentication.guard.ts',
+      'sceneboard-be/src/common/guards/csrf.guard.ts',
+      'sceneboard-be/src/common/guards/origin.guard.ts',
+    ],
+  },
+  'test/security/auth-session-pairing.e2e.test.mjs:ACCOUNT_API_KEY_AUTHENTICATION': {
+    entrypoint: 'executeAuthBoundary',
+    sources: [
+      'test/security/auth-session-pairing.e2e.test.mjs',
+      'sceneboard-be/src/api-keys/account-api-key.service.ts',
+      'sceneboard-be/src/api-keys/account-api-key-token.codec.ts',
+    ],
+  },
+  'test/security/auth-session-pairing.e2e.test.mjs:PAIRING': {
+    entrypoint: 'executeAuthBoundary',
+    sources: [
+      'test/security/auth-session-pairing.e2e.test.mjs',
+      'sceneboard-be/src/pairing/pairing.service.ts',
+      'sceneboard-be/src/grants/grant.service.ts',
+    ],
+  },
+  'test/security/authorization-order-and-cross-board.e2e.test.mjs:AUTHORIZATION': {
+    entrypoint: 'executeAuthorizationBoundary',
+    sources: [
+      'test/security/authorization-order-and-cross-board.e2e.test.mjs',
+      'sceneboard-be/src/grants/board-access-policy.service.ts',
+      'sceneboard-be/src/grants/board-access.policy.ts',
+    ],
+  },
+  'test/security/authorization-order-and-cross-board.e2e.test.mjs:ACCOUNT_API_KEY_AUTHORIZATION': {
+    entrypoint: 'executeAuthorizationBoundary',
+    sources: [
+      'test/security/authorization-order-and-cross-board.e2e.test.mjs',
+      'sceneboard-be/src/api-keys/account-api-key-authorization.policy.ts',
+      'sceneboard-be/src/grants/board-access-policy.service.ts',
+    ],
+  },
+  'test/security/authorization-order-and-cross-board.e2e.test.mjs:ACCOUNT_API_KEY_EXPORT': {
+    entrypoint: 'executeAuthorizationBoundary',
+    sources: [
+      'test/security/authorization-order-and-cross-board.e2e.test.mjs',
+      'sceneboard-be/src/exports/export-admission.service.ts',
+      'sceneboard-be/src/exports/export-authorization.policy.ts',
+      'sceneboard-mcp/src/exports/local-export-file.ts',
+    ],
+  },
+  'test/security/hitl-race-and-non-approval.e2e.test.mjs:HITL_STATE': {
+    entrypoint: 'executeHitlBoundary',
+    sources: [
+      'test/security/hitl-race-and-non-approval.e2e.test.mjs',
+      'sceneboard-be/src/interactions/persistence/interaction.repository.ts',
+    ],
+  },
+  'test/security/hitl-race-and-non-approval.e2e.test.mjs:HITL_RACE': {
+    entrypoint: 'executeHitlBoundary',
+    sources: [
+      'test/security/hitl-race-and-non-approval.e2e.test.mjs',
+      'sceneboard-be/src/interactions/application/hitl-wait-coordinator.ts',
+      'sceneboard-be/src/interactions/persistence/interaction.repository.ts',
+    ],
+  },
+  'test/security/hitl-race-and-non-approval.e2e.test.mjs:HITL_EXPIRY': {
+    entrypoint: 'executeHitlBoundary',
+    sources: [
+      'test/security/hitl-race-and-non-approval.e2e.test.mjs',
+      'sceneboard-be/src/interactions/application/interaction-lifecycle.service.ts',
+    ],
+  },
+  'test/security/hitl-race-and-non-approval.e2e.test.mjs:HITL_DESTRUCTIVE': {
+    entrypoint: 'executeHitlBoundary',
+    sources: [
+      'test/security/hitl-race-and-non-approval.e2e.test.mjs',
+      'sceneboard-be/src/interactions/application/interaction-command.service.ts',
+    ],
+  },
+  'test/security/hitl-race-and-non-approval.e2e.test.mjs:HITL_LIVE_HISTORY': {
+    entrypoint: 'executeHitlBoundary',
+    sources: [
+      'test/security/hitl-race-and-non-approval.e2e.test.mjs',
+      'sceneboard-be/src/interactions/application/interaction-lifecycle.service.ts',
+    ],
+  },
+  'test/security/hitl-race-and-non-approval.e2e.test.mjs:SCENE_NONINTERACTIVE': {
+    entrypoint: 'executeHitlBoundary',
+    sources: [
+      'test/security/hitl-race-and-non-approval.e2e.test.mjs',
+      'sceneboard-be/src/interactions/application/interaction-command.service.ts',
+    ],
+  },
+  'test/security/secret-canary.e2e.test.mjs:SECRET_CANARY': {
+    entrypoint: 'executeSecretBoundary',
+    sources: [
+      'test/security/secret-canary.e2e.test.mjs',
+      'sceneboard-be/src/app.module.ts',
+      'sceneboard-be/src/common/security/redact-secrets.ts',
+      'sceneboard-be/src/common/security/secret-sink-observability.ts',
+      'sceneboard-be/src/common/filters/http-error.filter.ts',
+      'sceneboard-be/src/audit/audit-events.ts',
+      'sceneboard-be/src/audit/audit.repository.ts',
+      'sceneboard-be/src/audit/audit.module.ts',
+      'sceneboard-be/src/events/board-event-outbox.repository.ts',
+      'sceneboard-be/src/events/outbox-dispatcher.service.ts',
+      'sceneboard-be/src/events/events.module.ts',
+      'sceneboard-be/src/sse/board-stream-health.service.ts',
+      'packages/artifact-runtime/src/policy/secret-sink-observability.ts',
+      'packages/artifact-runtime/src/policy/csp.ts',
+      'packages/artifact-runtime/src/server/headers.ts',
+      'packages/artifact-runtime/src/runner/outer.ts',
+      'packages/artifact-runtime/src/runner/inner-bootstrap.ts',
+      'packages/artifact-runtime/src/bridge/endpoint.ts',
+      'packages/board-ui/src/artifact/ArtifactHost.tsx',
+      'packages/board-ui/src/artifact/use-artifact-bridge.ts',
+      'sceneboard-mcp/src/diagnostics/redact-secrets.ts',
+      'sceneboard-mcp/src/diagnostics/safe-logger.ts',
+      'sceneboard-mcp/src/tools/tool-result.ts',
+      'scripts/lib/certification/evidence-writer.mjs',
+    ],
+  },
+  'test/security/artifact-sandbox-and-capability.e2e.test.mjs:ARTIFACT_QUOTA': {
+    entrypoint: 'executeArtifactBoundary',
+    sources: [
+      'test/security/artifact-sandbox-and-capability.e2e.test.mjs',
+      'packages/artifact-runtime/src/bridge/rate-budget.ts',
+      'packages/board-schema/src/limits.ts',
+    ],
+  },
+  'test/security/artifact-sandbox-and-capability.e2e.test.mjs:ARTIFACT_POLICY': {
+    entrypoint: 'executeArtifactBoundary',
+    sources: [
+      'test/security/artifact-sandbox-and-capability.e2e.test.mjs',
+      'packages/artifact-runtime/src/policy/capabilities.ts',
+    ],
+  },
+  'test/security/artifact-sandbox-and-capability.e2e.test.mjs:ARTIFACT_HOSTILE': {
+    entrypoint: 'executeArtifactBoundary',
+    sources: [
+      'test/security/artifact-sandbox-and-capability.e2e.test.mjs',
+      'packages/board-ui/src/artifact/ArtifactHost.tsx',
+      'packages/board-ui/src/artifact/use-artifact-bridge.ts',
+      'packages/artifact-runtime/src/runner/outer.ts',
+      'packages/artifact-runtime/src/runner/inner-bootstrap.ts',
+      'packages/artifact-runtime/src/bridge/endpoint.ts',
+      'packages/artifact-runtime/src/policy/csp.ts',
+      'packages/artifact-runtime/src/server/headers.ts',
+    ],
+  },
+  'test/security/hostile-payload-corpus.e2e.test.mjs:CARRIER_BOUNDARY': {
+    entrypoint: 'executePayloadBoundary',
+    sources: [
+      'test/security/hostile-payload-corpus.e2e.test.mjs',
+      'sceneboard-be/src/common/http/raw-body-profiles.ts',
+    ],
+  },
+  'test/security/hostile-payload-corpus.e2e.test.mjs:SCHEMA_CORPUS': {
+    entrypoint: 'executePayloadBoundary',
+    sources: [
+      'test/security/hostile-payload-corpus.e2e.test.mjs',
+      'packages/board-schema/src/index.ts',
+      'packages/board-schema/src/limits.ts',
+    ],
+  },
+  'test/security/mcp-tool-registry.e2e.test.mjs:MCP': {
+    entrypoint: 'executeMcpBoundary',
+    sources: [
+      'test/security/mcp-tool-registry.e2e.test.mjs',
+      'sceneboard-mcp/src/tools/register-tools.ts',
+      'sceneboard-mcp/src/tools/tool-result.ts',
+    ],
+  },
+  'test/security/mcp-tool-registry.e2e.test.mjs:MCP_ACCOUNT_API_KEY': {
+    entrypoint: 'executeMcpBoundary',
+    sources: [
+      'test/security/mcp-tool-registry.e2e.test.mjs',
+      'sceneboard-mcp/src/tools/register-tools.ts',
+      'sceneboard-mcp/src/tools/tool-result.ts',
+    ],
+  },
+});
+
+const securityImplementationIdentityCache = new Map();
+
+export const securityImplementationIdentity = (definition) => {
+  const cacheKey = `${definition.testFile}:${definition.cluster}`;
+  const cached = securityImplementationIdentityCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+  const descriptor = securityImplementationEntries[cacheKey];
+  const producer = securityProducerEntries[definition.testFile];
+  if (descriptor === undefined || producer === undefined)
+    throw new CertificationError('SECURITY_LIVE_IMPLEMENTATION_IDENTITY_INVALID');
+  if (descriptor.entrypoint !== producer.adapterEntrypoint)
+    throw new CertificationError('SECURITY_LIVE_IMPLEMENTATION_IDENTITY_INVALID');
+  const sourceFiles = [securityBoundaryAuthorityFile, ...descriptor.sources]
+    .filter((path, index, values) => values.indexOf(path) === index)
+    .sort((left, right) => left.localeCompare(right, 'en'))
+    .map((path) => ({ path, sha256: sha256(readFileSync(resolve(root, path))) }));
+  const identity = {
+    schemaVersion: 1,
+    authorityId: securityImplementationAuthorityId,
+    producerId: producer.producerId,
+    executorId: producer.producerId,
+    cluster: definition.cluster,
+    entrypoint: 'executeSecurityBoundaryProducer',
+    adapterEntrypoint: producer.adapterEntrypoint,
+    sourceFiles,
+  };
+  const result = Object.freeze({
+    ...identity,
+    implementationSha256: sha256(canonicalJson(identity)),
+  });
+  securityImplementationIdentityCache.set(cacheKey, result);
+  return result;
+};
+
+export const securityProducerDefinition = (definition) => {
+  const identity = securityImplementationIdentity(definition);
+  if (
+    definition.producerId !== identity.producerId ||
+    definition.producerEntrypoint !== identity.entrypoint
+  )
+    throw new CertificationError('SECURITY_LIVE_PRODUCER_MAPPING_INVALID');
+  return Object.freeze({
+    producerId: identity.producerId,
+    testFile: definition.testFile,
+    cluster: definition.cluster,
+    adapterEntrypoint: identity.adapterEntrypoint,
+    implementationIdentity: identity,
+  });
+};
+
+export const validateSecurityProducerMappings = (catalog) => {
+  const mappedFiles = Object.keys(securityProducerEntries).sort((left, right) =>
+    left.localeCompare(right, 'en'),
+  );
+  const requiredFiles = [...securityOwnerFiles].sort((left, right) =>
+    left.localeCompare(right, 'en'),
+  );
+  if (
+    canonicalJson(mappedFiles) !== canonicalJson(requiredFiles) ||
+    new Set(Object.values(securityProducerEntries).map(({ producerId }) => producerId)).size !==
+      mappedFiles.length ||
+    !Array.isArray(catalog?.cases)
+  )
+    throw new CertificationError('SECURITY_LIVE_PRODUCER_MAPPING_INVALID');
+  const routedFiles = new Set();
+  for (const definition of catalog.cases) {
+    const producer = securityProducerDefinition(definition);
+    routedFiles.add(producer.testFile);
+    if (
+      producer.testFile !== definition.testFile ||
+      producer.cluster !== definition.cluster ||
+      !producer.implementationIdentity.sourceFiles.some(
+        ({ path }) => path === securityBoundaryAuthorityFile,
+      ) ||
+      !producer.implementationIdentity.sourceFiles.some(({ path }) => !path.startsWith('test/'))
+    )
+      throw new CertificationError('SECURITY_LIVE_PRODUCER_MAPPING_INVALID');
+  }
+  if (canonicalJson([...routedFiles].sort()) !== canonicalJson(requiredFiles))
+    throw new CertificationError('SECURITY_LIVE_PRODUCER_MAPPING_INVALID');
+  return Object.freeze({ status: 'PASS', producerCount: mappedFiles.length });
+};
+
+const requireProducerKey = (value) => {
+  if (typeof value !== 'string' || Buffer.byteLength(value, 'utf8') < 32)
+    throw new CertificationError('SECURITY_LIVE_PRODUCER_AUTHORITY_INVALID');
+  return Buffer.from(value, 'utf8');
+};
+
+const canonicalBytes = (value) => Buffer.from(`${canonicalJson(value)}\n`, 'utf8');
+
+const receiptPayloadKeys = [
+  'schemaVersion',
+  'executorId',
+  'implementationIdentity',
+  'implementationSha256',
+  'identitySha256',
+  'attemptId',
+  'caseId',
+  'observedCodeOrState',
+  'status',
+  'cleanupStatus',
+  'operationTranscript',
+  'operationSha256',
+  'executionNonceSha256',
+  'observedAt',
+];
+
+export const validateSecurityBoundaryReceipts = (
+  catalog,
+  identity,
+  receipts,
+  { executionNonce, now = Date.now() } = {},
+) => {
+  const nonce = requireProducerKey(executionNonce);
+  if (!Array.isArray(receipts) || receipts.length !== catalog.cases.length)
+    throw new CertificationError('SECURITY_LIVE_EXECUTION_RECEIPT_INVALID');
+  const identitySha256 = sha256(canonicalJson(identity));
+  return receipts.map((receipt, index) => {
+    const definition = catalog.cases[index];
+    const expectedImplementation = securityImplementationIdentity(definition);
+    assertExactKeys(
+      receipt,
+      [...receiptPayloadKeys, 'authenticationSha256'],
+      'SECURITY_LIVE_EXECUTION_RECEIPT_INVALID',
+    );
+    const payload = Object.fromEntries(receiptPayloadKeys.map((key) => [key, receipt[key]]));
+    const bytes = canonicalBytes(payload);
+    const expectedAuthentication = createHmac('sha256', nonce).update(bytes).digest();
+    const submittedAuthentication = Buffer.from(receipt.authenticationSha256, 'hex');
+    const observedAt = Date.parse(receipt.observedAt);
+    if (
+      receipt.schemaVersion !== 2 ||
+      receipt.executorId !== expectedImplementation.producerId ||
+      canonicalJson(receipt.implementationIdentity) !== canonicalJson(expectedImplementation) ||
+      receipt.implementationSha256 !== expectedImplementation.implementationSha256 ||
+      receipt.identitySha256 !== identitySha256 ||
+      receipt.attemptId !== identity.attemptId ||
+      receipt.caseId !== definition.caseId ||
+      receipt.observedCodeOrState !== definition.expectedCodeOrState ||
+      receipt.status !== 'PASS' ||
+      receipt.cleanupStatus !== 'PASS' ||
+      !Array.isArray(receipt.operationTranscript) ||
+      receipt.operationTranscript.length < 3 ||
+      receipt.operationTranscript[0] !==
+        `fixture-created:${identity.attemptId}:${definition.caseId}` ||
+      receipt.operationTranscript.at(-1) !== 'cleanup-verified:zero-owned-residue' ||
+      !receipt.operationTranscript.some((entry) => entry.startsWith('operation-executed:')) ||
+      !receipt.operationTranscript.includes(`boundary-observed:${receipt.observedCodeOrState}`) ||
+      receipt.operationSha256 !== sha256(canonicalJson(receipt.operationTranscript)) ||
+      receipt.executionNonceSha256 !== sha256(nonce) ||
+      !Number.isFinite(observedAt) ||
+      observedAt > now ||
+      observedAt < now - liveEvidenceTtlMs ||
+      !/^[0-9a-f]{64}$/u.test(receipt.authenticationSha256) ||
+      submittedAuthentication.length !== expectedAuthentication.length ||
+      !timingSafeEqual(submittedAuthentication, expectedAuthentication)
+    ) {
+      throw new CertificationError('SECURITY_LIVE_EXECUTION_RECEIPT_INVALID');
+    }
+    return receipt;
+  });
+};
+
+const createAuthenticatedLeaf = (definition, identity, receipt, producerKey, observedAt) => {
+  const implementationIdentity = securityImplementationIdentity(definition);
+  assertExactKeys(
+    receipt,
+    [...receiptPayloadKeys, 'authenticationSha256'],
+    'SECURITY_LIVE_EVIDENCE_INVALID',
+  );
+  if (
+    receipt.caseId !== definition.caseId ||
+    receipt.observedCodeOrState !== definition.expectedCodeOrState ||
+    receipt.status !== 'PASS' ||
+    receipt.cleanupStatus !== 'PASS'
+  ) {
+    throw new CertificationError('SECURITY_LIVE_BOUNDARY_OBSERVATION_FAILED');
+  }
+  const payload = {
+    schemaVersion: 2,
+    producerId: securityProducerId,
+    producerKeyId: securityProducerKeyId,
+    identitySha256: sha256(canonicalJson(identity)),
+    caseId: definition.caseId,
+    evidenceRowId: definition.evidenceRowId,
+    upstreamFixtureSha256: definition.upstreamFixtureSha256,
+    executorSha256: sha256(implementationIdentity.executorId),
+    implementationSha256: receipt.implementationSha256,
+    executionReceiptSha256: sha256(canonicalJson(receipt)),
+    operationSha256: receipt.operationSha256,
+    operationCount: receipt.operationTranscript.length,
+    observedCodeOrState: receipt.observedCodeOrState,
+    status: receipt.status,
+    cleanupStatus: receipt.cleanupStatus,
+    observedAt,
+  };
+  const bytes = canonicalBytes(payload);
+  return {
+    payload,
+    bytes,
+    evidenceSha256: sha256(bytes),
+    authenticationSha256: createHmac('sha256', producerKey).update(bytes).digest('hex'),
+  };
+};
+
+export const produceSecurityLiveEvidence = (
+  catalog,
+  identity,
+  receipts,
+  { producerKey, executionNonce, now = Date.now() } = {},
+) => {
+  const key = requireProducerKey(producerKey);
+  if (!Number.isFinite(now)) {
+    throw new CertificationError('SECURITY_LIVE_EVIDENCE_INVALID');
+  }
+  const observations = validateSecurityBoundaryReceipts(catalog, identity, receipts, {
+    executionNonce,
+    now,
+  });
+  const producedAt = new Date(now).toISOString();
+  const expiresAt = new Date(now + liveEvidenceTtlMs).toISOString();
+  const cases = catalog.cases.map((definition, index) => {
+    const leaf = createAuthenticatedLeaf(
+      definition,
+      identity,
+      observations[index],
+      key,
+      producedAt,
+    );
+    return {
+      caseId: definition.caseId,
+      evidenceRowId: definition.evidenceRowId,
+      evidenceSha256: leaf.evidenceSha256,
+      authenticationSha256: leaf.authenticationSha256,
+      artifactBase64: leaf.bytes.toString('base64'),
+    };
+  });
+  return {
+    schemaVersion: 2,
+    producer: {
+      id: securityProducerId,
+      keyId: securityProducerKeyId,
+      producedAt,
+      expiresAt,
+    },
+    catalogSha256: sha256(`${canonicalJson(catalog)}\n`),
+    status: 'PASS',
+    cleanupStatus: 'PASS',
+    cases,
+  };
+};
+
+export const collectSecurityBoundaryReceipts = async (catalog, identity, options = {}) => {
+  validateSecurityProducerMappings(catalog);
+  const executionNonce = randomBytes(32).toString('base64url');
+  const directory = await mkdtemp(join(tmpdir(), 'sceneboard-security-boundary-'));
+  try {
+    const environment = {
+      PATH: process.env.PATH,
+      SCENEBOARD_SECURITY_RECEIPT_DIRECTORY: directory,
+      SCENEBOARD_SECURITY_EXECUTION_NONCE: executionNonce,
+      SCENEBOARD_CERTIFICATION_SOURCE_COMMIT: identity.sourceCommit,
+      SCENEBOARD_CERTIFICATION_MANIFEST_SHA256: identity.manifestSha256,
+      SCENEBOARD_CERTIFICATION_PROFILE: identity.profile,
+      APP_ENV: identity.environment,
+      SCENEBOARD_CERTIFICATION_ATTEMPT_ID: identity.attemptId,
+      ...(options.faultOwner ? { SCENEBOARD_SECURITY_FAULT_OWNER: options.faultOwner } : {}),
+    };
+    const run = spawnSync(process.execPath, ['--test', ...securityOwnerFiles], {
+      cwd: root,
+      env: environment,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    if (run.status !== 0) throw new CertificationError('SECURITY_LIVE_BOUNDARY_EXECUTION_FAILED');
+    const receipts = [];
+    for (const ownerFile of securityOwnerFiles) {
+      const bytes = await readFile(join(directory, `${sha256(ownerFile)}.json`));
+      const value = JSON.parse(bytes.toString('utf8'));
+      const expectedProducerId = securityProducerEntries[ownerFile]?.producerId;
+      if (
+        bytes.toString('utf8') !== `${canonicalJson(value)}\n` ||
+        canonicalJson(Object.keys(value).sort()) !==
+          canonicalJson(['producerId', 'receipts', 'schemaVersion']) ||
+        value.schemaVersion !== 2 ||
+        value.producerId !== expectedProducerId ||
+        !Array.isArray(value.receipts) ||
+        value.receipts.some(({ executorId }) => executorId !== expectedProducerId)
+      )
+        throw new CertificationError('SECURITY_LIVE_EXECUTION_RECEIPT_INVALID');
+      receipts.push(...value.receipts);
+    }
+    const byCaseId = new Map(receipts.map((receipt) => [receipt.caseId, receipt]));
+    if (byCaseId.size !== receipts.length)
+      throw new CertificationError('SECURITY_LIVE_EXECUTION_RECEIPT_INVALID');
+    const ordered = catalog.cases.map(({ caseId }) => byCaseId.get(caseId));
+    validateSecurityBoundaryReceipts(catalog, identity, ordered, {
+      executionNonce,
+      now: Date.now(),
+    });
+    return { receipts: ordered, executionNonce };
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+};
 
 const stringArrayInitializer = (source, name) => {
   const start = source.indexOf(`export const ${name} = [`);
@@ -108,6 +651,8 @@ export const buildExpectedSecurityCatalog = async () => {
       evidenceRowId: `SEC-${caseId}`,
       transportOnlyCanaryAllowance,
       evidenceClass: 'live-required',
+      producerId: securityProducerEntries[testFile]?.producerId,
+      producerEntrypoint: 'executeSecurityBoundaryProducer',
     });
 
   const auth = [
@@ -363,11 +908,7 @@ export const buildExpectedSecurityCatalog = async () => {
     ['CROSS-BOARD-DENY', 'credential-bound-to-other-board', 'FORBIDDEN_BEFORE_RESOURCE_LOOKUP'],
     ['LIST-OWNER-FILTERED', 'account-owner-board-list', 'OWNER_FILTERED_LIST'],
   ].forEach(([axis, preconditionState, expectedCodeOrState]) =>
-    accountApiKeyAuthorizationCase(
-      `APIKEY-OWNER-${axis}`,
-      preconditionState,
-      expectedCodeOrState,
-    ),
+    accountApiKeyAuthorizationCase(`APIKEY-OWNER-${axis}`, preconditionState, expectedCodeOrState),
   );
   [
     ['SCENE-CURRENT-ALLOW', 'scene-current-board-read', 'AUTHORIZED_BOARD_READ'],
@@ -375,11 +916,7 @@ export const buildExpectedSecurityCatalog = async () => {
     ['SCENE-HISTORICAL-BOARD-ONLY-DENY', 'scene-revision-board-read-only', 'FORBIDDEN'],
     ['DOCUMENT-CURRENT-ALLOW', 'document-current-board-read', 'AUTHORIZED_BOARD_READ'],
     ['DOCUMENT-HISTORICAL-ALLOW', 'document-revision-history-read', 'AUTHORIZED_HISTORY_READ'],
-    [
-      'DOCUMENT-HISTORICAL-BOARD-ONLY-DENY',
-      'document-revision-board-read-only',
-      'FORBIDDEN',
-    ],
+    ['DOCUMENT-HISTORICAL-BOARD-ONLY-DENY', 'document-revision-board-read-only', 'FORBIDDEN'],
   ].forEach(([axis, preconditionState, expectedCodeOrState]) =>
     accountApiKeyAuthorizationCase(
       `APIKEY-HISTORICAL-${axis}`,
@@ -391,16 +928,8 @@ export const buildExpectedSecurityCatalog = async () => {
   [
     ['SCENE-PATCH-ALLOW', 'scene-patch-board-read-and-write', 'AUTHORIZED_COMPOUND_PLAN'],
     ['SCENE-PATCH-WRITE-ONLY-DENY', 'scene-patch-board-write-only', 'FORBIDDEN'],
-    [
-      'DOCUMENT-REPLACE-ALLOW',
-      'document-replace-board-read-and-write',
-      'AUTHORIZED_COMPOUND_PLAN',
-    ],
-    [
-      'DOCUMENT-REPLACE-WRITE-ONLY-DENY',
-      'document-replace-board-write-only',
-      'FORBIDDEN',
-    ],
+    ['DOCUMENT-REPLACE-ALLOW', 'document-replace-board-read-and-write', 'AUTHORIZED_COMPOUND_PLAN'],
+    ['DOCUMENT-REPLACE-WRITE-ONLY-DENY', 'document-replace-board-write-only', 'FORBIDDEN'],
     ['PAGE-TRANSFORM-ALLOW', 'page-transform-board-read-and-write', 'AUTHORIZED_COMPOUND_PLAN'],
     ['PAGE-TRANSFORM-WRITE-ONLY-DENY', 'page-transform-board-write-only', 'FORBIDDEN'],
     [
@@ -777,11 +1306,236 @@ export const validateSecurityCatalog = async (catalog) => {
   };
 };
 
+export const validateSecurityLiveEvidence = (
+  catalog,
+  evidence,
+  identity,
+  evidenceBytes = Buffer.from(`${canonicalJson(evidence)}\n`),
+  { producerKey, now = Date.now() } = {},
+) => {
+  const key = requireProducerKey(producerKey);
+  assertExactKeys(
+    evidence,
+    ['schemaVersion', 'producer', 'catalogSha256', 'status', 'cleanupStatus', 'cases'],
+    'SECURITY_LIVE_EVIDENCE_INVALID',
+  );
+  assertExactKeys(
+    evidence.producer,
+    ['id', 'keyId', 'producedAt', 'expiresAt'],
+    'SECURITY_LIVE_EVIDENCE_INVALID',
+  );
+  const producedAt = Date.parse(evidence.producer.producedAt);
+  const expiresAt = Date.parse(evidence.producer.expiresAt);
+  if (
+    evidence.schemaVersion !== 2 ||
+    evidence.producer.id !== securityProducerId ||
+    evidence.producer.keyId !== securityProducerKeyId ||
+    !Number.isFinite(producedAt) ||
+    !Number.isFinite(expiresAt) ||
+    producedAt > now ||
+    expiresAt <= now ||
+    expiresAt - producedAt !== liveEvidenceTtlMs ||
+    evidence.catalogSha256 !== sha256(`${canonicalJson(catalog)}\n`) ||
+    evidence.status !== 'PASS' ||
+    evidence.cleanupStatus !== 'PASS' ||
+    !Buffer.isBuffer(evidenceBytes) ||
+    evidenceBytes.toString('utf8') !== `${canonicalJson(evidence)}\n` ||
+    !Array.isArray(evidence.cases) ||
+    evidence.cases.length !== catalog.cases.length
+  )
+    throw new CertificationError('SECURITY_LIVE_EVIDENCE_INVALID');
+  const identitySha256 = sha256(canonicalJson(identity));
+  const leafArtifacts = [];
+  const inventory = [];
+  for (let index = 0; index < catalog.cases.length; index += 1) {
+    const definition = catalog.cases[index];
+    const implementationIdentity = securityImplementationIdentity(definition);
+    const row = evidence.cases[index];
+    assertExactKeys(
+      row,
+      ['caseId', 'evidenceRowId', 'evidenceSha256', 'authenticationSha256', 'artifactBase64'],
+      'SECURITY_LIVE_EVIDENCE_INVALID',
+    );
+    let bytes;
+    let payload;
+    try {
+      bytes = Buffer.from(row.artifactBase64, 'base64');
+      if (bytes.toString('base64') !== row.artifactBase64) throw new Error('non-canonical base64');
+      payload = JSON.parse(bytes.toString('utf8'));
+    } catch {
+      throw new CertificationError('SECURITY_LIVE_EVIDENCE_INVALID');
+    }
+    assertExactKeys(
+      payload,
+      [
+        'schemaVersion',
+        'producerId',
+        'producerKeyId',
+        'identitySha256',
+        'caseId',
+        'evidenceRowId',
+        'upstreamFixtureSha256',
+        'executorSha256',
+        'implementationSha256',
+        'executionReceiptSha256',
+        'operationSha256',
+        'operationCount',
+        'observedCodeOrState',
+        'status',
+        'cleanupStatus',
+        'observedAt',
+      ],
+      'SECURITY_LIVE_EVIDENCE_INVALID',
+    );
+    const expectedAuthentication = createHmac('sha256', key).update(bytes).digest();
+    const submittedAuthentication = Buffer.from(row.authenticationSha256, 'hex');
+    if (
+      row.caseId !== definition.caseId ||
+      row.evidenceRowId !== definition.evidenceRowId ||
+      row.evidenceSha256 !== sha256(bytes) ||
+      !/^[0-9a-f]{64}$/u.test(row.authenticationSha256) ||
+      submittedAuthentication.length !== expectedAuthentication.length ||
+      !timingSafeEqual(submittedAuthentication, expectedAuthentication) ||
+      bytes.toString('utf8') !== `${canonicalJson(payload)}\n` ||
+      payload.schemaVersion !== 2 ||
+      payload.producerId !== securityProducerId ||
+      payload.producerKeyId !== securityProducerKeyId ||
+      payload.identitySha256 !== identitySha256 ||
+      payload.caseId !== definition.caseId ||
+      payload.evidenceRowId !== definition.evidenceRowId ||
+      payload.upstreamFixtureSha256 !== definition.upstreamFixtureSha256 ||
+      payload.executorSha256 !== sha256(implementationIdentity.executorId) ||
+      payload.implementationSha256 !== implementationIdentity.implementationSha256 ||
+      !/^[0-9a-f]{64}$/u.test(payload.executionReceiptSha256) ||
+      !/^[0-9a-f]{64}$/u.test(payload.operationSha256) ||
+      !Number.isInteger(payload.operationCount) ||
+      payload.operationCount < 3 ||
+      payload.observedCodeOrState !== definition.expectedCodeOrState ||
+      payload.status !== 'PASS' ||
+      payload.cleanupStatus !== 'PASS' ||
+      payload.observedAt !== evidence.producer.producedAt
+    )
+      throw new CertificationError('SECURITY_LIVE_EVIDENCE_INVALID');
+    leafArtifacts.push(bytes);
+    inventory.push({
+      caseId: row.caseId,
+      evidenceRowId: row.evidenceRowId,
+      implementationSha256: payload.implementationSha256,
+      evidenceSha256: row.evidenceSha256,
+      authenticationSha256: row.authenticationSha256,
+    });
+  }
+  const inventoryBytes = canonicalBytes({ schemaVersion: 2, cases: inventory });
+  const details = {
+    schemaVersion: 2,
+    producerId: securityProducerId,
+    producerKeyId: securityProducerKeyId,
+    producedAt: evidence.producer.producedAt,
+    expiresAt: evidence.producer.expiresAt,
+    identitySha256,
+    catalogSha256: evidence.catalogSha256,
+    status: 'PASS',
+    liveEvidenceStatus: 'PASS',
+    cleanupStatus: 'PASS',
+    caseCount: evidence.cases.length,
+    caseSetSha256: sha256(
+      canonicalJson(inventory.map(({ caseId, evidenceRowId }) => ({ caseId, evidenceRowId }))),
+    ),
+    evidenceSetSha256: sha256(evidenceBytes),
+    leafInventorySha256: sha256(inventoryBytes),
+    implementationSetSha256: sha256(
+      canonicalJson(
+        inventory.map(({ caseId, implementationSha256 }) => ({
+          caseId,
+          implementationSha256,
+        })),
+      ),
+    ),
+  };
+  return {
+    ...details,
+    details,
+    attachments: [
+      ...leafArtifacts.map((bytes) => ({ bytes, mediaType: 'application/json' })),
+      { bytes: inventoryBytes, mediaType: 'application/json' },
+    ],
+  };
+};
+
+export const validateSecurityLiveAttachmentInventory = (
+  catalog,
+  details,
+  identity,
+  inventoryBytes,
+  leafBytesBySha256,
+  options = {},
+) => {
+  let inventory;
+  try {
+    inventory = JSON.parse(inventoryBytes.toString('utf8'));
+  } catch {
+    throw new CertificationError('SECURITY_LIVE_ATTACHMENT_SET_INVALID');
+  }
+  assertExactKeys(inventory, ['schemaVersion', 'cases'], 'SECURITY_LIVE_ATTACHMENT_SET_INVALID');
+  if (
+    inventory.schemaVersion !== 2 ||
+    inventoryBytes.toString('utf8') !== `${canonicalJson(inventory)}\n` ||
+    sha256(inventoryBytes) !== details.leafInventorySha256 ||
+    !Array.isArray(inventory.cases) ||
+    inventory.cases.length !== catalog.cases.length
+  ) {
+    throw new CertificationError('SECURITY_LIVE_ATTACHMENT_SET_INVALID');
+  }
+  const cases = inventory.cases.map((row, index) => {
+    assertExactKeys(
+      row,
+      ['caseId', 'evidenceRowId', 'implementationSha256', 'evidenceSha256', 'authenticationSha256'],
+      'SECURITY_LIVE_ATTACHMENT_SET_INVALID',
+    );
+    const definition = catalog.cases[index];
+    const bytes = leafBytesBySha256.get(row.evidenceSha256);
+    if (
+      row.caseId !== definition.caseId ||
+      row.evidenceRowId !== definition.evidenceRowId ||
+      row.implementationSha256 !==
+        securityImplementationIdentity(definition).implementationSha256 ||
+      !Buffer.isBuffer(bytes) ||
+      sha256(bytes) !== row.evidenceSha256
+    ) {
+      throw new CertificationError('SECURITY_LIVE_ATTACHMENT_SET_INVALID');
+    }
+    return { ...row, artifactBase64: bytes.toString('base64') };
+  });
+  const evidence = {
+    schemaVersion: 2,
+    producer: {
+      id: details.producerId,
+      keyId: details.producerKeyId,
+      producedAt: details.producedAt,
+      expiresAt: details.expiresAt,
+    },
+    catalogSha256: details.catalogSha256,
+    status: details.status,
+    cleanupStatus: details.cleanupStatus,
+    cases,
+  };
+  const validated = validateSecurityLiveEvidence(
+    catalog,
+    evidence,
+    identity,
+    canonicalBytes(evidence),
+    options,
+  );
+  if (canonicalJson(validated.details) !== canonicalJson(details))
+    throw new CertificationError('SECURITY_LIVE_ATTACHMENT_SET_INVALID');
+  return validated.details;
+};
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const arguments_ = process.argv.slice(2);
   if (
     arguments_.length > 1 ||
-    arguments_.some((argument) => !['--observe', '--write'].includes(argument))
+    arguments_.some((argument) => !['--observe', '--write', '--produce-live'].includes(argument))
   ) {
     throw new CertificationError('SECURITY_CASE_CATALOG_ARGUMENT_INVALID');
   }
@@ -798,6 +1552,33 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
         caseCount: expected.cases.length,
         catalogSha256: sha256(canonicalBytes),
       })}\n`,
+    );
+  } else if (arguments_.includes('--produce-live')) {
+    const identity = {
+      sourceCommit: process.env.SCENEBOARD_CERTIFICATION_SOURCE_COMMIT,
+      manifestSha256: process.env.SCENEBOARD_CERTIFICATION_MANIFEST_SHA256,
+      profile: 'non-production',
+      environment: process.env.APP_ENV,
+      attemptId: process.env.SCENEBOARD_CERTIFICATION_ATTEMPT_ID,
+    };
+    if (
+      !/^[0-9a-f]{40}$/u.test(identity.sourceCommit ?? '') ||
+      !/^[0-9a-f]{64}$/u.test(identity.manifestSha256 ?? '') ||
+      !['development', 'test', 'staging'].includes(identity.environment) ||
+      !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u.test(identity.attemptId ?? '')
+    ) {
+      throw new CertificationError('SECURITY_LIVE_TRUSTED_IDENTITY_MISSING');
+    }
+    const { value: catalog } = await readJson(catalogPath);
+    await validateSecurityCatalog(catalog);
+    const execution = await collectSecurityBoundaryReceipts(catalog, identity);
+    process.stdout.write(
+      `${canonicalJson(
+        produceSecurityLiveEvidence(catalog, identity, execution.receipts, {
+          producerKey: process.env.SCENEBOARD_SECURITY_PRODUCER_HMAC_KEY,
+          executionNonce: execution.executionNonce,
+        }),
+      )}\n`,
     );
   } else {
     const { value } = await readJson(catalogPath);

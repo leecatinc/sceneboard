@@ -2,6 +2,78 @@ import { spawn } from 'node:child_process';
 import { CertificationError } from './canonical-json.mjs';
 import { assertSafeCommand } from './safe-command-policy.mjs';
 
+const launchEnvironmentKeys = Object.freeze([
+  'PATH',
+  'HOME',
+  'TMPDIR',
+  'TMP',
+  'TEMP',
+  'LANG',
+  'LC_ALL',
+  'TZ',
+  'TERM',
+  'NO_COLOR',
+  'XDG_CACHE_HOME',
+]);
+const runtimeInjectionEnvironment =
+  /^(?:NODE_OPTIONS|NODE_PATH|BASH_ENV|ENV|LD_PRELOAD|LD_LIBRARY_PATH|DYLD_.+)$/u;
+
+export const createCertificationChildEnvironment = (
+  source = {},
+  { allowedKeys = [], overrides = {} } = {},
+) => {
+  const output = {};
+  for (const key of [...launchEnvironmentKeys, ...allowedKeys]) {
+    if (runtimeInjectionEnvironment.test(key)) continue;
+    const value = source[key];
+    if (typeof value === 'string') output[key] = value;
+  }
+  for (const [key, value] of Object.entries(overrides)) {
+    if (
+      runtimeInjectionEnvironment.test(key) ||
+      !/^[A-Z][A-Z0-9_]*$/u.test(key) ||
+      typeof value !== 'string'
+    )
+      throw new CertificationError('CERTIFICATION_CHILD_ENVIRONMENT_INVALID');
+    output[key] = value;
+  }
+  return output;
+};
+
+export const createGitCertificationEnvironment = (source = {}) =>
+  createCertificationChildEnvironment(source, {
+    overrides: {
+      GIT_CONFIG_NOSYSTEM: '1',
+      GIT_CONFIG_GLOBAL: '/dev/null',
+      GIT_TERMINAL_PROMPT: '0',
+      GIT_ASKPASS: '/bin/false',
+    },
+  });
+
+const npmNetworkEnvironmentKeys = Object.freeze([
+  'NPM_CONFIG_REGISTRY',
+  'NPM_CONFIG_PROXY',
+  'NPM_CONFIG_HTTPS_PROXY',
+  'NPM_CONFIG_NOPROXY',
+  'NPM_CONFIG_CAFILE',
+  'npm_config_registry',
+  'npm_config_proxy',
+  'npm_config_https_proxy',
+  'npm_config_noproxy',
+  'npm_config_cafile',
+]);
+
+export const createNpmCertificationEnvironment = (source = {}, { network = false } = {}) =>
+  createCertificationChildEnvironment(source, {
+    allowedKeys: network ? npmNetworkEnvironmentKeys : [],
+    overrides: {
+      NPM_CONFIG_USERCONFIG: '/dev/null',
+      NPM_CONFIG_GLOBALCONFIG: '/dev/null',
+      NPM_CONFIG_UPDATE_NOTIFIER: 'false',
+      NPM_CONFIG_FUND: 'false',
+    },
+  });
+
 export class CertificationProcessSupervisor {
   #children = new Map();
 
@@ -14,7 +86,7 @@ export class CertificationProcessSupervisor {
     assertSafeCommand({ command, args, workspaceRoot: this.workspaceRoot, allowDependencyInstall });
     const child = spawn(command, args, {
       cwd: this.workspaceRoot,
-      env: { ...process.env, ...env },
+      env,
       shell: false,
       detached: false,
       stdio: ['ignore', 'pipe', 'pipe'],

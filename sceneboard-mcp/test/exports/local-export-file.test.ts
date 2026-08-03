@@ -19,7 +19,7 @@ import {
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn, spawnSync, type SpawnOptions } from 'node:child_process';
 import { PassThrough, Writable } from 'node:stream';
 import test from 'node:test';
 
@@ -35,6 +35,7 @@ const manifestPath = resolve(packageRoot, 'native/local-export-helper.manifest.j
 const helperPath = resolve(packageRoot, 'native/linux-x64-gnu/local-export-helper');
 const testRoot = process.env.SCENEBOARD_TEST_TMP_ROOT ?? tmpdir();
 const helperSourcePath = resolve(packageRoot, 'native/local-export-helper.c');
+const verifierPath = resolve(packageRoot, 'scripts/verify-local-export-helper.mjs');
 
 const compileFaultInjectionHelper = async (directory: string): Promise<string> => {
   const output = join(directory, 'local-export-helper-fault-injection');
@@ -69,6 +70,13 @@ const runFaultInjectionHelper = async (
     | 'post-rename-sigint'
     | 'post-link-sigterm'
     | 'post-link-sigint'
+    | 'before-result-sigterm'
+    | 'before-result-sigint'
+    | 'during-result-sigterm'
+    | 'during-result-sigint'
+    | 'after-result-sigterm'
+    | 'after-result-sigint'
+    | 'delay-before-result'
     | 'replace-before-directory-fsync'
     | 'replace-before-sigterm'
     | 'replace-before-sigint',
@@ -104,6 +112,72 @@ const runFaultInjectionHelper = async (
     child.once('exit', (code) => resolveExit(code));
   });
   return { stdout: Buffer.concat(stdout).toString('ascii'), exitCode };
+};
+
+const runFaultInjectionHelperWithClosedOutput = async (
+  executable: string,
+  outputFile: string,
+  fault: 'directory-fsync' | null,
+  closedOutput: 'stdout' | 'stderr',
+): Promise<{
+  stdout: string;
+  exitCode: number | null;
+  signal: NodeJS.Signals | null;
+}> => {
+  const bytes = Buffer.from('%PDF-fault-injection', 'ascii');
+  const rootDescriptor = openSync('/', 0);
+  const child = spawn(executable, [], {
+    stdio: ['pipe', 'pipe', 'pipe', rootDescriptor, 'pipe'],
+    env: {
+      PATH: '/usr/bin:/bin',
+      ...(fault === null ? {} : { SCENEBOARD_HELPER_TEST_FAULT: fault }),
+    },
+  });
+  closeSync(rootDescriptor);
+  assert(child.stdout !== null);
+  assert(child.stderr !== null);
+  assert(child.stdin !== null);
+  const stdout: Buffer[] = [];
+  if (closedOutput === 'stdout') {
+    await new Promise<void>((resolveClose) => {
+      child.stdout?.once('close', resolveClose);
+      child.stdout?.destroy();
+    });
+    child.stderr.resume();
+  } else {
+    child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk));
+    await new Promise<void>((resolveClose) => {
+      child.stderr?.once('close', resolveClose);
+      child.stderr?.destroy();
+    });
+  }
+  const streamErrors: NodeJS.ErrnoException[] = [];
+  child.stdin.on('error', (error: NodeJS.ErrnoException) => streamErrors.push(error));
+  const control = child.stdio[4] as NodeJS.WritableStream;
+  control.on('error', (error: NodeJS.ErrnoException) => streamErrors.push(error));
+  control.end(
+    encodeLocalExportControlFrameV1(
+      {
+        format: 'pdf',
+        components: outputFile.slice(1).split('/'),
+        normalizedPathBytes: Buffer.byteLength(outputFile, 'utf8'),
+      },
+      bytes.byteLength,
+    ),
+  );
+  child.stdin.end(bytes);
+  const exit = await promptly(
+    new Promise<{ exitCode: number | null; signal: NodeJS.Signals | null }>(
+      (resolveExit, reject) => {
+        child.once('error', reject);
+        child.once('exit', (exitCode, signal) => resolveExit({ exitCode, signal }));
+      },
+    ),
+  );
+  assert(
+    streamErrors.every((error) => error.code === 'EPIPE' || error.code === 'ERR_STREAM_DESTROYED'),
+  );
+  return { stdout: Buffer.concat(stdout).toString('ascii'), ...exit };
 };
 
 const stream = (bytes: Buffer): ReadableStream<Uint8Array> =>
@@ -159,7 +233,15 @@ const promptly = async <Value>(promise: Promise<Value>, timeoutMs = 1_200): Prom
 
 const stallingSink = async (
   root: string,
-  mode: 'prefix' | 'body' | 'control' | 'control_error' | 'backpressure' | 'exit',
+  mode:
+    | 'prefix'
+    | 'body'
+    | 'control'
+    | 'control_error'
+    | 'backpressure'
+    | 'exit'
+    | 'ack'
+    | 'guarded_ack',
   uncooperative = false,
 ): Promise<{
   local: LocalExportFileV1;
@@ -210,9 +292,20 @@ const stallingSink = async (
       if (mode !== 'backpressure') callback();
     },
     final(callback) {
-      if (mode === 'exit') {
+      if (mode === 'ack') {
         stdout.end('SBEX/1 ok 5\n');
         stderr.end();
+        reach();
+        setImmediate(() => {
+          exited = true;
+          child.exitCode = 0;
+          child.emit('exit', 0, null);
+        });
+      } else if (mode === 'exit' || mode === 'guarded_ack') {
+        if (mode === 'exit') {
+          stdout.end();
+          stderr.end();
+        }
         reach();
       }
       callback();
@@ -249,10 +342,19 @@ const stallingSink = async (
   let exited = false;
   child.kill = (signal = 'SIGTERM') => {
     kills.push(signal);
-    if (exited || ((mode === 'exit' || uncooperative) && signal !== 'SIGKILL')) return true;
+    if (
+      exited ||
+      ((mode === 'exit' || mode === 'ack' || mode === 'guarded_ack' || uncooperative) &&
+        signal !== 'SIGKILL')
+    )
+      return true;
     exited = true;
     setImmediate(() => {
       child.signalCode = signal;
+      if (mode === 'guarded_ack') {
+        stdout.end('SBEX/1 ok 5\n');
+        stderr.end();
+      }
       child.emit('exit', null, signal);
     });
     return true;
@@ -294,6 +396,71 @@ const stallingSink = async (
   };
 };
 
+const faultInjectionSink = async (
+  root: string,
+  executable: string,
+  fault: 'delay-before-result',
+): Promise<LocalExportFileV1> => {
+  const bundle = `${root}/fault-injection-helper`;
+  const native = `${bundle}/linux-x64-gnu`;
+  await mkdir(native, { recursive: true, mode: 0o700 });
+  const fixtureManifest = `${bundle}/local-export-helper.manifest.json`;
+  const fixtureHelper = `${native}/local-export-helper`;
+  await copyFile(executable, fixtureHelper);
+  await chmod(fixtureHelper, 0o500);
+  const digest = createHash('sha256')
+    .update(await readFile(fixtureHelper))
+    .digest('hex');
+  await writeFile(
+    fixtureManifest,
+    `${JSON.stringify({
+      version: 1,
+      targets: {
+        'linux-x64-gnu': {
+          path: 'linux-x64-gnu/local-export-helper',
+          sha256: digest,
+          mode: '0500',
+        },
+      },
+    })}\n`,
+    { mode: 0o400 },
+  );
+  await chmod(fixtureManifest, 0o400);
+  let spawnCalls = 0;
+  return new LocalExportFileV1({
+    manifestPath: fixtureManifest,
+    platform: 'linux',
+    architecture: 'x64',
+    glibc: true,
+    spawn: ((command: string, args: readonly string[], options: SpawnOptions) => {
+      const call = spawnCalls;
+      spawnCalls += 1;
+      return spawn(command, args, {
+        ...options,
+        env: {
+          ...options?.env,
+          ...(call === 0 ? { SCENEBOARD_HELPER_TEST_FAULT: fault } : {}),
+        },
+      });
+    }) as unknown as typeof spawn,
+  });
+};
+
+const waitForPath = async (path: string, timeoutMs = 1_000): Promise<void> => {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (
+      await lstat(path).then(
+        () => true,
+        () => false,
+      )
+    )
+      return;
+    await new Promise((resolveWait) => setTimeout(resolveWait, 5));
+  }
+  throw new Error('expected path was not published before the deadline');
+};
+
 const sink = (): LocalExportFileV1 =>
   new LocalExportFileV1({
     manifestPath,
@@ -329,6 +496,58 @@ test('preflight rejects unsupported targets before touching a missing manifest',
       details: null,
     },
   });
+});
+
+test('packaged helper verifier rejects manifest and digest mode mismatches', async () => {
+  const root = await createRoot();
+  try {
+    const scripts = `${root}/scripts`;
+    const native = `${root}/native`;
+    const target = `${native}/linux-x64-gnu`;
+    await Promise.all([
+      mkdir(scripts, { recursive: true, mode: 0o700 }),
+      mkdir(target, { recursive: true, mode: 0o700 }),
+    ]);
+    await copyFile(verifierPath, `${scripts}/verify-local-export-helper.mjs`);
+    const helper = `${target}/local-export-helper`;
+    const digestPath = `${target}/local-export-helper.sha256`;
+    const fixtureManifest = `${native}/local-export-helper.manifest.json`;
+    const helperBytes = Buffer.from('verified-helper-fixture', 'ascii');
+    const digest = createHash('sha256').update(helperBytes).digest('hex');
+    await writeFile(helper, helperBytes, { mode: 0o500 });
+    await writeFile(digestPath, `${digest}\n`, { mode: 0o400 });
+    await writeFile(
+      fixtureManifest,
+      `${JSON.stringify({
+        version: 1,
+        targets: {
+          'linux-x64-gnu': {
+            path: 'linux-x64-gnu/local-export-helper',
+            sha256: digest,
+            mode: '0500',
+          },
+        },
+      })}\n`,
+      { mode: 0o400 },
+    );
+    await Promise.all([
+      chmod(helper, 0o500),
+      chmod(digestPath, 0o400),
+      chmod(fixtureManifest, 0o400),
+    ]);
+    const runVerifier = () =>
+      spawnSync(process.execPath, [`${scripts}/verify-local-export-helper.mjs`], {
+        encoding: 'utf8',
+      });
+    assert.equal(runVerifier().status, 0);
+    await chmod(fixtureManifest, 0o600);
+    assert.notEqual(runVerifier().status, 0);
+    await chmod(fixtureManifest, 0o400);
+    await chmod(digestPath, 0o600);
+    assert.notEqual(runVerifier().status, 0);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test('preflight accepts only strict absolute NFC non-glob paths with exact extension', async () => {
@@ -446,7 +665,7 @@ test('rejects symlink parents and hard-linked leaves without redirect or overwri
   }
 });
 
-test('held directory descriptors defeat a parent replacement race', async () => {
+test('rejects a replaced destination parent without publishing through a stale descriptor', async () => {
   const root = await createRoot();
   try {
     const local = sink();
@@ -478,9 +697,44 @@ test('held directory descriptors defeat a parent replacement race', async () => 
     streamController?.enqueue(Buffer.from('tail', 'ascii'));
     streamController?.close();
     const result = await pending;
-    assert.equal(result.ok, true);
-    assert.equal(await readFile(`${held}/race.pdf`, 'utf8'), '%PDF-tail');
+    assert.equal(result.ok, false);
+    if (!result.ok) assert.equal(result.error.code, 'LOCAL_EXPORT_INVALID_PATH');
+    assert.deepEqual(await readdir(held), []);
     assert.deepEqual(await readdir(attacker), []);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('accepts root-owned private/sticky ancestors and rejects unsafe user-owned modes', async () => {
+  const root = await createRoot();
+  try {
+    const [systemRootStatus, temporaryRootStatus] = await Promise.all([
+      lstat('/'),
+      lstat(tmpdir()),
+    ]);
+    assert.equal(systemRootStatus.uid, 0);
+    assert.equal(systemRootStatus.mode & 0o022, 0);
+    assert.equal(temporaryRootStatus.uid, 0);
+    assert.notEqual(temporaryRootStatus.mode & 0o1000, 0);
+    const local = sink();
+    const bytes = Buffer.from('%PDF-mode', 'ascii');
+    for (const [name, mode, expected] of [
+      ['private', 0o700, true],
+      ['group-writable', 0o770, false],
+      ['world-writable', 0o777, false],
+    ] as const) {
+      const directory = `${root}/${name}`;
+      await mkdir(directory, { mode });
+      await chmod(directory, mode);
+      const result = await local.publish(
+        prepared(local, `${directory}/mode.pdf`, 'pdf'),
+        artifact('pdf', bytes),
+      );
+      assert.equal(result.ok, expected);
+      if (!result.ok) assert.equal(result.error.code, 'LOCAL_EXPORT_INVALID_PATH');
+      assert.deepEqual(await readdir(directory), expected ? ['mode.pdf'] : []);
+    }
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -741,6 +995,106 @@ test('abort bounds stalled body, control, backpressure, and helper-exit waits', 
   }
 });
 
+test('late caller abort preserves a helper success acknowledgement', async () => {
+  const root = await createRoot();
+  try {
+    const fixture = await stallingSink(root, 'ack');
+    const controller = new AbortController();
+    const pending = fixture.local.publish(
+      prepared(fixture.local, `${root}/acknowledged.pdf`, 'pdf'),
+      artifact('pdf', Buffer.from('%PDF-', 'ascii')),
+      controller.signal,
+    );
+    await fixture.reached;
+    controller.abort();
+    assert.deepEqual(await pending, {
+      ok: true,
+      value: { format: 'pdf', bytes: 5, fileName: 'acknowledged.pdf' },
+    });
+    assert.equal(fixture.kills.includes('SIGTERM'), true);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('a guardian acknowledgement remains authoritative when the worker is force-terminated', async () => {
+  const root = await createRoot();
+  try {
+    const fixture = await stallingSink(root, 'guarded_ack');
+    const controller = new AbortController();
+    const pending = fixture.local.publish(
+      prepared(fixture.local, `${root}/guardian-acknowledged.pdf`, 'pdf'),
+      artifact('pdf', Buffer.from('%PDF-', 'ascii')),
+      controller.signal,
+    );
+    await fixture.reached;
+    controller.abort();
+    assert.deepEqual(await promptly(pending), {
+      ok: true,
+      value: { format: 'pdf', bytes: 5, fileName: 'guardian-acknowledged.pdf' },
+    });
+    assert.deepEqual(fixture.kills, ['SIGTERM', 'SIGKILL']);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('the real guardian resolves delayed post-publication aborts without stranding the target', async () => {
+  const root = await createRoot();
+  try {
+    const executable = await compileFaultInjectionHelper(root);
+    const local = await faultInjectionSink(root, executable, 'delay-before-result');
+    const target = `${root}/delayed-abort.pdf`;
+    const unrelated = `${root}/unrelated.pdf`;
+    await writeFile(unrelated, 'preserve', { mode: 0o600 });
+    const controller = new AbortController();
+    const pending = local.publish(
+      prepared(local, target, 'pdf'),
+      artifact('pdf', Buffer.from('%PDF-', 'ascii')),
+      controller.signal,
+    );
+    await waitForPath(target);
+    controller.abort();
+    const cancelled = await promptly(pending);
+    assert.equal(cancelled.ok, false);
+    if (!cancelled.ok) assert.equal(cancelled.error.code, 'LOCAL_EXPORT_CANCELLED');
+    await assert.rejects(lstat(target), { code: 'ENOENT' });
+    assert.equal(await readFile(unrelated, 'utf8'), 'preserve');
+
+    assert.deepEqual(
+      await local.publish(
+        prepared(local, target, 'pdf'),
+        artifact('pdf', Buffer.from('%PDF-', 'ascii')),
+      ),
+      { ok: true, value: { format: 'pdf', bytes: 5, fileName: 'delayed-abort.pdf' } },
+    );
+    assert.equal(await readFile(target, 'utf8'), '%PDF-');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('the real guardian retains a delayed acknowledged success beyond the force-kill grace', async () => {
+  const root = await createRoot();
+  try {
+    const executable = await compileFaultInjectionHelper(root);
+    const local = await faultInjectionSink(root, executable, 'delay-before-result');
+    const target = `${root}/delayed-success.pdf`;
+    const startedAt = Date.now();
+    assert.deepEqual(
+      await local.publish(
+        prepared(local, target, 'pdf'),
+        artifact('pdf', Buffer.from('%PDF-', 'ascii')),
+      ),
+      { ok: true, value: { format: 'pdf', bytes: 5, fileName: 'delayed-success.pdf' } },
+    );
+    assert.equal(Date.now() - startedAt >= 500, true);
+    assert.equal(await readFile(target, 'utf8'), '%PDF-');
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('response-stream failure remains retryable transport without publishing', async () => {
   const root = await createRoot();
   try {
@@ -873,6 +1227,50 @@ test('publication failures roll back only files created by this helper invocatio
   }
 });
 
+test('closed protocol outputs cannot interrupt post-publication rollback', async (context) => {
+  const root = await createRoot();
+  try {
+    await context.test('closed stdout rolls back an unacknowledged success', async () => {
+      const directory = `${root}/closed-stdout`;
+      await mkdir(directory, { mode: 0o700 });
+      const target = `${directory}/unacknowledged.pdf`;
+      assert.deepEqual(
+        {
+          outcome: await runFaultInjectionHelperWithClosedOutput(
+            helperPath,
+            target,
+            null,
+            'stdout',
+          ),
+          entries: await readdir(directory),
+        },
+        { outcome: { stdout: '', exitCode: 1, signal: null }, entries: [] },
+      );
+    });
+    const executable = await compileFaultInjectionHelper(root);
+    await context.test(
+      'closed stderr cannot prevent rollback after directory fsync failure',
+      async () => {
+        const directory = `${root}/closed-stderr`;
+        await mkdir(directory, { mode: 0o700 });
+        const target = `${directory}/failed.pdf`;
+        assert.deepEqual(
+          await runFaultInjectionHelperWithClosedOutput(
+            executable,
+            target,
+            'directory-fsync',
+            'stderr',
+          ),
+          { stdout: 'SBEX/1 io 0\n', exitCode: 0, signal: null },
+        );
+        assert.deepEqual(await readdir(directory), []);
+      },
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test('publication transitions are signal-safe and cleanup is identity-bound', async () => {
   const root = await createRoot();
   try {
@@ -905,6 +1303,26 @@ test('publication transitions are signal-safe and cleanup is identity-bound', as
         exitCode: 143,
       });
       assert.deepEqual(await readdir(path), []);
+    }
+
+    for (const [index, fault] of (
+      [
+        'before-result-sigterm',
+        'before-result-sigint',
+        'during-result-sigterm',
+        'during-result-sigint',
+        'after-result-sigterm',
+        'after-result-sigint',
+      ] as const
+    ).entries()) {
+      const directory = `${root}/ack-${index}`;
+      await mkdir(directory, { mode: 0o700 });
+      const target = `${directory}/signal.pdf`;
+      assert.deepEqual(await runFaultInjectionHelper(executable, target, fault), {
+        stdout: 'SBEX/1 ok 20\n',
+        exitCode: 0,
+      });
+      assert.equal(await readFile(target, 'utf8'), '%PDF-fault-injection');
     }
 
     const fsyncReplacement = `${fsyncReplacementDirectory}/replacement.pdf`;

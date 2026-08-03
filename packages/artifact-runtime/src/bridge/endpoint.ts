@@ -1,4 +1,9 @@
 import type { ArtifactReferenceV1 } from '@sceneboard/board-schema';
+import {
+  rejectArtifactSecretSinkV1,
+  type ArtifactSecretSinkV1,
+  type ArtifactSecretSinkObserverV1,
+} from '../policy/secret-sink-observability.js';
 
 import {
   parseArtifactBridgeEnvelopeV1,
@@ -76,6 +81,14 @@ export class ArtifactBridgeEndpointV1 {
       throw new TypeError('bridge sequence is not contiguous');
     this.#inboundSequence += 1;
     return parsed;
+  }
+
+  rejectSecretSink(
+    sink: ArtifactSecretSinkV1,
+    rawPayload: unknown,
+    observer: ArtifactSecretSinkObserverV1,
+  ): void {
+    rejectArtifactSecretSinkV1({ sink, rawPayload, observer });
   }
 
   close(): void {

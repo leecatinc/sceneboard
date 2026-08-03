@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
+import { runInNewContext } from 'node:vm';
 
 import {
   SceneArtifactError,
@@ -62,6 +63,91 @@ test('KitCatHub seven-slide deck compiles deterministically with no capabilities
     /https?:\/\/|@import|@font-face|cdn/i,
   );
   assert.doesNotThrow(() => new Function(first.source.javascript));
+});
+
+test('slide-deck initializes and navigates when ResizeObserver is unavailable', () => {
+  const listeners = () => new Map();
+  const element = () => ({
+    attributes: new Map(),
+    listeners: listeners(),
+    style: {
+      values: new Map(),
+      setProperty(name, value) {
+        this.values.set(name, value);
+      },
+    },
+    hidden: false,
+    disabled: false,
+    textContent: '',
+    setAttribute(name, value) {
+      this.attributes.set(name, value);
+    },
+    removeAttribute(name) {
+      this.attributes.delete(name);
+    },
+    addEventListener(name, listener) {
+      this.listeners.set(name, listener);
+    },
+  });
+  const stage = element();
+  const slides = Array.from({ length: 7 }, element);
+  const previous = element();
+  const next = element();
+  const current = element();
+  const bar = element();
+  let focused = 0;
+  let hostResizeRequests = 0;
+  const root = {
+    ...element(),
+    clientWidth: 960,
+    clientHeight: 540,
+    focus() {
+      focused += 1;
+    },
+    querySelector(selector) {
+      return new Map([
+        ['[data-deck-stage]', stage],
+        ['[data-deck-previous]', previous],
+        ['[data-deck-next]', next],
+        ['[data-deck-current]', current],
+        ['[data-deck-progress]', bar],
+      ]).get(selector);
+    },
+    querySelectorAll(selector) {
+      return selector === '[data-deck-slide]' ? slides : [];
+    },
+  };
+
+  assert.doesNotThrow(() =>
+    runInNewContext(compile().source.javascript, {
+      document: { querySelector: () => root },
+      window: {
+        SceneBoardArtifact: {
+          requestResize(width, height) {
+            assert.deepEqual([width, height], [1920, 1080]);
+            hostResizeRequests += 1;
+          },
+        },
+      },
+      requestAnimationFrame(callback) {
+        callback();
+      },
+    }),
+  );
+  assert.equal(slides.filter((slide) => !slide.hidden).length, 1);
+  assert.equal(slides[0].attributes.get('aria-hidden'), 'false');
+  assert.equal(previous.disabled, true);
+  assert.equal(next.disabled, false);
+  assert.equal(current.textContent, '1 / 7');
+  assert.equal(stage.style.transform, 'scale(0.5)');
+  assert.equal(focused, 1);
+  assert.equal(hostResizeRequests, 1);
+
+  next.listeners.get('click')();
+  assert.equal(slides.filter((slide) => !slide.hidden).length, 1);
+  assert.equal(current.textContent, '2 / 7');
+  assert.equal(bar.attributes.get('aria-valuenow'), '2');
+  assert.equal(bar.style.values.get('--sb-deck-progress'), `${(2 / 7) * 100}%`);
 });
 
 test('slide-deck rejects duplicate keys, empty titles, unknown types, and non-16:9 recipes', () => {

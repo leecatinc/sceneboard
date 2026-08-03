@@ -8,6 +8,7 @@ import {
   safeResult,
   sha256,
 } from './lib/certification/canonical-json.mjs';
+import { createGitCertificationEnvironment } from './lib/certification/process-lifecycle.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const targets = [
@@ -19,7 +20,11 @@ const targets = [
 ];
 
 const repositoryState = (path) => {
-  const options = { cwd: root, stdio: 'ignore' };
+  const options = {
+    cwd: root,
+    env: createGitCertificationEnvironment(process.env),
+    stdio: 'ignore',
+  };
   const ignoredStatus = spawnSync('git', ['check-ignore', '--quiet', '--', path], options).status;
   const trackedStatus = spawnSync(
     'git',

@@ -28,6 +28,7 @@ const capture = (
   error: unknown,
   request: { url?: string; [BOARD_REQUEST_ID]?: never } = {},
   responseState: { headersSent?: boolean; writableEnded?: boolean; destroyed?: boolean } = {},
+  observeError: (bytes: string) => void = () => {},
 ) => {
   const headers = new Map<string, string>();
   let status = 0;
@@ -47,7 +48,7 @@ const capture = (
   const host = {
     switchToHttp: () => ({ getResponse: () => response, getRequest: () => request }),
   } as unknown as ArgumentsHost;
-  new HttpErrorFilter(crypto).catch(error, host);
+  new HttpErrorFilter(crypto, { observe: observeError }).catch(error, host);
   return { status, body, headers };
 };
 
@@ -93,6 +94,102 @@ test('maps unknown exceptions to one generic internal error', () => {
     error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
   });
   assert.equal(JSON.stringify(response.body).includes('password leaked'), false);
+});
+
+test('emits a fixed safe ERROR record without arbitrary exception data', () => {
+  const canary = `sk-${'A'.repeat(43)}`;
+  const records: string[] = [];
+  const secretBearingKey = `credential-${canary}`;
+  const response = capture(
+    {
+      email: 'user@example.invalid',
+      diagnostic: { nested: canary },
+      [secretBearingKey]: 'sensitive-value',
+    },
+    { url: '/api/v1/pairings/claim' },
+    {},
+    (bytes) => records.push(bytes),
+  );
+  assert.equal(response.status, 500);
+  assert.equal(records.length, 1);
+  assert.deepEqual(JSON.parse(records[0] ?? ''), {
+    name: 'SafeOperationalError',
+    message: 'Operation failed',
+    details: {},
+  });
+  assert.equal(records[0]?.includes(canary), false);
+  assert.equal(records[0]?.includes('user@example.invalid'), false);
+  assert.equal(records[0]?.includes(secretBearingKey), false);
+  assert.equal(records[0]?.includes('sensitive-value'), false);
+});
+
+test('does not traverse cyclic or accessor-bearing unknown errors', () => {
+  const canary = `sk-${'A'.repeat(43)}`;
+  const records: string[] = [];
+  let accessorReads = 0;
+  const exception: Record<string, unknown> = {
+    diagnostic: canary,
+    operation: 'database.read',
+  };
+  exception.self = exception;
+  Object.defineProperty(exception, 'cause', {
+    enumerable: true,
+    get: () => {
+      accessorReads += 1;
+      throw new Error(`accessor exposed ${canary}`);
+    },
+  });
+
+  const response = capture(
+    exception,
+    { url: '/api/v1/pairings/claim' },
+    {},
+    (bytes) => records.push(bytes),
+  );
+
+  assert.equal(response.status, 500);
+  assert.deepEqual(response.body, {
+    error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
+  });
+  assert.equal(records.length, 1);
+  assert.deepEqual(JSON.parse(records[0] ?? '').details, {});
+  assert.equal(accessorReads, 0);
+  assert.equal(records[0]?.includes(canary), false);
+  assert.equal(records[0]?.includes('database.read'), false);
+});
+
+test('keeps Error causes out of the HTTP response and ERROR observation', () => {
+  const canary = `sk-${'A'.repeat(43)}`;
+  const records: string[] = [];
+  const response = capture(
+    new Error('database unavailable', { cause: new Error(canary) }),
+    { url: '/api/v1/pairings/claim' },
+    {},
+    (bytes) => records.push(bytes),
+  );
+
+  assert.equal(response.status, 500);
+  assert.deepEqual(response.body, {
+    error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
+  });
+  assert.equal(records.length, 1);
+  assert.deepEqual(JSON.parse(records[0] ?? ''), {
+    name: 'SafeOperationalError',
+    message: 'Operation failed',
+    details: {},
+  });
+  assert.equal(records[0]?.includes(canary), false);
+  assert.equal(records[0]?.includes('database unavailable'), false);
+});
+
+test('aborts the HTTP response when the ERROR observer fails', () => {
+  assert.throws(
+    () =>
+      capture(new Error('database unavailable'), { url: '/api/v1/pairings/claim' }, {}, () => {
+        throw new Error('error sink unavailable');
+      }),
+    /error sink unavailable/u,
+  );
 });
 
 test('maps board-bound infrastructure errors to D1 and preserves admitted correlation', () => {

@@ -6,6 +6,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { canonicalJson } from './lib/certification/canonical-json.mjs';
+import { createNpmCertificationEnvironment } from './lib/certification/process-lifecycle.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const requireFromBackend = createRequire(resolve(root, 'sceneboard-be/package.json'));
@@ -193,6 +194,7 @@ const collectAdvisories = () => {
   try {
     stdout = execFileSync('npm', ['audit', '--omit=dev', '--json'], {
       cwd: root,
+      env: createNpmCertificationEnvironment(process.env, { network: true }),
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
       maxBuffer: 16 * 1024 * 1024,

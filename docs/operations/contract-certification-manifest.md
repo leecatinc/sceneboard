@@ -1,8 +1,8 @@
 # SceneBoard contract certification manifests
 
 The D1-D9 baseline remains frozen in `contract-input-inventory.v1.json` and
-`contract-manifest.v1.json`. It now contains 472 alias-independent resources,
-30 migration registry entries, and 33 SQL assets. `npm run verify:contracts`
+`contract-manifest.v1.json`. It now contains 475 alias-independent resources,
+32 migration registry entries, and 35 SQL assets. `npm run verify:contracts`
 recomputes that baseline read-only.
 
 The presentation increment has a separate closed authority:
@@ -26,20 +26,32 @@ manifest, release index, and verification evidence together.
 The presentation verifier rejects missing or reordered requirements and
 decisions, owner drift, path aliases and symlinks, duplicate inputs, orphan
 publishers, self-reference, migration sequence drift, exclusion-as-PASS, and a
-release index without the exclusion content hash. The collision-free
-presentation migration sequence is exactly 013 through 027.
+release index without the exclusion content hash. The presentation authority has an explicit
+terminal migration boundary of 027. Verification compares the exact contiguous 013-through-027
+registry slice; later entries 028 and 029 remain outside this historical boundary and cannot hide
+an omission inside it.
 
 The committed manifest owns only reproducible source hashes. It never embeds
 its own hash, a source commit, or a runtime attempt identity. Runtime evidence
 owns those values and uses the manifest SHA-256 as an immutable attempt input.
 
-The I-53 cross-surface evidence set lives outside the source manifest at
-`.hpipe/plan/evidence/I-53-certification/`. Its `manifest.json` closes the exact package commands
-and certification row IDs. Each `results.jsonl` row records one `PASS`, `FAIL`, `BLOCKED`, or
-`UNVERIFIED` result with a redacted log reference and artifact hash. Missing infrastructure,
-skipped assertions, absent artifacts and manual observations never become `PASS`.
+The I-53 cross-surface evidence set lives outside the source manifest at the canonical
+`.artifacts/certification/<commit>/<manifest>/<profile>/<attempt>/` owned root. Its create-once
+`manifest.json` closes the exact package commands and certification row IDs. Canonical JSON records
+carry one `PASS`, `FAIL`, `BLOCKED`, or `UNVERIFIED` result, command-output digests, semantic artifact,
+and the shared attempt identity. Missing infrastructure, skipped assertions, absent artifacts, and
+manual observations never become `PASS`.
 
-`node scripts/verify-ai-export-certification.mjs
-../.hpipe/plan/evidence/I-53-certification/manifest.json` verifies the closed row set and emits the
-derived rollup only when every required input row is present and valid. Any required non-PASS row
-keeps the rollup non-PASS and names the release blocker.
+`verify-ai-export-certification.mjs` accepts only the five fixed identity arguments, reconstructs
+the owned attempt path, requires the owned release index, and verifies the closed row set. It never
+accepts an arbitrary manifest path, an unfinalized attempt, or rewrites a finalized attempt. Any
+required non-PASS row keeps the derived rollup non-PASS and names the release blocker.
+
+The repository-owned I-53 traceability authority is the canonical JSON value below. The release
+producer reads this exact bounded block through an owned, no-follow descriptor and binds its digest
+to the current source manifest and attempt. The independent verifier repeats the same closed-set
+validation; prose or token substring matches are never accepted as traceability evidence.
+
+<!-- I53_TRACEABILITY_AUTHORITY_V1
+{"mappings":[{"evidenceKind":"schema-contract-test","issueId":"I-45","owner":"D1","producerRowId":"PKG-SCHEMA-TEST","requirementId":"REQ-134"},{"evidenceKind":"auth-origin-topology","issueId":"I-46","owner":"D2","producerRowId":"INT-AUTH-ORIGINS","requirementId":"REQ-135"},{"evidenceKind":"application-contract-test","issueId":"I-47","owner":"D3","producerRowId":"PKG-BE-TEST","requirementId":"REQ-136"},{"evidenceKind":"sdk-contract-test","issueId":"I-48","owner":"D4","producerRowId":"PKG-SDK-TEST","requirementId":"REQ-137"},{"evidenceKind":"browser-control-test","issueId":"I-49","owner":"D5","producerRowId":"PKG-FE-TEST","requirementId":"REQ-138"},{"evidenceKind":"runtime-smoke","issueId":"I-50","owner":"D6","producerRowId":"CERT-RUNTIME-SMOKE","requirementId":"REQ-139"},{"evidenceKind":"pdf-golden","issueId":"I-51","owner":"D7","producerRowId":"CERT-PDF-GOLDEN","requirementId":"REQ-140"},{"evidenceKind":"secret-scan","issueId":"I-52","owner":"D8","producerRowId":"CERT-SECRET-SCAN","requirementId":"REQ-141"},{"evidenceKind":"migration-projection","issueId":"I-53","owner":"D9","producerRowId":"CERT-MIG-027","requirementId":"REQ-142"},{"evidenceKind":"browser-scenarios","issueId":"I-53","owner":"D10","producerRowId":"CERT-BROWSER-E2E","requirementId":"REQ-143"},{"evidenceKind":"supervised-browser-observation","issueId":"I-53","owner":"D10","producerRowId":"MANUAL-BROWSER-ACCEPTANCE","requirementId":"REQ-144"}],"schemaVersion":1,"tools":[{"evidenceKind":"explicit-revision-browser-export","issueId":"I-53","owner":"D10","producerRowId":"CERT-BROWSER-E2E","toolName":"board_export"}]}
+I53_TRACEABILITY_AUTHORITY_V1 -->

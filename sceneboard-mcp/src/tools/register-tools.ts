@@ -878,7 +878,7 @@ export const registerCoreToolsV1 = (
   if (credentialMode === 'api_key') {
     add(
       'board_export',
-      'Export one current or retained board revision to a new no-clobber local PDF or PPTX file.',
+      'Export one explicit retained board revision to a new no-clobber local PDF or PPTX file.',
       BoardExportInputSchemaV1,
       (raw, signal) => exports.export(raw, signal),
       true,

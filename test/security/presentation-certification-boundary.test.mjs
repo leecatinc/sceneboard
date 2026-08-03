@@ -4,12 +4,13 @@ import test from 'node:test';
 
 const read = (path) => readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8');
 
-test('presentation migration slots are exact and collision free from 013 through 028', () => {
+test('presentation migration slots are exact through terminal 027 and later entries remain ordered', () => {
   const registry = read('sceneboard-be/src/database/migrations/registry.ts');
   const versions = [...registry.matchAll(/\bversion: '(\d{3})_/gu)]
     .map((match) => match[1])
     .filter((version) => Number(version) >= 13);
-  assert.deepEqual(versions, [
+  const presentationVersions = versions.filter((version) => Number(version) <= 27);
+  assert.deepEqual(presentationVersions, [
     '013',
     '014',
     '015',
@@ -25,9 +26,9 @@ test('presentation migration slots are exact and collision free from 013 through
     '025',
     '026',
     '027',
-    '028',
   ]);
   assert.equal(new Set(versions).size, versions.length);
+  assert.deepEqual(versions.slice(presentationVersions.length), ['028', '029']);
 });
 
 test('public analytics and MCP media sources contain no forbidden persistent path or identity sinks', () => {

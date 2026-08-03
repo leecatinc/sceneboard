@@ -1,8 +1,23 @@
 import { randomBytes } from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
-import { relative, resolve } from 'node:path';
-import { CertificationError, canonicalJson, sha256 } from './canonical-json.mjs';
+import { constants, existsSync } from 'node:fs';
+import {
+  link,
+  lstat,
+  mkdir,
+  open,
+  readFile,
+  readdir,
+  realpath,
+  unlink,
+  writeFile,
+} from 'node:fs/promises';
+import { isAbsolute, relative, resolve, sep } from 'node:path';
+import {
+  CertificationError,
+  canonicalJson,
+  containsSecretLikeMaterial,
+  sha256,
+} from './canonical-json.mjs';
 import {
   claimFreshDirectory,
   ensureOwnedChildDirectory,
@@ -13,15 +28,12 @@ import {
 const MAX_RECORD_BYTES = 64 * 1024;
 const MAX_ATTACHMENT_BYTES = 1024 * 1024;
 const secretLikeKey =
-  /(?:password|secret|token|credential|cookie|authorization|proof|otp|csrf|rawValue|bindValue|payloadBody)/iu;
+  /(?:password|secret|token|credential|cookie|authorization|proof|otp|csrf|apiKey|accessKey|privateKey|rawValue|bindValue|payloadBody)/iu;
 
 const safeObject = (value, path = '') => {
   if (value === null || typeof value === 'boolean' || typeof value === 'number') return;
   if (typeof value === 'string') {
-    if (
-      /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/u.test(value) ||
-      /\bsk-[A-Za-z0-9_-]{20,}\b/u.test(value)
-    ) {
+    if (containsSecretLikeMaterial(value)) {
       throw new CertificationError('EVIDENCE_SECRET_CANARY_MATCH', path);
     }
     return;
@@ -43,18 +55,109 @@ const exclusiveJson = async (path, value, maxBytes = MAX_RECORD_BYTES) => {
   safeObject(value);
   const bytes = Buffer.from(`${canonicalJson(value)}\n`);
   if (bytes.length > maxBytes) throw new CertificationError('EVIDENCE_RECORD_TOO_LARGE');
+  const temporary = `${path}.tmp-${process.pid}-${randomBytes(8).toString('hex')}`;
   try {
-    await writeFile(path, bytes, { flag: 'wx', mode: 0o600 });
+    await writeFile(temporary, bytes, { flag: 'wx', mode: 0o600 });
+    await link(temporary, path);
   } catch (error) {
     if (error?.code === 'EEXIST')
       throw new CertificationError('EVIDENCE_OUTPUT_OWNERSHIP_VIOLATION');
     throw error;
+  } finally {
+    await unlink(temporary).catch(() => undefined);
   }
   return sha256(bytes);
 };
 
+const isContained = (parent, child) => {
+  const offset = relative(parent, child);
+  return offset !== '..' && !offset.startsWith(`..${sep}`) && !isAbsolute(offset) && offset !== '';
+};
+
+export const readPrivateRegularFile = async (attemptRoot, path) => {
+  if (!isContained(attemptRoot, path))
+    throw new CertificationError('EVIDENCE_OUTPUT_OWNERSHIP_VIOLATION');
+  const before = await lstat(path);
+  if (before.isSymbolicLink() || (await realpath(path)) !== path)
+    throw new CertificationError('EVIDENCE_OUTPUT_OWNERSHIP_VIOLATION');
+  const handle = await open(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+  try {
+    const metadata = await handle.stat();
+    const expectedUid = process.getuid?.();
+    if (
+      !metadata.isFile() ||
+      metadata.nlink !== 1 ||
+      (expectedUid !== undefined && metadata.uid !== expectedUid) ||
+      (metadata.mode & 0o077) !== 0 ||
+      metadata.dev !== before.dev ||
+      metadata.ino !== before.ino
+    ) {
+      throw new CertificationError('EVIDENCE_OUTPUT_OWNERSHIP_VIOLATION');
+    }
+    const bytes = await handle.readFile();
+    const after = await lstat(path);
+    if (
+      after.isSymbolicLink() ||
+      after.dev !== metadata.dev ||
+      after.ino !== metadata.ino ||
+      after.size !== metadata.size ||
+      after.mtimeNs !== metadata.mtimeNs
+    ) {
+      throw new CertificationError('EVIDENCE_OUTPUT_OWNERSHIP_VIOLATION');
+    }
+    return bytes;
+  } finally {
+    await handle.close();
+  }
+};
+
+export const evidenceTreeSha256ForAttempt = async (attemptRoot) => {
+  const rows = [];
+  const visit = async (directory) => {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const path = resolve(directory, entry.name);
+      if (entry.isSymbolicLink())
+        throw new CertificationError('EVIDENCE_OUTPUT_OWNERSHIP_VIOLATION');
+      if (entry.isDirectory()) {
+        const metadata = await lstat(path);
+        const expectedUid = process.getuid?.();
+        if (
+          metadata.isSymbolicLink() ||
+          (expectedUid !== undefined && metadata.uid !== expectedUid) ||
+          (metadata.mode & 0o077) !== 0 ||
+          (await realpath(path)) !== path
+        ) {
+          throw new CertificationError('EVIDENCE_OUTPUT_OWNERSHIP_VIOLATION');
+        }
+        await visit(path);
+      } else if (
+        entry.isFile() &&
+        entry.name !== 'release-index.json' &&
+        entry.name !== '.owner.json'
+      ) {
+        rows.push({
+          path: relative(attemptRoot, path).split('\\').join('/'),
+          sha256: sha256(await readPrivateRegularFile(attemptRoot, path)),
+        });
+      } else if (!entry.isFile()) {
+        throw new CertificationError('EVIDENCE_OUTPUT_OWNERSHIP_VIOLATION');
+      }
+    }
+  };
+  await visit(attemptRoot);
+  rows.sort((left, right) => left.path.localeCompare(right.path, 'en'));
+  return sha256(canonicalJson(rows));
+};
+
 export class CertificationEvidenceWriter {
   static async create({ workspaceRoot, sourceCommit, manifestSha256, profile, attemptId }) {
+    if (
+      !/^[0-9a-f]{40}$/u.test(sourceCommit) ||
+      !/^[0-9a-f]{64}$/u.test(manifestSha256) ||
+      !['non-production', 'test'].includes(profile)
+    ) {
+      throw new CertificationError('EVIDENCE_SCHEMA_INVALID');
+    }
     const parent = await ensureOwnedParent(workspaceRoot, '.artifacts/certification');
     const sourceRoot = await ensureOwnedChildDirectory(parent, sourceCommit);
     const manifestRoot = await ensureOwnedChildDirectory(sourceRoot, manifestSha256);
@@ -92,6 +195,11 @@ export class CertificationEvidenceWriter {
       resolveOwnedChild(resolve(this.attemptRoot, 'records'), `${row.rowId}.json`),
       row,
     );
+  }
+
+  async writeManifest(ownerToken, manifest) {
+    this.#assertToken(ownerToken);
+    return exclusiveJson(resolve(this.attemptRoot, 'manifest.json'), manifest);
   }
 
   async writeAttachment(ownerToken, bytes, mediaType) {
@@ -146,40 +254,13 @@ export class CertificationEvidenceWriter {
 
   async finalizePhase(ownerToken, phaseId, index) {
     this.#assertToken(ownerToken);
-    const temporary = resolveOwnedChild(resolve(this.attemptRoot, 'phases'), `${phaseId}.tmp`);
     const final = resolveOwnedChild(resolve(this.attemptRoot, 'phases'), `${phaseId}.json`);
-    await exclusiveJson(temporary, index);
-    try {
-      await rename(temporary, final);
-    } catch {
-      throw new CertificationError('EVIDENCE_OUTPUT_OWNERSHIP_VIOLATION');
-    }
+    await exclusiveJson(final, index);
     return sha256(await readFile(final));
   }
 
   async evidenceTreeSha256() {
-    const rows = [];
-    const visit = async (directory) => {
-      for (const entry of await readdir(directory, { withFileTypes: true })) {
-        const path = resolve(directory, entry.name);
-        if (entry.isSymbolicLink())
-          throw new CertificationError('EVIDENCE_OUTPUT_OWNERSHIP_VIOLATION');
-        if (entry.isDirectory()) await visit(path);
-        else if (
-          entry.isFile() &&
-          entry.name !== 'release-index.json' &&
-          entry.name !== '.owner.json'
-        ) {
-          rows.push({
-            path: relative(this.attemptRoot, path).split('\\').join('/'),
-            sha256: sha256(await readFile(path)),
-          });
-        }
-      }
-    };
-    await visit(this.attemptRoot);
-    rows.sort((left, right) => left.path.localeCompare(right.path, 'en'));
-    return sha256(canonicalJson(rows));
+    return evidenceTreeSha256ForAttempt(this.attemptRoot);
   }
 
   async finalizeRelease(ownerToken, index) {

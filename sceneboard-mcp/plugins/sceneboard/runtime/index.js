@@ -36767,16 +36767,54 @@ var waitForChildExitBoundedV1 = async (child, timeoutMs) => {
     child.once("error", exited);
   });
 };
-var terminateChildV1 = async (child, control) => {
+var waitForReadableClosureBoundedV1 = async (stream, timeoutMs) => {
+  const readable = stream;
+  if (readable.destroyed === true || readable.readableEnded === true) return true;
+  return new Promise((resolveClosure) => {
+    const cleanup = () => {
+      clearTimeout(timer);
+      stream.removeListener("close", closed);
+      stream.removeListener("end", closed);
+      stream.removeListener("error", closed);
+    };
+    const closed = () => {
+      cleanup();
+      resolveClosure(true);
+    };
+    const timer = setTimeout(() => {
+      cleanup();
+      resolveClosure(false);
+    }, timeoutMs);
+    stream.once("close", closed);
+    stream.once("end", closed);
+    stream.once("error", closed);
+  });
+};
+var terminateChildV1 = async (child, control, publicationMayExist) => {
   destroyStreamV1(control ?? null);
   destroyStreamV1(child.stdin);
-  destroyStreamV1(child.stdout);
-  destroyStreamV1(child.stderr);
-  if (child.exitCode !== null || child.signalCode !== null) return;
+  if (!publicationMayExist) {
+    destroyStreamV1(child.stdout);
+    destroyStreamV1(child.stderr);
+  }
+  const waitForPublicationClosure = async () => {
+    if (!publicationMayExist) return;
+    await Promise.all([
+      waitForReadableClosureBoundedV1(child.stdout, 750),
+      waitForReadableClosureBoundedV1(child.stderr, 750)
+    ]);
+  };
+  if (child.exitCode !== null || child.signalCode !== null) {
+    await waitForPublicationClosure();
+    return;
+  }
   child.kill("SIGTERM");
-  if (await waitForChildExitBoundedV1(child, 250)) return;
+  if (await waitForChildExitBoundedV1(child, 250)) {
+    await waitForPublicationClosure();
+    return;
+  }
   child.kill("SIGKILL");
-  await waitForChildExitBoundedV1(child, 250);
+  await Promise.all([waitForChildExitBoundedV1(child, 250), waitForPublicationClosure()]);
 };
 var LocalExportFileV1 = class {
   constructor(options) {
@@ -36874,13 +36912,16 @@ var LocalExportFileV1 = class {
     let control;
     let overflow = false;
     let downloadFailed = false;
+    let payloadForwarded = false;
     const abort = () => {
       child?.kill("SIGTERM");
-      if (child !== void 0) {
+      if (child !== void 0 && !payloadForwarded) {
         destroyStreamV1(control ?? null);
         destroyStreamV1(child.stdin);
-        destroyStreamV1(child.stdout);
-        destroyStreamV1(child.stderr);
+      } else if (child !== void 0) {
+        void waitForChildExitBoundedV1(child, 250).then((exited) => {
+          if (!exited) child?.kill("SIGKILL");
+        });
       }
     };
     signal?.addEventListener("abort", abort, { once: true });
@@ -36931,8 +36972,7 @@ var LocalExportFileV1 = class {
         () => {
           overflow = true;
           child?.kill("SIGTERM");
-        },
-        signal
+        }
       );
       const stderrPromise = collectBoundedV1(
         child,
@@ -36941,10 +36981,9 @@ var LocalExportFileV1 = class {
         () => {
           overflow = true;
           child?.kill("SIGTERM");
-        },
-        signal
+        }
       );
-      const exitPromise = waitForExitV1(child, signal);
+      const exitPromise = waitForExitV1(child);
       const completion = Promise.all([stdoutPromise, stderrPromise, exitPromise]);
       void completion.catch(() => void 0);
       await endWritableV1(
@@ -36968,22 +37007,24 @@ var LocalExportFileV1 = class {
         if (next.done) break;
         await forward(Buffer.from(next.value));
       }
-      await endWritableV1(child.stdin, Buffer.alloc(0), signal);
+      payloadForwarded = true;
+      await endWritableV1(child.stdin, Buffer.alloc(0));
       const [stdout, stderr, exited] = await completion;
       const diagnosticText = new TextDecoder("utf-8", { fatal: true }).decode(stderr);
       if (diagnosticText !== "" && !/^(?:SBEX\/1 io (?:openat|fstat|write|fsync|publish|unlink) errno=[0-9]+\n)+$/u.test(
         diagnosticText
       ))
         return { ok: false, error: error2("LOCAL_EXPORT_CORRUPT") };
-      if (signal?.aborted === true) return { ok: false, error: error2("LOCAL_EXPORT_CANCELLED") };
       if (overflow || received > artifact.contentLength)
         return { ok: false, error: error2("LOCAL_EXPORT_CORRUPT") };
       if (received < artifact.contentLength)
         return { ok: false, error: error2("LOCAL_EXPORT_SHORT") };
       const line = stdout.toString("ascii");
       const match = /^SBEX\/1 (ok|exists|invalid|unsupported|io|short|corrupt) (0|[1-9][0-9]*)\n$/u.exec(line);
-      if (match === null || exited.signal !== null || exited.code !== 0)
+      if (match === null) {
+        if (signal?.aborted === true) return { ok: false, error: error2("LOCAL_EXPORT_CANCELLED") };
         return { ok: false, error: error2("LOCAL_EXPORT_CORRUPT") };
+      }
       const resultCode = match[1];
       const bytes = Number(match[2]);
       if (resultCode === "ok") {
@@ -36994,6 +37035,11 @@ var LocalExportFileV1 = class {
           value: { format: intent.format, bytes, fileName: intent.displayName }
         };
       }
+      if (exited.signal !== null || exited.code !== 0) {
+        if (signal?.aborted === true) return { ok: false, error: error2("LOCAL_EXPORT_CANCELLED") };
+        return { ok: false, error: error2("LOCAL_EXPORT_CORRUPT") };
+      }
+      if (signal?.aborted === true) return { ok: false, error: error2("LOCAL_EXPORT_CANCELLED") };
       if (bytes !== 0) return { ok: false, error: error2("LOCAL_EXPORT_CORRUPT") };
       const mapped = {
         exists: "LOCAL_EXPORT_EXISTS",
@@ -37008,7 +37054,8 @@ var LocalExportFileV1 = class {
         error: error2(mapped[resultCode])
       };
     } catch {
-      if (child !== void 0) await terminateChildV1(child, control).catch(() => void 0);
+      if (child !== void 0)
+        await terminateChildV1(child, control, payloadForwarded).catch(() => void 0);
       this.release(intent);
       if (rootDescriptor >= 0) {
         closeSync(rootDescriptor);
@@ -37061,8 +37108,7 @@ var exportPreflightFailureV1 = (value) => {
   if (Object.keys(root).sort().join("\0") !== ["error", "ok"].join("\0"))
     return { ok: false, source: "local", error: { code: "RESPONSE_INVALID" } };
   const parsed = BoardErrorParserV1.parse(root.error);
-  if (!parsed.ok)
-    return { ok: false, source: "local", error: { code: "RESPONSE_INVALID" } };
+  if (!parsed.ok) return { ok: false, source: "local", error: { code: "RESPONSE_INVALID" } };
   const boardCode = parsed.data.value.code;
   if (!Object.hasOwn(EXPORT_PREFLIGHT_FAILURE_CODES_V1, boardCode))
     return { ok: false, source: "local", error: { code: "RESPONSE_INVALID" } };
@@ -37088,6 +37134,7 @@ var canonicalRenameTimestampV1 = (value) => {
   const instant = Date.parse(value);
   return Number.isFinite(instant) && new Date(instant).toISOString() === value;
 };
+var EXPORT_PUBLICATION_SETTLEMENT_TIMEOUT_MS_V1 = 1e3;
 var gatewayDeadlineV1 = (timeoutMs, callerSignal) => {
   const controller = new AbortController();
   let cause = null;
@@ -37112,17 +37159,31 @@ var gatewayDeadlineV1 = (timeoutMs, callerSignal) => {
     }
   };
 };
-var waitWithinGatewayDeadlineV1 = async (operation, signal) => {
+var waitWithinGatewayDeadlineV1 = async (operation, signal, terminalArbitration) => {
   return new Promise((resolve3, reject) => {
-    const cleanup = () => signal.removeEventListener("abort", onAbort);
+    let settlementTimer = null;
+    let awaitingTerminalSettlement = false;
+    const cleanup = () => {
+      signal.removeEventListener("abort", onAbort);
+      if (settlementTimer !== null) clearTimeout(settlementTimer);
+    };
     const onAbort = () => {
+      if (terminalArbitration?.awaitAfterAbort() === true) {
+        awaitingTerminalSettlement = true;
+        signal.removeEventListener("abort", onAbort);
+        settlementTimer = setTimeout(() => {
+          cleanup();
+          reject(signal.reason);
+        }, terminalArbitration.settlementTimeoutMs);
+        return;
+      }
       cleanup();
       reject(signal.reason);
     };
     operation.then(
       (value) => {
         cleanup();
-        if (signal.aborted) reject(signal.reason);
+        if (signal.aborted && !awaitingTerminalSettlement) reject(signal.reason);
         else resolve3(value);
       },
       (error3) => {
@@ -37170,7 +37231,7 @@ var ProtectedBoardGatewayV1 = class {
       (cause) => sdkDeadlineFailureV1(cause, this.options.timeoutMs)
     );
   }
-  async callWithinDeadline(toolName, requestedOperations, operation, callerSignal, authorization, timeoutMs, deadlineFailure) {
+  async callWithinDeadline(toolName, requestedOperations, operation, callerSignal, authorization, timeoutMs, deadlineFailure, terminalArbitration) {
     const deadline = gatewayDeadlineV1(timeoutMs, callerSignal);
     try {
       deadline.signal.throwIfAborted();
@@ -37247,10 +37308,11 @@ var ProtectedBoardGatewayV1 = class {
       const client = this.client(snapshot);
       const value = await waitWithinGatewayDeadlineV1(
         operation(client, snapshot, deadline.signal),
-        deadline.signal
+        deadline.signal,
+        terminalArbitration
       );
       const operationCause = deadline.cause();
-      if (operationCause !== null)
+      if (operationCause !== null && terminalArbitration?.acceptAfterAbort(value) !== true)
         return { connected: true, value: deadlineFailure(operationCause) };
       if (value !== null && typeof value === "object" && "ok" in value && value.ok === false && "error" in value && value.error !== null && typeof value.error === "object" && "code" in value.error && value.error.code === "UNAUTHENTICATED") {
         await waitWithinGatewayDeadlineV1(
@@ -37374,6 +37436,7 @@ var ProtectedBoardGatewayV1 = class {
     return result;
   }
   async exportBoard(input) {
+    let publicationStarted = false;
     const result = await this.callWithinDeadline(
       "board_export",
       ["export.render"],
@@ -37423,6 +37486,7 @@ var ProtectedBoardGatewayV1 = class {
             await response.body?.cancel().catch(() => void 0);
             return { ok: false, source: "local", error: { code: "RESPONSE_INVALID" } };
           }
+          publicationStarted = true;
           const published = await input.publish(
             {
               format: input.format,
@@ -37477,7 +37541,12 @@ var ProtectedBoardGatewayV1 = class {
         ok: false,
         source: "local",
         error: cause === "caller" ? { code: "CANCELLED" } : { code: "TIMEOUT", timeoutMs: 12e4 }
-      })
+      }),
+      {
+        awaitAfterAbort: () => publicationStarted,
+        acceptAfterAbort: (value) => value.ok,
+        settlementTimeoutMs: EXPORT_PUBLICATION_SETTLEMENT_TIMEOUT_MS_V1
+      }
     );
     if (!result.connected) return result;
     const preflightFailure = exportPreflightFailureV1(result.value);
@@ -39249,7 +39318,7 @@ var HistoryToolHandlersV1 = class {
 // sceneboard-mcp/src/tools/export.tools.ts
 var BoardExportInputSchemaV1 = external_exports.object({
   boardId: GlobalIdSchemaV1,
-  revisionId: GlobalIdSchemaV1.nullable(),
+  revisionId: GlobalIdSchemaV1,
   format: external_exports.enum(["pdf", "pptx"]),
   outputFile: external_exports.string().min(1).max(4096)
 }).strict();
@@ -41374,7 +41443,7 @@ var registerCoreToolsV1 = (server, options) => {
   if (credentialMode === "api_key") {
     add(
       "board_export",
-      "Export one current or retained board revision to a new no-clobber local PDF or PPTX file.",
+      "Export one explicit retained board revision to a new no-clobber local PDF or PPTX file.",
       BoardExportInputSchemaV1,
       (raw, signal) => exports.export(raw, signal),
       true

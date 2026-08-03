@@ -25,10 +25,25 @@ viewport, safe verdict, sanitized evidence hash, owner, and cleanup result.
 Screenshots/traces/video default to off for password, token, analytics identity,
 and local-file rows.
 
+The machine-consumed report is bounded canonical JSON and contains these nine case IDs in the
+table order, without omissions, additions, or duplicates. Every case binds the current attempt,
+source commit, manifest hash, observation time, browser-build hash, documented viewport set,
+`supervised-human` owner, PASS cleanup result, and sanitized content. Content and any textual
+attachments carry recomputed SHA-256 values; the case and report each carry a SHA-256 over their
+canonical content excluding that hash field. Reports older than 24 hours, mixed-identity reports,
+and non-canonical or secret-bearing input fail closed.
+
 For EXPORT, hash the board, head and retained revision payload rows before and after success,
 failure, retry and cancel. They must remain unchanged; only the documented temporary export hold,
 audit and evidence writes are allowed. Verify PDF and PPTX signatures, page order and selected
-revision without recording a real board/revision identifier in evidence.
+revision without recording a real board/revision identifier in evidence. Automated evidence must
+decode the PDF pages and PPTX slide media, observe the retained revision's independent per-page
+visual markers in logical order, and prove every head-revision marker absent.
+
+Automated release evidence uses the same closed EXPORT scenario IDs. A partially executed browser
+run remains `BLOCKED`; it cannot reuse component-test assertions as proof of an unexecuted principal
+or failure path. The disposable database must carry the current attempt owner marker, and cleanup
+must revoke every issued key, remove the attempt-owned schema, and verify zero residual schema.
 
 The I-44 source-contract smoke files under `e2e/` are deterministic and run in
 CI. They do not impersonate this supervised browser matrix. When an installed

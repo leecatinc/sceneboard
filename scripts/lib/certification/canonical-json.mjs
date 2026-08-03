@@ -80,6 +80,7 @@ export const containsSecretLikeMaterial = (text) =>
   /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/u.test(text) ||
   /\bsk-[A-Za-z0-9_-]{20,}\b/u.test(text) ||
   /\blcbg_v1\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}\b/u.test(text) ||
+  /\bsbk_v1\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}\b/u.test(text) ||
   /\b(?:Bearer|PairingProof)\s+[A-Za-z0-9._-]{16,}\b/iu.test(text) ||
   /\b[0-9A-HJKMNP-TV-Z]{6}-[0-9A-HJKMNP-TV-Z]{6}\b/iu.test(text) ||
   /(?:^|[{\s,])["']?(?:proof|generation)["']?\s*[:=]\s*(?:["'][A-Za-z0-9_-]{22,43}["']|[A-Za-z0-9_-]{22,43})(?=$|[\s,;}])/imu.test(

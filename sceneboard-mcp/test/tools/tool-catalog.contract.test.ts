@@ -201,7 +201,7 @@ test('terminal export authentication failure immediately shrinks API-key discove
       name: 'board_export',
       arguments: {
         boardId: 'board_1',
-        revisionId: null,
+        revisionId: 'revision_1',
         format: 'pdf',
         outputFile: '/tmp/sceneboard-export-not-written.pdf',
       },

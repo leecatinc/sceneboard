@@ -87,3 +87,49 @@ test('slide-deck renders and navigates at 1920×1080 and narrow viewports', asyn
     await browser.close();
   }
 });
+
+test('slide-deck initializes without ResizeObserver and retains controls and host resize', async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const context = await browser.newContext({ viewport: { width: 960, height: 540 } });
+    const page = await context.newPage();
+    const pageErrors = [];
+    page.on('pageerror', (error) => pageErrors.push(error));
+    await page.evaluate(() => {
+      window.ResizeObserver = undefined;
+      window.__sceneBoardResizeRequests = [];
+      window.SceneBoardArtifact = {
+        requestResize(width, height) {
+          window.__sceneBoardResizeRequests.push([width, height]);
+        },
+      };
+    });
+    await page.setContent(document, { waitUntil: 'load' });
+
+    assert.deepEqual(pageErrors, []);
+    assert.equal(await page.locator('[data-deck-slide]:visible').count(), 1);
+    assert.equal(await page.locator('[data-deck-current]').textContent(), '1 / 7');
+    assert.equal(await page.locator('[data-deck-previous]').isDisabled(), true);
+    assert.deepEqual(await page.locator('[data-deck-stage]').boundingBox(), {
+      x: 0,
+      y: 0,
+      width: 960,
+      height: 540,
+    });
+    assert.equal(
+      await page
+        .locator('[data-sb-slide-deck="v1"]')
+        .evaluate((element) => element === document.activeElement),
+      true,
+    );
+    assert.deepEqual(await page.evaluate(() => window.__sceneBoardResizeRequests), [[1920, 1080]]);
+
+    await page.locator('[data-deck-next]').click();
+    assert.equal(await page.locator('[data-deck-current]').textContent(), '2 / 7');
+    assert.equal(await page.locator('[data-deck-progress]').getAttribute('aria-valuenow'), '2');
+    assert.equal(await page.locator('[data-deck-slide]:visible').count(), 1);
+    await context.close();
+  } finally {
+    await browser.close();
+  }
+});

@@ -439,19 +439,65 @@ const waitForChildExitBoundedV1 = async (
   });
 };
 
+const waitForReadableClosureBoundedV1 = async (
+  stream: NodeJS.ReadableStream,
+  timeoutMs: number,
+): Promise<boolean> => {
+  const readable = stream as NodeJS.ReadableStream & {
+    destroyed?: boolean;
+    readableEnded?: boolean;
+  };
+  if (readable.destroyed === true || readable.readableEnded === true) return true;
+  return new Promise<boolean>((resolveClosure) => {
+    const cleanup = (): void => {
+      clearTimeout(timer);
+      stream.removeListener('close', closed);
+      stream.removeListener('end', closed);
+      stream.removeListener('error', closed);
+    };
+    const closed = (): void => {
+      cleanup();
+      resolveClosure(true);
+    };
+    const timer = setTimeout(() => {
+      cleanup();
+      resolveClosure(false);
+    }, timeoutMs);
+    stream.once('close', closed);
+    stream.once('end', closed);
+    stream.once('error', closed);
+  });
+};
+
 const terminateChildV1 = async (
   child: ChildProcessWithoutNullStreams,
   control: NodeJS.WritableStream | undefined,
+  publicationMayExist: boolean,
 ): Promise<void> => {
   destroyStreamV1(control ?? null);
   destroyStreamV1(child.stdin);
-  destroyStreamV1(child.stdout);
-  destroyStreamV1(child.stderr);
-  if (child.exitCode !== null || child.signalCode !== null) return;
+  if (!publicationMayExist) {
+    destroyStreamV1(child.stdout);
+    destroyStreamV1(child.stderr);
+  }
+  const waitForPublicationClosure = async (): Promise<void> => {
+    if (!publicationMayExist) return;
+    await Promise.all([
+      waitForReadableClosureBoundedV1(child.stdout, 750),
+      waitForReadableClosureBoundedV1(child.stderr, 750),
+    ]);
+  };
+  if (child.exitCode !== null || child.signalCode !== null) {
+    await waitForPublicationClosure();
+    return;
+  }
   child.kill('SIGTERM');
-  if (await waitForChildExitBoundedV1(child, 250)) return;
+  if (await waitForChildExitBoundedV1(child, 250)) {
+    await waitForPublicationClosure();
+    return;
+  }
   child.kill('SIGKILL');
-  await waitForChildExitBoundedV1(child, 250);
+  await Promise.all([waitForChildExitBoundedV1(child, 250), waitForPublicationClosure()]);
 };
 
 export class LocalExportFileV1 {
@@ -594,13 +640,16 @@ export class LocalExportFileV1 {
     let control: NodeJS.WritableStream | undefined;
     let overflow = false;
     let downloadFailed = false;
+    let payloadForwarded = false;
     const abort = (): void => {
       child?.kill('SIGTERM');
-      if (child !== undefined) {
+      if (child !== undefined && !payloadForwarded) {
         destroyStreamV1(control ?? null);
         destroyStreamV1(child.stdin);
-        destroyStreamV1(child.stdout);
-        destroyStreamV1(child.stderr);
+      } else if (child !== undefined) {
+        void waitForChildExitBoundedV1(child, 250).then((exited) => {
+          if (!exited) child?.kill('SIGKILL');
+        });
       }
     };
     signal?.addEventListener('abort', abort, { once: true });
@@ -658,7 +707,6 @@ export class LocalExportFileV1 {
           overflow = true;
           child?.kill('SIGTERM');
         },
-        signal,
       );
       const stderrPromise = collectBoundedV1(
         child,
@@ -668,9 +716,8 @@ export class LocalExportFileV1 {
           overflow = true;
           child?.kill('SIGTERM');
         },
-        signal,
       );
-      const exitPromise = waitForExitV1(child, signal);
+      const exitPromise = waitForExitV1(child);
       const completion = Promise.all([stdoutPromise, stderrPromise, exitPromise]);
       void completion.catch(() => undefined);
       await endWritableV1(
@@ -694,7 +741,8 @@ export class LocalExportFileV1 {
         if (next.done) break;
         await forward(Buffer.from(next.value));
       }
-      await endWritableV1(child.stdin, Buffer.alloc(0), signal);
+      payloadForwarded = true;
+      await endWritableV1(child.stdin, Buffer.alloc(0));
       const [stdout, stderr, exited] = await completion;
       const diagnosticText = new TextDecoder('utf-8', { fatal: true }).decode(stderr);
       if (
@@ -704,7 +752,6 @@ export class LocalExportFileV1 {
         )
       )
         return { ok: false, error: error('LOCAL_EXPORT_CORRUPT') };
-      if (signal?.aborted === true) return { ok: false, error: error('LOCAL_EXPORT_CANCELLED') };
       if (overflow || received > artifact.contentLength)
         return { ok: false, error: error('LOCAL_EXPORT_CORRUPT') };
       if (received < artifact.contentLength)
@@ -712,8 +759,10 @@ export class LocalExportFileV1 {
       const line = stdout.toString('ascii');
       const match =
         /^SBEX\/1 (ok|exists|invalid|unsupported|io|short|corrupt) (0|[1-9][0-9]*)\n$/u.exec(line);
-      if (match === null || exited.signal !== null || exited.code !== 0)
+      if (match === null) {
+        if (signal?.aborted === true) return { ok: false, error: error('LOCAL_EXPORT_CANCELLED') };
         return { ok: false, error: error('LOCAL_EXPORT_CORRUPT') };
+      }
       const resultCode = match[1] as
         | 'ok'
         | 'exists'
@@ -731,6 +780,11 @@ export class LocalExportFileV1 {
           value: { format: intent.format, bytes, fileName: intent.displayName },
         };
       }
+      if (exited.signal !== null || exited.code !== 0) {
+        if (signal?.aborted === true) return { ok: false, error: error('LOCAL_EXPORT_CANCELLED') };
+        return { ok: false, error: error('LOCAL_EXPORT_CORRUPT') };
+      }
+      if (signal?.aborted === true) return { ok: false, error: error('LOCAL_EXPORT_CANCELLED') };
       if (bytes !== 0) return { ok: false, error: error('LOCAL_EXPORT_CORRUPT') };
       const mapped: Readonly<Record<Exclude<typeof resultCode, 'ok'>, LocalExportErrorCodeV1>> = {
         exists: 'LOCAL_EXPORT_EXISTS',
@@ -745,7 +799,8 @@ export class LocalExportFileV1 {
         error: error(mapped[resultCode as Exclude<typeof resultCode, 'ok'>]),
       };
     } catch {
-      if (child !== undefined) await terminateChildV1(child, control).catch(() => undefined);
+      if (child !== undefined)
+        await terminateChildV1(child, control, payloadForwarded).catch(() => undefined);
       this.release(intent);
       if (rootDescriptor >= 0) {
         closeSync(rootDescriptor);

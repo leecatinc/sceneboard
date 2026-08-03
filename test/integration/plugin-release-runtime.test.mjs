@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
   access,
@@ -9,18 +10,35 @@ import {
   mkdtemp,
   readFile,
   rm,
+  symlink,
   writeFile,
 } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import test from 'node:test';
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
 const repositoryRoot = resolve(import.meta.dirname, '../..');
-const pluginRoot = resolve(repositoryRoot, 'sceneboard-mcp/plugins/sceneboard');
+const canonicalPluginRoot = resolve(repositoryRoot, 'sceneboard-mcp/plugins/sceneboard');
+const pluginRoot = await readFile(resolve(canonicalPluginRoot, '.sceneboard-current'), 'utf8').then(
+  async (pointer) => {
+    const releaseName = pointer.trim();
+    assert.equal(pointer, `${releaseName}\n`);
+    assert.match(releaseName, /^generation-[A-Za-z0-9-]+$/u);
+    const releaseRoot = resolve(canonicalPluginRoot, '.sceneboard-releases', releaseName);
+    const status = await lstat(releaseRoot);
+    assert.equal(status.isDirectory(), true);
+    assert.equal(status.isSymbolicLink(), false);
+    return releaseRoot;
+  },
+  (error) => {
+    if (error?.code === 'ENOENT') return canonicalPluginRoot;
+    throw error;
+  },
+);
 const runtime = resolve(pluginRoot, 'runtime/index.js');
 const helper = resolve(pluginRoot, 'native/profile-lease-helper');
 const digest = resolve(pluginRoot, 'native/profile-lease-helper.sha256');
@@ -45,6 +63,110 @@ const defaultCapabilities = JSON.parse(
     'utf8',
   ),
 );
+
+const createPublisherConcurrencyFixture = async (projectRoot) => {
+  const fixtureRoot = join(projectRoot, 'publisher-concurrency');
+  const script = join(fixtureRoot, 'scripts/build-sceneboard-plugin.mjs');
+  const runtimeSource = join(fixtureRoot, 'sceneboard-mcp/src/index.ts');
+  const nativeSourceRoot = join(fixtureRoot, 'sceneboard-mcp/native');
+  const fixturePluginRoot = join(fixtureRoot, 'sceneboard-mcp/plugins/sceneboard');
+  const nativeRoot = join(fixturePluginRoot, 'native');
+  const binaryRoot = join(fixtureRoot, 'bin');
+  await Promise.all([
+    mkdir(dirname(script), { recursive: true }),
+    mkdir(dirname(runtimeSource), { recursive: true }),
+    mkdir(nativeSourceRoot, { recursive: true }),
+    mkdir(binaryRoot, { recursive: true }),
+    mkdir(join(fixturePluginRoot, 'runtime'), { recursive: true }),
+    mkdir(join(fixturePluginRoot, 'scripts'), { recursive: true }),
+    mkdir(join(fixturePluginRoot, 'skills/sceneboard'), { recursive: true }),
+    mkdir(join(nativeRoot, 'linux-x64-gnu'), { recursive: true }),
+  ]);
+  const compiler = join(binaryRoot, 'cc');
+  await Promise.all([
+    copyFile(resolve(repositoryRoot, 'scripts/build-sceneboard-plugin.mjs'), script),
+    symlink(resolve(repositoryRoot, 'node_modules'), join(fixtureRoot, 'node_modules'), 'dir'),
+    writeFile(
+      compiler,
+      `#!${process.execPath}\nimport { readFileSync, writeFileSync } from 'node:fs';\nconst outputIndex = process.argv.indexOf('-o');\nconst source = process.argv.at(-1);\nif (outputIndex < 0 || source === undefined) process.exit(2);\nwriteFileSync(process.argv[outputIndex + 1], Buffer.concat([Buffer.from('fixture-native\\n'), readFileSync(source)]));\n`,
+    ),
+    writeFile(runtimeSource, 'process.stdout.write("publisher-v1");\n'),
+    writeFile(join(nativeSourceRoot, 'profile-lease-helper.c'), 'int main(void) { return 0; }\n'),
+    writeFile(join(nativeSourceRoot, 'local-export-helper.c'), 'int main(void) { return 0; }\n'),
+    writeFile(join(fixturePluginRoot, '.mcp.json'), '{}\n'),
+    writeFile(join(fixturePluginRoot, 'scripts/fixture.mjs'), 'export {};\n'),
+    writeFile(join(fixturePluginRoot, 'skills/sceneboard/SKILL.md'), '# Fixture\n'),
+    writeFile(join(fixturePluginRoot, 'runtime/index.js'), 'process.stdout.write("seed");\n'),
+    writeFile(join(nativeRoot, 'profile-lease-helper'), 'seed'),
+    writeFile(join(nativeRoot, 'profile-lease-helper.sha256'), 'seed\n'),
+    writeFile(join(nativeRoot, 'linux-x64-gnu/local-export-helper'), 'seed'),
+    writeFile(join(nativeRoot, 'linux-x64-gnu/local-export-helper.sha256'), 'seed\n'),
+    writeFile(join(nativeRoot, 'local-export-helper.manifest.json'), '{}\n'),
+  ]);
+  await Promise.all([
+    chmod(compiler, 0o500),
+    chmod(join(nativeRoot, 'profile-lease-helper'), 0o500),
+    chmod(join(nativeRoot, 'profile-lease-helper.sha256'), 0o400),
+    chmod(join(nativeRoot, 'linux-x64-gnu/local-export-helper'), 0o500),
+    chmod(join(nativeRoot, 'linux-x64-gnu/local-export-helper.sha256'), 0o400),
+    chmod(join(nativeRoot, 'local-export-helper.manifest.json'), 0o400),
+  ]);
+  return { fixtureRoot, script, runtimeSource, fixturePluginRoot, binaryRoot };
+};
+
+const startPublisher = (fixture, fault) => {
+  const child = spawn(process.execPath, [fixture.script], {
+    cwd: fixture.fixtureRoot,
+    env: {
+      PATH: `${fixture.binaryRoot}:${process.env.PATH ?? '/usr/bin:/bin'}`,
+      SCENEBOARD_PLUGIN_PUBLISH_TEST_CLEANUP: 'immediate',
+      ...(fault === undefined ? {} : { SCENEBOARD_PLUGIN_PUBLISH_TEST_FAULT: fault }),
+    },
+    stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+  });
+  let stdout = '';
+  let stderr = '';
+  child.stdout.setEncoding('utf8');
+  child.stderr.setEncoding('utf8');
+  child.stdout.on('data', (chunk) => (stdout += chunk));
+  child.stderr.on('data', (chunk) => (stderr += chunk));
+  const result = new Promise((resolveResult, rejectResult) => {
+    const timeout = setTimeout(() => {
+      child.kill('SIGKILL');
+      rejectResult(new Error('publisher concurrency fixture timed out'));
+    }, 20_000);
+    child.once('error', (error) => {
+      clearTimeout(timeout);
+      rejectResult(error);
+    });
+    child.once('close', (code, signal) => {
+      clearTimeout(timeout);
+      resolveResult({ code, signal, stdout, stderr });
+    });
+  });
+  const checkpoint =
+    fault === undefined
+      ? Promise.resolve()
+      : new Promise((resolveCheckpoint, rejectCheckpoint) => {
+          const timeout = setTimeout(
+            () => rejectCheckpoint(new Error('publisher checkpoint timed out')),
+            10_000,
+          );
+          child.once('message', (message) => {
+            if (message?.event !== 'sceneboard_plugin_after_activate') return;
+            clearTimeout(timeout);
+            resolveCheckpoint();
+          });
+        });
+  return { child, checkpoint, result };
+};
+
+const finishPublisher = async (publisher) => {
+  const result = await publisher.result;
+  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.signal, null);
+  assert.deepEqual(JSON.parse(result.stdout), { status: 'BUILT', runtime: 'runtime/index.js' });
+};
 
 const connectionHeaders = (requestId) => ({
   'Content-Type': 'application/json; charset=utf-8',
@@ -217,17 +339,100 @@ const withApiKeyRuntime = async (backendHandler, run) => {
 };
 
 test('the public plugin contains an executable reviewed MCP runtime', async () => {
-  const [runtimeStatus, helperStatus, helperBytes, expectedDigest] = await Promise.all([
+  const [
+    runtimeStatus,
+    runtimeBytes,
+    canonicalRuntimeBytes,
+    helperStatus,
+    helperBytes,
+    expectedDigest,
+  ] = await Promise.all([
     lstat(runtime),
+    readFile(runtime),
+    readFile(resolve(canonicalPluginRoot, 'runtime/index.js')),
     lstat(helper),
     readFile(helper),
     readFile(digest, 'utf8'),
   ]);
   assert.equal(runtimeStatus.isFile(), true);
+  assert.deepEqual(runtimeBytes, canonicalRuntimeBytes);
+  assert.equal(runtimeBytes.includes('EXPORT_PUBLICATION_SETTLEMENT_TIMEOUT_MS_V1'), true);
+  assert.equal(runtimeBytes.includes('awaitAfterAbort'), true);
   assert.equal(helperStatus.isFile(), true);
   assert.equal(helperStatus.isSymbolicLink(), false);
   assert.equal(helperStatus.mode & 0o777, 0o500);
   assert.equal(createHash('sha256').update(helperBytes).digest('hex'), expectedDigest.trim());
+});
+
+test('canonical, plugin, and selected local export helpers have identical integrity metadata', async () => {
+  const nativeRoots = [
+    resolve(repositoryRoot, 'sceneboard-mcp/native'),
+    resolve(canonicalPluginRoot, 'native'),
+    resolve(pluginRoot, 'native'),
+  ];
+  const artifacts = await Promise.all(
+    nativeRoots.map(async (nativeRoot) => {
+      const helperPath = resolve(nativeRoot, 'linux-x64-gnu/local-export-helper');
+      const [helperBytes, digestBytes, manifestBytes, helperStatus] = await Promise.all([
+        readFile(helperPath),
+        readFile(resolve(nativeRoot, 'linux-x64-gnu/local-export-helper.sha256')),
+        readFile(resolve(nativeRoot, 'local-export-helper.manifest.json')),
+        lstat(helperPath),
+      ]);
+      return { helperBytes, digestBytes, manifestBytes, helperStatus };
+    }),
+  );
+  for (const artifact of artifacts) {
+    assert.deepEqual(artifact.helperBytes, artifacts[0].helperBytes);
+    assert.deepEqual(artifact.digestBytes, artifacts[0].digestBytes);
+    assert.deepEqual(artifact.manifestBytes, artifacts[0].manifestBytes);
+    assert.equal(artifact.helperStatus.isFile(), true);
+    assert.equal(artifact.helperStatus.isSymbolicLink(), false);
+    assert.equal(artifact.helperStatus.mode & 0o777, 0o500);
+  }
+  const digestValue = createHash('sha256').update(artifacts[0].helperBytes).digest('hex');
+  assert.equal(artifacts[0].digestBytes.toString('utf8'), `${digestValue}\n`);
+  assert.equal(
+    JSON.parse(artifacts[0].manifestBytes.toString('utf8')).targets['linux-x64-gnu'].sha256,
+    digestValue,
+  );
+});
+
+test('three completing publishers cannot retire or remove the pointer-selected generation', async (context) => {
+  const projectRoot = await mkdtemp(join(tmpdir(), 'sceneboard-publisher-lock-'));
+  context.after(() => rm(projectRoot, { recursive: true, force: true }));
+  const fixture = await createPublisherConcurrencyFixture(projectRoot);
+  await finishPublisher(startPublisher(fixture));
+
+  await writeFile(fixture.runtimeSource, 'process.stdout.write("publisher-v2");\n');
+  const firstStale = startPublisher(fixture, 'pause-after-activate');
+  await firstStale.checkpoint;
+
+  await writeFile(fixture.runtimeSource, 'process.stdout.write("publisher-v3");\n');
+  const secondStale = startPublisher(fixture, 'pause-after-activate');
+  await secondStale.checkpoint;
+
+  await writeFile(fixture.runtimeSource, 'process.stdout.write("publisher-v4");\n');
+  await finishPublisher(startPublisher(fixture));
+  const pointerPath = join(fixture.fixturePluginRoot, '.sceneboard-current');
+  const selectedName = (await readFile(pointerPath, 'utf8')).trim();
+  const selectedRoot = join(fixture.fixturePluginRoot, '.sceneboard-releases', selectedName);
+
+  firstStale.child.send('resume');
+  await finishPublisher(firstStale);
+  secondStale.child.send('resume');
+  await finishPublisher(secondStale);
+
+  assert.equal((await readFile(pointerPath, 'utf8')).trim(), selectedName);
+  assert.equal((await lstat(selectedRoot)).isDirectory(), true);
+  await assert.rejects(
+    () => lstat(join(selectedRoot, '.sceneboard-retired')),
+    (error) => error?.code === 'ENOENT',
+  );
+  assert.equal(
+    (await readFile(join(selectedRoot, 'runtime/index.js'), 'utf8')).includes('publisher-v4'),
+    true,
+  );
 });
 
 test('a clean plugin launcher exposes the SceneBoard MCP tool surface', async () => {
@@ -332,6 +537,26 @@ test('the production bundle binds every targeted API-key preflight and omits lis
       sendConnectionJson(request, response, error.status, error.value);
     },
     async ({ client, root }) => {
+      const invalidOutput = join(root, 'invalid-null-revision.pdf');
+      const invalid = await client.callTool({
+        name: 'board_export',
+        arguments: {
+          boardId: 'board_1',
+          revisionId: null,
+          format: 'pdf',
+          outputFile: invalidOutput,
+        },
+      });
+      assert.equal(invalid.isError, true);
+      assert.equal(connectionCalls, 1);
+      assert.equal(preflights.length, 0);
+      assert.equal(
+        await access(invalidOutput).then(
+          () => true,
+          () => false,
+        ),
+        false,
+      );
       const baseMutation = {
         boardId: 'board_1',
         expectedRevisionId: 'revision_1',
@@ -424,7 +649,7 @@ test('the production bundle binds every targeted API-key preflight and omits lis
           'board_export',
           {
             boardId: 'board_1',
-            revisionId: null,
+            revisionId: 'revision_1',
             format: 'pdf',
             outputFile: join(root, 'denied-export.pdf'),
           },
@@ -479,7 +704,7 @@ test('the production bundle maps every export preflight failure and terminally d
           name: 'board_export',
           arguments: {
             boardId: 'board_1',
-            revisionId: null,
+            revisionId: 'revision_1',
             format: 'pdf',
             outputFile: join(root, `preflight-denied-${index}.pdf`),
           },
@@ -534,7 +759,7 @@ test('the production bundle treats export-endpoint authentication as terminal di
         name: 'board_export',
         arguments: {
           boardId: 'board_1',
-          revisionId: null,
+          revisionId: 'revision_1',
           format: 'pdf',
           outputFile: join(root, 'terminal-export.pdf'),
         },
@@ -589,7 +814,12 @@ test('the production bundle cancels a stalled export download before local publi
       const pending = client.callTool(
         {
           name: 'board_export',
-          arguments: { boardId: 'board_1', revisionId: null, format: 'pdf', outputFile },
+          arguments: {
+            boardId: 'board_1',
+            revisionId: 'revision_1',
+            format: 'pdf',
+            outputFile,
+          },
         },
         undefined,
         { signal: controller.signal },
