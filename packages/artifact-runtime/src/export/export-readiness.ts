@@ -5,6 +5,8 @@ export type ExportReadinessResultV1 =
 export const inspectExportReadinessV1 = (root: ParentNode): ExportReadinessResultV1 => {
   if (root.querySelector('[data-export-unsupported]') !== null)
     return Object.freeze({ ready: false, reason: 'unsupported' });
+  if (root.querySelector('[data-export-pending]') !== null)
+    return Object.freeze({ ready: false, reason: 'pending' });
   const images = [...root.querySelectorAll('img')];
   if (images.some((image) => !image.complete || image.naturalWidth < 1))
     return Object.freeze({ ready: false, reason: 'pending' });

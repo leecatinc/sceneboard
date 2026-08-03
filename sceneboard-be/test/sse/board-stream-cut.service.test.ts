@@ -16,6 +16,7 @@ import {
 import { BoardStreamCutService } from '../../src/sse/board-stream-cut.service.js';
 import { SseCursorCodec } from '../../src/sse/sse-cursor.codec.js';
 import { RedisStreamKeyspace } from '../../src/redis/redis-stream-keyspace.js';
+import type { DatabaseOperationOwnershipV1 } from '../../src/database/transaction.js';
 
 const snapshotFixture = (): BoardSnapshotV1 => {
   const source = JSON.parse(
@@ -235,10 +236,22 @@ test('a valid cursor bound to another board selects a fresh authorized-board sna
 test('fresh and reconnect cuts both delegate negotiated checkpoint reads to board get', async () => {
   const snapshot = snapshotFixture();
   const codec = new SseCursorCodec(new RedisStreamKeyspace(Buffer.alloc(32, 15)));
-  const calls: Array<{ boardId: BoardId; documentSchemaVersion: number | undefined }> = [];
+  const calls: Array<{
+    boardId: BoardId;
+    documentSchemaVersion: number | undefined;
+    ownership: DatabaseOperationOwnershipV1 | undefined;
+  }> = [];
   const boards = {
-    get: async (input: { boardId: BoardId; documentSchemaVersion?: number }) => {
-      calls.push({ boardId: input.boardId, documentSchemaVersion: input.documentSchemaVersion });
+    get: async (input: {
+      boardId: BoardId;
+      documentSchemaVersion?: number;
+      ownership?: DatabaseOperationOwnershipV1;
+    }) => {
+      calls.push({
+        boardId: input.boardId,
+        documentSchemaVersion: input.documentSchemaVersion,
+        ownership: input.ownership,
+      });
       return { result: { type: 'board.get', snapshot } };
     },
   };
@@ -248,7 +261,12 @@ test('fresh and reconnect cuts both delegate negotiated checkpoint reads to boar
     codec,
     { generatePublicIdV1: () => 'request_1' } as never,
   );
-  await service.prepare(principal as never, snapshot.boardId, null, 2);
+  const controller = new AbortController();
+  const ownership: DatabaseOperationOwnershipV1 = {
+    signal: controller.signal,
+    deadlineMs: Date.now() + 5_000,
+  };
+  await service.prepare(principal as never, snapshot.boardId, null, 2, ownership);
   const reconnectCursor = codec.encode({
     v: 1,
     k: 'snapshot',
@@ -257,9 +275,118 @@ test('fresh and reconnect cuts both delegate negotiated checkpoint reads to boar
     e: 'sse_snapshot_AAAAAAAAAAAAAAAAAAAAAA' as EventId,
     t: new Date().toISOString() as never,
   });
-  await service.prepare(principal as never, snapshot.boardId, reconnectCursor, 3);
+  await service.prepare(principal as never, snapshot.boardId, reconnectCursor, 3, ownership);
   assert.deepEqual(calls, [
-    { boardId: snapshot.boardId, documentSchemaVersion: 2 },
-    { boardId: snapshot.boardId, documentSchemaVersion: 3 },
+    { boardId: snapshot.boardId, documentSchemaVersion: 2, ownership },
+    { boardId: snapshot.boardId, documentSchemaVersion: 3, ownership },
   ]);
+});
+
+test('reauthorization uses only authorized head metadata and preserves schema compatibility', async () => {
+  const snapshot = snapshotFixture();
+  const codec = new SseCursorCodec(new RedisStreamKeyspace(Buffer.alloc(32, 16)));
+  let fullReads = 0;
+  const headCalls: Array<{
+    headSchemaVersion: 1 | 2 | 3;
+    ownership: DatabaseOperationOwnershipV1 | undefined;
+  }> = [];
+  let headSchemaVersion: 1 | 2 | 3 = 1;
+  const boards = {
+    get: async () => {
+      fullReads += 1;
+      throw new Error('full snapshot reads are forbidden during reauthorization');
+    },
+    getAuthorizedHead: async (input: { ownership?: DatabaseOperationOwnershipV1 }) => {
+      headCalls.push({ headSchemaVersion, ownership: input.ownership });
+      return { lastEventSequence: 7, headSchemaVersion };
+    },
+  };
+  const service = new BoardStreamCutService(boards as never, {} as never, codec, {
+    generatePublicIdV1: () => 'request_1',
+  } as never);
+  const controller = new AbortController();
+  const ownership: DatabaseOperationOwnershipV1 = {
+    signal: controller.signal,
+    deadlineMs: Date.now() + 5_000,
+  };
+
+  for (const version of [1, 2, 3] as const) {
+    headSchemaVersion = 1;
+    assert.equal(
+      await service.reauthorize(principal as never, snapshot.boardId, version, ownership),
+      7,
+    );
+  }
+  for (const version of [2, 3] as const) {
+    headSchemaVersion = 2;
+    assert.equal(
+      await service.reauthorize(principal as never, snapshot.boardId, version, ownership),
+      7,
+    );
+  }
+  headSchemaVersion = 2;
+  await assert.rejects(
+    service.reauthorize(principal as never, snapshot.boardId, 1, ownership),
+    (error: unknown) =>
+      typeof error === 'object' &&
+      error !== null &&
+      'boardError' in error &&
+      (error as { boardError: { code: string; details: { field?: string } } }).boardError.code ===
+        'PROTOCOL_VERSION_MISMATCH' &&
+      (error as { boardError: { details: { field?: string } } }).boardError.details.field ===
+        'documentSchemaVersion',
+  );
+  for (const version of [2, 3] as const) {
+    headSchemaVersion = 3;
+    assert.equal(
+      await service.reauthorize(principal as never, snapshot.boardId, version, ownership),
+      7,
+    );
+  }
+  headSchemaVersion = 3;
+  await assert.rejects(
+    service.reauthorize(principal as never, snapshot.boardId, 1, ownership),
+    (error: unknown) =>
+      typeof error === 'object' &&
+      error !== null &&
+      'boardError' in error &&
+      (
+        error as {
+          boardError: {
+            code: string;
+            details: { headSchemaVersion?: number; requestedDocumentSchemaVersion?: number };
+          };
+        }
+      ).boardError.code === 'UPGRADE_REQUIRED' &&
+      (error as { boardError: { details: { headSchemaVersion?: number } } }).boardError.details
+        .headSchemaVersion === 3 &&
+      (error as { boardError: { details: { requestedDocumentSchemaVersion?: number } } }).boardError
+        .details.requestedDocumentSchemaVersion === 1,
+  );
+
+  assert.equal(fullReads, 0);
+  assert.equal(headCalls.length, 9);
+  assert.equal(
+    headCalls.every((call) => call.ownership === ownership),
+    true,
+  );
+});
+
+test('reauthorization propagates permission loss from the authorized head policy read', async () => {
+  const snapshot = snapshotFixture();
+  const permissionLoss = new Error('permission lost');
+  const service = new BoardStreamCutService(
+    {
+      getAuthorizedHead: async () => {
+        throw permissionLoss;
+      },
+    } as never,
+    {} as never,
+    new SseCursorCodec(new RedisStreamKeyspace(Buffer.alloc(32, 17))),
+    {} as never,
+  );
+  await assert.rejects(
+    service.reauthorize(principal as never, snapshot.boardId, 3),
+    permissionLoss,
+  );
 });

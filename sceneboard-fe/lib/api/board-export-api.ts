@@ -93,6 +93,8 @@ const CONTENT_TYPES = Object.freeze({
   pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
 } as const satisfies Readonly<Record<BoardExportFormatV1, string>>);
 
+const BOARD_EXPORT_DEADLINE_MS_V1 = 120_000;
+
 const exactKeys = (value: Record<string, unknown>, keys: readonly string[]): boolean => {
   const actual = Object.keys(value).sort();
   const expected = [...keys].sort();
@@ -113,6 +115,17 @@ const browserUnavailable = (): BoardExportResultV1 =>
     kind: 'error',
     error: Object.freeze({ code: 'EXPORT_BROWSER_UNAVAILABLE', retryable: false }),
   });
+
+const renderTimeout = (): BoardExportResultV1 =>
+  Object.freeze({
+    kind: 'error',
+    error: Object.freeze({ code: 'EXPORT_RENDER_TIMEOUT', retryable: true }),
+  });
+
+const isRedirectResponse = (response: Response): boolean =>
+  response.redirected ||
+  response.type === 'opaqueredirect' ||
+  (response.status >= 300 && response.status <= 399);
 
 const parseFailure = (status: number, body: unknown): BoardExportResultV1 => {
   if (
@@ -183,16 +196,57 @@ export class BoardExportApi {
       throw new TypeError('invalid board export input');
     const csrfToken = this.coordinator.currentSnapshot()?.csrfToken;
     if (csrfToken === undefined) return browserUnavailable();
-    const dispatched = await this.coordinator.dispatchShared({
-      path: `/api/v1/boards/${encodeURIComponent(input.boardId)}/exports`,
-      method: 'POST',
-      body: { format: input.format, revisionId: input.revisionId },
-      csrfToken,
-      responseKind: 'export',
-      signal: input.signal,
+    const dispatchController = new AbortController();
+    let deadlineExpired = false;
+    let settleDeadline!: () => void;
+    let settleCallerCancellation!: () => void;
+    const deadline = new Promise<{ kind: 'deadline' }>((resolve) => {
+      settleDeadline = () => resolve({ kind: 'deadline' });
     });
+    const callerCancellation = new Promise<{ kind: 'caller_cancelled' }>((resolve) => {
+      settleCallerCancellation = () => resolve({ kind: 'caller_cancelled' });
+    });
+    const onCallerCancellation = (): void => {
+      settleCallerCancellation();
+      dispatchController.abort(input.signal.reason);
+    };
+    input.signal.addEventListener('abort', onCallerCancellation, { once: true });
+    if (input.signal.aborted) onCallerCancellation();
+    const timer = setTimeout(() => {
+      deadlineExpired = true;
+      settleDeadline();
+      dispatchController.abort(new DOMException('Board export timed out', 'TimeoutError'));
+    }, BOARD_EXPORT_DEADLINE_MS_V1);
+    const dispatch = this.coordinator
+      .dispatchShared({
+        path: `/api/v1/boards/${encodeURIComponent(input.boardId)}/exports`,
+        method: 'POST',
+        body: { format: input.format, revisionId: input.revisionId },
+        csrfToken,
+        responseKind: 'export',
+        signal: dispatchController.signal,
+      })
+      .then(
+        (value) => ({ kind: 'dispatched' as const, value }),
+        () => ({ kind: 'dispatch_failed' as const }),
+      );
+    let outcome: Awaited<typeof dispatch> | { kind: 'deadline' } | { kind: 'caller_cancelled' };
+    try {
+      outcome = await Promise.race([dispatch, deadline, callerCancellation]);
+    } finally {
+      clearTimeout(timer);
+      input.signal.removeEventListener('abort', onCallerCancellation);
+    }
+    if (deadlineExpired || outcome.kind === 'deadline') return renderTimeout();
+    if (outcome.kind === 'caller_cancelled' || outcome.kind === 'dispatch_failed')
+      return browserUnavailable();
+    const dispatched = outcome.value;
     if (dispatched.kind !== 'ok') return browserUnavailable();
     const { response, body, bytes } = dispatched.value;
+    if (isRedirectResponse(response)) {
+      await response.body?.cancel().catch(() => undefined);
+      return invalid();
+    }
     if (!response.ok) return parseFailure(response.status, body);
     if (response.status !== 200 || body !== null) return invalid();
     const contentType = CONTENT_TYPES[input.format];

@@ -52,6 +52,12 @@ export class RetentionRecoveryService {
     if (item.phase === 'complete' || item.phase === 'quarantined') return item.phase;
     const next = transitions[item.phase];
 
+    if (
+      item.phase !== 'catalog_removed' &&
+      (await this.hasActiveHoldBarrier(connection, lease, revisionPk))
+    )
+      return item.phase;
+
     if (item.phase === 'planned') await this.detachReferences(connection, lease, revisionPk);
     if (item.phase === 'refs_detached') await this.clearPayload(connection, lease, revisionPk);
     if (item.phase === 'payload_cleared') await this.removeCatalog(connection, lease, revisionPk);
@@ -157,17 +163,6 @@ export class RetentionRecoveryService {
     lease: RetentionLeaseV1,
     revisionPk: string,
   ): Promise<void> {
-    const [holds] = await connection.execute<RowDataPacket[]>(
-      `
-      SELECT kind
-      FROM board_revision_holds
-      WHERE board_pk = ? AND revision_pk = ? AND released_at IS NULL
-        AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP(3))
-      FOR UPDATE
-    `,
-      [lease.boardPk, revisionPk],
-    );
-    if (holds.length > 0) throw new BoardPersistenceError('row_integrity');
     await this.mediaRetention.reconcileRetentionItem(connection, {
       boardPk: lease.boardPk,
       revisionPk,
@@ -182,6 +177,35 @@ export class RetentionRecoveryService {
       'DELETE FROM board_revision_artifact_refs WHERE revision_pk = ?',
       [revisionPk],
     );
+  }
+
+  private async hasActiveHoldBarrier(
+    connection: PoolConnection,
+    lease: RetentionLeaseV1,
+    revisionPk: string,
+  ): Promise<boolean> {
+    const [revisions] = await connection.execute<RowDataPacket[]>(
+      `
+      SELECT revision_pk
+      FROM board_revisions
+      WHERE board_pk = ? AND revision_pk = ?
+      FOR UPDATE
+    `,
+      [lease.boardPk, revisionPk],
+    );
+    if (revisions.length !== 1) throw new BoardPersistenceError('row_integrity');
+    const [holds] = await connection.execute<RowDataPacket[]>(
+      `
+      SELECT kind, holder_id
+      FROM board_revision_holds
+      WHERE board_pk = ? AND revision_pk = ? AND released_at IS NULL
+        AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP(3))
+      ORDER BY kind ASC, holder_id ASC
+      FOR UPDATE
+    `,
+      [lease.boardPk, revisionPk],
+    );
+    return holds.length > 0;
   }
 
   private async clearPayload(

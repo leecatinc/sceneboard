@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
+import { reconcileAcceptedPresentationFormatMutationV1 } from '../../lib/board/use-board-session';
+
 const source = (relative: string) =>
   readFileSync(new URL(`../../${relative}`, import.meta.url), 'utf8');
 
@@ -32,4 +34,22 @@ test('format authoring emits one V3 mutation while view controls remain local-on
     const control = source(relative);
     assert.doesNotMatch(control, /replaceDocument|replaceDocumentV3|transformDocument|mutations/u);
   }
+});
+
+test('an accepted format mutation stays successful when the board refresh fails', async () => {
+  let refreshCalls = 0;
+  const replaceDocument = async () => ({ kind: 'ok' as const });
+  const getBoard = async () => {
+    refreshCalls += 1;
+    return false;
+  };
+
+  const mutation = await replaceDocument();
+  assert.equal(mutation.kind, 'ok');
+  const saved = await reconcileAcceptedPresentationFormatMutationV1(getBoard);
+  const announcesSaveFailure = !saved;
+
+  assert.equal(refreshCalls, 1);
+  assert.equal(saved, true);
+  assert.equal(announcesSaveFailure, false);
 });

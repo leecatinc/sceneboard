@@ -20,6 +20,15 @@ const installedPlaywright = JSON.parse(
 const installedPptxGen = JSON.parse(
   await readFile(resolve(repositoryRoot, 'node_modules/pptxgenjs/package.json'), 'utf8'),
 );
+const runtimePackages = (
+  await readFile(
+    resolve(repositoryRoot, 'deploy/sceneboard-be-export/runtime-packages.lock'),
+    'utf8',
+  )
+)
+  .split('\n')
+  .map((value) => value.trim())
+  .filter(Boolean);
 const selected = browserCatalog.browsers.find((entry) => entry.name === chromium.browserName);
 if (
   installedPlaywright.version !== chromium.playwrightVersion ||
@@ -29,6 +38,16 @@ if (
   throw new Error('locked Playwright Chromium identity does not match');
 if (installedPptxGen.version !== '4.0.1')
   throw new Error('locked PptxGenJS identity does not match');
+
+for (const locked of runtimePackages) {
+  const separator = locked.indexOf('=');
+  if (separator < 1) throw new Error('runtime package lock is invalid');
+  const name = locked.slice(0, separator);
+  const version = locked.slice(separator + 1);
+  const installed = spawnSync('dpkg-query', ['-W', '-f=${Version}', name], { encoding: 'utf8' });
+  if (installed.status !== 0 || installed.stdout.trim() !== version)
+    throw new Error(`locked runtime package mismatch: ${name}`);
+}
 
 const executable = resolve(runtimeRoot, 'ms-playwright', chromium.executableRelativePath);
 await access(executable);
@@ -42,6 +61,11 @@ for (const font of fonts.fonts) {
   if (digest !== font.sha256) throw new Error(`locked export font mismatch: ${font.subset}`);
 }
 await access(resolve(runtimeRoot, 'fonts/OFL-1.1.txt'));
+const [sourceLua, builtLua] = await Promise.all([
+  readFile(resolve(repositoryRoot, 'sceneboard-be/src/exports/export-render-session-v1.lua')),
+  readFile(resolve(repositoryRoot, 'sceneboard-be/dist/exports/export-render-session-v1.lua')),
+]);
+if (!sourceLua.equals(builtLua)) throw new Error('built export render Lua does not match source');
 process.stdout.write(
-  `verified Playwright ${chromium.playwrightVersion}, Chromium ${chromium.revision}, PptxGenJS ${installedPptxGen.version}, and ${fonts.fonts.length} fonts\n`,
+  `verified Playwright ${chromium.playwrightVersion}, Chromium ${chromium.revision}, PptxGenJS ${installedPptxGen.version}, ${runtimePackages.length} runtime packages, Lua, and ${fonts.fonts.length} fonts\n`,
 );

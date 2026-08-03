@@ -7,6 +7,7 @@ import type {
 } from '@sceneboard/board-schema';
 import type { PoolConnection } from 'mysql2/promise';
 import type { ActiveAccountApiKeySnapshot } from '../api-keys/account-api-key.repository.js';
+import type { DatabaseOperationOwnershipV1 } from '../database/transaction.js';
 import type { MembershipAuthorizationContextV1 } from '../memberships/membership-authorization.context.js';
 
 export const AUTHORIZED_BOARD_OPERATIONS_V1 = [
@@ -161,6 +162,7 @@ export type AuthorizedBoardTransactionInputV1 = {
   operation: BoardAccessOperationV1;
   boardId: BoardId | null;
   isolation: 'READ_COMMITTED_WRITE' | 'REPEATABLE_READ_CUT';
+  ownership?: DatabaseOperationOwnershipV1;
 };
 
 export interface BoardAccessPolicy {

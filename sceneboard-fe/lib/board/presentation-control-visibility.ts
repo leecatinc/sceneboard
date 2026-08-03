@@ -1,5 +1,30 @@
 export const PRESENTATION_CONTROL_IDLE_MS = 2_000;
 
+export type PresentationControlFocusCandidateV1 = Readonly<{
+  disabled?: boolean;
+  isConnected: boolean;
+  focus: () => void;
+}>;
+
+const canReceivePresentationFocusV1 = (candidate: PresentationControlFocusCandidateV1): boolean =>
+  candidate.isConnected && candidate.disabled !== true;
+
+export function firstEnabledPresentationControlV1(
+  candidates: Iterable<PresentationControlFocusCandidateV1>,
+): PresentationControlFocusCandidateV1 | null {
+  for (const candidate of candidates)
+    if (canReceivePresentationFocusV1(candidate)) return candidate;
+  return null;
+}
+
+export function focusPresentationControlV1(
+  candidate: PresentationControlFocusCandidateV1 | null,
+): boolean {
+  if (candidate === null || !canReceivePresentationFocusV1(candidate)) return false;
+  candidate.focus();
+  return true;
+}
+
 export type PresentationControlVisibilityInputV1 = Readonly<{
   controlsFocusWithin: boolean;
   dialogOrMenuOpen: boolean;

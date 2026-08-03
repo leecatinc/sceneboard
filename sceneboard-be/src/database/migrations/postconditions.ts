@@ -66,6 +66,37 @@ export interface DocumentReplaceIdempotencyIndexProjection extends RowDataPacket
   columnName: string;
 }
 
+export interface ExportTerminalAuditTableProjection extends RowDataPacket {
+  tableName: string;
+  tableType: string;
+  engine: string | null;
+  tableCollation: string | null;
+}
+
+export interface ExportTerminalAuditColumnProjection extends RowDataPacket {
+  columnName: string;
+  ordinalPosition: number;
+  columnType: string;
+  characterSetName: string | null;
+  collationName: string | null;
+  isNullable: string;
+  columnDefault: string | null;
+  extra: string;
+}
+
+export interface ExportTerminalAuditIndexProjection extends RowDataPacket {
+  indexName: string;
+  nonUnique: number;
+  sequence: number;
+  columnName: string;
+  collation: string | null;
+}
+
+export interface ExportTerminalAuditCheckProjection extends RowDataPacket {
+  constraintName: string;
+  checkClause: string;
+}
+
 const expectedColumns = [
   ['id', 1, 'bigint unsigned', null, null, 'NO', null, 'auto_increment'],
   ['public_id', 2, 'varchar(128)', 'ascii', 'ascii_bin', 'NO', null, ''],
@@ -225,6 +256,170 @@ const renderCheckNodes = (nodes: readonly CheckNode[]): string =>
 
 const canonicalCheck = (value: string): string =>
   renderCheckNodes(normalizeCheckNodes(parseCheckNodes(tokenizeCheck(value)).nodes, true));
+
+const expectedExportTerminalAuditColumns = [
+  ['terminal_audit_intent_pk', 1, 'bigint unsigned', null, null, 'NO', null, 'auto_increment'],
+  ['correlation_id', 2, 'varchar(64)', 'ascii', 'ascii_bin', 'NO', null, ''],
+  ['actor_kind', 3, "enum('user','service')", 'utf8mb4', 'utf8mb4_0900_ai_ci', 'NO', null, ''],
+  ['actor_public_id', 4, 'varchar(128)', 'ascii', 'ascii_bin', 'NO', null, ''],
+  ['format', 5, "enum('pdf','pptx')", 'utf8mb4', 'utf8mb4_0900_ai_ci', 'NO', null, ''],
+  ['revision_number', 6, 'bigint unsigned', null, null, 'NO', null, ''],
+  [
+    'outcome',
+    7,
+    "enum('pending','completed','failed')",
+    'utf8mb4',
+    'utf8mb4_0900_ai_ci',
+    'NO',
+    null,
+    '',
+  ],
+  ['completed_bytes', 8, 'bigint unsigned', null, null, 'YES', null, ''],
+  ['failure_reason', 9, 'varchar(64)', 'ascii', 'ascii_bin', 'YES', null, ''],
+  ['persisted_at', 10, 'datetime(3)', null, null, 'YES', null, ''],
+  ['created_at', 11, 'datetime(3)', null, null, 'NO', 'CURRENT_TIMESTAMP(3)', 'DEFAULT_GENERATED'],
+] as const;
+
+const expectedExportTerminalAuditIndexes = [
+  ['PRIMARY', 0, 1, 'terminal_audit_intent_pk', 'A'],
+  ['ix_export_terminal_audit_recovery', 1, 1, 'outcome', 'A'],
+  ['ix_export_terminal_audit_recovery', 1, 2, 'persisted_at', 'A'],
+  ['ix_export_terminal_audit_recovery', 1, 3, 'terminal_audit_intent_pk', 'A'],
+  ['uq_export_terminal_audit_correlation', 0, 1, 'correlation_id', 'A'],
+] as const;
+
+const expectedExportTerminalAuditChecks = new Map([
+  [
+    'chk_export_terminal_audit_actor',
+    canonicalCheck('CHAR_LENGTH(actor_public_id) BETWEEN 1 AND 128'),
+  ],
+  [
+    'chk_export_terminal_audit_correlation',
+    canonicalCheck('CHAR_LENGTH(correlation_id) BETWEEN 1 AND 64'),
+  ],
+  [
+    'chk_export_terminal_audit_payload',
+    canonicalCheck(`
+      (outcome = 'pending' AND completed_bytes IS NULL AND failure_reason IS NULL
+        AND persisted_at IS NULL)
+      OR
+      (outcome = 'completed' AND completed_bytes BETWEEN 0 AND 9007199254740991
+        AND failure_reason IS NULL)
+      OR
+      (outcome = 'failed' AND completed_bytes IS NULL AND failure_reason IN (
+        'EXPORT_INVALID_REQUEST',
+        'EXPORT_UNAUTHENTICATED',
+        'EXPORT_FORBIDDEN',
+        'EXPORT_NOT_FOUND',
+        'EXPORT_REQUIRED_CONTENT_UNSUPPORTED',
+        'EXPORT_BOUNDS_EXCEEDED',
+        'EXPORT_RATE_LIMITED',
+        'EXPORT_RENDERER_UNAVAILABLE',
+        'EXPORT_RENDER_TIMEOUT',
+        'EXPORT_ENCODE_FAILED',
+        'EXPORT_INTERNAL_ERROR'
+      ))
+    `),
+  ],
+  [
+    'chk_export_terminal_audit_revision',
+    canonicalCheck('revision_number BETWEEN 1 AND 9007199254740991'),
+  ],
+]);
+
+export const assessExportTerminalAuditPostcondition = (
+  tables: readonly ExportTerminalAuditTableProjection[],
+  columns: readonly ExportTerminalAuditColumnProjection[],
+  indexes: readonly ExportTerminalAuditIndexProjection[],
+  checks: readonly ExportTerminalAuditCheckProjection[],
+): void => {
+  const table = tables[0];
+  if (
+    tables.length !== 1 ||
+    table?.tableName !== 'export_terminal_audit_intents' ||
+    table.tableType !== 'BASE TABLE' ||
+    table.engine?.toLowerCase() !== 'innodb' ||
+    table.tableCollation !== 'utf8mb4_0900_ai_ci'
+  ) {
+    throw new Error('export terminal audit table projection mismatch');
+  }
+  const actualColumns = columns.map((row) => [
+    row.columnName,
+    Number(row.ordinalPosition),
+    row.columnType.toLowerCase(),
+    row.characterSetName,
+    row.collationName,
+    row.isNullable,
+    row.columnDefault,
+    row.extra,
+  ]);
+  if (JSON.stringify(actualColumns) !== JSON.stringify(expectedExportTerminalAuditColumns)) {
+    throw new Error('export terminal audit column projection mismatch');
+  }
+  const actualIndexes = indexes.map((row) => [
+    row.indexName,
+    Number(row.nonUnique),
+    Number(row.sequence),
+    row.columnName,
+    row.collation,
+  ]);
+  if (JSON.stringify(actualIndexes) !== JSON.stringify(expectedExportTerminalAuditIndexes)) {
+    throw new Error('export terminal audit index projection mismatch');
+  }
+  const actualChecks = new Map(
+    checks.map((row) => [row.constraintName, canonicalCheck(row.checkClause)]),
+  );
+  if (
+    actualChecks.size !== expectedExportTerminalAuditChecks.size ||
+    [...expectedExportTerminalAuditChecks].some(
+      ([name, clause]) => actualChecks.get(name) !== clause,
+    )
+  ) {
+    throw new Error('export terminal audit check projection mismatch');
+  }
+};
+
+export const verifyExportTerminalAuditPostcondition = async (
+  connection: PoolConnection,
+): Promise<void> => {
+  const [tables] = await connection.query<ExportTerminalAuditTableProjection[]>(
+    `SELECT table_name AS tableName, table_type AS tableType, engine,
+            table_collation AS tableCollation
+     FROM information_schema.tables
+     WHERE table_schema = DATABASE()
+       AND table_name = 'export_terminal_audit_intents'`,
+  );
+  const [columns] = await connection.query<ExportTerminalAuditColumnProjection[]>(
+    `SELECT column_name AS columnName, ordinal_position AS ordinalPosition,
+            column_type AS columnType, character_set_name AS characterSetName,
+            collation_name AS collationName, is_nullable AS isNullable,
+            column_default AS columnDefault, extra
+     FROM information_schema.columns
+     WHERE table_schema = DATABASE()
+       AND table_name = 'export_terminal_audit_intents'
+     ORDER BY ordinal_position`,
+  );
+  const [indexes] = await connection.query<ExportTerminalAuditIndexProjection[]>(
+    `SELECT index_name AS indexName, non_unique AS nonUnique,
+            seq_in_index AS sequence, column_name AS columnName, collation
+     FROM information_schema.statistics
+     WHERE table_schema = DATABASE()
+       AND table_name = 'export_terminal_audit_intents'
+     ORDER BY index_name, seq_in_index`,
+  );
+  const [checks] = await connection.query<ExportTerminalAuditCheckProjection[]>(
+    `SELECT tc.constraint_name AS constraintName, cc.check_clause AS checkClause
+     FROM information_schema.table_constraints tc
+     JOIN information_schema.check_constraints cc
+       ON cc.constraint_schema = tc.constraint_schema
+      AND cc.constraint_name = tc.constraint_name
+     WHERE tc.table_schema = DATABASE()
+       AND tc.table_name = 'export_terminal_audit_intents'
+       AND tc.constraint_type = 'CHECK'
+     ORDER BY tc.constraint_name`,
+  );
+  assessExportTerminalAuditPostcondition(tables, columns, indexes, checks);
+};
 
 export const assessAccountApiKeyPostcondition = (
   columns: readonly AccountApiKeyColumnProjection[],

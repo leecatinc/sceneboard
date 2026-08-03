@@ -26,13 +26,22 @@ const isLoopbackHost = (value: string): boolean => {
   return isLoopbackAddress(hostname === '[::1]' ? '::1' : hostname);
 };
 
+const isForwardingHeader = (name: string): boolean =>
+  name === 'forwarded' ||
+  name === 'via' ||
+  name === 'x-real-ip' ||
+  name === 'proxy-authorization' ||
+  name.startsWith('x-forwarded-');
+
 const admissibleRequest = (request: Request): boolean => {
   const remoteAddress = request.socket.remoteAddress;
   return (
     request.method === 'GET' &&
     typeof request.headers.host === 'string' &&
     isLoopbackHost(request.headers.host) &&
-    (remoteAddress === undefined || isLoopbackAddress(remoteAddress)) &&
+    typeof remoteAddress === 'string' &&
+    isLoopbackAddress(remoteAddress) &&
+    !Object.keys(request.headers).some(isForwardingHeader) &&
     request.originalUrl === request.path &&
     request.headers.range === undefined &&
     request.headers['if-match'] === undefined &&
@@ -69,7 +78,7 @@ export class ExportRenderControllerV1 {
       response.status(404).end();
       return;
     }
-    if (request.headers.origin !== undefined && request.headers.origin !== result.webOrigin) {
+    if (request.headers.origin !== result.webOrigin) {
       await this.broker.dispose(sessionId);
       response.status(404).end();
       return;
@@ -112,7 +121,7 @@ export class ExportRenderControllerV1 {
       response.status(404).end();
       return;
     }
-    if (request.headers.origin !== undefined && request.headers.origin !== result.webOrigin) {
+    if (request.headers.origin !== result.webOrigin) {
       await this.broker.dispose(sessionId);
       response.status(404).end();
       return;

@@ -24,6 +24,7 @@ import {
 import { BoardGetService } from '../boards/board-get.service.js';
 import { BoardContractError } from '../common/errors/app-error.js';
 import { CryptoService } from '../common/security/crypto.service.js';
+import type { DatabaseOperationOwnershipV1 } from '../database/transaction.js';
 import type {
   BoardEventDeliveryPortV1,
   DeliverableBoardEventV1,
@@ -57,9 +58,10 @@ export class BoardStreamCutService {
     boardId: BoardId,
     cursorSource: string | null,
     documentSchemaVersion: 1 | 2 | 3 = 1,
+    ownership?: DatabaseOperationOwnershipV1,
   ): Promise<PreparedBoardStreamCutV1> {
     const snapshot = this.#projectSnapshot(
-      await this.#authorizedSnapshot(principal, boardId, documentSchemaVersion),
+      await this.#authorizedSnapshot(principal, boardId, documentSchemaVersion, ownership),
       documentSchemaVersion,
     );
     const watermark = snapshot.lastEventSequence;
@@ -89,11 +91,15 @@ export class BoardStreamCutService {
     principal: ResolvedBoardPrincipalV1,
     boardId: BoardId,
     documentSchemaVersion: 1 | 2 | 3 = 1,
+    ownership?: DatabaseOperationOwnershipV1,
   ): Promise<number> {
-    return this.#projectSnapshot(
-      await this.#authorizedSnapshot(principal, boardId, documentSchemaVersion),
-      documentSchemaVersion,
-    ).lastEventSequence;
+    const head = await this.boards.getAuthorizedHead({
+      principal,
+      boardId,
+      ...(ownership === undefined ? {} : { ownership }),
+    });
+    this.#assertHeadCompatible(head.headSchemaVersion, documentSchemaVersion);
+    return head.lastEventSequence;
   }
 
   async rangeAfter(
@@ -142,15 +148,54 @@ export class BoardStreamCutService {
     principal: ResolvedBoardPrincipalV1,
     boardId: BoardId,
     documentSchemaVersion: 1 | 2 | 3,
+    ownership?: DatabaseOperationOwnershipV1,
   ): Promise<BoardSnapshot> {
-    const result = await this.boards.get({
+    const request = {
       principal,
       requestId: this.crypto.generatePublicIdV1() as RequestId,
       boardId,
       documentSchemaVersion,
-    });
+      ...(ownership === undefined ? {} : { ownership }),
+    };
+    const result = await this.boards.get(request);
     if (result.result.type !== 'board.get') throw new Error('board snapshot result drift');
     return result.result.snapshot;
+  }
+
+  #assertHeadCompatible(headSchemaVersion: 1 | 2 | 3, documentSchemaVersion: 1 | 2 | 3): void {
+    if (headSchemaVersion === 3 && documentSchemaVersion === 1) {
+      throw new BoardContractError({
+        protocolVersion: 1,
+        type: 'board.error',
+        code: 'UPGRADE_REQUIRED',
+        message: 'A newer document client is required',
+        category: 'conflict',
+        retryable: false,
+        httpStatusHint: 409,
+        details: {
+          headSchemaVersion: 3,
+          requestedDocumentSchemaVersion: 1,
+          surface: 'board.get',
+        },
+      });
+    }
+    if (headSchemaVersion === 2 && documentSchemaVersion === 1) {
+      throw new BoardContractError({
+        protocolVersion: 1,
+        type: 'board.error',
+        code: 'PROTOCOL_VERSION_MISMATCH',
+        message: 'Document snapshots require a document-capable client',
+        category: 'protocol',
+        retryable: false,
+        httpStatusHint: 409,
+        details: {
+          reason: 'schema_revision',
+          supportedMajor: 1,
+          receivedMajor: 1,
+          field: 'documentSchemaVersion',
+        },
+      });
+    }
   }
 
   #snapshotCut(snapshot: BoardSnapshot): PreparedBoardStreamCutV1 {

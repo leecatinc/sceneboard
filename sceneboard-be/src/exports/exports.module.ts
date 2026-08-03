@@ -27,6 +27,7 @@ import { ExportRenderControllerV1 } from './export-render.controller.js';
 import { ExportRendererServiceV1 } from './export-renderer.service.js';
 import { ExportRenderSessionRepositoryV1 } from './export-render-session.repository.js';
 import { ExportRevisionHoldRepositoryV1 } from './export-revision-hold.repository.js';
+import { ExportTerminalAuditRepositoryV1 } from './export-terminal-audit.repository.js';
 import { PdfExportEncoderV1 } from './pdf-export.encoder.js';
 import { PptxExportEncoderV1 } from './pptx-export.encoder.js';
 
@@ -58,6 +59,11 @@ const canonicalLoopbackOrigin = (value: string, label: string): string => {
       provide: ExportAuditServiceV1,
       inject: [AuditRepository],
       useFactory: (audit: AuditRepository) => new ExportAuditServiceV1(audit),
+    },
+    {
+      provide: ExportTerminalAuditRepositoryV1,
+      inject: [ExportAuditServiceV1],
+      useFactory: (audit: ExportAuditServiceV1) => new ExportTerminalAuditRepositoryV1(audit),
     },
     ExportRevisionHoldRepositoryV1,
     {
@@ -132,6 +138,7 @@ const canonicalLoopbackOrigin = (value: string, label: string): string => {
         ExportGlobalAdmissionRepositoryV1,
         ExportRevisionHoldRepositoryV1,
         ExportAuditServiceV1,
+        ExportTerminalAuditRepositoryV1,
         MysqlService,
         EXPORT_RUNTIME_ORIGINS_V1,
       ],
@@ -144,6 +151,7 @@ const canonicalLoopbackOrigin = (value: string, label: string): string => {
         globalAdmission: ExportGlobalAdmissionRepositoryV1,
         holds: ExportRevisionHoldRepositoryV1,
         audit: ExportAuditServiceV1,
+        terminalAudits: ExportTerminalAuditRepositoryV1,
         mysql: MysqlService,
         origins: ExportRuntimeOriginsV1,
       ) =>
@@ -156,15 +164,19 @@ const canonicalLoopbackOrigin = (value: string, label: string): string => {
           globalAdmission,
           holds,
           audit,
+          terminalAudits,
           mysql,
           origins,
         ),
     },
     {
       provide: ExportCleanupServiceV1,
-      inject: [MysqlService, ExportRevisionHoldRepositoryV1],
-      useFactory: (mysql: MysqlService, holds: ExportRevisionHoldRepositoryV1) =>
-        new ExportCleanupServiceV1(mysql, holds),
+      inject: [MysqlService, ExportRevisionHoldRepositoryV1, ExportTerminalAuditRepositoryV1],
+      useFactory: (
+        mysql: MysqlService,
+        holds: ExportRevisionHoldRepositoryV1,
+        terminalAudits: ExportTerminalAuditRepositoryV1,
+      ) => new ExportCleanupServiceV1(mysql, holds, terminalAudits),
     },
   ],
   exports: [

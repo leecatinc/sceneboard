@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
+import { createNestedCanvasFitV1 } from '../../lib/board/page-render-adapter';
+
 const styles = readFileSync(
   new URL('../../components/board/PresentationStage.module.css', import.meta.url),
   'utf8',
@@ -50,4 +52,51 @@ test('presentation stage propagates the measured viewport height to artifact des
     'utf8',
   );
   assert.match(stage, /'--page-stage-viewport-height':\s*`\$\{viewport\.height\}px`/u);
+});
+
+test('wide nested canvas keeps its far-edge focus target inside a narrow PAGE viewport', () => {
+  const fit = createNestedCanvasFitV1({
+    availableWidth: 375,
+    canvasWidth: 1_600,
+    canvasHeight: 900,
+  });
+  assert.ok(fit);
+
+  const focusTarget = { x: 1_520, width: 64 };
+  const renderedRight = (focusTarget.x + focusTarget.width) * fit.scale;
+  assert.ok(renderedRight <= 375);
+  assert.equal(fit.reservedHeight, 900 * fit.scale);
+
+  const resized = createNestedCanvasFitV1({
+    availableWidth: 750,
+    canvasWidth: 1_600,
+    canvasHeight: 900,
+  });
+  assert.ok(resized);
+  assert.ok(resized.scale > fit.scale);
+  assert.ok((focusTarget.x + focusTarget.width) * resized.scale <= 750);
+});
+
+test('canvas inside canvas uses its local containing width without reusing the root transform', () => {
+  const rootFit = createNestedCanvasFitV1({
+    availableWidth: 375,
+    canvasWidth: 1_600,
+    canvasHeight: 900,
+  });
+  const nestedFit = createNestedCanvasFitV1({
+    availableWidth: 1_200,
+    availableHeight: 600,
+    canvasWidth: 1_600,
+    canvasHeight: 900,
+  });
+  assert.ok(rootFit);
+  assert.ok(nestedFit);
+
+  assert.equal(rootFit.scale, 375 / 1_600);
+  assert.equal(nestedFit.scale, 600 / 900);
+  assert.notEqual(nestedFit.scale, rootFit.scale);
+
+  const farEdgeRight = 1_584 * nestedFit.scale * rootFit.scale;
+  const nestedViewportRight = 1_200 * rootFit.scale;
+  assert.ok(farEdgeRight <= nestedViewportRight);
 });

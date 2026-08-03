@@ -100,6 +100,13 @@ const localError = (result: Exclude<ApiResult<unknown>, { kind: 'ok' }>): SafeBo
   };
 };
 
+export async function reconcileAcceptedPresentationFormatMutationV1(
+  refreshLatest: () => Promise<boolean>,
+): Promise<true> {
+  await refreshLatest();
+  return true;
+}
+
 export function useBoardSession(boardIdValue: string) {
   const [phase, setPhase] = useState<BoardScreenPhase>('loading');
   const [state, setState] = useState<LiveBoardStateV1 | null>(null);
@@ -661,7 +668,7 @@ export function useBoardSession(boardIdValue: string) {
         return false;
       writeAbort.current = null;
       writeIdentity.current = null;
-      return latest(true);
+      return reconcileAcceptedPresentationFormatMutationV1(() => latest(true));
     },
     [api, boardIdValue, latest, state],
   );

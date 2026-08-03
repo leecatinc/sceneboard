@@ -266,12 +266,15 @@ export class MysqlBoardAccessPolicy implements BoardAccessPolicy {
     const retryDelays = [25, 75, 175] as const;
     for (let attempt = 0; attempt <= retryDelays.length; attempt += 1) {
       try {
-        return await this.mysql.withConnection((connection) =>
-          withTransaction(
-            connection,
-            input.isolation === 'READ_COMMITTED_WRITE' ? 'READ COMMITTED' : 'REPEATABLE READ',
-            async () => this.authorizeAndApply(connection, input, boardId, apply),
-          ),
+        return await this.mysql.withConnection(
+          (connection) =>
+            withTransaction(
+              connection,
+              input.isolation === 'READ_COMMITTED_WRITE' ? 'READ COMMITTED' : 'REPEATABLE READ',
+              async () => this.authorizeAndApply(connection, input, boardId, apply),
+              input.ownership,
+            ),
+          input.ownership,
         );
       } catch (error) {
         const delay = retryDelays[attempt];
@@ -519,10 +522,9 @@ export class MysqlBoardAccessPolicy implements BoardAccessPolicy {
       throw boardFailure('UNAUTHENTICATED');
     }
     const requiredScopes = accountApiKeyRequiredScopes(input.operation);
-    if (
-      requiredScopes === null ||
-      !requiredScopes.every((scope) => snapshot.scopes.includes(scope))
-    ) {
+    const hasRequiredScopes =
+      requiredScopes !== null && requiredScopes.every((scope) => snapshot.scopes.includes(scope));
+    if (!hasRequiredScopes && input.operation !== 'export.render') {
       throw this.authorizationDenied(boardId);
     }
     try {
@@ -531,6 +533,7 @@ export class MysqlBoardAccessPolicy implements BoardAccessPolicy {
       if (error instanceof AppError) throw boardFailure('UNAUTHENTICATED');
       throw error;
     }
+    if (!hasRequiredScopes) throw boardFailure('FORBIDDEN');
     const user = await this.lockUser(connection, principal.ownerUserPk);
     if (user.publicId !== snapshot.ownerPublicId) throw boardFailure('UNAUTHENTICATED');
     const board = await this.authorizeBoardTarget(

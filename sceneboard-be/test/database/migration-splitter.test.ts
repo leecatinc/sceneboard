@@ -253,5 +253,12 @@ test('freezes the exact terminal D2/D3/D7/D8/D9 checkpoint order and reversibili
       downAsset: null,
       postcondition: 'd10_document_replace_idempotency_v1',
     },
+    {
+      version: '029_d10_export_terminal_audit',
+      upAsset: '029_d10_export_terminal_audit.up.sql',
+      reversible: false,
+      downAsset: null,
+      postcondition: 'd10_export_terminal_audit_v1',
+    },
   ]);
 });

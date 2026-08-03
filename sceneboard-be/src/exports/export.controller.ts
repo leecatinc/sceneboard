@@ -11,7 +11,7 @@ import {
   ExportAdmissionServiceV1,
   type ExportAdmittedLeaseV1,
 } from './export-admission.service.js';
-import { ExportFailureV1 } from './export-errors.js';
+import { ExportFailureV1, type ExportFailureCodeV1 } from './export-errors.js';
 import { exportSuccessHeadersV1 } from './export-http-response.js';
 import { PdfExportEncoderV1 } from './pdf-export.encoder.js';
 import { PptxExportEncoderV1 } from './pptx-export.encoder.js';
@@ -37,19 +37,63 @@ const boardId = (value: string): BoardId => {
   return parsed.data.value;
 };
 
+const responseIsCommitted = (response: Response): boolean =>
+  response.headersSent || response.writableEnded;
+
+const clearResponseHeaders = (response: Response, names: readonly string[]): void => {
+  for (const name of names) response.removeHeader(name);
+};
+
+const EXPORT_FAILURE_CLEANUP_GRACE_MS_V1 = 1_000;
+
+const observeCleanupOperation = (operation: () => Promise<void>): Promise<void> => {
+  try {
+    return operation().catch(() => undefined);
+  } catch {
+    return Promise.resolve();
+  }
+};
+
+const waitForCleanupGrace = async (operation: Promise<void>): Promise<void> => {
+  let timeout: NodeJS.Timeout | undefined;
+  await Promise.race([
+    operation,
+    new Promise<void>((resolve) => {
+      timeout = setTimeout(resolve, EXPORT_FAILURE_CLEANUP_GRACE_MS_V1);
+    }),
+  ]);
+  if (timeout !== undefined) clearTimeout(timeout);
+};
+
+const finalizeFailedLease = async (
+  lease: ExportAdmittedLeaseV1,
+  reason: ExportFailureCodeV1,
+): Promise<void> => {
+  void observeCleanupOperation(() => lease.auditFailed(reason));
+  await waitForCleanupGrace(observeCleanupOperation(() => lease.abort()));
+};
+
 const writeResponse = async (
   request: ExportHttpRequestV1,
   response: Response,
   bytes: Buffer,
   signal: AbortSignal,
+  completeResponse: () => Promise<void>,
 ): Promise<void> =>
   new Promise((resolve, reject) => {
     let terminal = false;
-    const finish = (): void => {
+    const complete = (): void => {
       if (terminal) return;
       terminal = true;
       cleanup();
-      resolve();
+      let operation: Promise<void>;
+      try {
+        operation = completeResponse();
+      } catch (error) {
+        reject(error);
+        return;
+      }
+      void operation.then(resolve, reject);
     };
     const fail = (error: unknown): void => {
       if (terminal) return;
@@ -57,26 +101,35 @@ const writeResponse = async (
       cleanup();
       reject(error);
     };
-    const aborted = (): void => fail(new Error('export client aborted'));
-    const timedOut = (): void => {
-      if (response.headersSent) response.destroy();
-      fail(new Error('export response timed out'));
+    const failTransport = (error: unknown): void => {
+      fail(error);
+      response.destroy();
+    };
+    const aborted = (): void => failTransport(new Error('export client aborted'));
+    const ownershipLost = (): void => {
+      failTransport(
+        signal.reason instanceof Error ? signal.reason : new Error('export ownership lost'),
+      );
     };
     const cleanup = (): void => {
-      response.off('finish', finish);
-      response.off('error', fail);
+      response.off('finish', complete);
+      response.off('error', failTransport);
       request.off('aborted', aborted);
-      signal.removeEventListener('abort', timedOut);
+      signal.removeEventListener('abort', ownershipLost);
     };
     if (signal.aborted) {
-      timedOut();
+      ownershipLost();
       return;
     }
-    response.once('finish', finish);
-    response.once('error', fail);
+    response.once('finish', complete);
+    response.once('error', failTransport);
     request.once('aborted', aborted);
-    signal.addEventListener('abort', timedOut, { once: true });
-    response.end(bytes);
+    signal.addEventListener('abort', ownershipLost, { once: true });
+    try {
+      response.end(bytes);
+    } catch (error) {
+      failTransport(error);
+    }
   });
 
 @Controller('api/v1/boards')
@@ -98,29 +151,52 @@ export class ExportControllerV1 {
     const parsed = ExportRequestSchemaV1.safeParse(request.body);
     if (!parsed.success) throw new ExportFailureV1('EXPORT_INVALID_REQUEST');
     const startedAt = Date.now();
+    const deadlineMs = startedAt + EXPORT_TOTAL_TIMEOUT_MS_V1;
     let lease: ExportAdmittedLeaseV1 | undefined;
     let responseCommitted = false;
+    let responseFinished = false;
+    let successHeaderNames: readonly string[] = [];
     let clientAborted = request.aborted;
-    let encodeTimedOut = false;
+    let deadlineTimedOut = false;
     const abortController = new AbortController();
     const onClientAbort = (): void => {
       clientAborted = true;
       abortController.abort();
     };
     request.once('aborted', onClientAbort);
+    if (clientAborted) abortController.abort();
+    const totalTimeout = setTimeout(() => {
+      deadlineTimedOut = true;
+      abortController.abort();
+    }, EXPORT_TOTAL_TIMEOUT_MS_V1);
+    totalTimeout.unref();
     try {
       lease = await this.admission.admit({
         principal: principal(request),
         boardId: boardId(pathBoardId),
         request: parsed.data,
         correlationId: randomBytes(16).toString('base64url'),
+        signal: abortController.signal,
+        deadlineMs,
       });
       if (clientAborted) return;
-      const remaining = EXPORT_TOTAL_TIMEOUT_MS_V1 - (Date.now() - startedAt);
+      const deliverySignal =
+        lease.ownershipSignal instanceof AbortSignal
+          ? AbortSignal.any([abortController.signal, lease.ownershipSignal])
+          : abortController.signal;
+      const assertDeliveryOwnership = (): void => {
+        lease?.assertOwnership?.();
+        if (deliverySignal.aborted) {
+          if (deliverySignal.reason instanceof Error) throw deliverySignal.reason;
+          throw new ExportFailureV1('EXPORT_RENDERER_UNAVAILABLE');
+        }
+      };
+      const remaining = deadlineMs - Date.now();
       if (remaining <= 0) throw new ExportFailureV1('EXPORT_RENDER_TIMEOUT');
+      const encodeDeadlineMs = Math.min(deadlineMs, Date.now() + EXPORT_ENCODE_TIMEOUT_MS_V1);
       const timeout = setTimeout(
         () => {
-          encodeTimedOut = true;
+          deadlineTimedOut = true;
           abortController.abort();
         },
         Math.min(EXPORT_ENCODE_TIMEOUT_MS_V1, remaining),
@@ -131,53 +207,66 @@ export class ExportControllerV1 {
         const bytes = await encode.encode({
           lease,
           boardTitle: lease.boardTitle,
-          signal: abortController.signal,
+          signal: deliverySignal,
+          deadlineMs: encodeDeadlineMs,
         });
         if (clientAborted) return;
+        assertDeliveryOwnership();
         const headers = exportSuccessHeadersV1({
           title: lease.boardTitle,
           revisionNumber: lease.projection.revisionNumber,
           format: parsed.data.format,
           byteLength: bytes.byteLength,
         });
+        successHeaderNames = Object.keys(headers);
         await lease.auditCompleted(bytes.byteLength);
+        assertDeliveryOwnership();
         for (const [name, value] of Object.entries(headers)) response.setHeader(name, value);
         response.status(200);
+        await writeResponse(
+          request,
+          response,
+          bytes,
+          deliverySignal,
+          () => {
+            responseFinished = true;
+            return lease?.completeResponse() ?? Promise.resolve();
+          },
+        );
         responseCommitted = true;
-        await writeResponse(request, response, bytes, abortController.signal);
-        await lease.completeResponse();
         lease = undefined;
       } finally {
         clearTimeout(timeout);
       }
     } catch (error) {
-      let auditError: unknown;
+      responseCommitted = responseCommitted || responseIsCommitted(response);
+      if (!responseCommitted) clearResponseHeaders(response, successHeaderNames);
       if (lease !== undefined) {
-        const reason = encodeTimedOut
-          ? 'EXPORT_RENDER_TIMEOUT'
-          : error instanceof ExportFailureV1
-            ? error.code
-            : 'EXPORT_ENCODE_FAILED';
-        try {
-          await lease.auditFailed(reason);
-        } catch (failedAuditError) {
-          auditError = failedAuditError;
+        if (responseFinished) {
+          await lease.completeResponse().catch(() => undefined);
+        } else {
+          deadlineTimedOut = deadlineTimedOut || Date.now() >= deadlineMs;
+          const reason = deadlineTimedOut
+            ? 'EXPORT_RENDER_TIMEOUT'
+            : clientAborted
+              ? 'EXPORT_ENCODE_FAILED'
+              : error instanceof ExportFailureV1
+                ? error.code
+                : 'EXPORT_ENCODE_FAILED';
+          await finalizeFailedLease(lease, reason);
         }
-        if (responseCommitted || response.headersSent) await lease.completeResponse();
-        else await lease.abort();
         lease = undefined;
       }
       if (clientAborted) return;
-      if (responseCommitted || response.headersSent) return;
-      if (auditError !== undefined) throw new ExportFailureV1('EXPORT_INTERNAL_ERROR', auditError);
-      if (encodeTimedOut) throw new ExportFailureV1('EXPORT_RENDER_TIMEOUT');
+      if (responseCommitted) return;
+      if (deadlineTimedOut) throw new ExportFailureV1('EXPORT_RENDER_TIMEOUT');
       if (error instanceof ExportFailureV1) throw error;
       throw new ExportFailureV1('EXPORT_ENCODE_FAILED');
     } finally {
+      clearTimeout(totalTimeout);
       request.off('aborted', onClientAbort);
       if (lease !== undefined) {
-        await lease.auditFailed('EXPORT_INTERNAL_ERROR').catch(() => undefined);
-        await lease.abort().catch(() => undefined);
+        await finalizeFailedLease(lease, 'EXPORT_INTERNAL_ERROR');
       }
     }
   }

@@ -12,6 +12,11 @@ import {
   buildMigrationConnectionProfile,
   type MigrationConnectionProfileV1,
 } from './migrations/certification-state.js';
+import {
+  awaitOwnedDatabaseOperation,
+  DatabaseOperationAbortedError,
+  type DatabaseOperationOwnershipV1,
+} from './transaction.js';
 
 const REQUIRED_SQL_MODES = [
   'STRICT_TRANS_TABLES',
@@ -62,13 +67,33 @@ export class MysqlService implements OnModuleDestroy {
 
   async withConnection<Value>(
     operation: (connection: PoolConnection) => Promise<Value>,
+    ownership?: DatabaseOperationOwnershipV1,
   ): Promise<Value> {
-    const connection = await this.pool.getConnection();
+    const connection = await awaitOwnedDatabaseOperation(
+      this.pool.getConnection(),
+      ownership,
+      (lateConnection) => lateConnection.destroy(),
+    );
+    let healthy = true;
     try {
-      await this.configureConnection(connection);
-      return await operation(connection);
+      await awaitOwnedDatabaseOperation(this.configureConnection(connection), ownership);
+      return await awaitOwnedDatabaseOperation(operation(connection), ownership);
+    } catch (error) {
+      if (
+        error instanceof DatabaseOperationAbortedError ||
+        ownership?.signal.aborted === true ||
+        (ownership !== undefined && Date.now() >= ownership.deadlineMs)
+      )
+        healthy = false;
+      throw error;
     } finally {
-      connection.release();
+      if (
+        ownership?.signal.aborted === true ||
+        (ownership !== undefined && Date.now() >= ownership.deadlineMs)
+      )
+        healthy = false;
+      if (healthy) connection.release();
+      else connection.destroy();
     }
   }
 

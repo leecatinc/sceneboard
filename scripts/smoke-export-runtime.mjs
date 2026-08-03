@@ -23,15 +23,21 @@ if (!inContainer) {
       '--tmpfs',
       '/tmp:rw,noexec,nosuid,size=128m',
       '--tmpfs',
-      '/root/.cache:rw,noexec,nosuid,size=16m',
+      '/home/sceneboard/.cache:rw,noexec,nosuid,size=16m',
       '--tmpfs',
-      '/root/.config:rw,noexec,nosuid,size=16m',
+      '/home/sceneboard/.config:rw,noexec,nosuid,size=16m',
       '--pids-limit',
       '256',
+      '--cap-drop',
+      'ALL',
+      '--security-opt',
+      'no-new-privileges',
       '--env',
       'SCENEBOARD_EXPORT_RUNTIME_IN_CONTAINER=1',
       lock.imageTag,
       'node',
+      '--import',
+      'tsx',
       'scripts/smoke-export-runtime.mjs',
     ],
     {
@@ -53,6 +59,19 @@ if (!inContainer) {
   const { chromium } = await import('playwright');
   const { default: PptxGenJS } = await import('pptxgenjs');
   const { readFile: readRuntimeFile } = await import('node:fs/promises');
+  const { exportChromiumLaunchOptionsV1 } =
+    await import('../sceneboard-be/dist/exports/export-renderer.service.js');
+  const { PdfExportEncoderV1 } =
+    await import('../sceneboard-be/dist/exports/pdf-export.encoder.js');
+
+  const expectedUid = Number(process.env.SCENEBOARD_EXPORT_RUNTIME_UID);
+  if (
+    !Number.isSafeInteger(expectedUid) ||
+    typeof process.getuid !== 'function' ||
+    process.getuid() !== expectedUid ||
+    expectedUid === 0
+  )
+    throw new Error('export runtime smoke must run as the dedicated non-root user');
 
   const runtimeRoot = process.env.SCENEBOARD_EXPORT_RUNTIME_ROOT ?? '/opt/sceneboard';
   const executablePath =
@@ -64,11 +83,9 @@ if (!inContainer) {
   const latin = await readRuntimeFile(
     resolve(runtimeRoot, 'fonts/noto-sans-kr-latin-400-normal.woff2'),
   );
-  const browser = await chromium.launch({
-    headless: true,
-    executablePath,
-    args: ['--no-sandbox'],
-  });
+  const browser = await chromium.launch(
+    exportChromiumLaunchOptionsV1({ executablePath, timeout: 30_000 }),
+  );
   try {
     const page = await browser.newPage({
       viewport: { width: 1280, height: 720 },
@@ -95,7 +112,20 @@ if (!inContainer) {
     if (!loaded) throw new Error('locked export fonts did not load');
     const png = await page.screenshot({ type: 'png', animations: 'disabled' });
     if (png.byteLength < 1_000) throw new Error('export runtime PNG smoke failed');
-    const pdf = await page.pdf({ printBackground: true });
+    process.env.SCENEBOARD_EXPORT_CHROMIUM_EXECUTABLE = executablePath;
+    const pdf = await new PdfExportEncoderV1().encode({
+      boardTitle: 'SceneBoard export runtime smoke',
+      deadlineMs: Date.now() + 30_000,
+      lease: {
+        generatedAt: '1970-01-01T00:00:00.000Z',
+        pages: [{ pageIndex: 0, pageId: 'smoke_page', png }],
+        projection: {
+          format: {
+            pdf: { widthMm: 338.67, heightMm: 190.5 },
+          },
+        },
+      },
+    });
     if (!Buffer.from(pdf).subarray(0, 5).equals(Buffer.from('%PDF-', 'ascii')))
       throw new Error('export runtime PDF smoke failed');
     const imported = PptxGenJS;

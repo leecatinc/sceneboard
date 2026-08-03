@@ -123,6 +123,13 @@ export const useArtifactBridgeV1 = (input: ArtifactHostInputV1): ArtifactBridgeV
     let navigationTimer: ReturnType<typeof setTimeout> | null = null;
     let stopped = false;
 
+    const releasePackage = (): void => {
+      if (packageBytes === null) return;
+      if (input.load.releasePackage === undefined) packageBytes.fill(0);
+      else input.load.releasePackage(packageBytes);
+      packageBytes = null;
+    };
+
     const assertRunning = (): void => {
       if (stopped || controller.signal.aborted)
         throw new TypeError('artifact host run was superseded');
@@ -157,8 +164,7 @@ export const useArtifactBridgeV1 = (input: ArtifactHostInputV1): ArtifactBridgeV
       frame?.remove();
       sendNavigationControlRef.current = null;
       setContentSize(null);
-      if (packageBytes !== null) packageBytes.fill(0);
-      packageBytes = null;
+      releasePackage();
     };
     cleanupRef.current = () => cleanup('user_stop');
 
@@ -411,8 +417,7 @@ export const useArtifactBridgeV1 = (input: ArtifactHostInputV1): ArtifactBridgeV
       await waitFor('artifact.ready', 10_000);
       assertRunning();
       lifecycle.advance('artifact.ready');
-      packageBytes.fill(0);
-      packageBytes = null;
+      releasePackage();
       setContentSize({ width: 1_200, height: 675 });
       setPhase('active');
       watchdogTimer = setInterval(() => {

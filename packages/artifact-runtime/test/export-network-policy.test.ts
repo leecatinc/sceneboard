@@ -24,6 +24,23 @@ test('export network policy admits only the fixed loopback document, broker, and
     true,
   );
   assert.equal(
+    policy.isBrokerRequest(
+      `http://127.0.0.1:3411/internal/v1/export-render/${sessionId}/projection`,
+      'fetch',
+    ),
+    true,
+  );
+  for (const resourceType of ['fetch', 'xhr', 'image', 'font']) {
+    assert.equal(
+      policy.isBrokerRequest(
+        `http://127.0.0.1:3411/internal/v1/export-render/${sessionId}/resources/${'a'.repeat(64)}`,
+        resourceType,
+      ),
+      true,
+    );
+  }
+  assert.equal(policy.isBrokerRequest(policy.documentUrl, 'document'), false);
+  assert.equal(
     policy.allows(
       `http://127.0.0.1:3411/internal/v1/export-render/${sessionId}/resources/${'a'.repeat(64)}`,
       'font',

@@ -16,6 +16,7 @@ import type { PoolConnection } from 'mysql2/promise';
 import { BoardGetService } from '../../src/boards/board-get.service.js';
 import { BoardPersistenceError } from '../../src/common/errors/board-persistence.error.js';
 import { BoardContractError } from '../../src/common/errors/app-error.js';
+import type { DatabaseOperationOwnershipV1 } from '../../src/database/transaction.js';
 import type {
   AuthorizedBoardContextV1,
   AuthorizedBoardTransactionInputV1,
@@ -106,6 +107,7 @@ const setup = async (
         root: null,
       });
   const calls: string[] = [];
+  const policyInputs: AuthorizedBoardTransactionInputV1[] = [];
   const connection = {
     async execute(sql: string): Promise<[unknown, unknown]> {
       const normalized = sql.replace(/\s+/g, ' ').trim();
@@ -188,12 +190,10 @@ const setup = async (
       input: AuthorizedBoardTransactionInputV1,
       apply: (value: PoolConnection, authorized: AuthorizedBoardContextV1) => Promise<T>,
     ) {
-      assert.deepEqual(input, {
-        principal: input.principal,
-        operation: 'board.get',
-        boardId,
-        isolation: 'REPEATABLE_READ_CUT',
-      });
+      policyInputs.push(input);
+      assert.equal(input.operation, 'board.get');
+      assert.equal(input.boardId, boardId);
+      assert.equal(input.isolation, 'REPEATABLE_READ_CUT');
       return apply(connection, context);
     },
   };
@@ -204,9 +204,58 @@ const setup = async (
   );
   return {
     calls,
+    policyInputs,
     service: new BoardGetService(policy, new DocumentCheckpointCodec(), snapshots),
   };
 };
+
+test('authorized head reads only validated sequence/schema metadata under owned board.get policy', async () => {
+  const value = await setup(false, 3);
+  const controller = new AbortController();
+  const ownership: DatabaseOperationOwnershipV1 = {
+    signal: controller.signal,
+    deadlineMs: Date.now() + 5_000,
+  };
+  const head = await value.service.getAuthorizedHead({
+    principal: principal(),
+    boardId,
+    ownership,
+  });
+  assert.deepEqual(head, { lastEventSequence: 2, headSchemaVersion: 3 });
+  assert.equal(value.policyInputs.length, 1);
+  assert.equal(value.policyInputs[0]?.ownership, ownership);
+  assert.equal(value.calls.length, 1);
+  const sql = value.calls[0] ?? '';
+  assert.match(sql, /JOIN board_heads h/u);
+  assert.match(sql, /p\.schema_version/u);
+  const selected = sql.slice(0, sql.indexOf(' FROM boards b'));
+  for (const forbidden of [
+    'codec',
+    'payload',
+    'canonical_bytes',
+    'stored_bytes',
+    'sha256',
+    'previousRevision',
+    'sourceRevision',
+    'actorKind',
+    'artifact',
+    'capability',
+  ]) {
+    assert.doesNotMatch(selected, new RegExp(forbidden, 'iu'));
+  }
+});
+
+test('full board get propagates database operation ownership to the policy transaction', async () => {
+  const value = await setup();
+  const controller = new AbortController();
+  const ownership: DatabaseOperationOwnershipV1 = {
+    signal: controller.signal,
+    deadlineMs: Date.now() + 5_000,
+  };
+  const ownedRequest = { principal: principal(), ...request(), ownership };
+  await value.service.get(ownedRequest);
+  assert.equal(value.policyInputs[0]?.ownership, ownership);
+});
 
 test('returns one D1-valid board snapshot from a single authorized repeatable-read cut', async () => {
   const value = await setup();

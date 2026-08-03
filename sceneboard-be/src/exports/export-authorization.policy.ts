@@ -7,6 +7,7 @@ import type {
   ResolvedBoardPrincipalV1,
 } from '../grants/board-access.policy.js';
 import { BoardContractError } from '../common/errors/app-error.js';
+import { DatabaseOperationAbortedError } from '../database/transaction.js';
 import { ExportFailureV1 } from './export-errors.js';
 
 export class ExportAuthorizationPolicyV1 {
@@ -15,6 +16,9 @@ export class ExportAuthorizationPolicyV1 {
   async authorize<T>(input: {
     principal: ResolvedBoardPrincipalV1;
     boardId: BoardId;
+    signal: AbortSignal;
+    deadlineMs: number;
+    retainTransactionUntilApplySettles?: boolean;
     apply: (connection: PoolConnection, context: AuthorizedBoardContextV1) => Promise<T>;
   }): Promise<T> {
     if (input.principal.kind === 'mcp') throw new ExportFailureV1('EXPORT_FORBIDDEN');
@@ -35,6 +39,9 @@ export class ExportAuthorizationPolicyV1 {
           operation: 'export.render',
           boardId: input.boardId,
           isolation: 'REPEATABLE_READ_CUT',
+          ...(input.retainTransactionUntilApplySettles === true
+            ? {}
+            : { ownership: { signal: input.signal, deadlineMs: input.deadlineMs } }),
         },
         async (connection, context) => {
           if (context.access.kind !== 'owner' && context.access.kind !== 'api_key')
@@ -44,6 +51,8 @@ export class ExportAuthorizationPolicyV1 {
       );
     } catch (error) {
       if (error instanceof ExportFailureV1) throw error;
+      if (error instanceof DatabaseOperationAbortedError)
+        throw new ExportFailureV1('EXPORT_RENDER_TIMEOUT');
       const code =
         error instanceof BoardContractError
           ? error.boardError.code

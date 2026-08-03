@@ -21,6 +21,7 @@ import { BoardContractError } from '../common/errors/app-error.js';
 import { BoardPersistenceError } from '../common/errors/board-persistence.error.js';
 import { formatPublicUuidV4 } from '../common/ids/public-uuid.storage.js';
 import { parseMysqlTimestampUtc } from '../common/time/mysql-timestamp.js';
+import type { DatabaseOperationOwnershipV1 } from '../database/transaction.js';
 import type { BoardAccessPolicy, ResolvedBoardPrincipalV1 } from '../grants/board-access.policy.js';
 import { DocumentCheckpointCodec } from '../revisions/document-checkpoint.codec.js';
 import {
@@ -60,6 +61,17 @@ interface RevisionArtifactRefRow extends RowDataPacket {
   referenceCode: string;
   occurrenceCount: number;
 }
+
+interface AuthorizedBoardHeadRow extends RowDataPacket {
+  boardId: string;
+  sceneSchemaVersion: string | null;
+  lastEventSequence: string;
+}
+
+export type AuthorizedBoardHeadV1 = Readonly<{
+  lastEventSequence: number;
+  headSchemaVersion: 1 | 2 | 3;
+}>;
 
 const boardNotFound = (): BoardContractError =>
   new BoardContractError({
@@ -148,6 +160,13 @@ const parsedPrincipalId = (value: string): PrincipalId => {
   return result.data.value;
 };
 
+const parsedHeadSchemaVersion = (value: string | null): 1 | 2 | 3 => {
+  if (value === '1.0.0') return 1;
+  if (value === '2.0.0') return 2;
+  if (value === '3.0.0') return 3;
+  throw new BoardPersistenceError('row_integrity');
+};
+
 export class BoardGetService {
   constructor(
     private readonly accessPolicy: BoardAccessPolicy,
@@ -161,12 +180,15 @@ export class BoardGetService {
     boardId: BoardId;
     documentSchemaVersion?: 1 | 2 | 3;
   }): Promise<BoardOperationResultV1> {
+    const ownership = (input as typeof input & { ownership?: DatabaseOperationOwnershipV1 })
+      .ownership;
     return this.accessPolicy.withAuthorizedBoardTransaction(
       {
         principal: input.principal,
         operation: 'board.get',
         boardId: input.boardId,
         isolation: 'REPEATABLE_READ_CUT',
+        ...(ownership === undefined ? {} : { ownership }),
       },
       async (connection, context) => {
         const row = await this.readHead(connection, input.boardId);
@@ -302,6 +324,53 @@ export class BoardGetService {
         });
         if (!parsed.ok) throw new BoardPersistenceError('row_integrity');
         return parsed.data.value;
+      },
+    );
+  }
+
+  async getAuthorizedHead(input: {
+    principal: ResolvedBoardPrincipalV1;
+    boardId: BoardId;
+    ownership?: DatabaseOperationOwnershipV1;
+  }): Promise<AuthorizedBoardHeadV1> {
+    return this.accessPolicy.withAuthorizedBoardTransaction(
+      {
+        principal: input.principal,
+        operation: 'board.get',
+        boardId: input.boardId,
+        isolation: 'REPEATABLE_READ_CUT',
+        ...(input.ownership === undefined ? {} : { ownership: input.ownership }),
+      },
+      async (connection) => {
+        const [rows] = await connection.execute<AuthorizedBoardHeadRow[]>(
+          `
+          SELECT
+            b.public_id AS boardId,
+            CASE WHEN p.revision_pk IS NOT NULL
+              THEN p.schema_version ELSE r.scene_schema_version END AS sceneSchemaVersion,
+            CAST(h.last_event_sequence AS CHAR) AS lastEventSequence
+          FROM boards b
+          JOIN board_heads h ON h.board_pk = b.board_pk
+          JOIN board_revisions r
+            ON r.board_pk = h.board_pk AND r.revision_pk = h.head_revision_pk
+              AND r.revision_number = h.head_revision_number
+          LEFT JOIN board_revision_payloads p
+            ON p.revision_pk = r.revision_pk AND p.state = 'available'
+          WHERE b.public_id = ?
+          LIMIT 1
+        `,
+          [input.boardId],
+        );
+        const row = rows[0];
+        if (rows.length === 0) throw boardNotFound();
+        if (rows.length !== 1 || row === undefined)
+          throw new BoardPersistenceError('row_integrity');
+        if (parsedBoardId(row.boardId) !== input.boardId)
+          throw new BoardPersistenceError('row_integrity');
+        return {
+          lastEventSequence: safePositive(row.lastEventSequence),
+          headSchemaVersion: parsedHeadSchemaVersion(row.sceneSchemaVersion),
+        };
       },
     );
   }

@@ -82,6 +82,16 @@
       "downSha256": null,
       "reversible": false,
       "predecessorIds": ["027_d10_revision_export_hold"]
+    },
+    {
+      "order": 32,
+      "version": "029_d10_export_terminal_audit",
+      "upAsset": "029_d10_export_terminal_audit.up.sql",
+      "upSha256": "fe8c8a629e173ed2ee56ffaba4392dd1ecfc6376f76b0680b9d84d4d3b5aecbd",
+      "downAsset": null,
+      "downSha256": null,
+      "reversible": false,
+      "predecessorIds": ["028_d10_document_replace_idempotency"]
     }
   ],
   "tables": [
@@ -144,6 +154,11 @@
       "name": "account_api_keys",
       "sourceAsset": "025_d10_account_api_keys.up.sql",
       "sourceSha256": "42c794dee2ba8ae1fe318653b27f6d970b44a46a6e351c3012f0cf81c70dab09"
+    },
+    {
+      "name": "export_terminal_audit_intents",
+      "sourceAsset": "029_d10_export_terminal_audit.up.sql",
+      "sourceSha256": "fe8c8a629e173ed2ee56ffaba4392dd1ecfc6376f76b0680b9d84d4d3b5aecbd"
     }
   ]
 }

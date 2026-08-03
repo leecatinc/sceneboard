@@ -38,20 +38,36 @@ export const createExportNetworkPolicyV1 = (input: ExportNetworkPolicyV1) => {
   if (web === runtime) throw new TypeError('export web and artifact runtime origins must differ');
   const documentPath = `/internal/export-render/${input.sessionId}`;
   const brokerPrefix = `/internal/v1/export-render/${input.sessionId}/`;
+  const brokerRequest = (url: URL, resourceType: string): boolean => {
+    if (url.origin !== api || !['fetch', 'xhr', 'image', 'font'].includes(resourceType))
+      return false;
+    if (url.pathname === `${brokerPrefix}projection`) return true;
+    const resource = url.pathname.slice(`${brokerPrefix}resources/`.length);
+    return url.pathname.startsWith(`${brokerPrefix}resources/`) && SHA256_V1.test(resource);
+  };
+  const strictUrl = (value: string): URL | null => {
+    let url: URL;
+    try {
+      url = new URL(value);
+    } catch {
+      return null;
+    }
+    return url.username === '' && url.password === '' && url.search === '' && url.hash === ''
+      ? url
+      : null;
+  };
   return Object.freeze({
     webOrigin: web,
     apiOrigin: api,
     runtimeOrigin: runtime,
     documentUrl: `${web}${documentPath}`,
+    isBrokerRequest(value: string, resourceType: string): boolean {
+      const url = strictUrl(value);
+      return url !== null && brokerRequest(url, resourceType);
+    },
     allows(value: string, resourceType: string): boolean {
-      let url: URL;
-      try {
-        url = new URL(value);
-      } catch {
-        return false;
-      }
-      if (url.username !== '' || url.password !== '' || url.search !== '' || url.hash !== '')
-        return false;
+      const url = strictUrl(value);
+      if (url === null) return false;
       if (url.origin === web) {
         if (url.pathname === documentPath && resourceType === 'document') return true;
         return (
@@ -59,12 +75,7 @@ export const createExportNetworkPolicyV1 = (input: ExportNetworkPolicyV1) => {
           (resourceType === 'script' || resourceType === 'stylesheet' || resourceType === 'font')
         );
       }
-      if (url.origin === api) {
-        if (!['fetch', 'xhr', 'image', 'font'].includes(resourceType)) return false;
-        if (url.pathname === `${brokerPrefix}projection`) return true;
-        const resource = url.pathname.slice(`${brokerPrefix}resources/`.length);
-        return url.pathname.startsWith(`${brokerPrefix}resources/`) && SHA256_V1.test(resource);
-      }
+      if (url.origin === api) return brokerRequest(url, resourceType);
       if (url.origin === runtime)
         return (
           (resourceType === 'document' || resourceType === 'script') &&

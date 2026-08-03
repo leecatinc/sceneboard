@@ -12,6 +12,19 @@ type ExportAuditBaseV1 = Readonly<{
   revisionNumber: number;
 }>;
 
+export type ExportAuditActorV1 = Readonly<{
+  principalKind: 'user' | 'service' | 'mcp_client';
+  principalId: string;
+  grantId: string | null;
+}>;
+
+export type ExportTerminalAuditBaseV1 = Readonly<{
+  actor: ExportAuditActorV1;
+  correlationId: string;
+  format: ExportFormatV1;
+  revisionNumber: number;
+}>;
+
 export class ExportAuditServiceV1 {
   constructor(private readonly audit: AuditRepository) {}
 
@@ -33,13 +46,36 @@ export class ExportAuditServiceV1 {
     await this.write(connection, 'export.failed', input, { reason: input.reason });
   }
 
+  async completedFromIntent(
+    connection: PoolConnection,
+    input: ExportTerminalAuditBaseV1 & { bytes: number },
+  ): Promise<void> {
+    await this.writeActor(connection, 'export.completed', input, { bytes: input.bytes });
+  }
+
+  async failedFromIntent(
+    connection: PoolConnection,
+    input: ExportTerminalAuditBaseV1 & { reason: ExportFailureCodeV1 },
+  ): Promise<void> {
+    await this.writeActor(connection, 'export.failed', input, { reason: input.reason });
+  }
+
   private async write(
     connection: PoolConnection,
     event: 'export.started' | 'export.completed' | 'export.failed',
     input: ExportAuditBaseV1,
     extra: Readonly<Record<string, unknown>>,
   ): Promise<void> {
-    const actor = input.principal.actor;
+    await this.writeActor(connection, event, { ...input, actor: input.principal.actor }, extra);
+  }
+
+  private async writeActor(
+    connection: PoolConnection,
+    event: 'export.started' | 'export.completed' | 'export.failed',
+    input: ExportTerminalAuditBaseV1,
+    extra: Readonly<Record<string, unknown>>,
+  ): Promise<void> {
+    const actor = input.actor;
     await this.audit.writeMandatory(
       { connection },
       {

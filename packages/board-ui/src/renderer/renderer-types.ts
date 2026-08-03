@@ -33,16 +33,37 @@ export type MediaResolverMetadataV1 = Readonly<{
   etag: string;
 }>;
 
-export type MediaResolverV1 = (
-  input: Readonly<{
-    mediaId: MediaId;
-    boardId: BoardSnapshot['boardId'];
-    revisionId: RevisionId;
-    pageId: PageId;
-  }>,
-) =>
-  | Readonly<{ url: string; metadata?: MediaResolverMetadataV1 }>
-  | Readonly<{ error: 'unavailable' }>;
+export const EXPORT_TRUSTED_IMAGE_URL_V1: unique symbol = Symbol('export-trusted-image-url-v1');
+
+export type ExportTrustedImageUrlV1 = Readonly<{
+  kind: 'broker' | 'artifact';
+  sha256: string;
+}>;
+
+export type MediaResolverInputV1 = Readonly<{
+  boardId: BoardSnapshot['boardId'];
+  revisionId: RevisionId;
+  pageId: PageId;
+}> &
+  (
+    | Readonly<{ mediaId: MediaId }>
+    | Readonly<{
+        artifact: ArtifactReferenceV1;
+        path: string;
+        sha256: string;
+      }>
+  );
+
+export type MediaResolverV1 = (input: MediaResolverInputV1) =>
+  | Readonly<{
+      url: string;
+      metadata?: MediaResolverMetadataV1;
+      [EXPORT_TRUSTED_IMAGE_URL_V1]?: ExportTrustedImageUrlV1;
+    }>
+  | Readonly<{
+      error: 'unavailable' | 'pending';
+      [EXPORT_TRUSTED_IMAGE_URL_V1]?: ExportTrustedImageUrlV1;
+    }>;
 
 export type PageRendererContextV2 = Readonly<{
   protocolVersion: 1;

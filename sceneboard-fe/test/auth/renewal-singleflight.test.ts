@@ -239,6 +239,52 @@ test('response loss after intent publication leaves unknown and forbids a follow
   assert.equal(value.requests.length, 2);
 });
 
+test('shared export dispatch uses manual redirects and cancels every redirect response before consumption', async () => {
+  let cancellations = 0;
+  const redirectBody = () =>
+    new ReadableStream({
+      cancel() {
+        cancellations += 1;
+      },
+    });
+  const sameOrigin = new Response(redirectBody(), {
+    status: 302,
+    headers: { Location: '/api/v1/boards/board_1/exports' },
+  });
+  const followed = new Response(redirectBody(), { status: 200 });
+  Object.defineProperty(followed, 'redirected', { configurable: true, value: true });
+  const opaque = new Response(redirectBody(), { status: 200 });
+  Object.defineProperty(opaque, 'type', { configurable: true, value: 'opaqueredirect' });
+  const value = setup([
+    json(snapshot('session_1'), 200, generationA),
+    sameOrigin,
+    followed,
+    opaque,
+    json({ ok: true }, 200),
+  ]);
+  await value.coordinator.reconcileSessionGeneration();
+
+  for (let index = 0; index < 3; index += 1) {
+    const result = await value.coordinator.dispatchShared({
+      path: '/api/v1/boards/board_1/exports',
+      method: 'POST',
+      body: { format: 'pdf', revisionId: 'revision_1' },
+      csrfToken: csrf,
+      responseKind: 'export',
+    });
+    assert.equal(result.kind, 'ok');
+    if (result.kind === 'ok') {
+      assert.equal(result.value.body, null);
+      assert.equal(result.value.bytes.byteLength, 0);
+    }
+  }
+  assert.equal(cancellations, 3);
+  for (const request of value.requests.slice(1, 4)) assert.equal(request.init?.redirect, 'manual');
+
+  await value.coordinator.dispatchShared({ path: '/api/v1/grants', method: 'GET' });
+  assert.equal(value.requests[4]?.init?.redirect, undefined);
+});
+
 const boardError = (error: BoardError, status: number, retryAfter?: number): Response =>
   new Response(JSON.stringify({ error }), {
     status,

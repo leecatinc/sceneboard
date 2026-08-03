@@ -19,10 +19,34 @@ import type {
   PageMoveHorizontalSessionV1,
   PageMovePointerStateV1,
 } from '../../lib/board/page-move-mode.types';
+import { createNestedCanvasFitV1 } from '../../lib/board/page-render-adapter';
 import styles from './PresentationStage.module.css';
 
 type CanvasSizeV1 = Readonly<{ width: number; height: number }> | null;
 type StagePropertiesV1 = CSSProperties & Readonly<Record<`--${string}`, string | number>>;
+
+const nestedCanvasProperties = [
+  '--page-canvas-scale',
+  '--page-canvas-origin-x',
+  '--page-canvas-move-x',
+  '--page-canvas-reserved-width',
+  '--page-canvas-reserved-height',
+] as const;
+
+const clearNestedCanvasFit = (canvasStage: HTMLElement) => {
+  delete canvasStage.dataset.pageNestedCanvasFit;
+  for (const property of nestedCanvasProperties) canvasStage.style.removeProperty(property);
+};
+
+const canvasDimension = (
+  canvasStage: HTMLElement,
+  plane: HTMLElement,
+  property: '--scene-canvas-width' | '--scene-canvas-height',
+) => {
+  const declared = Number.parseFloat(canvasStage.style.getPropertyValue(property));
+  if (Number.isFinite(declared) && declared > 0) return declared;
+  return property === '--scene-canvas-width' ? plane.scrollWidth : plane.scrollHeight;
+};
 
 export function PresentationStage({
   stageRef,
@@ -70,6 +94,7 @@ export function PresentationStage({
   const captureActiveRef = useRef(false);
   const modeRef = useRef(mode);
   const moveToggleRef = useRef(moveToggle);
+  const hasRootCanvas = canvasSize !== null;
   modeRef.current = mode;
   moveToggleRef.current = moveToggle;
 
@@ -141,8 +166,54 @@ export function PresentationStage({
     const stage = localStageRef.current;
     const content = contentRef.current;
     if (stage === null || content === null) return;
+    let observer: ResizeObserver | null = null;
+    const observedElements = new Set<Element>();
+    const observe = (element: Element | null) => {
+      if (element === null || observer === null || observedElements.has(element)) return;
+      observedElements.add(element);
+      observer.observe(element);
+    };
+    const fitNestedCanvases = () => {
+      const canvasStages = Array.from(content.querySelectorAll<HTMLElement>('.scene-canvas-stage'));
+      const rootCanvasStage = hasRootCanvas ? (canvasStages[0] ?? null) : null;
+      for (const canvasStage of canvasStages) {
+        observe(canvasStage);
+        if (canvasStage === rootCanvasStage) {
+          clearNestedCanvasFit(canvasStage);
+          continue;
+        }
+        const reserved = canvasStage.querySelector<HTMLElement>(':scope > .scene-canvas-reserved');
+        const plane = reserved?.querySelector<HTMLElement>(':scope > .scene-canvas-plane');
+        if (plane === undefined || plane === null) {
+          clearNestedCanvasFit(canvasStage);
+          continue;
+        }
+        const containingCanvasChild = canvasStage.closest<HTMLElement>('.scene-canvas-child');
+        observe(containingCanvasChild);
+        const fit = createNestedCanvasFitV1({
+          availableWidth: canvasStage.clientWidth,
+          ...(containingCanvasChild === null
+            ? {}
+            : { availableHeight: containingCanvasChild.clientHeight }),
+          canvasWidth: canvasDimension(canvasStage, plane, '--scene-canvas-width'),
+          canvasHeight: canvasDimension(canvasStage, plane, '--scene-canvas-height'),
+        });
+        if (fit === null) {
+          clearNestedCanvasFit(canvasStage);
+          continue;
+        }
+        canvasStage.dataset.pageNestedCanvasFit = 'true';
+        canvasStage.style.setProperty('--page-canvas-scale', String(fit.scale));
+        canvasStage.style.setProperty('--page-canvas-origin-x', '0px');
+        canvasStage.style.setProperty('--page-canvas-move-x', '0px');
+        canvasStage.style.setProperty('--page-canvas-reserved-width', `${fit.reservedWidth}px`);
+        canvasStage.style.setProperty('--page-canvas-reserved-height', `${fit.reservedHeight}px`);
+      }
+      return canvasStages;
+    };
     const measure = () => {
       if (pointerStateRef.current !== 'idle') finishGesture('reclamp');
+      fitNestedCanvases();
       const nextViewport = {
         width: Math.max(0, stage.clientWidth),
         height: Math.max(0, stage.clientHeight),
@@ -169,16 +240,27 @@ export function PresentationStage({
       }
       commitMoveX(clampPageMoveXV1(moveXRef.current, nextViewport.width, nextContentWidth));
     };
+    observer = new ResizeObserver(measure);
+    observe(stage);
+    observe(content);
     measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(stage);
-    observer.observe(content);
     content.addEventListener('load', measure, true);
     return () => {
       observer.disconnect();
       content.removeEventListener('load', measure, true);
+      for (const canvasStage of content.querySelectorAll<HTMLElement>('.scene-canvas-stage'))
+        clearNestedCanvasFit(canvasStage);
     };
-  }, [canvasSize?.width, commitMoveX, finishGesture, onMoveAvailabilityChange]);
+  }, [
+    canvasSize?.height,
+    canvasSize?.width,
+    commitMoveX,
+    finishGesture,
+    hasRootCanvas,
+    moveIdentity,
+    onMoveAvailabilityChange,
+    presentationActive,
+  ]);
   useLayoutEffect(() => {
     const toolbar = toolbarRef.current;
     if (toolbar === null) return;
@@ -338,8 +420,8 @@ export function PresentationStage({
   const stageProperties: StagePropertiesV1 =
     transform === null
       ? {
-          // 측정된 스테이지 높이를 아티팩트 호스트가 상속받아 55vh 캡 없이 스테이지를 채우도록 노출한다.
-          // useLayoutEffect가 페인트 전에 측정하므로 측정 전 0px 값은 화면에 그려지지 않는다.
+          // Expose the measured stage height so artifact hosts fill it without the retired 55vh cap.
+          // useLayoutEffect measures before paint, so the initial 0px value is not rendered.
           '--page-stage-viewport-height': `${viewport.height}px`,
           '--mobile-page-controls-height': `${navigationHeight}px`,
         }

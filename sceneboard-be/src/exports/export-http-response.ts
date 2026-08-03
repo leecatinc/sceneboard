@@ -9,6 +9,7 @@ export const safeExportTitleV1 = (title: string): string => {
   const safe = title
     .replace(/[^A-Za-z0-9._-]+/gu, '-')
     .replace(/-+/gu, '-')
+    .replace(/\.+/gu, '.')
     .replace(/^[._-]+|[._-]+$/gu, '')
     .slice(0, 80)
     .replace(/[._-]+$/gu, '');

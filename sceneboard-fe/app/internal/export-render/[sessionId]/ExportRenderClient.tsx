@@ -160,24 +160,6 @@ const waitUntilReady = async (root: ParentNode, deadlineMs: number): Promise<boo
   return false;
 };
 
-const installFonts = (projection: ExportProjectionV1): void => {
-  const rules = projection.resources.flatMap((resource) =>
-    resource.usage.kind === 'font'
-      ? [
-          `@font-face{font-family:"Noto Sans KR";font-style:normal;font-weight:400;font-display:block;src:url("${resource.url}") format("woff2");unicode-range:${
-            resource.usage.subset === 'korean'
-              ? 'U+1100-11FF,U+3130-318F,U+A960-A97F,U+AC00-D7AF,U+D7B0-D7FF,U+3000-303F,U+FF00-FFEF'
-              : 'U+0000-024F,U+1E00-1EFF,U+2000-206F'
-          };}`,
-        ]
-      : [],
-  );
-  const style = document.createElement('style');
-  style.dataset.exportFonts = 'v1';
-  style.textContent = rules.join('');
-  document.head.append(style);
-};
-
 export function ExportRenderClient({
   sessionId,
   apiOrigin,
@@ -216,7 +198,6 @@ export function ExportRenderClient({
       const decoded = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
       const parsed = parseProjection(decoded, apiOrigin, sessionId);
       if (parsed === null) throw new TypeError('export projection is invalid');
-      installFonts(parsed);
       setProjection(parsed);
     })().catch(() => {
       document.body.dataset.exportFailed = 'true';

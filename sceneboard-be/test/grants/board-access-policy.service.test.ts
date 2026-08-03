@@ -25,6 +25,8 @@ import { MysqlBoardAccessPolicy } from '../../src/grants/board-access-policy.ser
 import { currentBoardSessionAccessFromContext } from '../../src/grants/current-board-capabilities.js';
 import { MembershipRepository } from '../../src/memberships/membership.repository.js';
 import { BoardMembershipAuthorizationService } from '../../src/memberships/membership.service.js';
+import { ExportAuthorizationPolicyV1 } from '../../src/exports/export-authorization.policy.js';
+import { ExportFailureV1 } from '../../src/exports/export-errors.js';
 
 type QueryResult = readonly [unknown, unknown];
 
@@ -689,6 +691,68 @@ test('denies a key missing one composite restore scope before board work', async
     value.calls.some((call) => call.includes('FROM boards b')),
     false,
   );
+});
+
+test('classifies export scope only after validating the live API key and before board lookup', async () => {
+  for (const target of [boardId('board_1'), boardId('board_missing')]) {
+    const value = setup({ membershipRoles: ['owner'] });
+    const policy = new ExportAuthorizationPolicyV1(value.policy);
+    await assert.rejects(
+      policy.authorize({
+        principal: accountApiKeyPrincipal(accountApiKeySnapshot([])),
+        boardId: target,
+        signal: new AbortController().signal,
+        deadlineMs: Date.now() + 120_000,
+        async apply() {
+          throw new Error('export authorization unexpectedly applied');
+        },
+      }),
+      (error: unknown) => error instanceof ExportFailureV1 && error.code === 'EXPORT_FORBIDDEN',
+    );
+    assert.equal(value.apiKeyRechecks(), 1);
+    assert.equal(
+      value.calls.some((call) => call.includes('FROM boards b')),
+      false,
+    );
+  }
+
+  const revoked = setup({ membershipRoles: ['owner'], apiKeyRecheckFailureAt: 1 });
+  await assert.rejects(
+    new ExportAuthorizationPolicyV1(revoked.policy).authorize({
+      principal: accountApiKeyPrincipal(accountApiKeySnapshot([])),
+      boardId: boardId('board_1'),
+      signal: new AbortController().signal,
+      deadlineMs: Date.now() + 120_000,
+      async apply() {
+        throw new Error('revoked export authorization unexpectedly applied');
+      },
+    }),
+    (error: unknown) => error instanceof ExportFailureV1 && error.code === 'EXPORT_UNAUTHENTICATED',
+  );
+  assert.equal(
+    revoked.calls.some((call) => call.includes('FROM boards b')),
+    false,
+  );
+
+  const malformed = setup({ membershipRoles: ['owner'] });
+  const malformedPrincipal = accountApiKeyPrincipal(accountApiKeySnapshot([]));
+  const malformedSnapshot = malformedPrincipal[ACCOUNT_API_KEY_SNAPSHOT];
+  await assert.rejects(
+    new ExportAuthorizationPolicyV1(malformed.policy).authorize({
+      principal: {
+        ...malformedPrincipal,
+        [ACCOUNT_API_KEY_SNAPSHOT]: { ...malformedSnapshot, ownerUserPk: '21' },
+      },
+      boardId: boardId('board_1'),
+      signal: new AbortController().signal,
+      deadlineMs: Date.now() + 120_000,
+      async apply() {
+        throw new Error('malformed export authorization unexpectedly applied');
+      },
+    }),
+    (error: unknown) => error instanceof ExportFailureV1 && error.code === 'EXPORT_UNAUTHENTICATED',
+  );
+  assert.equal(malformed.apiKeyRechecks(), 0);
 });
 
 test('keeps membership and share administration outside the API-key partition', async () => {

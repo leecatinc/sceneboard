@@ -19,6 +19,9 @@ test('internal export renderer has a dedicated loopback-only document policy', (
   assert.match(policy, /frame-src http:\/\/127\.0\.0\.1:3420/u);
   assert.match(policy, /frame-ancestors 'none'/u);
   assert.match(policy, /worker-src 'none'/u);
+  assert.match(policy, /style-src-elem 'self' 'nonce-AAAAAAAAAAAAAAAAAAAAAAAA'/u);
+  assert.match(policy, /style-src-attr 'unsafe-inline'/u);
+  assert.doesNotMatch(policy, /(?:^|; )style-src /u);
   assert.doesNotMatch(policy, /https:|wss:|unsafe-eval/u);
   assert.throws(() =>
     buildExportRenderDocumentPolicyV1(
@@ -64,5 +67,25 @@ test('internal export route remains outside public route inventories and require
   assert.match(route, /inspectExportReadinessV1/u);
   assert.match(route, /document\.fonts\.ready/u);
   assert.match(route, /redirect: 'error'/u);
+  assert.doesNotMatch(route, /installFonts|createElement\('style'\)|data\.exportFonts/u);
   assert.doesNotMatch(route, /localStorage|sessionStorage|document\.cookie/u);
+});
+
+test('export readiness is gated on both exact CSP-authorized locked font faces', () => {
+  const renderer = readFileSync(
+    new URL('../../../packages/board-ui/src/export/ExportBoardRenderer.tsx', import.meta.url),
+    'utf8',
+  );
+  const readiness = readFileSync(
+    new URL('../../../packages/artifact-runtime/src/export/export-readiness.ts', import.meta.url),
+    'utf8',
+  );
+  assert.match(renderer, /new FontFace\('Noto Sans KR'/u);
+  assert.match(renderer, /resource\.usage\.subset === 'korean'/u);
+  assert.match(renderer, /resource\.usage\.subset === 'latin'/u);
+  assert.match(renderer, /document\.fonts\.check\('400 16px "Noto Sans KR"', 'SceneBoard'\)/u);
+  assert.match(renderer, /document\.fonts\.check\('400 16px "Noto Sans KR"', '한글'\)/u);
+  assert.match(renderer, /data-export-fonts=\{fontStatus\}/u);
+  assert.match(readiness, /\[data-export-pending\]/u);
+  assert.doesNotMatch(renderer, /createElement\('style'\)|unsafe-inline/u);
 });

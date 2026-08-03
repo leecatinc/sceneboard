@@ -15,8 +15,13 @@ import {
   RedisPresenceRepository,
   type RedisPresenceHandleV1,
 } from '../presence/redis-presence.repository.js';
-import { BoardStreamCutService } from './board-stream-cut.service.js';
+import {
+  BoardStreamCutService,
+  type PreparedBoardStreamCutV1,
+} from './board-stream-cut.service.js';
 import { SseResponseWriter } from './sse-response-writer.js';
+
+const SSE_DATABASE_OPERATION_TIMEOUT_MS = 5_000;
 
 export interface BoardSseRequestLifecycleV1 {
   once(event: 'close', listener: () => void): unknown;
@@ -58,13 +63,6 @@ export class BoardSseService {
     documentSchemaVersion?: 1 | 2 | 3;
   }): Promise<void> {
     const documentSchemaVersion = input.documentSchemaVersion ?? 1;
-    let cut = await this.cuts.prepare(
-      input.principal,
-      input.boardId,
-      input.cursor,
-      documentSchemaVersion,
-    );
-    let sequence = cut.sequence;
     let durableDirty = false;
     let presenceDirty = false;
     let stopped = false;
@@ -81,70 +79,104 @@ export class BoardSseService {
       else presenceDirty = true;
       signalWake();
     };
-    const unsubscribe = await this.fanout.subscribeBoard(input.boardId, wake);
+    const lifecycleAbort = new AbortController();
+    const databaseOwnership = () => ({
+      signal: lifecycleAbort.signal,
+      deadlineMs: Date.now() + SSE_DATABASE_OPERATION_TIMEOUT_MS,
+    });
+    let unsubscribe: (() => Promise<void>) | null = null;
     const onRequestClose = (): void => {
       stopped = true;
+      lifecycleAbort.abort();
       signalWake();
     };
     input.request.once('close', onRequestClose);
 
-    const drain = async (): Promise<void> => {
-      if (stopped) return;
-      durableDirty = false;
-      const head = await this.cuts.reauthorize(
-        input.principal,
-        input.boardId,
-        documentSchemaVersion,
-      );
-      lastAuthorizationAt = Date.now();
-      if (head <= sequence) return;
-      if (head - sequence > 1_000) throw new Error('SSE replay window exceeded');
-      const frames = await this.cuts.rangeAfter(
-        input.boardId,
-        sequence,
-        head,
-        documentSchemaVersion,
-      );
-      if (frames === null) throw new Error('SSE durable range gap');
-      for (const frame of frames) {
+    try {
+      let cut: PreparedBoardStreamCutV1;
+      try {
+        cut = await this.cuts.prepare(
+          input.principal,
+          input.boardId,
+          input.cursor,
+          documentSchemaVersion,
+          databaseOwnership(),
+        );
+      } catch (error) {
         if (stopped) return;
+        throw error;
+      }
+      if (stopped) return;
+      let sequence = cut.sequence;
+
+      const drain = async (): Promise<void> => {
+        if (stopped) return;
+        durableDirty = false;
+        const head = await this.cuts.reauthorize(
+          input.principal,
+          input.boardId,
+          documentSchemaVersion,
+          databaseOwnership(),
+        );
+        if (stopped) return;
+        lastAuthorizationAt = Date.now();
+        if (head <= sequence) return;
+        if (head - sequence > 1_000) throw new Error('SSE replay window exceeded');
+        const frames = await this.cuts.rangeAfter(
+          input.boardId,
+          sequence,
+          head,
+          documentSchemaVersion,
+        );
+        if (stopped) return;
+        if (frames === null) throw new Error('SSE durable range gap');
+        for (const frame of frames) {
+          if (stopped) return;
+          await this.writer.write(
+            input.response,
+            this.writer.encodeEvent(frame.canonicalBytes, frame.cursor),
+          );
+          sequence = frame.envelope.sequence;
+        }
+      };
+
+      const writePresence = async (): Promise<void> => {
+        presenceDirty = false;
+        const aggregate = await this.presence.aggregate(input.boardId);
+        if (stopped || aggregate.version === lastPresenceVersion) return;
+        const occurredAt = new Date().toISOString() as TimestampV1;
+        const parsed = BoardEventEnvelopeParserV1.parse({
+          protocolVersion: 1,
+          type: 'board.event',
+          boardId: input.boardId,
+          eventId: this.crypto.generatePublicIdV1() as EventId,
+          sequence,
+          occurredAt,
+          revisionId: null,
+          data: { type: 'presence.updated', presence: aggregate.presence as PresenceSummaryV1[] },
+        });
+        if (!parsed.ok) throw new Error('presence event composition failure');
         await this.writer.write(
           input.response,
-          this.writer.encodeEvent(frame.canonicalBytes, frame.cursor),
+          this.writer.encodeEvent(parsed.data.canonicalBytes, null),
         );
-        sequence = frame.envelope.sequence;
+        lastPresenceVersion = aggregate.version;
+      };
+
+      try {
+        unsubscribe = await this.fanout.subscribeBoard(input.boardId, wake, lifecycleAbort.signal);
+      } catch (error) {
+        if (stopped) return;
+        throw error;
       }
-    };
-
-    const writePresence = async (): Promise<void> => {
-      presenceDirty = false;
-      const aggregate = await this.presence.aggregate(input.boardId);
-      if (aggregate.version === lastPresenceVersion) return;
-      const occurredAt = new Date().toISOString() as TimestampV1;
-      const parsed = BoardEventEnvelopeParserV1.parse({
-        protocolVersion: 1,
-        type: 'board.event',
-        boardId: input.boardId,
-        eventId: this.crypto.generatePublicIdV1() as EventId,
-        sequence,
-        occurredAt,
-        revisionId: null,
-        data: { type: 'presence.updated', presence: aggregate.presence as PresenceSummaryV1[] },
-      });
-      if (!parsed.ok) throw new Error('presence event composition failure');
-      await this.writer.write(
-        input.response,
-        this.writer.encodeEvent(parsed.data.canonicalBytes, null),
-      );
-      lastPresenceVersion = aggregate.version;
-    };
-
-    try {
+      if (stopped) return;
       const postCutHead = await this.cuts.reauthorize(
         input.principal,
         input.boardId,
         documentSchemaVersion,
+        databaseOwnership(),
       );
+      if (stopped) return;
       lastAuthorizationAt = Date.now();
       if (postCutHead > sequence) {
         const catchUp =
@@ -156,13 +188,16 @@ export class BoardSseService {
                 documentSchemaVersion,
               )
             : null;
+        if (stopped) return;
         if (catchUp === null) {
           cut = await this.cuts.prepare(
             input.principal,
             input.boardId,
             null,
             documentSchemaVersion,
+            databaseOwnership(),
           );
+          if (stopped) return;
         } else {
           cut = { frames: [...cut.frames, ...catchUp], sequence: postCutHead };
         }
@@ -241,11 +276,32 @@ export class BoardSseService {
       }
     } finally {
       stopped = true;
+      lifecycleAbort.abort();
       signalWake();
       input.request.off('close', onRequestClose);
-      await unsubscribe();
-      if (presenceHandle !== null) await this.presence.close(presenceHandle).catch(() => false);
-      if (input.response.headersSent) input.response.end();
+      const cleanupFailures: unknown[] = [];
+      if (unsubscribe !== null) {
+        try {
+          await unsubscribe();
+        } catch (error) {
+          cleanupFailures.push(error);
+        }
+      }
+      if (presenceHandle !== null) {
+        try {
+          await this.presence.close(presenceHandle);
+        } catch (error) {
+          cleanupFailures.push(error);
+        }
+      }
+      if (input.response.headersSent) {
+        try {
+          input.response.end();
+        } catch (error) {
+          cleanupFailures.push(error);
+        }
+      }
+      if (cleanupFailures.length > 0) throw cleanupFailures[0];
     }
   }
 }

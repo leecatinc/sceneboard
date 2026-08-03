@@ -494,7 +494,20 @@ export class SessionRequestCoordinator implements BoardStreamDispatchPortV1 {
         headers,
         ...(request.body === undefined ? {} : { body: JSON.stringify(request.body) }),
         ...(request.signal === undefined ? {} : { signal: request.signal }),
+        ...(request.responseKind === 'export' ? { redirect: 'manual' as const } : {}),
       });
+      if (
+        request.responseKind === 'export' &&
+        (response.redirected ||
+          response.type === 'opaqueredirect' ||
+          (response.status >= 300 && response.status <= 399))
+      ) {
+        await response.body?.cancel().catch(() => undefined);
+        return {
+          kind: 'ok' as const,
+          value: { response, body: null, bytes: new Uint8Array() },
+        };
+      }
       const consumed = await consume(response, request.signal, request.responseKind);
       if (request.responseKind !== 'export' && (response.status === 401 || response.status === 503))
         return { kind: 'reconciliation_required' as const };

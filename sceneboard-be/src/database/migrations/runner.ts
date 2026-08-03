@@ -17,6 +17,7 @@ import {
   verifyAccountApiKeyPostcondition,
   verifyDocumentReplaceIdempotencyPostcondition,
   verifyDocumentV3CheckpointPostcondition,
+  verifyExportTerminalAuditPostcondition,
   verifyRevisionExportHoldPostcondition,
 } from './postconditions.js';
 
@@ -688,6 +689,20 @@ export const isRecoverableAccountApiKeyTableExists = (
   'errno' in error &&
   error.errno === 1050;
 
+export const isRecoverableExportTerminalAuditTableExists = (
+  version: string,
+  statement: string,
+  error: unknown,
+): boolean =>
+  version === '029_d10_export_terminal_audit' &&
+  /^CREATE\s+TABLE\s+`?export_terminal_audit_intents`?\s*\(/iu.test(statement.trim()) &&
+  typeof error === 'object' &&
+  error !== null &&
+  'code' in error &&
+  error.code === 'ER_TABLE_EXISTS_ERROR' &&
+  'errno' in error &&
+  error.errno === 1050;
+
 @Injectable()
 export class MigrationRunner {
   constructor(@Inject(MysqlService) private readonly mysql: MysqlService) {}
@@ -729,9 +744,15 @@ export class MigrationRunner {
             try {
               await connection.query(statement);
             } catch (error) {
-              if (!isRecoverableAccountApiKeyTableExists(migration.version, statement, error)) {
-                throw error;
+              if (isRecoverableAccountApiKeyTableExists(migration.version, statement, error))
+                continue;
+              if (
+                isRecoverableExportTerminalAuditTableExists(migration.version, statement, error)
+              ) {
+                await verifyExportTerminalAuditPostcondition(connection);
+                continue;
               }
+              throw error;
             }
           }
           await this.verifyPostcondition(connection, migration.entry.postcondition);
@@ -828,6 +849,10 @@ export class MigrationRunner {
     }
     if (postcondition === 'd10_account_api_keys_v1') {
       await verifyAccountApiKeyPostcondition(connection);
+      return;
+    }
+    if (postcondition === 'd10_export_terminal_audit_v1') {
+      await verifyExportTerminalAuditPostcondition(connection);
       return;
     }
     if (postcondition === 'd9_v2_checkpoint_capacity_v1') {

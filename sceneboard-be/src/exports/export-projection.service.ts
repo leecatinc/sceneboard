@@ -31,6 +31,7 @@ import {
 } from '../revisions/scene-artifact-reference.extractor.js';
 import { ExportFailureV1 } from './export-errors.js';
 import {
+  EXPORT_ARTIFACT_PAGE_RESIDENT_MAX_BYTES_V1,
   EXPORT_MAX_PAGES_V1,
   EXPORT_PROJECTION_MAX_BYTES_V1,
   EXPORT_RESOURCE_MAX_BYTES_V1,
@@ -100,13 +101,16 @@ interface RevisionProjectionRow extends RowDataPacket {
   sha256: Buffer;
 }
 
-interface MediaProjectionRow extends RowDataPacket {
+interface MediaInventoryProjectionRow extends RowDataPacket {
   mediaId: Buffer;
   ordinal: number;
   mediaType: ExportResourceMediaTypeV1;
-  bytes: Buffer;
   byteLength: number;
   sha256: Buffer;
+}
+
+interface MediaProjectionRow extends MediaInventoryProjectionRow {
+  bytes: Buffer;
 }
 
 interface MediaReferenceProjectionRow extends RowDataPacket {
@@ -143,12 +147,151 @@ type ExportResourceCollectionV1 = {
   bytes: Map<string, { mediaType: ExportResourceMediaTypeV1; bytes: Buffer }>;
 };
 
+const freezeJsonValue = (value: unknown): void => {
+  if (value === null || typeof value !== 'object' || Object.isFrozen(value)) return;
+  for (const child of Object.values(value as Record<string, unknown>)) freezeJsonValue(child);
+  Object.freeze(value);
+};
+
+class RuntimeImmutableResourceBytesV1 {
+  readonly #resources = new Map<
+    string,
+    Readonly<{ mediaType: ExportResourceMediaTypeV1; byteLength: number; bytes: Buffer }>
+  >();
+
+  constructor(
+    resources: ReadonlyMap<
+      string,
+      Readonly<{ mediaType: ExportResourceMediaTypeV1; bytes: Buffer }>
+    >,
+    descriptors: readonly ExportProjectionResourceV1[],
+  ) {
+    const expected = new Map<
+      string,
+      Readonly<{ mediaType: ExportResourceMediaTypeV1; byteLength: number }>
+    >();
+    for (const descriptor of descriptors) {
+      const existing = expected.get(descriptor.sha256);
+      if (
+        existing !== undefined &&
+        (existing.mediaType !== descriptor.mediaType || existing.byteLength !== descriptor.byteLength)
+      )
+        throw new ExportFailureV1('EXPORT_INTERNAL_ERROR');
+      expected.set(descriptor.sha256, {
+        mediaType: descriptor.mediaType,
+        byteLength: descriptor.byteLength,
+      });
+    }
+    for (const [digest, resource] of resources) {
+      const descriptor = expected.get(digest);
+      if (
+        descriptor === undefined ||
+        descriptor.mediaType !== resource.mediaType ||
+        descriptor.byteLength !== resource.bytes.byteLength ||
+        sha256(resource.bytes).toString('hex') !== digest
+      )
+        throw new ExportFailureV1('EXPORT_INTERNAL_ERROR');
+      this.#resources.set(
+        digest,
+        Object.freeze({
+          mediaType: resource.mediaType,
+          byteLength: descriptor.byteLength,
+          bytes: Buffer.from(resource.bytes),
+        }),
+      );
+    }
+    if (this.#resources.size !== expected.size)
+      throw new ExportFailureV1('EXPORT_INTERNAL_ERROR');
+    Object.freeze(this);
+  }
+
+  get size(): number {
+    return this.#resources.size;
+  }
+
+  get(digest: string): Buffer | undefined {
+    const resource = this.#resources.get(digest);
+    if (resource === undefined) return undefined;
+    if (
+      resource.bytes.byteLength !== resource.byteLength ||
+      sha256(resource.bytes).toString('hex') !== digest
+    )
+      throw new ExportFailureV1('EXPORT_INTERNAL_ERROR');
+    return Buffer.from(resource.bytes);
+  }
+
+  has(digest: string): boolean {
+    return this.#resources.has(digest);
+  }
+
+  keys(): IterableIterator<string> {
+    return this.#resources.keys();
+  }
+
+  *values(): IterableIterator<Buffer> {
+    for (const digest of this.#resources.keys()) {
+      const bytes = this.get(digest);
+      if (bytes !== undefined) yield bytes;
+    }
+  }
+
+  *entries(): IterableIterator<[string, Buffer]> {
+    for (const digest of this.#resources.keys()) {
+      const bytes = this.get(digest);
+      if (bytes !== undefined) yield [digest, bytes];
+    }
+  }
+
+  [Symbol.iterator](): IterableIterator<[string, Buffer]> {
+    return this.entries();
+  }
+
+  forEach(
+    callback: (value: Buffer, key: string, map: ReadonlyMap<string, Buffer>) => void,
+    thisArg?: unknown,
+  ): void {
+    for (const [digest, bytes] of this.entries())
+      callback.call(
+        thisArg,
+        bytes,
+        digest,
+        this as unknown as ReadonlyMap<string, Buffer>,
+      );
+  }
+}
+
 const usageKey = (usage: ExportProjectionResourceV1['usage']): string =>
   usage.kind === 'media'
     ? `media:${usage.mediaId}`
     : usage.kind === 'artifact'
       ? `artifact:${usage.artifactId}:${usage.versionId}`
       : `font:${usage.subset}`;
+
+export const assertExportArtifactPageResidentMemoryV1 = (
+  document: BoardDocumentV3,
+  resources: Iterable<ExportProjectionResourceV1>,
+): void => {
+  const packageBytes = new Map<string, number>();
+  for (const resource of resources) {
+    if (resource.usage.kind !== 'artifact') continue;
+    packageBytes.set(
+      `${resource.usage.artifactId}\0${resource.usage.versionId}`,
+      resource.byteLength,
+    );
+  }
+  const pageBytes = new Map<string, number>();
+  for (const item of collectDocumentNodesV2(document)) {
+    if (item.node.type !== 'content.artifact') continue;
+    const bytes = packageBytes.get(
+      `${item.node.artifact.artifactId}\0${item.node.artifact.versionId}`,
+    );
+    if (bytes === undefined) throw new ExportFailureV1('EXPORT_REQUIRED_CONTENT_UNSUPPORTED');
+    const total = (pageBytes.get(item.page.pageId) ?? 0) + bytes;
+    if (!Number.isSafeInteger(total) || total > EXPORT_ARTIFACT_PAGE_RESIDENT_MAX_BYTES_V1)
+      throw new ExportFailureV1('EXPORT_BOUNDS_EXCEEDED');
+    pageBytes.set(item.page.pageId, total);
+  }
+};
 
 const revisionNumber = (value: string): number => {
   if (!/^[1-9][0-9]*$/u.test(value)) throw new ExportFailureV1('EXPORT_INTERNAL_ERROR');
@@ -180,13 +323,14 @@ export class ExportProjectionServiceV1 {
       boardId: BoardId;
       revisionId: RevisionId | null;
       sessionId: string;
+      holdOwnerId: string;
     },
   ): Promise<ExportProjectionBundleV1> {
     const revision = await this.lockRevision(connection, input);
     const hold = await this.holds.acquire(connection, {
       boardPk: input.boardPk,
       revisionPk: databasePk(revision.revisionPk),
-      holderId: input.sessionId,
+      holderId: input.holdOwnerId,
     });
     try {
       const decoded = await this.checkpoints.decode({
@@ -234,6 +378,7 @@ export class ExportProjectionServiceV1 {
         input.sessionId,
         resources,
       );
+      assertExportArtifactPageResidentMemoryV1(document, resources.descriptors.values());
       for (const font of this.fonts)
         this.addResource(
           resources,
@@ -258,22 +403,44 @@ export class ExportProjectionServiceV1 {
           ),
         ),
       });
-      const projectionBytes = Buffer.from(canonicalizeExportProjectionV1(projection), 'utf8');
-      if (projectionBytes.byteLength > EXPORT_PROJECTION_MAX_BYTES_V1)
-        throw new ExportFailureV1('EXPORT_BOUNDS_EXCEEDED');
-      return Object.freeze({
-        projection,
-        projectionBytes,
-        projectionSha256: sha256(projectionBytes).toString('hex'),
-        resourceBytes: new Map(
-          [...resources.bytes].map(([digest, resource]) => [digest, Buffer.from(resource.bytes)]),
-        ),
-        hold,
-      });
+      return this.sealBundle(projection, resources, hold);
     } catch (error) {
       await this.holds.release(connection, hold).catch(() => undefined);
       throw error;
     }
+  }
+
+  private sealBundle(
+    projection: ImmutableExportProjectionV1,
+    resources: ExportResourceCollectionV1,
+    hold: ExportRevisionHoldV1,
+  ): ExportProjectionBundleV1 {
+    const canonicalProjectionBytes = Buffer.from(
+      canonicalizeExportProjectionV1(projection),
+      'utf8',
+    );
+    if (canonicalProjectionBytes.byteLength > EXPORT_PROJECTION_MAX_BYTES_V1)
+      throw new ExportFailureV1('EXPORT_BOUNDS_EXCEEDED');
+    const projectionSha256 = sha256(canonicalProjectionBytes).toString('hex');
+    const immutableProjection = JSON.parse(
+      canonicalProjectionBytes.toString('utf8'),
+    ) as ImmutableExportProjectionV1;
+    freezeJsonValue(immutableProjection);
+    const resourceBytes = new RuntimeImmutableResourceBytesV1(
+      resources.bytes,
+      immutableProjection.resources,
+    ) as unknown as ReadonlyMap<string, Buffer>;
+    return Object.freeze({
+      projection: immutableProjection,
+      get projectionBytes(): Buffer {
+        if (sha256(canonicalProjectionBytes).toString('hex') !== projectionSha256)
+          throw new ExportFailureV1('EXPORT_INTERNAL_ERROR');
+        return Buffer.from(canonicalProjectionBytes);
+      },
+      projectionSha256,
+      resourceBytes,
+      hold: Object.freeze({ ...hold }),
+    });
   }
 
   private async lockRevision(
@@ -332,6 +499,59 @@ export class ExportProjectionServiceV1 {
       [revisionPk.toString()],
     );
     this.assertMediaReferences(referenceRows, expected);
+    const [inventory] = await connection.execute<MediaInventoryProjectionRow[]>(
+      `SELECT r.media_id AS mediaId, r.ordinal, o.mime AS mediaType,
+              o.byte_length AS byteLength, o.sha256
+       FROM board_revision_media_refs r
+       JOIN board_media m ON m.media_id = r.media_id AND m.board_pk = r.board_pk
+       JOIN media_objects o ON o.media_pk = m.media_pk
+       WHERE r.revision_pk = ? AND m.status = 'active' AND o.state = 'active'
+       ORDER BY r.ordinal`,
+      [revisionPk.toString()],
+    );
+    if (inventory.length !== expected.length)
+      throw new ExportFailureV1('EXPORT_REQUIRED_CONTENT_UNSUPPORTED');
+    if (inventory.length > EXPORT_RESOURCE_MAX_COUNT_V1)
+      throw new ExportFailureV1('EXPORT_BOUNDS_EXCEEDED');
+    const uniqueBytes = new Map<
+      string,
+      Readonly<{ mediaType: ExportResourceMediaTypeV1; byteLength: number }>
+    >();
+    let totalBytes = 0;
+    for (let index = 0; index < inventory.length; index += 1) {
+      const row = inventory[index];
+      const reference = expected[index];
+      if (
+        row === undefined ||
+        reference === undefined ||
+        !Buffer.isBuffer(row.mediaId) ||
+        !Number.isSafeInteger(row.ordinal) ||
+        row.ordinal !== reference.ordinal ||
+        this.decodeMediaId(row.mediaId) !== reference.mediaId ||
+        !['image/png', 'image/jpeg', 'image/webp'].includes(row.mediaType) ||
+        !Number.isSafeInteger(row.byteLength) ||
+        row.byteLength < 1 ||
+        !Buffer.isBuffer(row.sha256) ||
+        row.sha256.byteLength !== 32
+      )
+        throw new ExportFailureV1('EXPORT_REQUIRED_CONTENT_UNSUPPORTED');
+      if (row.byteLength > EXPORT_RESOURCE_MAX_BYTES_V1)
+        throw new ExportFailureV1('EXPORT_BOUNDS_EXCEEDED');
+      const digest = row.sha256.toString('hex');
+      const existing = uniqueBytes.get(digest);
+      if (
+        existing !== undefined &&
+        (existing.mediaType !== row.mediaType || existing.byteLength !== row.byteLength)
+      )
+        throw new ExportFailureV1('EXPORT_REQUIRED_CONTENT_UNSUPPORTED');
+      if (existing === undefined) {
+        totalBytes += row.byteLength;
+        if (!Number.isSafeInteger(totalBytes) || totalBytes > EXPORT_RESOURCE_TOTAL_MAX_BYTES_V1)
+          throw new ExportFailureV1('EXPORT_BOUNDS_EXCEEDED');
+        uniqueBytes.set(digest, { mediaType: row.mediaType, byteLength: row.byteLength });
+      }
+    }
+    if (inventory.length === 0) return;
     const [rows] = await connection.execute<MediaProjectionRow[]>(
       `SELECT r.media_id AS mediaId, r.ordinal, o.mime AS mediaType, o.bytes,
               o.byte_length AS byteLength, o.sha256
@@ -342,25 +562,28 @@ export class ExportProjectionServiceV1 {
        ORDER BY r.ordinal`,
       [revisionPk.toString()],
     );
-    if (rows.length !== expected.length)
+    if (rows.length !== inventory.length)
       throw new ExportFailureV1('EXPORT_REQUIRED_CONTENT_UNSUPPORTED');
     for (let index = 0; index < rows.length; index += 1) {
       const row = rows[index];
+      const certified = inventory[index];
       const reference = expected[index];
       if (
         row === undefined ||
+        certified === undefined ||
         reference === undefined ||
         !Buffer.isBuffer(row.mediaId) ||
-        !Number.isSafeInteger(row.ordinal) ||
-        row.ordinal !== reference.ordinal ||
-        this.decodeMediaId(row.mediaId) !== reference.mediaId ||
-        !['image/png', 'image/jpeg', 'image/webp'].includes(row.mediaType) ||
-        !Buffer.isBuffer(row.bytes) ||
+        !row.mediaId.equals(certified.mediaId) ||
+        row.ordinal !== certified.ordinal ||
+        row.mediaType !== certified.mediaType ||
         !Number.isSafeInteger(row.byteLength) ||
-        row.bytes.byteLength !== row.byteLength ||
+        row.byteLength !== certified.byteLength ||
         !Buffer.isBuffer(row.sha256) ||
         row.sha256.byteLength !== 32 ||
-        !timingSafeEqual(sha256(row.bytes), row.sha256)
+        !timingSafeEqual(row.sha256, certified.sha256) ||
+        !Buffer.isBuffer(row.bytes) ||
+        row.bytes.byteLength !== certified.byteLength ||
+        !timingSafeEqual(sha256(row.bytes), certified.sha256)
       )
         throw new ExportFailureV1('EXPORT_REQUIRED_CONTENT_UNSUPPORTED');
       this.addResource(
@@ -369,7 +592,7 @@ export class ExportProjectionServiceV1 {
         row.mediaType,
         row.bytes,
         { kind: 'media', mediaId: reference.mediaId },
-        row.sha256.toString('hex'),
+        certified.sha256.toString('hex'),
       );
     }
   }

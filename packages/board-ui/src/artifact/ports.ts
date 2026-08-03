@@ -25,6 +25,7 @@ export interface ArtifactLoadPortV1 {
     artifact: ArtifactReferenceV1;
     signal: AbortSignal;
   }): Promise<Uint8Array>;
+  releasePackage?(bytes: Uint8Array): void;
 }
 
 export type ArtifactViewModeV1 = 'fit-page' | 'fit-width' | 'actual';

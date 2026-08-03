@@ -7,6 +7,8 @@ import {
   activityPresentationControlsV1,
   createPresentationControlVisibilityV1,
   elapsePresentationControlsV1,
+  firstEnabledPresentationControlV1,
+  focusPresentationControlV1,
   updatePresentationControlHoldsV1,
   type PresentationControlVisibilityInputV1,
   type PresentationControlVisibilityStateV1,
@@ -49,7 +51,9 @@ export function PresentationControlOverlay({
   const priorInputRef = useRef<PresentationControlVisibilityInputV1 | null>(null);
   const priorActivitySignalRef = useRef(activitySignal);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const firstControlRef = useRef<HTMLButtonElement | null>(null);
+  const previousControlRef = useRef<HTMLButtonElement | null>(null);
+  const nextControlRef = useRef<HTMLButtonElement | null>(null);
+  const exitControlRef = useRef<HTMLButtonElement | null>(null);
   const input = useMemo<PresentationControlVisibilityInputV1>(
     () => ({
       controlsFocusWithin,
@@ -139,10 +143,24 @@ export function PresentationControlOverlay({
   useEffect(() => {
     if (!active || visibility.phase !== 'hidden') return;
     const revealOnFirstTab = (event: KeyboardEvent) => {
-      if (event.key !== 'Tab' || event.defaultPrevented) return;
+      if (
+        event.key !== 'Tab' ||
+        event.defaultPrevented ||
+        event.shiftKey ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey
+      )
+        return;
+      const target = firstEnabledPresentationControlV1(
+        [previousControlRef.current, nextControlRef.current, exitControlRef.current].filter(
+          (candidate): candidate is HTMLButtonElement => candidate !== null,
+        ),
+      );
+      if (target === null) return;
       event.preventDefault();
       recordActivity();
-      requestAnimationFrame(() => firstControlRef.current?.focus());
+      requestAnimationFrame(() => focusPresentationControlV1(target));
     };
     window.addEventListener('keydown', revealOnFirstTab, true);
     return () => window.removeEventListener('keydown', revealOnFirstTab, true);
@@ -163,7 +181,7 @@ export function PresentationControlOverlay({
         }}
       >
         <button
-          ref={firstControlRef}
+          ref={previousControlRef}
           type="button"
           disabled={current <= 1}
           aria-label={t('presentation.previousPage')}
@@ -178,6 +196,7 @@ export function PresentationControlOverlay({
           {current} / {total}
         </output>
         <button
+          ref={nextControlRef}
           type="button"
           disabled={current >= total}
           aria-label={t('presentation.nextPage')}
@@ -189,7 +208,7 @@ export function PresentationControlOverlay({
           ›
         </button>
         {additionalControls}
-        <button type="button" onClick={onExit}>
+        <button ref={exitControlRef} type="button" onClick={onExit}>
           {t('presentation.exitPresentation')}
         </button>
       </div>

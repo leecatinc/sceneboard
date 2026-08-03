@@ -48,6 +48,8 @@ interface HealthRow extends RowDataPacket {
   oldestPendingAgeMs: string | null;
 }
 
+const CORRUPT_PENDING_RETRY_DELAY_MS_V1 = 60_000;
+
 const safeBigInt = (value: string): bigint => {
   if (!/^(?:0|[1-9][0-9]*)$/u.test(value)) throw new Error('invalid database integer');
   return BigInt(value);
@@ -79,6 +81,7 @@ export class BoardEventOutboxRepository
   implements BoardEventDeliveryPortV1, BoardEventOutboxHealthPortV1
 {
   #quarantinedCorruptPending = false;
+  readonly #deferredCorruptCandidates = new Map<string, number>();
 
   constructor(@Inject(MysqlService) private readonly mysql: MysqlService) {}
 
@@ -86,20 +89,40 @@ export class BoardEventOutboxRepository
     if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100)
       throw new TypeError('candidate limit must be 1..100');
     return this.mysql.withConnection(async (connection) => {
+      const now = Date.now();
+      for (const [eventPk, retryAt] of this.#deferredCorruptCandidates) {
+        if (retryAt <= now) this.#deferredCorruptCandidates.delete(eventPk);
+      }
+      const deferredEventPks = [...this.#deferredCorruptCandidates.keys()];
+      const deferredPredicate =
+        deferredEventPks.length === 0
+          ? ''
+          : `AND event_pk NOT IN (${deferredEventPks.map(() => '?').join(', ')})`;
       const [rows] = await connection.query<CandidateRow[]>(
         `
         SELECT CAST(event_pk AS CHAR) AS eventPk, event_id AS eventId
         FROM board_event_outbox FORCE INDEX (ix_outbox_pending)
         WHERE status_code = 'P'
+          ${deferredPredicate}
         ORDER BY event_pk ASC
         LIMIT ?
       `,
-        [limit],
+        [...deferredEventPks, limit],
       );
-      return rows.map((row) => ({
-        eventPk: safeBigInt(row.eventPk),
-        eventId: asEventId(row.eventId),
-      }));
+      const candidates: PendingBoardEventCandidateV1[] = [];
+      for (const row of rows) {
+        const eventPk = safeBigInt(row.eventPk);
+        try {
+          candidates.push({ eventPk, eventId: asEventId(row.eventId) });
+        } catch {
+          this.#quarantinedCorruptPending = true;
+          this.#deferredCorruptCandidates.set(
+            eventPk.toString(),
+            now + CORRUPT_PENDING_RETRY_DELAY_MS_V1,
+          );
+        }
+      }
+      return candidates;
     });
   }
 
@@ -128,9 +151,14 @@ export class BoardEventOutboxRepository
         const event = this.#mapEvent(row);
         if (event.eventPk !== candidate.eventPk || event.eventId !== candidate.eventId)
           throw new Error('candidate drift');
+        this.#deferredCorruptCandidates.delete(candidate.eventPk.toString());
         return event;
       } catch (error) {
         this.#quarantinedCorruptPending = true;
+        this.#deferredCorruptCandidates.set(
+          candidate.eventPk.toString(),
+          Date.now() + CORRUPT_PENDING_RETRY_DELAY_MS_V1,
+        );
         throw error;
       }
     });
