@@ -6,6 +6,7 @@ import {
   BoardOperationRequestParserV1,
   MutationRequestParserV1,
   MutationRequestParserV2,
+  MutationRequestParserV3,
   type BoardContractParser,
   type BoardContractParserV1,
 } from '@sceneboard/board-schema';
@@ -27,7 +28,7 @@ export type RawBodyProfileKind =
   | 'd7-artifact-network-body'
   | 'd9-media-binary-body';
 
-type HttpMethod = 'GET' | 'POST' | 'DELETE';
+type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE';
 
 export interface RawBodyProfile {
   kind: RawBodyProfileKind;
@@ -41,6 +42,7 @@ export interface RawBodyProfile {
 const d2BodyRoutes = [
   '/api/v1/auth/signup',
   '/api/v1/auth/login',
+  '/api/v1/auth/google',
   '/api/v1/auth/email-verifications',
   '/api/v1/auth/email-verifications/confirm',
   '/api/v1/auth/password',
@@ -58,6 +60,27 @@ const d2BodyRoutes = [
   '/api/v1/boards/:boardId/exports',
 ] as const;
 
+const d2AdditionalBodyRoutes: ReadonlyArray<readonly [HttpMethod, string]> = [
+  ['POST', '/api/v1/public/share-contexts/:contextId/presentation-sessions'],
+  ['POST', '/api/v1/public/share-contexts/:contextId/presentation-sessions/:sessionId/state'],
+  ['POST', '/api/v1/public/share-contexts/:contextId/presentation-sessions/:sessionId/end'],
+  ['POST', '/api/v1/boards/:boardId/presentation-sessions'],
+  ['POST', '/api/v1/boards/:boardId/presentation-sessions/:sessionId/state'],
+  ['POST', '/api/v1/boards/:boardId/presentation-sessions/:sessionId/end'],
+  ['POST', '/api/v1/boards/:boardId/shares'],
+  ['PATCH', '/api/v1/boards/:boardId/shares/:shareId'],
+  ['POST', '/api/v1/boards/:boardId/shares/:shareId/rotate-link'],
+  ['DELETE', '/api/v1/boards/:boardId/shares/:shareId'],
+  ['POST', '/api/v1/boards/:boardId/shares/:shareId/password'],
+  ['POST', '/api/v1/boards/:boardId/shares/:shareId/password/regenerate'],
+  ['DELETE', '/api/v1/boards/:boardId/shares/:shareId/password'],
+  ['POST', '/api/v1/public/shares/:shareToken/password-sessions'],
+  ['POST', '/api/v1/boards/:boardId/invitations'],
+  ['POST', '/api/v1/boards/:boardId/invitations/:inviteId/resend'],
+  ['PATCH', '/api/v1/boards/:boardId/members/:memberId'],
+  ['POST', '/api/v1/invitations/:token/accept'],
+];
+
 const d2NoBodyRoutes: ReadonlyArray<readonly [HttpMethod, string]> = [
   ['GET', '/api/v1/auth/csrf'],
   ['GET', '/api/v1/auth/session'],
@@ -69,8 +92,19 @@ const d2NoBodyRoutes: ReadonlyArray<readonly [HttpMethod, string]> = [
   ['DELETE', '/api/v1/grants/:grantId'],
   ['GET', '/api/v1/public/shares/:shareToken'],
   ['GET', '/api/v1/public/share-contexts/:contextId'],
+  ['GET', '/api/v1/public/share-contexts/:contextId/presentation-sessions'],
+  ['GET', '/api/v1/public/share-contexts/:contextId/presentation-sessions/:sessionId'],
+  ['GET', '/api/v1/public/share-contexts/:contextId/presentation-sessions/:sessionId/events'],
+  ['GET', '/api/v1/boards/:boardId/presentation-sessions'],
+  ['GET', '/api/v1/boards/:boardId/presentation-sessions/:sessionId'],
+  ['GET', '/api/v1/boards/:boardId/presentation-sessions/:sessionId/events'],
   ['GET', '/api/v1/account/api-keys'],
   ['DELETE', '/api/v1/account/api-keys/:apiKeyId'],
+  ['GET', '/api/v1/boards/:boardId/shares'],
+  ['GET', '/api/v1/boards/:boardId/members'],
+  ['GET', '/api/v1/boards/:boardId/member-candidates'],
+  ['DELETE', '/api/v1/boards/:boardId/invitations/:inviteId'],
+  ['DELETE', '/api/v1/boards/:boardId/members/:memberId'],
   [
     'GET',
     '/api/v1/public/shares/:shareId/revisions/:revisionId/g/:publicationGeneration/:accessGeneration/artifacts/:artifactId/versions/:versionId/package',
@@ -86,6 +120,9 @@ const d1Routes: ReadonlyArray<readonly [HttpMethod, string, BoardContractParserV
 const documentRoutes: ReadonlyArray<readonly [HttpMethod, string, BoardContractParser<unknown>]> = [
   ['POST', '/api/v1/boards/:boardId/mutations', MutationRequestParserV2],
 ];
+
+const documentV3Routes: ReadonlyArray<readonly [HttpMethod, string, BoardContractParser<unknown>]> =
+  [['POST', '/api/v1/boards/:boardId/mutations', MutationRequestParserV3]];
 
 const d1AdapterBodyRoutes = [
   '/api/v1/boards/:boardId/revisions/:revisionId/restore',
@@ -122,6 +159,13 @@ export const RAW_BODY_PROFILES: readonly RawBodyProfile[] = [
       pathTemplate,
     }),
   ),
+  ...d2AdditionalBodyRoutes.map(
+    ([method, pathTemplate]): RawBodyProfile => ({
+      kind: 'd2-rest-json-body',
+      method,
+      pathTemplate,
+    }),
+  ),
   ...d2NoBodyRoutes.map(
     ([method, pathTemplate]): RawBodyProfile => ({
       kind: 'd2-no-body',
@@ -143,6 +187,15 @@ export const RAW_BODY_PROFILES: readonly RawBodyProfile[] = [
       method,
       pathTemplate,
       mediaType: 'application/vnd.sceneboard.document+json;version=2',
+      d1Parser,
+    }),
+  ),
+  ...documentV3Routes.map(
+    ([method, pathTemplate, d1Parser]): RawBodyProfile => ({
+      kind: 'd1-document-contract-body',
+      method,
+      pathTemplate,
+      mediaType: 'application/vnd.sceneboard.document+json;version=3',
       d1Parser,
     }),
   ),

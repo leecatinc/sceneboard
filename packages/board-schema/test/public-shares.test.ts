@@ -49,8 +49,10 @@ const projection = {
   ],
 };
 
-test('public tokens require canonical 32-byte unpadded base64url', () => {
+test('public references accept secret tokens and persistent generation-bound locators', () => {
   assert.equal(PublicShareTokenParserV1.parse(contextId).ok, true);
+  assert.equal(PublicShareTokenParserV1.parse('share_abcdefghijklmnopqrstuv_g7').ok, true);
+  assert.equal(PublicShareTokenParserV1.parse('share_abcdefghijklmnopqrstuv_g0').ok, false);
   assert.equal(PublicShareTokenParserV1.parse(`${contextId.slice(0, -1)}B`).ok, false);
   assert.equal(PublicShareTokenParserV1.parse(`${contextId}=`).ok, false);
 });

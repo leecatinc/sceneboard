@@ -46,6 +46,10 @@ import { PublicResourceEntitlementService } from './public-resource-entitlement.
 import { PublicArtifactDeliveryService } from './public-artifact-delivery.service.js';
 import { PublicShareController } from './public-share.controller.js';
 import { PublicArtifactController } from './public-artifact.controller.js';
+import { PublicPresentationSessionController } from './public-presentation-session.controller.js';
+import { PublicPresentationSessionService } from './public-presentation-session.service.js';
+import { OwnerPresentationSessionController } from './owner-presentation-session.controller.js';
+import { OwnerPresentationSessionService } from './owner-presentation-session.service.js';
 
 @Module({
   imports: [DatabaseModule, GrantModule, RateLimitModule, ArtifactsModule, MediaModule],
@@ -54,6 +58,8 @@ import { PublicArtifactController } from './public-artifact.controller.js';
     PasswordShareController,
     PublicShareController,
     PublicArtifactController,
+    PublicPresentationSessionController,
+    OwnerPresentationSessionController,
     PublicMediaDeliveryController,
   ],
   providers: [
@@ -225,6 +231,54 @@ import { PublicArtifactController } from './public-artifact.controller.js';
       inject: [PublicResourceEntitlementService, ArtifactRepository],
       useFactory: (entitlements: PublicResourceEntitlementService, artifacts: ArtifactRepository) =>
         new PublicArtifactDeliveryService(entitlements, artifacts),
+    },
+    {
+      provide: PublicPresentationSessionService,
+      inject: [
+        RedisService,
+        PublicContextStore,
+        PublicContextCookieService,
+        ShareCookieService,
+        PublicShareResolver,
+        PublicShareProjectionRepository,
+        RateLimitService,
+        APP_ENVIRONMENT,
+      ],
+      useFactory: (
+        redis: RedisService,
+        contexts: PublicContextStore,
+        contextCookies: PublicContextCookieService,
+        shareCookies: ShareCookieService,
+        resolver: PublicShareResolver,
+        projections: PublicShareProjectionRepository,
+        rateLimits: RateLimitService,
+        environment: AppEnvironment,
+      ) =>
+        new PublicPresentationSessionService(
+          redis,
+          contexts,
+          contextCookies,
+          shareCookies,
+          resolver,
+          projections,
+          rateLimits,
+          environment,
+        ),
+    },
+    {
+      provide: OwnerPresentationSessionService,
+      inject: [
+        MysqlBoardAccessPolicy,
+        ShareRepository,
+        PublicShareProjectionRepository,
+        PublicPresentationSessionService,
+      ],
+      useFactory: (
+        accessPolicy: MysqlBoardAccessPolicy,
+        shares: ShareRepository,
+        projections: PublicShareProjectionRepository,
+        sessions: PublicPresentationSessionService,
+      ) => new OwnerPresentationSessionService(accessPolicy, shares, projections, sessions),
     },
     {
       provide: PublicMediaDeliveryService,

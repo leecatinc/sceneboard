@@ -277,7 +277,7 @@ export class AccountApiKeyRepository {
              last_used_at AS lastUsedAt,
              CURRENT_TIMESTAMP(3) AS databaseNow
            FROM account_api_keys
-           WHERE owner_user_id = ?${cursorClause}
+           WHERE owner_user_id = ? AND status <> 2${cursorClause}
            ORDER BY created_at DESC, id DESC
            LIMIT ${input.limit + 1}`,
           [input.ownerUserPk, ...cursorValues],

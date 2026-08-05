@@ -11,11 +11,7 @@ import {
   HITL_KINDS_V1,
   NODE_TYPES_V1,
 } from './catalogs.js';
-import {
-  BOARD_DOCUMENT_LIMITS_V2,
-  BOARD_DOCUMENT_LIMITS_V3,
-  BOARD_LIMITS_V1,
-} from './limits.js';
+import { BOARD_DOCUMENT_LIMITS_V2, BOARD_DOCUMENT_LIMITS_V3, BOARD_LIMITS_V1 } from './limits.js';
 import { PROTOCOL_SEMVER, PROTOCOL_VERSION } from './protocol-version.js';
 
 const exactCatalog = <T extends readonly [string, ...string[]]>(catalog: T) =>

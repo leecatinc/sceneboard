@@ -26,6 +26,17 @@
   background: var(--border);
 }
 
+.ownerActions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.ownerActions > :global([data-owner-admin-controls]) {
+  display: contents;
+}
+
 .button {
   position: relative;
   display: inline-flex;

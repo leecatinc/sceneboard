@@ -74,6 +74,25 @@ The first and last controls are disabled at their respective boundaries. Inactiv
 slides are `hidden`, `aria-hidden`, and inert; every slide has a labeled heading and
 slide semantics.
 
+Every logical slide needs a stable ASCII ID matching
+`/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/`. After the first slide is visible and after
+every button, keyboard, or scripted page transition, report the visible slide through:
+
+```js
+window.SceneBoardArtifact?.changePresentationPage({
+  pageId: stableSlideId,
+  pageIndex: zeroBasedIndex,
+  pageCount: totalSlides,
+});
+```
+
+The closed template derives `pageId` from `data-deck-slide`. Preserve the same contract
+when publishing custom HTML/PPT-derived presentation artifacts so SceneBoard can retain
+separate pen, eraser, undo, and redo history for each logical page. Do not derive IDs
+from mutable titles or array positions, omit the initial notification, or inspect the
+host DOM. If a custom artifact cannot provide stable logical IDs, omit the signal and
+accept one outer SceneBoard-page annotation history instead of sending an unstable ID.
+
 Motion never carries unique meaning. The same content remains present under
 `prefers-reduced-motion`. The deck requests `requestedCapabilities:[]`, performs no
 network operation, loads no external font, script, style, image, or content delivery
@@ -91,6 +110,9 @@ publication and confirm:
 - every slide title and all decision-critical facts are present as escaped text;
 - navigation, progress, boundaries, responsive scaling, and reduced motion are
   present.
+- the initial slide and every subsequent navigation call
+  `changePresentationPage` with the stable `data-deck-slide` ID and consistent
+  zero-based index/count values.
 
 For browser verification, render at 1920×1080, move from the first to final slide by
 button and keyboard, verify the current/total display and disabled boundaries, then

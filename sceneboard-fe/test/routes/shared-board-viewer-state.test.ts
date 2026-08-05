@@ -6,6 +6,8 @@ import { PublicShareStateParserV1, type PublicShareStateV1 } from '@sceneboard/b
 import {
   PUBLIC_SHARE_EARLY_REFRESH_MS_V1,
   PUBLIC_SHARE_HARD_EXPIRY_MS_V1,
+  publicShareAnnotationPageKeyV1,
+  publicShareArtifactRouteKeyV1,
   publicShareProjectionTupleMatchesV1,
   publicShareViewerDeadlinesV1,
   publicShareViewerIdentityV1,
@@ -54,4 +56,38 @@ test('ready revalidation preserves the exact pinned projection tuple', () => {
     projection: { ...ready.projection, accessGeneration: 2 },
   } as Extract<PublicShareStateV1, { state: 'ready' }>;
   assert.equal(publicShareProjectionTupleMatchesV1(ready, drifted), false);
+});
+
+test('annotation page identity survives context renewal but changes with the pinned page tuple', () => {
+  const pageId = ready.projection.document.pages[0]!.pageId;
+  const renewed = {
+    ...ready,
+    context: { ...ready.context, contextId: 'B'.repeat(43) },
+  } as Extract<PublicShareStateV1, { state: 'ready' }>;
+  assert.equal(
+    publicShareAnnotationPageKeyV1(ready, pageId),
+    publicShareAnnotationPageKeyV1(renewed, pageId),
+  );
+  assert.notEqual(
+    publicShareAnnotationPageKeyV1(ready, pageId),
+    publicShareAnnotationPageKeyV1(ready, 'page-other'),
+  );
+});
+
+test('artifact route identity survives context renewal but changes with the pinned projection tuple', () => {
+  const renewed = {
+    ...ready,
+    context: { ...ready.context, contextId: 'B'.repeat(43) },
+  } as Extract<PublicShareStateV1, { state: 'ready' }>;
+  assert.equal(publicShareArtifactRouteKeyV1(ready), publicShareArtifactRouteKeyV1(renewed));
+  assert.notEqual(
+    publicShareArtifactRouteKeyV1(ready),
+    publicShareArtifactRouteKeyV1({
+      ...ready,
+      projection: {
+        ...ready.projection,
+        publicationGeneration: ready.projection.publicationGeneration + 1,
+      },
+    } as Extract<PublicShareStateV1, { state: 'ready' }>),
+  );
 });

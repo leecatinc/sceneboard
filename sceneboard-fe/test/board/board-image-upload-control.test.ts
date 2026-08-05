@@ -24,9 +24,31 @@ test('media authoring has one responsive slot after page display and before hist
   );
   assert.equal((chrome.match(/mediaAuthoring=\{slots\.mediaAuthoring\}/gu) ?? []).length, 1);
   assert.equal((topbar.match(/board-topbar-media-authoring/gu) ?? []).length, 1);
+  assert.match(topbar, /mediaAuthoring !== null/u);
+  assert.match(topbar, /aria-expanded=\{mediaOpen\}/u);
+  assert.match(topbar, /hidden=\{!mediaOpen\}/u);
+  assert.match(topbar, /mediaAuthoring\.ready/u);
   assert.equal((board.match(/<BoardImageUploadControl/gu) ?? []).length, 1);
+  assert.match(board, /const MEDIA_AUTHORING_UI_ENABLED = false/u);
+  assert.match(board, /MEDIA_AUTHORING_UI_ENABLED &&\s*affordances\['media\.upload'\]/u);
   assert.match(board, /affordances\['media\.upload'\][\s\S]*state\.mode\.kind !== 'history'/u);
   assert.match(board, /'document' in session\.visibleSnapshot/u);
+});
+
+test('the paused media entry point stays hidden and the AI connection action fits the top bar', () => {
+  const globals = source('app/globals.css');
+  assert.match(
+    globals,
+    /\.board-pairing-button\s*\{[\s\S]*height:\s*36px;[\s\S]*padding:\s*6px 12px;[\s\S]*line-height:\s*1;/u,
+  );
+});
+
+test('desktop media authoring uses a fixed-height trigger and an out-of-flow popover', () => {
+  const topbarCss = source('components/board/BoardTopBar.module.css');
+  assert.match(topbarCss, /\.mediaTrigger[\s\S]*min-height:\s*36px/u);
+  assert.match(topbarCss, /\.mediaPopover[\s\S]*position:\s*absolute/u);
+  assert.match(topbarCss, /\.mediaPopover\[hidden\][\s\S]*display:\s*none/u);
+  assert.match(topbarCss, /\.mediaPopoverBody[\s\S]*overflow-y:\s*auto/u);
 });
 
 test('media authoring CSS remains bounded at 320px and owns no scroll surface', () => {

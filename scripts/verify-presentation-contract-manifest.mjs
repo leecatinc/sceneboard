@@ -80,7 +80,7 @@ const publisherKinds = new Set([
 ]);
 const excludedCampaigns = ['database-capacity', 'multi-client-capacity', 'redis-loss-capacity'];
 const presentationFirstMigration = 13;
-const presentationTerminalMigration = 27;
+const presentationTerminalMigration = 30;
 const infrastructurePublishers = new Set([
   'PUB-MANIFEST-SCHEMA',
   'PUB-EXCLUSION-SCHEMA',

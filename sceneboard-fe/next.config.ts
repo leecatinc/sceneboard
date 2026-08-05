@@ -21,23 +21,34 @@ export const buildSceneBoardContentSecurityPolicyV1 = (input: {
   apiOrigin: string;
   runtimeOrigin: string;
   mediaOrigin: string;
+  firebaseAuthOrigin?: string | undefined;
 }): string => {
   const apiOrigin = canonicalOrigin(input.apiOrigin, 'API origin');
   const runtimeOrigin = canonicalOrigin(input.runtimeOrigin, 'artifact runtime origin');
   const mediaOrigin = canonicalOrigin(input.mediaOrigin, 'media origin');
+  const firebaseAuthOrigin =
+    input.firebaseAuthOrigin === undefined
+      ? undefined
+      : canonicalOrigin(input.firebaseAuthOrigin, 'Firebase auth origin');
   if (apiOrigin === runtimeOrigin)
     throw new TypeError('API and artifact runtime origins must differ');
   return [
     "default-src 'self'",
     "base-uri 'self'",
     "object-src 'none'",
-    "script-src 'self' 'unsafe-inline'",
+    `script-src 'self' 'unsafe-inline'${
+      firebaseAuthOrigin === undefined ? '' : ' https://apis.google.com'
+    }`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data:",
     `media-src 'self' ${mediaOrigin}`,
     "font-src 'self'",
-    `connect-src 'self' ${apiOrigin}`,
-    `frame-src ${runtimeOrigin}`,
+    `connect-src 'self' ${apiOrigin}${
+      firebaseAuthOrigin === undefined
+        ? ''
+        : ' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com'
+    }`,
+    `frame-src ${runtimeOrigin}${firebaseAuthOrigin === undefined ? '' : ` ${firebaseAuthOrigin}`}`,
     "frame-ancestors 'self'",
     "form-action 'self'",
     "worker-src 'none'",
@@ -74,6 +85,13 @@ const config: NextConfig = {
         process.env.NEXT_PUBLIC_SCENEBOARD_MEDIA_ORIGIN ?? 'https://media.sceneboard.dev',
         'NEXT_PUBLIC_SCENEBOARD_MEDIA_ORIGIN',
       ),
+      firebaseAuthOrigin:
+        process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN === undefined
+          ? undefined
+          : canonicalOrigin(
+              `https://${process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}`,
+              'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
+            ),
     });
     return [
       {

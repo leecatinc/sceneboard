@@ -1,12 +1,16 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { Brand } from '../../../components/app/Brand';
 import { LanguageSelect } from '../../../components/i18n/LanguageSelect';
 import { useI18n } from '../../../components/i18n/I18nProvider';
 import type { MessageKey } from '../../../lib/i18n/catalog';
+import {
+  resolveSceneBoardAgentInstallGuideUrl,
+  SCENEBOARD_AGENT_INSTALL_GUIDE_URL,
+} from '../../../lib/ai-connections/agent-install-guide';
 import styles from './codex-install.module.css';
 
 const INSTALL_COMMAND = `codex plugin marketplace add leecatinc/sceneboard
@@ -46,6 +50,11 @@ function CopyBlock({ value, labelKey }: { value: string; labelKey: MessageKey })
 
 export function CodexInstallClient() {
   const { t } = useI18n();
+  const [guideUrl, setGuideUrl] = useState(SCENEBOARD_AGENT_INSTALL_GUIDE_URL);
+
+  useEffect(() => {
+    setGuideUrl(resolveSceneBoardAgentInstallGuideUrl(window.location.origin));
+  }, []);
 
   return (
     <div className={styles.page}>
@@ -105,15 +114,27 @@ export function CodexInstallClient() {
               <p>{t('codex.installBody')}</p>
             </div>
           </div>
-          <div className={styles.installGrid}>
-            <CopyBlock value={t('codex.installPrompt')} labelKey="codex.askCodex" />
-            <CopyBlock value={INSTALL_COMMAND} labelKey="codex.commandTitle" />
+          <div className={styles.installGridSingle}>
+            <CopyBlock value={guideUrl} labelKey="codex.askCodex" />
           </div>
         </section>
 
         <section className={styles.section}>
           <div className={styles.sectionHeading}>
             <span>02</span>
+            <div>
+              <h2>{t('ai.skillStepDownloadTitle')}</h2>
+              <p>{t('ai.skillStepDownloadBody')}</p>
+            </div>
+          </div>
+          <div className={styles.installGridSingle}>
+            <CopyBlock value={INSTALL_COMMAND} labelKey="codex.commandTitle" />
+          </div>
+        </section>
+
+        <section className={styles.section}>
+          <div className={styles.sectionHeading}>
+            <span>03</span>
             <div>
               <h2>{t('codex.configTitle')}</h2>
               <p>{t('codex.configBody')}</p>
@@ -146,7 +167,7 @@ export function CodexInstallClient() {
 
         <section className={styles.section}>
           <div className={styles.sectionHeading}>
-            <span>03</span>
+            <span>04</span>
             <div>
               <h2>{t('codex.authorizeTitle')}</h2>
               <p>{t('codex.authorizeBody')}</p>
@@ -159,7 +180,7 @@ export function CodexInstallClient() {
 
         <section className={styles.section}>
           <div className={styles.sectionHeading}>
-            <span>04</span>
+            <span>05</span>
             <div>
               <h2>{t('codex.maintenanceTitle')}</h2>
               <p>{t('codex.archiveNote')}</p>

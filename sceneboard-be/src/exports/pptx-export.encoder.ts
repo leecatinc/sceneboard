@@ -213,8 +213,7 @@ const normalizeEntryV1 = (entry: ZipEntryV1, generatedAt: string): ZipEntryV1 | 
 };
 
 const writeZipV1 = (entries: readonly ZipEntryV1[]): Buffer => {
-  if (entries.length > PPTX_ZIP_MAX_ENTRIES_V1)
-    throw new ExportFailureV1('EXPORT_BOUNDS_EXCEEDED');
+  if (entries.length > PPTX_ZIP_MAX_ENTRIES_V1) throw new ExportFailureV1('EXPORT_BOUNDS_EXCEEDED');
   const localParts: Buffer[] = [];
   const centralParts: Buffer[] = [];
   let localOffset = 0;
@@ -264,7 +263,10 @@ const writeZipV1 = (entries: readonly ZipEntryV1[]): Buffer => {
   end.writeUInt16LE(entries.length, 10);
   end.writeUInt32LE(centralBytes.byteLength, 12);
   end.writeUInt32LE(localOffset, 16);
-  return Buffer.concat([...localParts, centralBytes, end], localOffset + centralLength + end.length);
+  return Buffer.concat(
+    [...localParts, centralBytes, end],
+    localOffset + centralLength + end.length,
+  );
 };
 
 export const canonicalizePptxBytesV1 = (bytes: Buffer, generatedAt: string): Buffer => {
@@ -394,8 +396,7 @@ const runPptxWorkerV1 = (
       terminate();
       reject(error);
     };
-    const aborted = (): void =>
-      settleFailure(new ExportFailureV1('EXPORT_RENDER_TIMEOUT'));
+    const aborted = (): void => settleFailure(new ExportFailureV1('EXPORT_RENDER_TIMEOUT'));
     const message = (value: unknown): void => {
       if (terminal) return;
       if (
@@ -460,9 +461,7 @@ const runPptxWorkerV1 = (
   });
 
 export class PptxExportEncoderV1 {
-  constructor(
-    private readonly createWorker: () => PptxWorkerV1 = createPptxWorkerV1,
-  ) {}
+  constructor(private readonly createWorker: () => PptxWorkerV1 = createPptxWorkerV1) {}
 
   async encode(input: {
     lease: ExportRenderLeaseV1;
@@ -487,12 +486,7 @@ export class PptxExportEncoderV1 {
         generatedAt: input.lease.generatedAt,
         pages: input.lease.pages.map((page) => page.png),
       };
-      const output = await runPptxWorkerV1(
-        this.createWorker(),
-        workerInput,
-        signal,
-        deadlineMs,
-      );
+      const output = await runPptxWorkerV1(this.createWorker(), workerInput, signal, deadlineMs);
       input.signal?.throwIfAborted();
       return output;
     } catch (error) {
@@ -506,9 +500,7 @@ export class PptxExportEncoderV1 {
 const encodeAndCanonicalizePptxV1 = async (input: PptxWorkerInputV1): Promise<Buffer> => {
   if (input.pages.length === 0 || input.pages.length > EXPORT_MAX_PAGES_V1)
     throw new ExportFailureV1(
-      input.pages.length > EXPORT_MAX_PAGES_V1
-        ? 'EXPORT_BOUNDS_EXCEEDED'
-        : 'EXPORT_ENCODE_FAILED',
+      input.pages.length > EXPORT_MAX_PAGES_V1 ? 'EXPORT_BOUNDS_EXCEEDED' : 'EXPORT_ENCODE_FAILED',
     );
   let pageBytes = 0;
   let base64Bytes = 0;
@@ -524,22 +516,14 @@ const encodeAndCanonicalizePptxV1 = async (input: PptxWorkerInputV1): Promise<Bu
       throw new ExportFailureV1('EXPORT_BOUNDS_EXCEEDED');
     if (
       png.byteLength < PNG_SIGNATURE_V1.byteLength ||
-      !Buffer.from(
-        png.buffer,
-        png.byteOffset,
-        PNG_SIGNATURE_V1.byteLength,
-      ).equals(PNG_SIGNATURE_V1)
+      !Buffer.from(png.buffer, png.byteOffset, PNG_SIGNATURE_V1.byteLength).equals(PNG_SIGNATURE_V1)
     )
       throw new ExportFailureV1('EXPORT_ENCODE_FAILED');
-    encodedPages.push(
-      Buffer.from(png.buffer, png.byteOffset, png.byteLength).toString('base64'),
-    );
+    encodedPages.push(Buffer.from(png.buffer, png.byteOffset, png.byteLength).toString('base64'));
   }
   const imported = createRequire(import.meta.url)(PPTXGENJS_PATH_V1) as unknown;
   const Constructor =
-    typeof imported === 'function'
-      ? imported
-      : (imported as { default?: unknown } | null)?.default;
+    typeof imported === 'function' ? imported : (imported as { default?: unknown } | null)?.default;
   if (typeof Constructor !== 'function') throw new ExportFailureV1('EXPORT_RENDERER_UNAVAILABLE');
   const presentation = new (Constructor as new () => {
     defineLayout(value: { name: string; width: number; height: number }): void;

@@ -28,6 +28,7 @@ test('owns the eight exact owner share management paths and success statuses', a
     assert.equal(source.includes(route), true, route);
   }
   assert.equal(source.includes('response.status(result.replayed ? 200 : 201)'), true);
+  assert.equal((source.match(/@HttpCode\(200\)/gu) ?? []).length, 3);
   assert.equal(source.includes('@HttpCode(204)'), true);
   assert.equal((source.match(/@RequireCsrf\('session'\)/gu) ?? []).length, 7);
 });

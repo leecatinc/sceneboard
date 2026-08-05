@@ -133,6 +133,7 @@ export class ShareController {
   }
 
   @Post(':boardId/shares/:shareId/rotate-link')
+  @HttpCode(200)
   @RequireCsrf('session')
   async rotate(
     @Req() request: ShareRequest,

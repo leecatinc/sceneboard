@@ -22,7 +22,6 @@ import {
 } from '../../lib/ai-connections/created-pairing-session';
 import { HEADER_GRANTS_CHANGED_EVENT } from '../../lib/ai-connections/header-connection-state';
 import { PairingRequestModal } from '../ai-connections/PairingRequestModal';
-import { ConfirmationDialog } from '../app/ConfirmationDialog';
 import { useI18n } from '../i18n/I18nProvider';
 
 interface PairingBoardOption {
@@ -54,8 +53,6 @@ export function BoardPairingControl({
   const [error, setError] = useState<string | null>(null);
   const [isGrantCheckComplete, setIsGrantCheckComplete] = useState(false);
   const [boardGrant, setBoardGrant] = useState<GrantSummary | null>(null);
-  const [rotatedCredential, setRotatedCredential] = useState<string | null>(null);
-  const [confirmRevoke, setConfirmRevoke] = useState(false);
   const previousState = useRef<PairingOwnerStatus['state'] | null>(null);
   const requestAborts = useRef(new Map<string, AbortController>());
   const requestEpochs = useRef(new Map<string, number>());
@@ -99,8 +96,6 @@ export function BoardPairingControl({
     setCreated(null);
     setOwnerStatus(null);
     setBoardGrant(null);
-    setRotatedCredential(null);
-    setConfirmRevoke(false);
     setIsOpen(false);
     setBusy(false);
     setError(null);
@@ -363,93 +358,13 @@ export function BoardPairingControl({
     else setError(t('ai.connectionRefreshFailed'));
   }
 
-  async function rotateGrant() {
-    const token = csrf();
-    if (token === null || boardGrant === null) return;
-    const request = beginAction('connection.update');
-    setBusy(true);
-    setError(null);
-    setRotatedCredential(null);
-    const result = await api.rotateGrant(boardGrant.grantId, token, request.controller.signal);
-    if (!actionIsCurrent(request)) return;
-    setBusy(false);
-    if (result.kind === 'ok') {
-      setBoardGrant(result.value.grant);
-      setRotatedCredential(result.value.accessToken);
-      return;
-    }
-    setError(t('ai.connectionRefreshFailed'));
-  }
-
-  async function revokeGrant() {
-    const token = csrf();
-    if (token === null || boardGrant === null) return;
-    const request = beginAction('connection.revoke');
-    setBusy(true);
-    setError(null);
-    const result = await api.revokeGrant(boardGrant.grantId, token, request.controller.signal);
-    if (!actionIsCurrent(request)) return;
-    setBusy(false);
-    setConfirmRevoke(false);
-    if (result.kind === 'ok') {
-      setBoardGrant(null);
-      setRotatedCredential(null);
-      return;
-    }
-    setError(t('ai.disconnectFailed'));
-  }
-
   const displayPairing = ownerStatus ?? created;
 
   if (!enabled || !isGrantCheckComplete) return null;
 
-  if (boardGrant !== null)
-    return (
-      <div className="board-pairing-control">
-        <span>
-          {boardGrant.client.clientName} · {boardGrant.status}
-        </span>
-        <button
-          type="button"
-          className="button secondary"
-          disabled={busy}
-          onClick={() => void rotateGrant()}
-        >
-          {t('ai.rotate')}
-        </button>
-        <button
-          type="button"
-          className="button danger"
-          disabled={busy}
-          onClick={() => setConfirmRevoke(true)}
-        >
-          {t('ai.revoke')}
-        </button>
-        {rotatedCredential !== null && (
-          <section aria-live="polite">
-            <strong>{t('ai.newCredential')}</strong>
-            <p>{t('ai.newCredentialDescription')}</p>
-            <textarea readOnly value={rotatedCredential} aria-label={t('ai.newCredential')} />
-          </section>
-        )}
-        {error && (
-          <span className="board-pairing-error" role="alert">
-            {error}
-          </span>
-        )}
-        <ConfirmationDialog
-          isOpen={confirmRevoke}
-          title={t('ai.disconnectTitle')}
-          description={t('ai.disconnectDescription', { client: boardGrant.client.clientName })}
-          confirmLabel={t('ai.disconnectConfirm')}
-          cancelLabel={t('common.cancel')}
-          busy={busy}
-          error={null}
-          onConfirm={() => void revokeGrant()}
-          onDismiss={() => setConfirmRevoke(false)}
-        />
-      </div>
-    );
+  // The global header already exposes the connected state. Keep board chrome focused on the
+  // presentation by managing active grants only from the AI connections settings page.
+  if (boardGrant !== null) return null;
 
   return (
     <div className="board-pairing-control">

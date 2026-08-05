@@ -48,6 +48,27 @@ export const publicShareProjectionTupleMatchesV1 = (
   displayed.projection.publicationGeneration === candidate.projection.publicationGeneration &&
   displayed.projection.accessGeneration === candidate.projection.accessGeneration;
 
+export const publicShareAnnotationPageKeyV1 = (
+  state: PublicShareReadyStateV1,
+  pageId: string,
+): string =>
+  [
+    state.projection.shareId,
+    state.projection.revisionId,
+    state.projection.publicationGeneration,
+    state.projection.accessGeneration,
+    pageId,
+  ].join('\u0000');
+
+export const publicShareArtifactRouteKeyV1 = (state: PublicShareReadyStateV1): string =>
+  [
+    state.projection.shareId,
+    state.projection.boardId,
+    state.projection.revisionId,
+    state.projection.publicationGeneration,
+    state.projection.accessGeneration,
+  ].join('\u0000');
+
 export const publicShareViewerDeadlinesV1 = (
   requestStartedAt: number,
 ): { earlyRefreshAt: number; hardExpiryAt: number } => {

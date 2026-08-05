@@ -2,6 +2,7 @@ import { Body, Controller, Get, HttpCode, Inject, Post, Req, Res } from '@nestjs
 
 import {
   parseAuthCredentials,
+  parseGoogleIdTokenRequest,
   parseEmailVerificationConfirmation,
   parseEmailVerificationRequest,
   parseEmptyObject,
@@ -44,6 +45,7 @@ export interface AuthControllerService {
     now: number,
     signal?: AbortSignal,
   ): Promise<IssuedAuthSession>;
+  google?(idToken: string, now: number): Promise<IssuedAuthSession>;
 }
 
 export interface AuthHttpRequest {
@@ -145,6 +147,21 @@ export class AuthController {
     now: number = Date.now(),
   ): Promise<AuthSessionResponse> {
     const issued = await this.auth.login(parseAuthCredentials(input), now);
+    this.writeIssuedSession(response, issued);
+    return issued.response;
+  }
+
+  @Post('google')
+  @HttpCode(200)
+  @RequireCsrf('anonymous')
+  @D2RateLimited('google-login')
+  async google(
+    @Body() input: unknown,
+    @Res({ passthrough: true }) response: AuthHttpResponse,
+    now: number = Date.now(),
+  ): Promise<AuthSessionResponse> {
+    if (this.auth.google === undefined) throw new AppError('SERVICE_UNAVAILABLE');
+    const issued = await this.auth.google(parseGoogleIdTokenRequest(input).idToken, now);
     this.writeIssuedSession(response, issued);
     return issued.response;
   }

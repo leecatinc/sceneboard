@@ -5,6 +5,7 @@ export type {
   ArtifactBridgeTransfersV1,
   ArtifactNavigationControlV1,
   ArtifactNavigationIntentV1,
+  ArtifactPresentationPageChangeV1,
   ArtifactResizeRequestV1,
   Base64Url22,
   ParsedArtifactBridgeEnvelopeV1,

@@ -34,7 +34,7 @@ const ROUTES: readonly RouteProfileV1[] = [
   { pattern: /^\/api\/v1\/auth\/(?:csrf|session)$/u, methods: ['GET'], headers: DEFAULT_HEADERS },
   {
     pattern:
-      /^\/api\/v1\/auth\/(?:signup|login|password|session\/renew|logout|email-verifications(?:\/confirm)?)$/u,
+      /^\/api\/v1\/auth\/(?:signup|login|google|password|session\/renew|logout|email-verifications(?:\/confirm)?)$/u,
     methods: ['POST'],
     headers: DEFAULT_HEADERS,
   },
@@ -133,6 +133,27 @@ const ROUTES: readonly RouteProfileV1[] = [
     pattern: /^\/api\/v1\/public\/share-view-events$/u,
     methods: ['POST'],
     headers: ['Content-Type', 'X-SceneBoard-View-CSRF'],
+  },
+  {
+    pattern: /^\/api\/v1\/public\/share-contexts\/[^/]+\/presentation-sessions$/u,
+    methods: ['GET', 'POST'],
+    headers: ['Content-Type'],
+  },
+  {
+    pattern: /^\/api\/v1\/public\/share-contexts\/[^/]+\/presentation-sessions\/[^/]+$/u,
+    methods: ['GET'],
+    headers: [],
+  },
+  {
+    pattern:
+      /^\/api\/v1\/public\/share-contexts\/[^/]+\/presentation-sessions\/[^/]+\/(?:state|end)$/u,
+    methods: ['POST'],
+    headers: ['Content-Type'],
+  },
+  {
+    pattern: /^\/api\/v1\/public\/share-contexts\/[^/]+\/presentation-sessions\/[^/]+\/events$/u,
+    methods: ['GET'],
+    headers: ['Last-Event-ID'],
   },
   {
     pattern: /^\/api\/v1\/boards\/[^/]+\/share-analytics$/u,

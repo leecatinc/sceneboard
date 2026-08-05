@@ -13,6 +13,10 @@ import {
   SESSION_ABSOLUTE_LIFETIME_MS,
   SESSION_IDLE_LIFETIME_MS,
 } from '../config/security.constants.js';
+import type {
+  FirebaseGoogleAuthService,
+  VerifiedGoogleIdentity,
+} from './firebase-google-auth.service.js';
 
 export interface PasswordPort {
   validate(password: string): void;
@@ -112,7 +116,73 @@ export class AuthService {
     private readonly sessionTokens: SessionTokenService,
     private readonly csrf: CsrfService,
     private readonly crypto: CryptoService,
+    private readonly firebaseGoogle?: FirebaseGoogleAuthService,
   ) {}
+
+  async google(idToken: string, now: number): Promise<IssuedAuthSession> {
+    if (this.firebaseGoogle === undefined) throw new AppError('SERVICE_UNAVAILABLE');
+    return this.loginVerifiedIdentity(await this.firebaseGoogle.verify(idToken), now);
+  }
+
+  private async loginVerifiedIdentity(
+    identity: VerifiedGoogleIdentity,
+    now: number,
+  ): Promise<IssuedAuthSession> {
+    let candidate = await this.persistence.findLoginCandidate(identity.emailNormalized);
+    if (candidate === null) {
+      const passwordHash = await this.passwords.hash(this.crypto.randomBase64Url(48));
+      const emailFingerprint = this.crypto.hmac('audit-email/v1', identity.emailNormalized);
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const userPublicId = parseUserId(this.crypto.generatePublicIdV1());
+        const session = this.createSessionDraft(now);
+        const result = await this.persistence.createUserWithSession({
+          userPublicId,
+          email: identity.email,
+          emailNormalized: identity.emailNormalized,
+          passwordHash,
+          emailFingerprint,
+          now,
+          ...this.persistenceSession(session),
+        });
+        if (result.kind === 'public_id_collision') continue;
+        if (result.kind === 'created')
+          return this.issueResponse({
+            userPublicId,
+            email: identity.email,
+            userCreatedAt: result.userCreatedAt,
+            session,
+            now,
+          });
+        candidate = await this.persistence.findLoginCandidate(identity.emailNormalized);
+        break;
+      }
+    }
+    if (candidate === null || candidate.status !== 'active')
+      throw new AppError('AUTH_INVALID_CREDENTIALS');
+    const emailFingerprint = this.crypto.hmac('audit-email/v1', identity.emailNormalized);
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const session = this.createSessionDraft(now);
+      const result = await this.persistence.commitLogin({
+        userDatabaseId: candidate.id,
+        userPublicId: parseUserId(candidate.publicId),
+        expectedPasswordHash: candidate.passwordHash,
+        replacementPasswordHash: null,
+        emailFingerprint,
+        now,
+        ...this.persistenceSession(session),
+      });
+      if (result.kind === 'public_id_collision') continue;
+      if (result.kind !== 'created') throw new AppError('AUTH_INVALID_CREDENTIALS');
+      return this.issueResponse({
+        userPublicId: parseUserId(candidate.publicId),
+        email: candidate.email,
+        userCreatedAt: Date.parse(candidate.createdAt),
+        session,
+        now,
+      });
+    }
+    throw new AppError('SERVICE_UNAVAILABLE');
+  }
 
   async signup(credentials: AuthCredentials, now: number): Promise<IssuedAuthSession> {
     this.passwords.validate(credentials.password);

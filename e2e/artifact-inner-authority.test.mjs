@@ -437,25 +437,36 @@ test(
       },
     );
 
-    await page.waitForFunction(() =>
-      window.__stackState.messageValues.some(
+    await page.waitForFunction(() => {
+      const explicit = window.__stackState.messageValues.filter(
         (message) =>
-          message.type === 'artifact.resize.request' && message.value.source === 'observer',
+          message.type === 'artifact.resize.request' && message.value.source === 'explicit',
+      );
+      return explicit.length > 1 && explicit.at(-1)?.value.width === 900;
+    });
+    assert.equal(
+      await page.evaluate(
+        () =>
+          window.__stackState.messageValues.filter(
+            (message) =>
+              message.type === 'artifact.resize.request' && message.value.source === 'observer',
+          ).length,
       ),
+      0,
     );
     assert.deepEqual(
       await page.evaluate(() =>
-        window.__stackState.messageValues.filter(
-          (message) =>
-            message.type === 'artifact.resize.request' && message.value.source === 'observer',
-        ),
+        window.__stackState.messageValues
+          .filter(
+            (message) =>
+              message.type === 'artifact.resize.request' && message.value.source === 'explicit',
+          )
+          .at(-1),
       ),
-      [
-        {
-          type: 'artifact.resize.request',
-          value: { width: 1_301, height: 701, source: 'observer' },
-        },
-      ],
+      {
+        type: 'artifact.resize.request',
+        value: { width: 900, height: 600, source: 'explicit' },
+      },
     );
 
     await innerFrame.evaluate(() => globalThis.__requestDownload());

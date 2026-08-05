@@ -38,6 +38,45 @@
   text-decoration: none;
 }
 
+.agentInstall {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border: 1px solid color-mix(in srgb, var(--primary) 32%, var(--border));
+  border-radius: 9px;
+  background: var(--primary-wash);
+  padding: 16px;
+}
+
+.agentInstall strong {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--text-strong);
+}
+
+.agentInstall p {
+  margin: 0 0 8px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.agentInstall code {
+  color: var(--primary-active);
+  overflow-wrap: anywhere;
+  font-size: 12px;
+}
+
+.agentInstall button {
+  flex: 0 0 auto;
+}
+
+.manualTitle {
+  margin: 0;
+  color: var(--text-strong);
+  font-size: 16px;
+}
+
 .steps {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -103,12 +142,17 @@
   }
 
   .header,
+  .agentInstall,
   .steps {
     display: grid;
     grid-template-columns: 1fr;
   }
 
   .header > a {
+    justify-self: start;
+  }
+
+  .agentInstall button {
     justify-self: start;
   }
 }

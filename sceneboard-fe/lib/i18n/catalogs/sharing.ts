@@ -54,12 +54,21 @@ export const SHARING_CATALOG = [
     '공개 공유가 즉시 비활성화됩니다.',
   ),
   sharingMessage('sharing.oneTimeSecret', 'One-time secret', '일회성 비밀값'),
+  sharingMessage('sharing.shareLink', 'Share link', '공유 링크'),
+  sharingMessage(
+    'sharing.shareLinkAvailable',
+    'This link remains available while sharing is active. You can return and copy it at any time.',
+    '공유가 활성화된 동안 언제든 다시 확인하고 복사할 수 있습니다.',
+  ),
+  sharingMessage('sharing.oneTimePassword', 'One-time password', '일회성 비밀번호'),
   sharingMessage(
     'sharing.secretWarning',
     'Save this value now. It cannot be shown again.',
     '지금 저장하세요. 다시 표시할 수 없습니다.',
   ),
   sharingMessage('sharing.copy', 'Copy', '복사'),
+  sharingMessage('sharing.copyLink', 'Copy link', '링크 복사'),
+  sharingMessage('sharing.copyPassword', 'Copy password', '비밀번호 복사'),
   sharingMessage(
     'sharing.copied',
     'Copied. The manual fallback remains visible.',

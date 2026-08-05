@@ -22,7 +22,7 @@ test('board owns an in-place pairing action without replacing live and history c
   );
 });
 
-test('board pairing keeps one bounded same-tab code and polls only in a visible single flight', () => {
+test('board pairing keeps one bounded same-tab code and hides active grant metadata', () => {
   const control = source('components/board/BoardPairingControl.tsx');
   assert.match(control, /readCreatedPairingSession\(window\.sessionStorage\)/);
   assert.match(control, /writeCreatedPairingSession\(window\.sessionStorage/);
@@ -35,14 +35,9 @@ test('board pairing keeps one bounded same-tab code and polls only in a visible 
     control,
     /api\.cancelPairing\(created\.pairingId, token, request\.controller\.signal\)/,
   );
-  assert.match(
-    control,
-    /api\.rotateGrant\(boardGrant\.grantId, token, request\.controller\.signal\)/,
-  );
-  assert.match(
-    control,
-    /api\.revokeGrant\(boardGrant\.grantId, token, request\.controller\.signal\)/,
-  );
+  assert.match(control, /if \(boardGrant !== null\) return null/);
+  assert.doesNotMatch(control, /boardGrant\.client\.clientName/);
+  assert.doesNotMatch(control, /boardGrant\.status/);
 });
 
 test('board pairing approval prefers the current board and remains matching-code gated', () => {

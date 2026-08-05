@@ -13,7 +13,7 @@ Operate SceneBoard as an owner-scoped persistent visual surface outside chat. Pr
 - `sceneboard-be` (`sceneboard-be`) owns authentication, authorization, MySQL-authoritative boards/revisions/artifacts/interactions/pairing/grants, and browser APIs. Redis is ephemeral only.
 - `sceneboard-fe` (`sceneboard-fe`) owns live rendering, local history navigation, responder controls, and sandboxed artifact hosting.
 - `packages/board-schema` owns D1 wire DTOs, the recursive scene/node model, results, events, limits, and stable errors.
-- `packages/board-sdk/scene-transform` owns the authoritative fully validated local 11-operation patch transform. The dependency-free fallback implements the same operation catalog, rejects a stale observed head before transforming, and relies on the server for complete scene validation. `packages/board-ui` owns trusted renderers.
+- `packages/board-sdk/scene-transform` owns the authoritative fully validated local 11-operation patch transform. The dependency-free fallback implements the same operation catalog, rejects a stale observed head before transforming, and relies on the server for complete scene validation. It supports both paired credentials and private-store account API keys selected by `BOARD_CREDENTIAL_MODE`. `packages/board-ui` owns trusted renderers.
 
 Read [platform.md](references/platform.md) for implementation boundaries. The fallback uses the selected private `store://<profile>` record; it never prints credentials or reimplements server authority.
 
@@ -76,11 +76,13 @@ Treat every complete person-facing Scene, HITL request or response, approval pro
 - If and only if the user's request contains the exact Korean string `발표자료` or `ppt`
   in any letter case, prefer the closed `slide-deck` artifact instead of the native
   Markdown-tabs `presentation` recipe. Follow [slide-deck.md](references/slide-deck.md)
-  for its schema, content compression, accessibility, security, and rendering checks.
+  for its schema, content compression, accessibility, security, stable logical slide
+  IDs, `changePresentationPage` notifications, and rendering checks.
   `presentation`, `프레젠테이션`, report, meeting material, document, tabs, and ordinary
   SceneBoard requests do not activate this exception; they remain native-first.
 - Start with `scripts/scene-recipe.mjs`: trusted native recipes and the six presets cover markdown, code, table, chart, map, drawing, status, progress, split, grid, tabs, canvas, architecture, and ordinary flow compositions.
 - Escalate to `scripts/scene-artifact.mjs` only for materially necessary custom SVG, Canvas, HTML/CSS/JavaScript, animation, or specialized behavior that trusted nodes cannot express faithfully. A custom input format or extra decoration alone is not a reason to escalate.
+- For custom HTML or PPT-derived presentation artifacts with internal page navigation, assign stable logical page IDs and call `window.SceneBoardArtifact.changePresentationPage` after initial render and every page transition as specified in [slide-deck.md](references/slide-deck.md). If stable IDs cannot be guaranteed, omit the signal rather than emitting a mutable page identity.
 - Author one closed recipe, compile it deterministically, inspect the exact emitted JSON, then perform one full `board_scene_replace` or one bounded ordered `board_scene_patch`. Do not stream a composition as many fragmented mutations.
 - Preserve explicit board resolution, the freshly observed `expectedRevisionId`, a distinct explicit `idempotencyKey` for every mutation, and conscious `REVISION_CONFLICT` handling.
 - Artifact use is two-stage: compile and publish the immutable artifact version, then create and place a `content.artifact` node with the returned identifiers. Never place an unpublished draft or invent immutable identifiers.

@@ -18,7 +18,7 @@ test('raw public link identity is absent from every client-owned source contract
 test('server entry binds the raw identity and returns only token-free state/action references', () => {
   const page = source('app/s/[shareToken]/page.tsx');
   assert.match(page, /const \{ shareToken \} = await params/u);
-  assert.match(page, /bootstrapSharedBoard\(shareToken\)/u);
+  assert.doesNotMatch(page, /await bootstrapSharedBoard\(shareToken\)/u);
   assert.match(page, /bootstrapSharedBoard\.bind\(null, shareToken\)/u);
   assert.match(page, /submitSharedBoardPassword\.bind\(null, shareToken\)/u);
   assert.doesNotMatch(page, /data-|href=|value=|console\.|analytics/u);

@@ -629,6 +629,9 @@ button:disabled {
   border-bottom: 1px solid var(--border);
   background: var(--surface);
 }
+.board-topbar-presentation {
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
+}
 .board-topbar-leading {
   display: flex;
   min-width: 0;
@@ -637,6 +640,16 @@ button:disabled {
 }
 .board-topbar-identity {
   min-width: 0;
+}
+.board-topbar-title {
+  min-width: 0;
+  text-align: center;
+}
+.board-topbar-title h2 {
+  overflow: hidden;
+  margin: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .board-topbar-page-navigation {
   display: flex;
@@ -786,8 +799,23 @@ button:disabled {
   gap: 8px;
 }
 .board-pairing-button {
+  height: 36px;
   min-height: 36px;
+  padding: 6px 12px;
+  line-height: 1;
   white-space: nowrap;
+}
+.board-owner-action-button {
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  flex-shrink: 0;
+  padding: 0;
+}
+.board-owner-action-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
 }
 .board-pairing-error {
   position: absolute;
@@ -2068,6 +2096,30 @@ button:disabled {
   .settings-head,
   .section-head {
     display: grid;
+  }
+}
+@media (max-width: 900px) {
+  .board-topbar-presentation {
+    grid-template-columns: max-content minmax(0, 1fr);
+    height: auto;
+    min-height: 52px;
+  }
+  .board-topbar-presentation .board-topbar-title {
+    text-align: right;
+  }
+  .board-topbar-presentation .board-topbar-actions {
+    grid-column: 1 / -1;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+}
+@media (max-width: 400px) {
+  .app-header {
+    gap: 8px;
+    padding-inline: 8px;
+  }
+  .app-header-actions {
+    gap: 6px;
   }
 }
 @media (prefers-reduced-motion: reduce) {

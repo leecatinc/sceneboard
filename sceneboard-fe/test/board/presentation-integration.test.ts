@@ -57,13 +57,15 @@ const renderPresentationOverlay = (additionalControls: ReactNode) =>
     }),
   );
 
-test('presentation targets the bound PAGE and never forwards artifact fullscreen', () => {
+test('presentation targets the board surface so its top bar remains in fullscreen', () => {
   const route = source('app/boards/[boardId]/board-client.tsx');
+  const boardStyles = source('app/boards/[boardId]/board.module.css');
+  const stage = source('components/board/PresentationStage.tsx');
   const enter = route.slice(
     route.indexOf('const enterPresentation'),
     route.indexOf('const setCaptureActive'),
   );
-  assert.match(enter, /const page = pageScrollRef\.current/u);
+  assert.match(enter, /const page = presentationSurfaceRef\.current/u);
   assert.match(enter, /page\.requestFullscreen\(\)/u);
   assert.match(enter, /document\.fullscreenElement === page/u);
   assert.doesNotMatch(enter, /artifact|capability|share|replaceDocument|transformDocument/u);
@@ -72,6 +74,69 @@ test('presentation targets the bound PAGE and never forwards artifact fullscreen
     route.indexOf('const renderHitl'),
   );
   assert.doesNotMatch(artifactRenderer, /fullscreen|requestFullscreen/u);
+  assert.match(route, /ref=\{bindPresentationSurface\}/u);
+  assert.match(route, /presentationTopBar=\{presentationTopBar\}/u);
+  assert.match(route, /overlay=\{null\}/u);
+  assert.doesNotMatch(route, /<PresentationControlOverlay/u);
+  assert.match(route, /annotationToolbarTarget=\{annotationToolbarTarget\}/u);
+  assert.match(
+    route,
+    /const presentationTopBar = \([\s\S]*?<Brand[\s\S]*?board-topbar-title[\s\S]*?annotationToolbarSlot[\s\S]*?\{pageNavigationControls\}[\s\S]*?\{presentationControls\}/u,
+  );
+  assert.match(boardStyles, /\.presenting:fullscreen\s*\{[^}]*height:\s*100dvh;[^}]*\}/u);
+  assert.match(stage, /const showToolbar = toolbar !== null && !presentationActive;/u);
+  assert.match(stage, /data-has-toolbar=\{showToolbar\}/u);
+  assert.match(stage, /\{showToolbar && \(/u);
+});
+
+test('owner presentation controls open the shared live-session chooser before fullscreen', () => {
+  const route = source('app/boards/[boardId]/board-client.tsx');
+  const controls = route.slice(
+    route.indexOf('const presentationControls'),
+    route.indexOf('const pageNavigationControls'),
+  );
+  assert.match(route, /import \{ PublicPresentationSessionDialog \}/u);
+  assert.equal((controls.match(/setSessionDialogOpen\(true\)/gu) ?? []).length, 2);
+  assert.equal((controls.match(/refreshPresentationSessions\(\)/gu) ?? []).length, 2);
+  assert.doesNotMatch(controls, /onEnter=\{enterPresentation\}/u);
+  assert.match(
+    route,
+    /<PublicPresentationSessionDialog[\s\S]*?onStart=\{\(\) => void startLivePresentation\(\)\}[\s\S]*?onJoin=\{\(sessionId\) => void joinLivePresentation\(sessionId\)\}/u,
+  );
+});
+
+test('owner presentation entry is hidden when share management capability is absent', () => {
+  const route = source('app/boards/[boardId]/board-client.tsx');
+
+  assert.match(route, /const canUseOwnerPresentation = affordances\['share\.manage'\];/u);
+  assert.match(
+    route,
+    /const canAdmitOwnerPresentation =[\s\S]*?deriveBoardAffordancesV1\(latestSessionAccess\)\['share\.manage'\];/u,
+  );
+  assert.match(
+    route,
+    /presentationSessionAdmissionRef\.current = \{[\s\S]*?allowed: canAdmitOwnerPresentation,/u,
+  );
+  assert.match(route, /const presentationControls = canUseOwnerPresentation \?/u);
+  assert.match(route, /const presentationRailControl = canUseOwnerPresentation \?/u);
+  assert.match(
+    route,
+    /if \(lost\.includes\('share\.manage'\)\) \{[\s\S]*?setSessionDialogOpen\(false\);[\s\S]*?exitPresentationRef\.current\(false\);/u,
+  );
+  assert.match(route, /presentationSessionOperationEpochRef\.current \+= 1;/u);
+  assert.match(route, /ownerPresentationOperationIsCurrentV1\(/u);
+  assert.match(
+    route,
+    /useEffect\(\(\) => \{[\s\S]*?presentationSessionAdmissionRef\.current = \{[\s\S]*?mounted: true,[\s\S]*?return \(\) => \{[\s\S]*?mounted: false,[\s\S]*?presentationSessionOperationEpochRef\.current \+= 1;/u,
+  );
+  assert.match(
+    route,
+    /if \(!isCurrent\(\)\) \{[\s\S]*?snapshot\.role === 'presenter'[\s\S]*?ownerPresentationApi[\s\S]*?\.end\(/u,
+  );
+  assert.match(
+    route,
+    /const joinLivePresentation[\s\S]*?const isCurrent = \(\) =>[\s\S]*?if \(isCurrent\(\)\) activateLivePresentation\(snapshot\);/u,
+  );
 });
 
 test('route lifecycle uses exact epochs, stale guards, matching exit, and focus fallback', () => {

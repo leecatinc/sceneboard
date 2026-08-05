@@ -2,7 +2,7 @@ import { tsImport } from 'tsx/esm/api';
 
 import { registerAuthenticatedBoundaryRows } from './security-catalog.test-helper.mjs';
 
-const { API_KEY_TOOL_NAMES_V1, BOARD_TOOL_NAMES_V1, registerCoreToolsV1 } = await tsImport(
+const { registerCoreToolsV1 } = await tsImport(
   '../../sceneboard-mcp/src/tools/register-tools.ts',
   import.meta.url,
 );

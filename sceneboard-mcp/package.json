@@ -22,7 +22,7 @@
     "build:native:profile-lease": "node scripts/build-profile-lease-helper.mjs",
     "dev": "tsx src/index.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc -p tsconfig.test.json",
-    "test": "tsx --test test/**/*.test.ts",
+    "test": "tsx --test --test-concurrency=1 test/**/*.test.ts",
     "verify:native:local-export": "node scripts/verify-local-export-helper.mjs",
     "verify:native:profile-lease": "node scripts/verify-profile-lease-helper.mjs"
   },

@@ -65,9 +65,9 @@
       "additionalProperties": false,
       "required": ["entryCount", "sqlAssetCount", "versions", "registrySha256", "assetSetSha256"],
       "properties": {
-        "entryCount": { "const": 18 },
-        "sqlAssetCount": { "const": 21 },
-        "versions": { "type": "array", "minItems": 18, "maxItems": 18, "items": { "type": "string" }, "uniqueItems": true },
+        "entryCount": { "const": 33 },
+        "sqlAssetCount": { "const": 36 },
+        "versions": { "type": "array", "minItems": 33, "maxItems": 33, "items": { "type": "string" }, "uniqueItems": true },
         "registrySha256": { "$ref": "#/$defs/sha256" },
         "assetSetSha256": { "$ref": "#/$defs/sha256" }
       }

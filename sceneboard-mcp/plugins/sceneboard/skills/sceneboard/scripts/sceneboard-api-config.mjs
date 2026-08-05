@@ -11,6 +11,7 @@ import { hasExactKeys, isRecord, parseJsonBytes } from './sceneboard-api-json.mj
 const API_DEFAULT = 'https://sceneboard.dev';
 const MAX_CONFIG_BYTES = 65_536;
 export const TOKEN_PATTERN = /^lcbg_v1\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$/;
+export const API_KEY_PATTERN = /^sbk_v1\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$/;
 export const GENERATION_PATTERN = /^[A-Za-z0-9_-]{22}$/;
 const PROFILE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 const WINDOWS_PROTECTED_VALUE_PATTERN = /^[A-Za-z0-9+/]{16,8192}={0,2}$/;
@@ -29,6 +30,7 @@ const PROJECT_ENV_KEYS = [
   'BOARD_PROFILE',
   'BOARD_TIMEOUT_MS',
 ];
+const PROJECT_ENV_KEYS_WITH_MODE = [...PROJECT_ENV_KEYS, 'BOARD_CREDENTIAL_MODE'];
 
 const validateBaseUrl = (value) => {
   if (
@@ -298,6 +300,7 @@ export const resolveApiConfig = async ({
   let baseUrl = env.SCENEBOARD_API_URL ?? API_DEFAULT;
   let profile = env.SCENEBOARD_PROFILE ?? 'sceneboard';
   let timeoutMs = env.SCENEBOARD_TIMEOUT_MS ?? 30_000;
+  let credentialMode = env.SCENEBOARD_CREDENTIAL_MODE ?? 'pairing';
   const projectConfigPath = join(cwd, '.mcp.json');
   try {
     const status = await lstat(projectConfigPath);
@@ -323,7 +326,9 @@ export const resolveApiConfig = async ({
       isRecord(server.env) &&
       PROJECT_ENV_KEYS.some((key) => Object.hasOwn(server.env, key));
     if (selectedEnvironment) {
-      if (!hasExactKeys(server.env, PROJECT_ENV_KEYS)) {
+      const hasLegacyPairingTuple = hasExactKeys(server.env, PROJECT_ENV_KEYS);
+      const hasCredentialModeTuple = hasExactKeys(server.env, PROJECT_ENV_KEYS_WITH_MODE);
+      if (!hasLegacyPairingTuple && !hasCredentialModeTuple) {
         throw new SceneBoardApiError(
           'BOARD_API_CONFIG_INVALID',
           'Project SceneBoard configuration is invalid',
@@ -332,8 +337,10 @@ export const resolveApiConfig = async ({
       baseUrl = server.env.BOARD_API_URL;
       profile = server.env.BOARD_PROFILE;
       timeoutMs = server.env.BOARD_TIMEOUT_MS;
+      credentialMode = hasCredentialModeTuple ? server.env.BOARD_CREDENTIAL_MODE : 'pairing';
       if (
         typeof profile !== 'string' ||
+        !['pairing', 'api_key'].includes(credentialMode) ||
         server.env.BOARD_ACCESS_TOKEN_REF !== `store://${profile}`
       ) {
         throw new SceneBoardApiError(
@@ -366,6 +373,13 @@ export const resolveApiConfig = async ({
       source = 'environment';
   }
   const validProfile = validateProfile(profile);
+  if (!['pairing', 'api_key'].includes(credentialMode)) {
+    throw new SceneBoardApiError(
+      'BOARD_API_CONFIG_INVALID',
+      'SceneBoard API configuration is invalid',
+      { details: { field: 'credentialMode' } },
+    );
+  }
   return {
     baseUrl: validateBaseUrl(baseUrl),
     profile: validProfile,
@@ -373,6 +387,7 @@ export const resolveApiConfig = async ({
     source,
     platform,
     windowsDataProtection,
+    credentialMode,
     stateDirectory: join(stateRoot(env, platform), 'leecat-board', 'credentials', validProfile),
   };
 };
@@ -416,13 +431,45 @@ export const atomicPrivateWrite = async (
 };
 
 export const readCredential = async (config) => {
-  const path = join(config.stateDirectory, 'credential.json');
+  const isApiKey = config.credentialMode === 'api_key';
+  if (isApiKey && isWindows(config.platform)) {
+    throw new SceneBoardApiError(
+      'BOARD_API_CREDENTIAL_UNAVAILABLE',
+      'SceneBoard API-key private storage is unavailable on Windows',
+    );
+  }
+  const path = join(
+    config.stateDirectory,
+    isApiKey ? 'api-key.credential.json' : 'credential.json',
+  );
   try {
     await ensurePrivateDirectory(config.stateDirectory, config.platform);
     await statRegularPrivateFile(path, config.platform);
     const bytes = await readFile(path);
     const record = parseJsonBytes(bytes, 'SceneBoard credential', 512);
     const source = new TextDecoder().decode(bytes);
+    if (isApiKey) {
+      if (
+        !hasExactKeys(record, ['version', 'generation', 'apiKey']) ||
+        record.version !== 1 ||
+        typeof record.generation !== 'string' ||
+        !GENERATION_PATTERN.test(record.generation) ||
+        typeof record.apiKey !== 'string' ||
+        !API_KEY_PATTERN.test(record.apiKey) ||
+        JSON.stringify(record) !== source
+      ) {
+        throw new SceneBoardApiError(
+          'BOARD_API_CREDENTIAL_UNAVAILABLE',
+          'SceneBoard credential is invalid',
+        );
+      }
+      return {
+        version: 1,
+        generation: record.generation,
+        accessToken: record.apiKey,
+        credentialMode: 'api_key',
+      };
+    }
     if (isWindows(config.platform)) {
       if (
         !hasExactKeys(record, ['version', 'generation', 'protection', 'protectedAccessToken']) ||
@@ -455,7 +502,7 @@ export const readCredential = async (config) => {
           'SceneBoard credential is invalid',
         );
       }
-      return { version: 1, generation: record.generation, accessToken };
+      return { version: 1, generation: record.generation, accessToken, credentialMode: 'pairing' };
     }
     if (
       !hasExactKeys(record, ['version', 'generation', 'accessToken']) ||
@@ -471,7 +518,7 @@ export const readCredential = async (config) => {
         'SceneBoard credential is invalid',
       );
     }
-    return record;
+    return { ...record, credentialMode: 'pairing' };
   } catch (error) {
     if (error?.code === 'ENOENT') return null;
     throw error;
@@ -541,6 +588,12 @@ const acquireCredentialMutationLock = async (config) => {
 };
 
 export const writeCredential = async (config, accessToken) => {
+  if (config.credentialMode === 'api_key') {
+    throw new SceneBoardApiError(
+      'BOARD_API_CONFIG_INVALID',
+      'SceneBoard pairing is unavailable in API-key mode',
+    );
+  }
   if (!TOKEN_PATTERN.test(accessToken)) {
     throw new SceneBoardApiError(
       'BOARD_API_RESPONSE_INVALID',
@@ -585,6 +638,7 @@ export const writeCredential = async (config, accessToken) => {
 };
 
 export const deleteCredentialIfGeneration = async (config, generation) => {
+  if (config.credentialMode === 'api_key') return false;
   if (typeof generation !== 'string' || !GENERATION_PATTERN.test(generation)) return false;
   const release = await acquireCredentialMutationLock(config);
   const path = join(config.stateDirectory, 'credential.json');

@@ -34,10 +34,11 @@ import type { ShareCookieService } from './share-cookie.service.js';
 import {
   shareStateDigest,
   shareView,
+  type LockedShare,
   type LockedShareCredential,
   type ShareRepository,
 } from './share.repository.js';
-import type { ShareTokenService } from './share-token.service.js';
+import type { PublicShareReference, ShareTokenService } from './share-token.service.js';
 import type { ShareTransitionRecoveryService } from './share-transition-recovery.service.js';
 
 type OwnerContext = {
@@ -61,6 +62,11 @@ const authorizationOperation = (operation: PasswordOwnerOperation): BoardAccessO
     : operation === 'password.regenerate'
       ? 'share.password.regenerate'
       : 'share.password.disable';
+
+const matchesPublicReference = (share: LockedShare, reference: PublicShareReference): boolean =>
+  reference.kind === 'secret'
+    ? share.tokenDigest.equals(reference.digest)
+    : share.shareId === reference.shareId && share.accessGeneration === reference.accessGeneration;
 
 const fingerprint = (input: {
   operation: PasswordOwnerOperation;
@@ -169,15 +175,17 @@ export class PasswordShareService {
     hostname: string;
     familyToken?: string | undefined;
   }): Promise<{ setCookie: string | null }> {
-    let tokenDigest: Buffer;
+    let reference: PublicShareReference;
     try {
-      tokenDigest = this.tokens.digest(input.shareToken);
+      reference = this.tokens.publicReference(input.shareToken);
     } catch {
       throw new ShareContractError('BOARD_NOT_FOUND');
     }
-    await this.attempts.assertUnlocked(tokenDigest, input.ip);
+    await this.attempts.assertUnlocked(reference.digest, input.ip);
     const observed = await this.withPasswordStore((connection) =>
-      this.shares.readShareByTokenDigest(connection, tokenDigest),
+      reference.kind === 'secret'
+        ? this.shares.readShareByTokenDigest(connection, reference.digest)
+        : this.shares.readShareById(connection, reference.shareId),
     );
     const credential = observed?.credential ?? {
       credentialVersion: 1,
@@ -203,18 +211,22 @@ export class PasswordShareService {
       observed.accessPolicy !== 'P' ||
       observed.credential === null
     ) {
-      await this.attempts.recordFailure(tokenDigest, input.ip);
+      await this.attempts.recordFailure(reference.digest, input.ip);
       throw new ShareContractError('BOARD_NOT_FOUND');
     }
-    await this.attempts.clearLink(tokenDigest, input.ip);
+    await this.attempts.clearLink(reference.digest, input.ip);
     return this.withPasswordStore((connection) =>
       withTransaction(connection, 'READ COMMITTED', async () => {
-        const share = await this.shares.lockShareByTokenDigest(connection, tokenDigest);
+        const share =
+          reference.kind === 'secret'
+            ? await this.shares.lockShareByTokenDigest(connection, reference.digest)
+            : await this.shares.lockShareById(connection, reference.shareId);
         if (
           share === null ||
           share.status !== 'active' ||
           share.accessPolicy !== 'P' ||
           share.credential === null ||
+          !matchesPublicReference(share, reference) ||
           !tupleEqual(share.credential, observed.credential!)
         ) {
           throw new ShareContractError('BOARD_NOT_FOUND');

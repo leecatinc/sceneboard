@@ -117,6 +117,7 @@ test('lists one newest-first keyset page with database-time statuses and a cut b
   assert.equal(auditEvents.length, 1);
   assert.equal(calls[0]?.includes('FROM users'), true);
   assert.equal(calls[0]?.endsWith('FOR UPDATE'), true);
+  assert.equal(calls[1]?.includes('WHERE owner_user_id = ? AND status <> 2'), true);
 });
 
 test('denies list for missing and disabled owners before key reads, publication, or audit', async () => {

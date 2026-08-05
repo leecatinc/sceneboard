@@ -25,3 +25,9 @@ test('password action result vocabulary contains no transport secret or denial c
   assert.match(resultType, /password-invalid/u);
   assert.match(resultType, /PublicShareClientState/u);
 });
+
+test('public bootstrap retries one transient unavailable response before failing closed', () => {
+  assert.match(actions, /for \(let attempt = 0; attempt < 2; attempt \+= 1\)/u);
+  assert.match(actions, /state\.state !== 'unavailable' \|\| attempt === 1/u);
+  assert.match(actions, /setTimeout\(resolve, 1_000\)/u);
+});

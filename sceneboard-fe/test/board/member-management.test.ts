@@ -43,5 +43,10 @@ test('member sheet debounces and cancels without sorting, deduping, or cutting c
   assert.match(source, /preserveMemberCandidateOrderV1\(result\.value\.candidates\)/u);
   assert.doesNotMatch(source, /candidates\.(?:sort|filter|slice)\(/u);
   assert.match(source, /ConfirmationDialog/u);
+  assert.ok(
+    source.indexOf('await load();') <
+      source.indexOf('setBusyKey(null);', source.indexOf('await load();')),
+  );
+  assert.match(source, /event\.target === event\.currentTarget && busyKey === null\) close\(\)/u);
   assert.match(css, /min-width:\s*min\(320px,\s*100vw\)/u);
 });

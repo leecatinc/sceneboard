@@ -38,6 +38,32 @@ test('protected product clients are nested behind the single authenticated route
   }
 });
 
+test('authenticated route rechecks changed generations before deciding whether login is required', () => {
+  const source = readFileSync(resolve(workspace, 'components/app/AuthenticatedRoute.tsx'), 'utf8');
+  assert.match(source, /bindCurrentGeneration\(\)/u);
+  assert.match(source, /subscribeGenerationInvalidation/u);
+  assert.match(source, /window\.location\.reload\(\)/u);
+  assert.match(source, /SESSION_RENEWAL_LEAD_MS/u);
+  assert.match(source, /client\.renew\(\)/u);
+  assert.match(source, /visibilitychange/u);
+  assert.match(source, /const mounted = useRef\(false\);/u);
+  assert.match(source, /const admissionAttemptEpoch = useRef\(0\);/u);
+  assert.match(source, /replaceInvalidationSubscription\(client, isCurrentAttempt\)/u);
+  assert.match(source, /mounted\.current = false;[\s\S]+admissionAttemptEpoch\.current \+= 1;/u);
+  assert.match(
+    source,
+    /const result = await client\.renew\(\);[\s\S]+replaceInvalidationSubscription\(client, \(\) => active\)[\s\S]+schedule\(\);/u,
+  );
+  assert.doesNotMatch(
+    source,
+    /const result = await client\.renew\(\);[\s\S]{0,240}window\.location\.reload\(\)/u,
+  );
+  assert.match(
+    source,
+    /const onVisibilityChange = \(\) => \{[\s\S]+const current = client\.snapshot\(\);[\s\S]+current\.session\.idleExpiresAt/u,
+  );
+});
+
 test('account menu contains only account actions while AI connections links to public Codex onboarding', () => {
   const menu = readFileSync(resolve(workspace, 'components/app/UserMenu.tsx'), 'utf8');
   const modal = readFileSync(resolve(workspace, 'components/app/AccountModal.tsx'), 'utf8');
@@ -55,6 +81,7 @@ test('account menu contains only account actions while AI connections links to p
     resolve(workspace, 'app/integrations/codex/codex-install-client.tsx'),
     'utf8',
   );
+  const agentGuide = readFileSync(resolve(workspace, 'public/install/sceneboard-agent.md'), 'utf8');
   assert.match(menu, /openDialog\('settings'\)/);
   assert.match(menu, /openDialog\('password'\)/);
   assert.match(menu, /<LanguageSelect[^>]+autoFocus \/>/);
@@ -63,6 +90,13 @@ test('account menu contains only account actions while AI connections links to p
   assert.match(connections, /<SkillInstallGuide \/>/);
   assert.match(guide, /href="\/integrations\/codex"/);
   assert.match(guide, /ai\.skillMcpPrerequisite/);
+  assert.match(guide, /resolveSceneBoardAgentInstallGuideUrl/);
+  assert.match(install, /resolveSceneBoardAgentInstallGuideUrl/);
+  assert.match(agentGuide, /Skill is the\s+primary interface/u);
+  assert.match(agentGuide, /codex plugin add sceneboard@sceneboard/u);
+  assert.match(agentGuide, /downloads\/sceneboard\.zip/u);
+  assert.match(agentGuide, /preserve unrelated servers and merge only the\s+SceneBoard entry/u);
+  assert.match(agentGuide, /Never request a long-lived API key/u);
   assert.match(
     install,
     /const INSTALL_COMMAND = `codex plugin marketplace add leecatinc\/sceneboard\ncodex plugin add sceneboard@sceneboard`;/,
@@ -106,6 +140,10 @@ test('application header exposes one-shot code creation and keeps page scrolling
     'utf8',
   );
   const styles = readFileSync(resolve(workspace, 'app/globals.css'), 'utf8');
+  const actionStyles = readFileSync(
+    resolve(workspace, 'components/app/HeaderPairingAction.module.css'),
+    'utf8',
+  );
   assert.match(shell, /<HeaderPairingAction \/>/);
   assert.match(shell, /<BoardLifecycleNavigator \/>/);
   assert.match(lifecycle, /isBoardCreationAutoOpenPath\(currentPathname\)/);
@@ -131,6 +169,14 @@ test('application header exposes one-shot code creation and keeps page scrolling
   assert.match(
     styles,
     /\.app-shell-viewport-locked \.app-main \{[^}]+display: grid;[^}]+grid-template-rows: minmax\(0, 1fr\);[^}]+overflow: hidden;/,
+  );
+  assert.match(
+    styles,
+    /@media \(max-width: 400px\) \{[\s\S]*?\.app-header \{[\s\S]*?gap: 8px;[\s\S]*?padding-inline: 8px;/,
+  );
+  assert.match(
+    actionStyles,
+    /@media \(max-width: 400px\) \{[\s\S]*?\.action,[\s\S]*?\.status \{[\s\S]*?padding-inline: 8px;/,
   );
   assert.doesNotMatch(styles, /\.board-surface\s*\{/);
   assert.doesNotMatch(styles, /\.scene-surface\s*\{/);
@@ -238,11 +284,10 @@ test('board chrome keeps page and revision navigation in the compact bar and pre
     boardClient,
     /nativePageControls\s*=\s*rootCanvas !== null \?\s*\(\s*<>\s*<PageDisplayModeControls/,
   );
-  // 아티팩트/드로잉 보기 컨트롤은 해당 콘텐츠가 있을 때만 렌더된다.
-  assert.match(
-    boardClient,
-    /artifactViewControls = showArtifactControls \?\s*\(\s*<BoardViewModeControls/,
-  );
+  // 발표 중 중복 플로팅 컨트롤은 제거하고 상단 바가 페이지·도구·종료 동작을 소유한다.
+  assert.match(boardClient, /presentationTopBar=\{presentationTopBar\}/);
+  assert.match(boardClient, /overlay=\{null\}/);
+  assert.doesNotMatch(boardClient, /<PresentationControlOverlay/);
   assert.match(boardClient, /showArtifactView=\{showArtifactControls\}/);
   assert.match(boardClient, /setDrawingResetSignal\(\(value\) => value \+ 1\)/);
   assert.match(boardClient, /<BoardRenderer[\s\S]*?emptyLabel=""/);
@@ -252,8 +297,9 @@ test('board chrome keeps page and revision navigation in the compact bar and pre
   assert.match(topBar, /board-topbar-page-navigation/);
   assert.match(topBar, /board-topbar-revision/);
   assert.doesNotMatch(topBar, /board-topbar-presentation/);
-  assert.match(utilityRail, /viewControls: ReactNode/);
+  assert.doesNotMatch(utilityRail, /viewControls: ReactNode/);
   assert.match(utilityRail, /presentationControl: ReactNode/);
+  assert.match(utilityRail, /styles\.ownerActions/);
   assert.doesNotMatch(utilityRail, /historyControls: ReactNode/);
   assert.match(statusRail, /artifact-stop-sidebar/);
   assert.match(statusRail, /onStopRendering/);

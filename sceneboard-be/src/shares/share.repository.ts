@@ -351,6 +351,14 @@ export class ShareRepository {
     return rows.length === 1 ? mapShare(rows[0]!) : null;
   }
 
+  async readShareById(connection: PoolConnection, shareId: string): Promise<LockedShare | null> {
+    const [rows] = await connection.execute<ShareRow[]>(
+      `${shareSelect} WHERE s.share_id = ? LIMIT 1`,
+      [shareId],
+    );
+    return rows.length === 1 ? mapShare(rows[0]!) : null;
+  }
+
   async lockShareByTokenDigest(
     connection: PoolConnection,
     tokenDigest: Buffer,

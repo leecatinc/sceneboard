@@ -207,3 +207,81 @@ test('successful login rechecks state at commit and returns a fresh session gene
   assert.match(result.response.csrfToken, /^lcbcsrf_v1\.s\./);
   assert.match(result.authGeneration, /^[A-Za-z0-9_-]{22}$/);
 });
+
+test('verified Google email links an active account and issues an ordinary SceneBoard session', async () => {
+  const crypto = makeCrypto();
+  const persistence: AuthPersistence = {
+    async createUserWithSession() {
+      throw new Error('existing user must not be recreated');
+    },
+    async findLoginCandidate() {
+      return {
+        id: '11',
+        publicId: 'user_google',
+        email: credentials.email,
+        passwordHash: `hash:${credentials.password}`,
+        status: 'active',
+        createdAt: '2026-07-16T00:00:00.000Z',
+      };
+    },
+    async commitLogin(input) {
+      assert.equal(input.replacementPasswordHash, null);
+      return { kind: 'created' };
+    },
+  };
+  const firebaseGoogle = {
+    async verify() {
+      return { email: credentials.email, emailNormalized: credentials.emailNormalized };
+    },
+  };
+  const service = new AuthService(
+    persistence,
+    new FakePasswords(),
+    new SessionTokenService(crypto),
+    new CsrfService(crypto),
+    crypto,
+    firebaseGoogle as never,
+  );
+  const result = await service.google('firebase-token', 1_800_000_000_000);
+  assert.equal(result.response.user.userId, 'user_google');
+  assert.match(result.response.csrfToken, /^lcbcsrf_v1\.s\./);
+  assert.match(result.sessionCredential, /^lcbs_v1\./);
+});
+
+test('verified Google email creates a first-time account with an unusable random password', async () => {
+  const crypto = makeCrypto();
+  let captured: Parameters<AuthPersistence['createUserWithSession']>[0] | undefined;
+  const persistence: AuthPersistence = {
+    async createUserWithSession(input) {
+      captured = input;
+      return { kind: 'created', userCreatedAt: input.now };
+    },
+    async findLoginCandidate() {
+      return null;
+    },
+    async commitLogin() {
+      throw new Error('first-time Google identity must be created atomically');
+    },
+  };
+  const firebaseGoogle = {
+    async verify() {
+      return { email: credentials.email, emailNormalized: credentials.emailNormalized };
+    },
+  };
+  const service = new AuthService(
+    persistence,
+    new FakePasswords(),
+    new SessionTokenService(crypto),
+    new CsrfService(crypto),
+    crypto,
+    firebaseGoogle as never,
+  );
+
+  const result = await service.google('firebase-token', 1_800_000_000_000);
+
+  assert.equal(captured?.emailNormalized, credentials.emailNormalized);
+  assert.match(captured?.passwordHash ?? '', /^hash:[A-Za-z0-9_-]{64}$/);
+  assert.doesNotMatch(captured?.passwordHash ?? '', /firebase-token/);
+  assert.equal(result.response.user.email, credentials.email);
+  assert.match(result.sessionCredential, /^lcbs_v1\./);
+});

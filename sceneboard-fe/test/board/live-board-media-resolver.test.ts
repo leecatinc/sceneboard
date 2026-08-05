@@ -51,3 +51,17 @@ test('live board resolver fails closed on tuple or identifier drift without publ
   ])
     assert.deepEqual(resolver(input as never), { error: 'unavailable' });
 });
+
+test('live board resolver fails closed for artifact inputs', () => {
+  assert.deepEqual(
+    resolver({
+      boardId: 'board_01' as never,
+      revisionId: 'revision_01' as never,
+      pageId: 'page_01' as never,
+      artifact: {} as never,
+      path: 'preview.png',
+      sha256: '0'.repeat(64),
+    }),
+    { error: 'unavailable' },
+  );
+});

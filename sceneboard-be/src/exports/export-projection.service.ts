@@ -174,7 +174,8 @@ class RuntimeImmutableResourceBytesV1 {
       const existing = expected.get(descriptor.sha256);
       if (
         existing !== undefined &&
-        (existing.mediaType !== descriptor.mediaType || existing.byteLength !== descriptor.byteLength)
+        (existing.mediaType !== descriptor.mediaType ||
+          existing.byteLength !== descriptor.byteLength)
       )
         throw new ExportFailureV1('EXPORT_INTERNAL_ERROR');
       expected.set(descriptor.sha256, {
@@ -200,8 +201,7 @@ class RuntimeImmutableResourceBytesV1 {
         }),
       );
     }
-    if (this.#resources.size !== expected.size)
-      throw new ExportFailureV1('EXPORT_INTERNAL_ERROR');
+    if (this.#resources.size !== expected.size) throw new ExportFailureV1('EXPORT_INTERNAL_ERROR');
     Object.freeze(this);
   }
 
@@ -251,12 +251,7 @@ class RuntimeImmutableResourceBytesV1 {
     thisArg?: unknown,
   ): void {
     for (const [digest, bytes] of this.entries())
-      callback.call(
-        thisArg,
-        bytes,
-        digest,
-        this as unknown as ReadonlyMap<string, Buffer>,
-      );
+      callback.call(thisArg, bytes, digest, this as unknown as ReadonlyMap<string, Buffer>);
   }
 }
 

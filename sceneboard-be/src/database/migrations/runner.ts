@@ -835,6 +835,10 @@ export class MigrationRunner {
     connection: PoolConnection,
     postcondition: string,
   ): Promise<void> {
+    if (postcondition === 'd10_revision_retention_backfill_v1') {
+      await this.verifyRevisionRetentionBackfill(connection);
+      return;
+    }
     if (postcondition === 'd10_document_replace_idempotency_v1') {
       await verifyDocumentReplaceIdempotencyPostcondition(connection);
       return;
@@ -960,6 +964,25 @@ export class MigrationRunner {
     for (const table of expectedTables) {
       if (!actual.has(table))
         throw new MigrationStateError(`postcondition is missing table ${table}`);
+    }
+  }
+
+  private async verifyRevisionRetentionBackfill(connection: PoolConnection): Promise<void> {
+    const [rows] = await connection.query<
+      Array<RowDataPacket & { missingCatalog: string; missingPayload: string }>
+    >(
+      `SELECT
+         CAST(COALESCE(SUM(c.revision_pk IS NULL), 0) AS CHAR) AS missingCatalog,
+         CAST(COALESCE(SUM(p.revision_pk IS NULL), 0) AS CHAR) AS missingPayload
+       FROM board_revisions r
+       LEFT JOIN board_revision_catalog c
+         ON c.board_pk = r.board_pk AND c.revision_pk = r.revision_pk
+       LEFT JOIN board_revision_payloads p ON p.revision_pk = r.revision_pk
+       WHERE r.scene_payload IS NOT NULL`,
+    );
+    const row = rows[0];
+    if (rows.length !== 1 || row?.missingCatalog !== '0' || row.missingPayload !== '0') {
+      throw new Error('revision retention backfill is incomplete');
     }
   }
 

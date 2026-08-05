@@ -1,10 +1,17 @@
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
-import { isMainThread, parentPort, Worker, workerData, type WorkerOptions } from 'node:worker_threads';
+import {
+  isMainThread,
+  parentPort,
+  Worker,
+  workerData,
+  type WorkerOptions,
+} from 'node:worker_threads';
 
 import { ExportFailureV1 } from './export-errors.js';
 import { safeExportTitleV1 } from './export-http-response.js';
 import {
   exportChromiumLaunchOptionsV1,
+  exportChromiumSandboxEnabledV1,
   type ExportRenderLeaseV1,
   type ExportRenderedPageV1,
 } from './export-renderer.service.js';
@@ -17,8 +24,7 @@ import {
 
 const PNG_SIGNATURE_V1 = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 const EXPORT_CLEANUP_GRACE_MS_V1 = 1_000;
-const EXPORT_ENCODED_OUTPUT_MAX_BYTES_V1 =
-  EXPORT_RENDERED_PAGES_TOTAL_MAX_BYTES_V1 + 16_777_216;
+const EXPORT_ENCODED_OUTPUT_MAX_BYTES_V1 = EXPORT_RENDERED_PAGES_TOTAL_MAX_BYTES_V1 + 16_777_216;
 const PDF_PAGE_MARKUP_MAX_BYTES_V1 = 96;
 const PDF_DOCUMENT_OVERHEAD_MAX_BYTES_V1 = 4_096;
 const PDF_HTML_MAX_BYTES_V1 =
@@ -104,8 +110,7 @@ const awaitEncodeOperation = <T>(
     void operation.then(
       (value) => {
         if (terminal) {
-          if (releaseLateResult !== undefined)
-            void settleCleanup([() => releaseLateResult(value)]);
+          if (releaseLateResult !== undefined) void settleCleanup([() => releaseLateResult(value)]);
           return;
         }
         terminal = true;
@@ -190,9 +195,7 @@ const htmlDocument = (input: {
 }): string => {
   if (input.pages.length === 0 || input.pages.length > EXPORT_MAX_PAGES_V1)
     throw new ExportFailureV1(
-      input.pages.length > EXPORT_MAX_PAGES_V1
-        ? 'EXPORT_BOUNDS_EXCEEDED'
-        : 'EXPORT_ENCODE_FAILED',
+      input.pages.length > EXPORT_MAX_PAGES_V1 ? 'EXPORT_BOUNDS_EXCEEDED' : 'EXPORT_ENCODE_FAILED',
     );
   let encodedBytes = 0;
   let pageBytes = 0;
@@ -209,11 +212,7 @@ const htmlDocument = (input: {
       throw new ExportFailureV1('EXPORT_BOUNDS_EXCEEDED');
     if (
       png.byteLength < PNG_SIGNATURE_V1.byteLength ||
-      !Buffer.from(
-        png.buffer,
-        png.byteOffset,
-        PNG_SIGNATURE_V1.byteLength,
-      ).equals(PNG_SIGNATURE_V1)
+      !Buffer.from(png.buffer, png.byteOffset, PNG_SIGNATURE_V1.byteLength).equals(PNG_SIGNATURE_V1)
     )
       throw new ExportFailureV1('EXPORT_ENCODE_FAILED');
     images.push(
@@ -227,8 +226,7 @@ const htmlDocument = (input: {
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>${safeExportTitleV1(
     input.title,
   )}</title><style>@page{size:${input.widthMm}mm ${input.heightMm}mm;margin:0}*{box-sizing:border-box}html,body{margin:0;padding:0}.page{width:${input.widthMm}mm;height:${input.heightMm}mm;margin:0;break-after:page;overflow:hidden}.page:last-child{break-after:auto}.page img{display:block;width:100%;height:100%;object-fit:fill}</style></head><body>${images.join('')}</body></html>`;
-  if (html.length > PDF_HTML_MAX_BYTES_V1)
-    throw new ExportFailureV1('EXPORT_BOUNDS_EXCEEDED');
+  if (html.length > PDF_HTML_MAX_BYTES_V1) throw new ExportFailureV1('EXPORT_BOUNDS_EXCEEDED');
   return html;
 };
 
@@ -397,9 +395,7 @@ const runPdfWorkerV1 = (
       terminal = true;
       cleanup();
       terminateWorker(worker);
-      resolve(
-        Buffer.from(result.bytes.buffer, result.bytes.byteOffset, result.bytes.byteLength),
-      );
+      resolve(Buffer.from(result.bytes.buffer, result.bytes.byteOffset, result.bytes.byteLength));
     };
     const failed = (error: Error): void =>
       settleFailure(new ExportFailureV1('EXPORT_ENCODE_FAILED', error));
@@ -477,6 +473,7 @@ export class PdfExportEncoderV1 {
         this.browserRuntime.launch(
           exportChromiumLaunchOptionsV1({
             executablePath,
+            chromiumSandbox: exportChromiumSandboxEnabledV1(),
             timeout: Math.max(1, deadlineMs - Date.now()),
           }),
         ),
@@ -519,13 +516,7 @@ export class PdfExportEncoderV1 {
         widthMm: input.lease.projection.format.pdf.widthMm,
         heightMm: input.lease.projection.format.pdf.heightMm,
       };
-      const html = await runPdfWorkerV1(
-        this.createWorker(),
-        htmlInput,
-        'html',
-        signal,
-        deadlineMs,
-      );
+      const html = await runPdfWorkerV1(this.createWorker(), htmlInput, 'html', signal, deadlineMs);
       await awaitEncodeOperation(
         page.setContent(html as string, {
           waitUntil: 'load',

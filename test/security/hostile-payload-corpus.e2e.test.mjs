@@ -4,7 +4,6 @@ import { tsImport } from 'tsx/esm/api';
 
 import { registerAuthenticatedBoundaryRows } from './security-catalog.test-helper.mjs';
 
-const repositoryRoot = new URL('../../', import.meta.url);
 const { FIXTURE_CATALOG } = await tsImport(
   '../../packages/board-schema/test/fixture-catalog.ts',
   import.meta.url,

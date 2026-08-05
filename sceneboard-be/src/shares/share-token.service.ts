@@ -9,6 +9,12 @@ export type IssuedShareToken = {
   digest: Buffer;
 };
 
+export type PublicShareReference =
+  | { kind: 'secret'; digest: Buffer }
+  | { kind: 'locator'; shareId: string; accessGeneration: number; digest: Buffer };
+
+const LOCATOR_PATTERN = /^(share_[A-Za-z0-9_-]{22})_g([1-9][0-9]{0,15})$/u;
+
 export class ShareTokenService {
   constructor(private readonly crypto: CryptoService) {}
 
@@ -27,6 +33,22 @@ export class ShareTokenService {
       throw new ShareContractError('INVALID_REQUEST');
     }
     return createHash('sha256').update(token, 'ascii').digest();
+  }
+
+  publicReference(value: string): PublicShareReference {
+    const locator = LOCATOR_PATTERN.exec(value);
+    if (locator !== null) {
+      const accessGeneration = Number(locator[2]);
+      if (!Number.isSafeInteger(accessGeneration) || accessGeneration < 1)
+        throw new ShareContractError('INVALID_REQUEST');
+      return {
+        kind: 'locator',
+        shareId: locator[1]!,
+        accessGeneration,
+        digest: createHash('sha256').update(value, 'ascii').digest(),
+      };
+    }
+    return { kind: 'secret', digest: this.digest(value) };
   }
 
   verify(token: string, expectedDigest: Uint8Array): boolean {

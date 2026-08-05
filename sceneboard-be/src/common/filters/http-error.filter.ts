@@ -42,10 +42,13 @@ interface HttpRequest extends BoardRequestCorrelationCarrier {
 
 const isSharePath = (url: string): boolean =>
   /^\/api\/v1\/boards\/[^/?]+\/shares(?:\/|\?|$)/u.test(url) ||
+  /^\/api\/v1\/boards\/[^/?]+\/presentation-sessions(?:\/|\?|$)/u.test(url) ||
   /^\/api\/v1\/public\/shares\/[^/?]+\/password-sessions(?:\?|$)/u.test(url);
 
 const isPublicProjectionPath = (url: string): boolean =>
-  /^\/api\/v1\/public\/(?:shares\/[^/?]+|share-contexts\/[^/?]+)(?:\?|$)/u.test(url);
+  /^\/api\/v1\/public\/(?:shares\/[^/?]+|share-contexts\/[^/?]+(?:\/presentation-sessions(?:\/[^/?]+(?:\/(?:state|end|events))?)?)?)(?:\?|$)/u.test(
+    url,
+  );
 
 const isPublicArtifactPath = (url: string): boolean =>
   /^\/api\/v1\/public\/shares\/[^/?]+\/revisions\/[^/?]+\/g\/[^/?]+\/[^/?]+\/artifacts\/[^/?]+\/versions\/[^/?]+\/package(?:\?|$)/u.test(

@@ -360,7 +360,8 @@ test('the public plugin contains an executable reviewed MCP runtime', async () =
   assert.equal(runtimeBytes.includes('awaitAfterAbort'), true);
   assert.equal(helperStatus.isFile(), true);
   assert.equal(helperStatus.isSymbolicLink(), false);
-  assert.equal(helperStatus.mode & 0o777, 0o500);
+  assert.equal(helperStatus.mode & 0o500, 0o500);
+  assert.equal(helperStatus.mode & 0o007, 0);
   assert.equal(createHash('sha256').update(helperBytes).digest('hex'), expectedDigest.trim());
 });
 
@@ -388,7 +389,8 @@ test('canonical, plugin, and selected local export helpers have identical integr
     assert.deepEqual(artifact.manifestBytes, artifacts[0].manifestBytes);
     assert.equal(artifact.helperStatus.isFile(), true);
     assert.equal(artifact.helperStatus.isSymbolicLink(), false);
-    assert.equal(artifact.helperStatus.mode & 0o777, 0o500);
+    assert.equal(artifact.helperStatus.mode & 0o500, 0o500);
+    assert.equal(artifact.helperStatus.mode & 0o007, 0);
   }
   const digestValue = createHash('sha256').update(artifacts[0].helperBytes).digest('hex');
   assert.equal(artifacts[0].digestBytes.toString('utf8'), `${digestValue}\n`);

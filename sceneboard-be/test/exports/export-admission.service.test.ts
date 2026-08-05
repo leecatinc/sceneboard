@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 
 import type { BoardId } from '@sceneboard/board-schema';
 
@@ -16,6 +16,11 @@ import { ExportFailureV1 } from '../../src/exports/export-errors.js';
 import type { ResolvedBoardPrincipalV1 } from '../../src/grants/board-access.policy.js';
 
 const boardId = 'board_1' as BoardId;
+
+// The production ownership timer is intentionally unref'ed. Keep this isolated fake-operation
+// suite alive long enough to observe the deadline without depending on another test worker.
+const admissionDeadlineKeepAlive = setInterval(() => undefined, 1_000);
+after(() => clearInterval(admissionDeadlineKeepAlive));
 
 const principal = (keyPk = 70n): ResolvedBoardPrincipalV1 =>
   ({
@@ -94,8 +99,7 @@ const setup = () => {
         operationOwnership: ownership,
       });
       return awaitOwnedDatabaseOperation(Promise.resolve(ownedConnection), ownership).then(
-        (acquiredConnection) =>
-          awaitOwnedDatabaseOperation(work(acquiredConnection), ownership),
+        (acquiredConnection) => awaitOwnedDatabaseOperation(work(acquiredConnection), ownership),
       );
     },
   } as unknown as MysqlService;

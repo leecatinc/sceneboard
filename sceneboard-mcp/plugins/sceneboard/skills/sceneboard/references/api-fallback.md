@@ -54,6 +54,14 @@ For `describe`, invoke `& $adapter describe` without stdin. For pairing, pipe th
 
 The API process wrapper adds one transport envelope around the protected command result. For example, after a successful `board_artifact_put`, read the immutable identifiers from `$.result.result.artifact.artifact.{artifactId,versionId}` in the wrapper output. MCP tool output uses its documented command result directly. Do not guess a shallower path or treat a missing projected field as permission to publish or place different content.
 
+When project `.mcp.json` selects `BOARD_CREDENTIAL_MODE=api_key` with a matching
+`store://BOARD_PROFILE` reference, the adapter reads the owner-only
+`api-key.credential.json` record written by `sceneboard-mcp api-key set`. It never prints the key,
+never copies it into project configuration, and never deletes that private record after a 401;
+only the explicit MCP API-key set/remove commands mutate it. Pairing remains unavailable while the
+project explicitly selects API-key mode. On Windows, private-file API-key fallback fails closed;
+use an initialized MCP transport with `env://SCENEBOARD_API_KEY` instead.
+
 Use the exact protected operation names and inputs in [commands.md](commands.md). `board_scene_patch` reads the current head, rejects it if it differs from `expectedRevisionId`, applies the ordered 11-operation catalog locally, and submits one `scene.replace`; the server validates the complete scene and remains the final schema authority. Preserve the original revision and idempotency key so a concurrent change produces `REVISION_CONFLICT` instead of a blind rebase.
 
 ## Pairing

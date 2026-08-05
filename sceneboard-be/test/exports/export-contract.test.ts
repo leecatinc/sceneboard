@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
 import { createHash, createHmac } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 import type { BoardDocumentV3, BoardId, RevisionId } from '@sceneboard/board-schema';
 import type { PoolConnection } from 'mysql2/promise';
+
+const exportContractDeadlineKeepAlive = setInterval(() => undefined, 1_000);
+after(() => clearInterval(exportContractDeadlineKeepAlive));
 
 import { parsePublicUuidV4 } from '../../src/common/ids/public-uuid.storage.js';
 import type { MysqlService } from '../../src/database/mysql.service.js';
@@ -15,7 +18,6 @@ import { BoardEventOutboxRepository } from '../../src/events/board-event-outbox.
 import { OutboxDispatcherService } from '../../src/events/outbox-dispatcher.service.js';
 import { ExportAdmissionServiceV1 } from '../../src/exports/export-admission.service.js';
 import { EXPORT_FAILURE_DEFINITIONS_V1, ExportFailureV1 } from '../../src/exports/export-errors.js';
-import { ExportAuthorizationPolicyV1 } from '../../src/exports/export-authorization.policy.js';
 import {
   EXPORT_GLOBAL_LEASE_MS_V1,
   ExportGlobalAdmissionRepositoryV1,

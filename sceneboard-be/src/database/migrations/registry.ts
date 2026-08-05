@@ -231,6 +231,13 @@ export const MIGRATION_REGISTRY = [
     downAsset: null,
     postcondition: 'd10_export_terminal_audit_v1',
   },
+  {
+    version: '030_d10_revision_retention_backfill',
+    upAsset: '030_d10_revision_retention_backfill.up.sql',
+    reversible: false,
+    downAsset: null,
+    postcondition: 'd10_revision_retention_backfill_v1',
+  },
 ] as const satisfies readonly MigrationRegistryEntry[];
 
 export const MIGRATION_REGISTRY_VERSION = MIGRATION_REGISTRY.at(-1)?.version ?? 'empty';

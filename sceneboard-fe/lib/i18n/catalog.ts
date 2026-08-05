@@ -7,6 +7,9 @@ import { BOARD_CATALOG } from './catalogs/board';
 import { BOARDS_CATALOG } from './catalogs/boards';
 import { CODEX_CATALOG } from './catalogs/codex';
 import { COMMON_CATALOG } from './catalogs/common';
+import { PRESENTATION_ANNOTATION_CATALOG } from './catalogs/presentation-annotation';
+import { PRESENTATION_LANDING_CATALOG } from './catalogs/presentation-landing';
+import { PRESENTATION_LIVE_CATALOG } from './catalogs/presentation-live';
 import { PRESENTATION_CATALOG } from './catalogs/presentation';
 import { MEDIA_AUTHORING_CATALOG } from './catalogs/media-authoring';
 import { SETTINGS_CATALOG } from './catalogs/settings';
@@ -77,6 +80,9 @@ const BASE_CATALOG_ORDER = [
   'auth.signingIn',
   'auth.invalidCredentials',
   'auth.loginFailed',
+  'auth.signInWithGoogle',
+  'auth.googleInvalid',
+  'auth.googleFailed',
   'auth.createWorkspace',
   'auth.signupDescription',
   'auth.alreadyAccount',
@@ -314,6 +320,9 @@ const CATALOG = [
   ...API_KEY_MANAGEMENT_CATALOG,
   ...INTERFACE_CATALOG,
   ...PRESENTATION_CATALOG,
+  ...PRESENTATION_LIVE_CATALOG,
+  ...PRESENTATION_ANNOTATION_CATALOG,
+  ...PRESENTATION_LANDING_CATALOG,
   ...MEDIA_AUTHORING_CATALOG,
   ...SHARING_CATALOG,
   ...ANALYTICS_CATALOG,

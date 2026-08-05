@@ -60,6 +60,34 @@ test('parses the exact development environment and canonical same-host origins',
   assert.equal(environment.accountApiKeyIssuanceEnabled, false);
   assert.equal(environment.accountApiKeyAuthEnabled, false);
   assert.equal(environment.boardDocumentV3WriteEnabled, false);
+  assert.deepEqual(environment.firebaseGoogle, {
+    enabled: false,
+    projectId: null,
+    clientEmail: null,
+    privateKey: null,
+  });
+});
+
+test('Firebase Google auth is explicit and requires a complete service-account tuple', () => {
+  const privateKey = '-----BEGIN PRIVATE KEY-----\nZmFrZQ==\n-----END PRIVATE KEY-----\n';
+  const environment = parseEnvironment({
+    ...validEnvironment(),
+    FIREBASE_GOOGLE_AUTH_ENABLED: 'true',
+    FIREBASE_PROJECT_ID: 'sceneboard-auth',
+    FIREBASE_CLIENT_EMAIL: 'firebase-adminsdk@sceneboard-auth.iam.gserviceaccount.com',
+    FIREBASE_PRIVATE_KEY: privateKey.replace(/\n/g, '\\n'),
+  });
+  assert.equal(environment.firebaseGoogle?.enabled, true);
+  assert.equal(environment.firebaseGoogle?.privateKey, privateKey);
+  assert.throws(
+    () =>
+      parseEnvironment({
+        ...validEnvironment(),
+        FIREBASE_GOOGLE_AUTH_ENABLED: 'true',
+        FIREBASE_PROJECT_ID: 'sceneboard-auth',
+      }),
+    EnvironmentValidationError,
+  );
 });
 
 test('accepts only exact lowercase feature booleans', () => {

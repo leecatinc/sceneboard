@@ -7,6 +7,10 @@
   background: var(--background);
 }
 
+.root[data-has-toolbar='false'] {
+  grid-template-rows: minmax(0, 1fr);
+}
+
 .stage {
   position: relative;
   min-width: 0;
@@ -40,6 +44,11 @@
 
 .content {
   min-width: 0;
+}
+
+.root[data-presentation-active='true'] .content {
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .stage[data-page-move-effective='true'] .content {

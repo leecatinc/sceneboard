@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { chmod, mkdtemp, readFile, stat, unlink, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, stat, unlink, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -27,6 +27,7 @@ import {
 } from '../../sceneboard-mcp/plugins/sceneboard/skills/sceneboard/scripts/sceneboard-api-core.mjs';
 
 const TOKEN = `lcbg_v1.${'a'.repeat(22)}.${'b'.repeat(43)}`;
+const API_KEY = `sbk_v1.${'c'.repeat(22)}.${'d'.repeat(43)}`;
 const TIME = '2026-07-17T12:00:00.000Z';
 const CAPABILITIES = {
   protocolVersion: 1,
@@ -245,6 +246,25 @@ const connection = (
   versions: { mcpServer: '1.4.2', boardProtocol: '1.0.0', api: 'v1' },
 });
 
+const apiKeyConnection = (selectedBoard = null) => ({
+  principal: { principalKind: 'service', principalId: 'key_public_1', grantId: null },
+  credential: {
+    keyPublicId: 'key_public_1',
+    scopes: [
+      'board:archive',
+      'board:create',
+      'board:read',
+      'board:write',
+      'export:read',
+      'history:read',
+    ],
+    status: 'active',
+    expiresAt: '2027-08-17T12:00:00.000Z',
+  },
+  selectedBoard,
+  versions: { mcpServer: '0.0.0', boardProtocol: '1.0.0', api: 'v1' },
+});
+
 const configured = async (prefix) => {
   const root = await mkdtemp(join(tmpdir(), prefix));
   const env = {
@@ -301,6 +321,154 @@ test('fallback config requires a complete selected project tuple and reports tim
   await assert.rejects(resolveApiConfig({ cwd: root, env: process.env }), {
     code: 'BOARD_API_CONFIG_INVALID',
   });
+});
+
+test('fallback reads a private-store API key selected by the project MCP configuration', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'sceneboard-api-key-fallback-'));
+  const env = { ...process.env, XDG_STATE_HOME: join(root, 'state') };
+  await writeFile(
+    join(root, '.mcp.json'),
+    JSON.stringify({
+      mcpServers: {
+        sceneboard: {
+          env: {
+            BOARD_ACCESS_TOKEN_REF: 'store://api-key-profile',
+            BOARD_API_URL: 'https://sceneboard.dev',
+            BOARD_PROFILE: 'api-key-profile',
+            BOARD_TIMEOUT_MS: '30000',
+            BOARD_CREDENTIAL_MODE: 'api_key',
+          },
+        },
+      },
+    }),
+  );
+  const config = await resolveApiConfig({ cwd: root, env });
+  assert.equal(config.credentialMode, 'api_key');
+  await mkdir(config.stateDirectory, { recursive: true, mode: 0o700 });
+  await chmod(config.stateDirectory, 0o700);
+  const credentialPath = join(config.stateDirectory, 'api-key.credential.json');
+  await writeFile(
+    credentialPath,
+    JSON.stringify({ version: 1, generation: 'e'.repeat(22), apiKey: API_KEY }),
+    { mode: 0o600 },
+  );
+  await chmod(credentialPath, 0o600);
+  assert.deepEqual(await readCredential(config), {
+    version: 1,
+    generation: 'e'.repeat(22),
+    accessToken: API_KEY,
+    credentialMode: 'api_key',
+  });
+  assert.equal(await deleteCredentialIfGeneration(config, 'e'.repeat(22)), false);
+  assert.equal((await stat(credentialPath)).mode & 0o777, 0o600);
+});
+
+test('API-key fallback authorizes board operations and preserves the private record after 401', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'sceneboard-api-key-operation-'));
+  const env = {
+    ...process.env,
+    XDG_STATE_HOME: join(root, 'state'),
+    SCENEBOARD_PROFILE: 'api-key-operation',
+    SCENEBOARD_CREDENTIAL_MODE: 'api_key',
+  };
+  const config = await resolveApiConfig({ cwd: root, env });
+  await mkdir(config.stateDirectory, { recursive: true, mode: 0o700 });
+  await chmod(config.stateDirectory, 0o700);
+  const credentialPath = join(config.stateDirectory, 'api-key.credential.json');
+  await writeFile(
+    credentialPath,
+    JSON.stringify({ version: 1, generation: 'f'.repeat(22), apiKey: API_KEY }),
+    { mode: 0o600 },
+  );
+  await chmod(credentialPath, 0o600);
+  const listed = await invokeProtected(
+    'board_list',
+    { cursor: null, limit: 10, includeArchived: false },
+    {
+      cwd: root,
+      env,
+      fetchImpl: async (url, options) => {
+        assert.equal(options.headers.Authorization, `Bearer ${API_KEY}`);
+        const requestId = options.headers['X-Request-Id'];
+        return response(
+          operationEnvelope(requestId, 'board.list', { boards: [], nextCursor: null }),
+          { requestId },
+        );
+      },
+    },
+  );
+  assert.equal(listed.result.result.type, 'board.list');
+  await assert.rejects(
+    invokeProtected(
+      'board_list',
+      { cursor: null, limit: 10, includeArchived: false },
+      {
+        cwd: root,
+        env,
+        fetchImpl: async (url, options) =>
+          response(
+            {
+              error: {
+                protocolVersion: 1,
+                type: 'board.error',
+                code: 'UNAUTHENTICATED',
+                message: 'Unauthenticated',
+                category: 'auth',
+                retryable: false,
+                httpStatusHint: 401,
+                details: null,
+              },
+            },
+            { requestId: options.headers['X-Request-Id'], status: 401 },
+          ),
+      },
+    ),
+    { code: 'UNAUTHENTICATED' },
+  );
+  assert.equal((await stat(credentialPath)).mode & 0o777, 0o600);
+  assert.equal((await readCredential(config)).accessToken, API_KEY);
+});
+
+test('API-key fallback validates the account credential connection projection', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'sceneboard-api-key-connection-'));
+  const env = {
+    ...process.env,
+    XDG_STATE_HOME: join(root, 'state'),
+    SCENEBOARD_PROFILE: 'api-key-connection',
+    SCENEBOARD_CREDENTIAL_MODE: 'api_key',
+  };
+  const config = await resolveApiConfig({ cwd: root, env });
+  await mkdir(config.stateDirectory, { recursive: true, mode: 0o700 });
+  await chmod(config.stateDirectory, 0o700);
+  const credentialPath = join(config.stateDirectory, 'api-key.credential.json');
+  await writeFile(
+    credentialPath,
+    JSON.stringify({ version: 1, generation: 'g'.repeat(22), apiKey: API_KEY }),
+    { mode: 0o600 },
+  );
+  await chmod(credentialPath, 0o600);
+  const selectedBoard = {
+    board: boardSummary('revision_1', 1),
+    capabilities: CAPABILITIES,
+  };
+  const status = await invokeProtected(
+    'board_connection_status',
+    { boardId: 'board_1' },
+    {
+      cwd: root,
+      env,
+      fetchImpl: async (url, options) => {
+        assert.equal(new URL(url).searchParams.get('authorizationOperation'), 'board.get');
+        return response(apiKeyConnection(selectedBoard), {
+          requestId: options.headers['X-Request-Id'],
+          connection: true,
+        });
+      },
+    },
+  );
+  assert.equal(status.result.state, 'connected');
+  assert.equal(status.result.config.credentialMode, 'api_key');
+  assert.equal(status.result.connection.credential.keyPublicId, 'key_public_1');
 });
 
 test('Windows fallback stores only current-user protected credentials under LOCALAPPDATA', async () => {
@@ -696,7 +864,7 @@ test('scene patch uses distinct HTTP correlation IDs for its head read and mutat
             },
             { mutationBoardId: 'board_1' },
           ),
-          { requestId },
+          { requestId, status: 201 },
         );
       },
     },

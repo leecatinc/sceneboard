@@ -6,6 +6,7 @@ import {
   parseArtifactBridgeEnvelopeV1,
   type ArtifactBridgeEnvelopeV1,
   type ArtifactBridgeMessageV1,
+  type ArtifactPresentationPageChangeV1,
 } from '../bridge/index.js';
 
 declare global {
@@ -15,6 +16,7 @@ declare global {
         listener: (message: ArtifactBridgeMessageV1, binary?: ArrayBuffer) => void,
       ): () => void;
       requestResize(width: number, height: number): void;
+      changePresentationPage(value: ArtifactPresentationPageChangeV1): void;
       changeSelection(nodeIds: string[]): void;
       userAction(
         requestId: string,
@@ -130,6 +132,9 @@ const nativeElementSetPointerCapture = Element.prototype.setPointerCapture;
 const nativeElementHasPointerCapture = Element.prototype.hasPointerCapture;
 const nativeElementReleasePointerCapture = Element.prototype.releasePointerCapture;
 const nativeDocumentElement = document.documentElement;
+const nativeDocumentElementStyle = nativeDocumentElement.style;
+const nativeCssSetProperty = CSSStyleDeclaration.prototype.setProperty;
+const nativeCssRemoveProperty = CSSStyleDeclaration.prototype.removeProperty;
 const nativeArrayBufferByteLengthGetter = Object.getOwnPropertyDescriptor(
   ArrayBuffer.prototype,
   'byteLength',
@@ -160,7 +165,9 @@ let firstMeasureFrame: number | null = null;
 let secondMeasureFrame: number | null = null;
 let disposed = false;
 let navigationEnabled = false;
+let presentationSelectionDisabled = false;
 let activePointer: { id: number; x: number; y: number } | null = null;
+let lastExplicitResize: Readonly<{ width: number; height: number }> | null = null;
 
 const send = (message: ArtifactBridgeMessageV1, binary?: ArrayBuffer): void => {
   if (disposed) return;
@@ -239,6 +246,33 @@ const setNavigationEnabled = (enabled: boolean): void => {
   if (!enabled) cancelPan();
   navigation.setEnabled(enabled);
 };
+
+const setPresentationSelectionDisabled = (disabled: boolean): void => {
+  presentationSelectionDisabled = disabled;
+  if (disabled) {
+    nativeReflectApply(nativeCssSetProperty, nativeDocumentElementStyle, [
+      'user-select',
+      'none',
+      'important',
+    ]);
+    nativeReflectApply(nativeCssSetProperty, nativeDocumentElementStyle, [
+      '-webkit-user-select',
+      'none',
+      'important',
+    ]);
+    return;
+  }
+  nativeReflectApply(nativeCssRemoveProperty, nativeDocumentElementStyle, ['user-select']);
+  nativeReflectApply(nativeCssRemoveProperty, nativeDocumentElementStyle, ['-webkit-user-select']);
+};
+
+window.addEventListener(
+  'selectstart',
+  (event) => {
+    if (presentationSelectionDisabled && eventCancelable(event)) preventEventDefault(event);
+  },
+  { capture: true },
+);
 
 window.addEventListener(
   'wheel',
@@ -408,7 +442,19 @@ window.SceneBoardArtifact = Object.freeze({
     return () => hostListeners.delete(listener);
   },
   requestResize(width: number, height: number): void {
+    if (
+      nativeNumberIsInteger(width) &&
+      nativeNumberIsInteger(height) &&
+      width >= 1 &&
+      width <= 16_384 &&
+      height >= 1 &&
+      height <= 16_384
+    )
+      lastExplicitResize = { width, height };
     send({ type: 'artifact.resize.request', value: { width, height, source: 'explicit' } });
+  },
+  changePresentationPage(value: ArtifactPresentationPageChangeV1): void {
+    send({ type: 'artifact.presentation.page-change', value });
   },
   changeSelection(nodeIds: string[]): void {
     send({ type: 'artifact.selection.change', value: { nodeIds } });
@@ -468,6 +514,16 @@ const runArtifact = async (): Promise<void> => {
         () => {
           secondMeasureFrame = null;
           if (disposed) return;
+          // Authored dimensions are the artifact's stable layout contract. Re-assert them after
+          // the initial frames so a responsive DOM measurement from a narrow bootstrap iframe
+          // cannot intermittently replace a desktop slide canvas.
+          if (lastExplicitResize !== null) {
+            send({
+              type: 'artifact.resize.request',
+              value: { ...lastExplicitResize, source: 'explicit' },
+            });
+            return;
+          }
           const origin = document.body.getBoundingClientRect();
           const candidates = [...document.body.querySelectorAll<HTMLElement>('*')].filter(
             (element) => element.tagName !== 'SCRIPT' && element.tagName !== 'TEMPLATE',
@@ -598,6 +654,7 @@ window.addEventListener(
           incoming.type !== 'host.data' &&
           incoming.type !== 'host.viewport' &&
           incoming.type !== 'host.selection' &&
+          incoming.type !== 'host.presentation' &&
           incoming.type !== 'host.capability.result'
         )
           throw new TypeError('artifact host message is invalid');
@@ -615,6 +672,10 @@ window.addEventListener(
         }
         if (incoming.type === 'host.navigation.set') {
           setNavigationEnabled(incoming.enabled);
+          return;
+        }
+        if (incoming.type === 'host.presentation') {
+          setPresentationSelectionDisabled(incoming.active);
           return;
         }
         for (const listener of hostListeners) listener(incoming, binary);

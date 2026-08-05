@@ -5,7 +5,10 @@ import type { Request, Response } from 'express';
 
 import type { ExportRenderBrokerServiceV1 } from '../../src/exports/export-render-broker.service.js';
 import { ExportRenderControllerV1 } from '../../src/exports/export-render.controller.js';
-import { exportChromiumLaunchOptionsV1 } from '../../src/exports/export-renderer.service.js';
+import {
+  exportChromiumLaunchOptionsV1,
+  exportChromiumSandboxEnabledV1,
+} from '../../src/exports/export-renderer.service.js';
 
 const sessionId = 'AAAAAAAAAAAAAAAAAAAAAA';
 const credential = 'BBBBBBBBBBBBBBBBBBBBBB';
@@ -23,6 +26,24 @@ test('export Chromium launch configuration preserves the production sandbox', ()
       timeout: 30_000,
     },
   );
+});
+
+test('allows the explicit Chromium sandbox escape hatch only in development', () => {
+  assert.equal(
+    exportChromiumSandboxEnabledV1({
+      APP_ENV: 'development',
+      SCENEBOARD_EXPORT_DISABLE_CHROMIUM_SANDBOX: 'true',
+    }),
+    false,
+  );
+  assert.equal(
+    exportChromiumSandboxEnabledV1({
+      APP_ENV: 'production',
+      SCENEBOARD_EXPORT_DISABLE_CHROMIUM_SANDBOX: 'true',
+    }),
+    true,
+  );
+  assert.equal(exportChromiumSandboxEnabledV1({ APP_ENV: 'development' }), true);
 });
 
 const requestV1 = (overrides: Partial<Request> = {}): Request =>

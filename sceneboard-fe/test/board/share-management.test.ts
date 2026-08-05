@@ -81,8 +81,23 @@ test('share sheet keeps manual fallback visible and provides a 320px native moda
     'utf8',
   );
   assert.match(component, /<dialog/u);
-  assert.match(component, /<textarea[\s\S]*?readOnly[\s\S]*?value=\{visibleSecret\}/u);
-  assert.match(component, /\.writeText\(visibleSecret\)/u);
+  assert.match(component, /<textarea[\s\S]*?readOnly[\s\S]*?value=\{persistentShareUrl\}/u);
+  assert.match(component, /\.writeText\(persistentShareUrl\)/u);
+  assert.match(
+    component,
+    /buildPublicShareUrlV1\(window\.location\.origin, share\.shareId, share\.accessGeneration\)/u,
+  );
   assert.match(component, /invalidateSecret/u);
+  assert.match(component, /candidate\.status === 'active'/u);
+  for (const mutation of ['runSecretLifecycle', 'mutateWithoutSecret']) {
+    const start = component.indexOf(`const ${mutation}`);
+    const end = component.indexOf('\n  );', start);
+    const source = component.slice(start, end);
+    assert.ok(source.indexOf('await load();') < source.lastIndexOf('setBusy(false);'));
+  }
+  assert.match(
+    component,
+    /onPointerDown=\{\(event\) => \{[\s\S]*?event\.target === event\.currentTarget && !busy[\s\S]*?close\(\)/u,
+  );
   assert.match(css, /min-width:\s*min\(320px,\s*100vw\)/u);
 });

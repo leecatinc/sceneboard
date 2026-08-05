@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { lstat, mkdir, readFile, rm, symlink } from 'node:fs/promises';
+import { lstat, mkdtemp, readFile, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -10,7 +10,7 @@ import {
 } from '../../src/bootstrap/persistence-certification-progress.store.js';
 import { PERSISTENCE_PROBE_ORDER_V1 } from '../../src/bootstrap/persistence-certification.types.js';
 
-const root = join(tmpdir(), 'sceneboard-persistence-progress-tests');
+const rootPrefix = join(tmpdir(), 'sceneboard-persistence-progress-');
 const highWater = Object.fromEntries(
   PERSISTENCE_PROBE_ORDER_V1.map((probeId) => [probeId, '100']),
 ) as Record<(typeof PERSISTENCE_PROBE_ORDER_V1)[number], string>;
@@ -51,39 +51,43 @@ const identity = {
 } as const;
 
 test('writes canonical mode-0600 progress atomically and resumes only an exact identity', async () => {
-  const caseRoot = `${root}/write-resume`;
-  await rm(caseRoot, { recursive: true, force: true });
-  await mkdir(caseRoot, { recursive: true });
-  const path = `${caseRoot}/audit.json`;
-  const store = new PersistenceCertificationProgressStore(path);
-  await store.write(progress);
-  assert.equal((await lstat(path)).mode & 0o777, 0o600);
-  const source = await readFile(path, 'utf8');
-  assert.equal(source.endsWith('\n'), true);
-  assert.deepEqual(await store.readForResume(identity), progress);
-  await assert.rejects(store.readForResume({ ...identity, registryVersion: 'different' }));
-  await assert.rejects(
-    store.readForResume({ ...identity, databaseIdentitySha256: 'c'.repeat(64) }),
-  );
-  assert.deepEqual((await lstat(caseRoot)).isDirectory(), true);
+  const caseRoot = await mkdtemp(rootPrefix);
+  try {
+    const path = `${caseRoot}/audit.json`;
+    const store = new PersistenceCertificationProgressStore(path);
+    await store.write(progress);
+    assert.equal((await lstat(path)).mode & 0o777, 0o600);
+    const source = await readFile(path, 'utf8');
+    assert.equal(source.endsWith('\n'), true);
+    assert.deepEqual(await store.readForResume(identity), progress);
+    await assert.rejects(store.readForResume({ ...identity, registryVersion: 'different' }));
+    await assert.rejects(
+      store.readForResume({ ...identity, databaseIdentitySha256: 'c'.repeat(64) }),
+    );
+    assert.deepEqual((await lstat(caseRoot)).isDirectory(), true);
+  } finally {
+    await rm(caseRoot, { recursive: true, force: true });
+  }
 });
 
 test('rejects relative paths, symbolic-link targets, and non-canonical progress shapes', async () => {
   assert.throws(() => new PersistenceCertificationProgressStore('relative/progress.json'));
-  const caseRoot = `${root}/invalid-paths`;
-  await rm(caseRoot, { recursive: true, force: true });
-  await mkdir(caseRoot, { recursive: true });
-  const target = `${caseRoot}/target.json`;
-  const link = `${caseRoot}/linked.json`;
-  await new PersistenceCertificationProgressStore(target).write(progress);
-  await symlink(target, link);
-  const linkedStore = new PersistenceCertificationProgressStore(link);
-  await assert.rejects(linkedStore.readForResume(identity));
-  await assert.rejects(linkedStore.write(progress));
-  await assert.rejects(
-    new PersistenceCertificationProgressStore(`${caseRoot}/invalid.json`).write({
-      ...progress,
-      schemaFingerprintSha256: 'not-a-hash',
-    } as never),
-  );
+  const caseRoot = await mkdtemp(rootPrefix);
+  try {
+    const target = `${caseRoot}/target.json`;
+    const link = `${caseRoot}/linked.json`;
+    await new PersistenceCertificationProgressStore(target).write(progress);
+    await symlink(target, link);
+    const linkedStore = new PersistenceCertificationProgressStore(link);
+    await assert.rejects(linkedStore.readForResume(identity));
+    await assert.rejects(linkedStore.write(progress));
+    await assert.rejects(
+      new PersistenceCertificationProgressStore(`${caseRoot}/invalid.json`).write({
+        ...progress,
+        schemaFingerprintSha256: 'not-a-hash',
+      } as never),
+    );
+  } finally {
+    await rm(caseRoot, { recursive: true, force: true });
+  }
 });

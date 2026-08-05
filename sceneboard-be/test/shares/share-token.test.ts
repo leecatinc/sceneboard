@@ -32,3 +32,15 @@ test('rejects padded, short, long, and non-base64url token grammar', () => {
     assert.throws(() => service.digest(token));
   }
 });
+
+test('parses a persistent locator without storing the original link token', () => {
+  const service = new ShareTokenService(crypto);
+  const locator = 'share_abcdefghijklmnopqrstuv_g7';
+  const reference = service.publicReference(locator);
+  assert.equal(reference.kind, 'locator');
+  if (reference.kind !== 'locator') return;
+  assert.equal(reference.shareId, 'share_abcdefghijklmnopqrstuv');
+  assert.equal(reference.accessGeneration, 7);
+  assert.equal(reference.digest.byteLength, 32);
+  assert.throws(() => service.publicReference('share_abcdefghijklmnopqrstuv_g0'));
+});

@@ -64,10 +64,7 @@ const row = (boardPk: string, createdSecond: number, uuidByte: string) => ({
 
 type BoardListFixtureRow = ReturnType<typeof row>;
 
-const setup = (
-  kind: 'owner' | 'grant' | 'account_api_key',
-  pages?: BoardListFixtureRow[][],
-) => {
+const setup = (kind: 'owner' | 'grant' | 'account_api_key', pages?: BoardListFixtureRow[][]) => {
   const calls: Array<{ sql: string; binds: unknown[] }> = [];
   const rows = [row('3', 3, 'a'), row('2', 2, 'b'), row('1', 1, 'c')];
   const connection = {

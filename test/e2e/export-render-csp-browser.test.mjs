@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
-import { access, readFile } from 'node:fs/promises';
+import { access, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
@@ -56,9 +56,15 @@ const stopProcess = async (child) => {
   if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
 };
 
+const waitForProcess = (child) =>
+  new Promise((resolve, reject) => {
+    child.once('error', reject);
+    child.once('exit', (code, signal) => resolve({ code, signal }));
+  });
+
 test(
   'internal export route applies renderer styles and locked fonts under its real CSP',
-  { timeout: 120_000 },
+  { timeout: 240_000 },
   async (context) => {
     const chromiumExecutable =
       process.env.SCENEBOARD_EXPORT_CHROMIUM_EXECUTABLE ?? chromium.executablePath();
@@ -279,36 +285,56 @@ test(
     };
 
     const nextOutput = [];
-    const nextProcess = spawn(
-      process.execPath,
-      [
-        join(repositoryRoot, 'node_modules/next/dist/bin/next'),
-        'dev',
-        'sceneboard-fe',
-        '--hostname',
-        '127.0.0.1',
-        '--port',
-        webPort.toString(),
-      ],
-      {
-        cwd: repositoryRoot,
-        env: {
-          ...process.env,
-          NEXT_TELEMETRY_DISABLED: '1',
-          NEXT_PUBLIC_ARTIFACT_RUNTIME_ORIGIN: runtimeOrigin,
-          NEXT_PUBLIC_BOARD_API_URL: apiOrigin,
-          SCENEBOARD_EXPORT_API_ORIGIN: apiOrigin,
-          SCENEBOARD_EXPORT_ARTIFACT_RUNTIME_ORIGIN: runtimeOrigin,
-          SCENEBOARD_EXPORT_WEB_ORIGIN: webOrigin,
-        },
-        stdio: ['ignore', 'pipe', 'pipe'],
-      },
-    );
-    nextProcess.stdout.on('data', (chunk) => nextOutput.push(chunk.toString()));
-    nextProcess.stderr.on('data', (chunk) => nextOutput.push(chunk.toString()));
-
+    const nextCli = join(repositoryRoot, 'node_modules/next/dist/bin/next');
+    const nextDeclaration = join(repositoryRoot, 'sceneboard-fe', 'next-env.d.ts');
+    const originalNextDeclaration = await readFile(nextDeclaration);
+    const nextEnvironment = {
+      ...process.env,
+      NODE_ENV: 'production',
+      NEXT_TELEMETRY_DISABLED: '1',
+      NEXT_PUBLIC_ARTIFACT_RUNTIME_ORIGIN: runtimeOrigin,
+      NEXT_PUBLIC_BOARD_API_URL: apiOrigin,
+      SCENEBOARD_EXPORT_API_ORIGIN: apiOrigin,
+      SCENEBOARD_EXPORT_ARTIFACT_RUNTIME_ORIGIN: runtimeOrigin,
+      SCENEBOARD_EXPORT_WEB_ORIGIN: webOrigin,
+      SCENEBOARD_NEXT_DIST_DIR: '.next-check',
+    };
+    let nextProcess;
     let browser;
     try {
+      const buildProcess = spawn(process.execPath, [nextCli, 'build', 'sceneboard-fe'], {
+        cwd: repositoryRoot,
+        env: nextEnvironment,
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+      buildProcess.stdout.on('data', (chunk) => nextOutput.push(chunk.toString()));
+      buildProcess.stderr.on('data', (chunk) => nextOutput.push(chunk.toString()));
+      const buildResult = await waitForProcess(buildProcess);
+      if (buildResult.code !== 0)
+        throw new Error(
+          `Next production build failed (${buildResult.code ?? buildResult.signal ?? 'unknown'})\n${nextOutput
+            .join('')
+            .slice(-4_000)}`,
+        );
+      nextProcess = spawn(
+        process.execPath,
+        [
+          nextCli,
+          'start',
+          'sceneboard-fe',
+          '--hostname',
+          '127.0.0.1',
+          '--port',
+          webPort.toString(),
+        ],
+        {
+          cwd: repositoryRoot,
+          env: nextEnvironment,
+          stdio: ['ignore', 'pipe', 'pipe'],
+        },
+      );
+      nextProcess.stdout.on('data', (chunk) => nextOutput.push(chunk.toString()));
+      nextProcess.stderr.on('data', (chunk) => nextOutput.push(chunk.toString()));
       const documentUrl = `${webOrigin}/internal/export-render/${sessionId}`;
       const deadline = Date.now() + 90_000;
       let lastStatus = 0;
@@ -353,6 +379,14 @@ test(
         await route.continue({ headers });
       });
       const page = await context.newPage();
+      const browserDiagnostics = [];
+      page.on('console', (message) => browserDiagnostics.push(`console:${message.text()}`));
+      page.on('pageerror', (error) => browserDiagnostics.push(`pageerror:${error.message}`));
+      page.on('requestfailed', (request) =>
+        browserDiagnostics.push(
+          `requestfailed:${request.url()}:${request.failure()?.errorText ?? 'unknown'}`,
+        ),
+      );
       await page.addInitScript(() => {
         window.__exportCspViolations = [];
         document.addEventListener('securitypolicyviolation', (event) => {
@@ -370,9 +404,28 @@ test(
       assert.match(policy, /style-src-attr 'unsafe-inline'/u);
       assert.match(policy, new RegExp(`connect-src ${apiOrigin.replaceAll('.', '\\.')}`, 'u'));
       assert.match(policy, new RegExp(`frame-src ${runtimeOrigin.replaceAll('.', '\\.')}`, 'u'));
-      await page.waitForFunction(() => window.__SCENEBOARD_EXPORT__?.ready === true, null, {
-        timeout: 30_000,
-      });
+      try {
+        await page.waitForFunction(() => window.__SCENEBOARD_EXPORT__?.ready === true, null, {
+          timeout: 30_000,
+        });
+      } catch (error) {
+        const exportState = await page.evaluate(() => ({
+          bodyDataset: { ...document.body.dataset },
+          hasExportApi: window.__SCENEBOARD_EXPORT__ !== undefined,
+          readyState: document.readyState,
+          violations: window.__exportCspViolations,
+          scripts: [...document.scripts].map((script) => ({
+            nonce: script.nonce,
+            src: script.src,
+            type: script.type,
+          })),
+          resources: performance.getEntriesByType('resource').map((entry) => entry.name),
+        }));
+        throw new Error(
+          `export route did not become ready: ${JSON.stringify({ exportState, browserDiagnostics })}`,
+          { cause: error },
+        );
+      }
       assert.equal(await page.evaluate(() => window.__SCENEBOARD_EXPORT__?.renderPage(0)), true);
 
       const state = await page.evaluate(() => {
@@ -380,6 +433,11 @@ test(
           const element = document.querySelector(selector);
           if (!(element instanceof HTMLElement)) throw new Error(`missing ${selector}`);
           return getComputedStyle(element).getPropertyValue(property).trim();
+        };
+        const inlineValue = (selector, property) => {
+          const element = document.querySelector(selector);
+          if (!(element instanceof HTMLElement)) throw new Error(`missing ${selector}`);
+          return element.style.getPropertyValue(property).trim();
         };
         const pageElement = document.querySelector('main[data-export-page="0"]');
         if (!(pageElement instanceof HTMLElement)) throw new Error('missing export page');
@@ -415,7 +473,7 @@ test(
             viewportOverflow: value('main[data-export-page="0"]', 'overflow'),
             canvasWidth: value('.scene-canvas-stage', '--scene-canvas-width'),
             canvasHeight: value('.scene-canvas-stage', '--scene-canvas-height'),
-            canvasChildLeft: value('.scene-canvas-child', 'left'),
+            canvasChildLeft: inlineValue('.scene-canvas-child', 'left'),
             gridDisplay: value('.scene-grid', 'display'),
             gridGap: value('.scene-grid', 'gap'),
             splitDisplay: value('.scene-split', 'display'),
@@ -466,7 +524,8 @@ test(
       await context.close();
     } finally {
       if (browser !== undefined) await browser.close();
-      await stopProcess(nextProcess);
+      if (nextProcess !== undefined) await stopProcess(nextProcess);
+      await writeFile(nextDeclaration, originalNextDeclaration);
       await Promise.all([close(apiServer), close(runtimeServer)]);
     }
   },

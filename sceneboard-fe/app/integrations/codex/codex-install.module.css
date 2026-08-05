@@ -177,6 +177,11 @@
   gap: 14px;
 }
 
+.installGridSingle {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .copyBlock {
   min-width: 0;
   overflow: hidden;

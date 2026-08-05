@@ -166,7 +166,11 @@ const tokenizeCheck = (value: string): CheckToken[] => {
         }
         break;
       }
-      if (tokens.at(-1)?.kind === 'word' && tokens.at(-1)?.value === '_utf8mb4') tokens.pop();
+      if (
+        tokens.at(-1)?.kind === 'word' &&
+        ['_ascii', '_utf8mb4'].includes(tokens.at(-1)?.value ?? '')
+      )
+        tokens.pop();
       tokens.push({ kind: 'literal', value: literal });
       continue;
     }
@@ -382,31 +386,98 @@ export const assessExportTerminalAuditPostcondition = (
 export const verifyExportTerminalAuditPostcondition = async (
   connection: PoolConnection,
 ): Promise<void> => {
-  const [tables] = await connection.query<ExportTerminalAuditTableProjection[]>(
-    `SELECT table_name AS tableName, table_type AS tableType, engine,
+  const [rawTables] = await connection.query<
+    Array<
+      RowDataPacket & {
+        tableName: string;
+        tableType: string;
+        tableEngine: string | null;
+        tableCollation: string | null;
+      }
+    >
+  >(
+    `SELECT table_name AS tableName, table_type AS tableType, engine AS tableEngine,
             table_collation AS tableCollation
      FROM information_schema.tables
      WHERE table_schema = DATABASE()
        AND table_name = 'export_terminal_audit_intents'`,
   );
-  const [columns] = await connection.query<ExportTerminalAuditColumnProjection[]>(
+  const tables: ExportTerminalAuditTableProjection[] = rawTables.map((row) => ({
+    ...row,
+    tableName: row.tableName,
+    tableType: row.tableType,
+    engine: row.tableEngine,
+    tableCollation: row.tableCollation,
+  }));
+  const [rawColumns] = await connection.query<
+    Array<
+      RowDataPacket & {
+        columnName: string;
+        ordinalPosition: number;
+        columnType: string;
+        characterSetName: string | null;
+        collationName: string | null;
+        isNullable: string;
+        columnDefault: string | null;
+        columnExtra: string;
+      }
+    >
+  >(
     `SELECT column_name AS columnName, ordinal_position AS ordinalPosition,
             column_type AS columnType, character_set_name AS characterSetName,
             collation_name AS collationName, is_nullable AS isNullable,
-            column_default AS columnDefault, extra
+            column_default AS columnDefault, extra AS columnExtra
      FROM information_schema.columns
      WHERE table_schema = DATABASE()
        AND table_name = 'export_terminal_audit_intents'
      ORDER BY ordinal_position`,
   );
-  const [indexes] = await connection.query<ExportTerminalAuditIndexProjection[]>(
+  const columns: ExportTerminalAuditColumnProjection[] = rawColumns.map((row) => ({
+    ...row,
+    columnName: row.columnName,
+    ordinalPosition: row.ordinalPosition,
+    columnType: row.columnType,
+    characterSetName: row.characterSetName,
+    collationName: row.collationName,
+    isNullable: row.isNullable,
+    columnDefault: row.columnDefault,
+    extra: row.columnExtra,
+  }));
+  const [rawIndexes] = await connection.query<
+    Array<
+      RowDataPacket & {
+        indexName: string;
+        nonUnique: number;
+        sequence: number;
+        columnName: string;
+        indexCollation: string | null;
+      }
+    >
+  >(
     `SELECT index_name AS indexName, non_unique AS nonUnique,
-            seq_in_index AS sequence, column_name AS columnName, collation
+            seq_in_index AS sequence, column_name AS columnName,
+            collation AS indexCollation
      FROM information_schema.statistics
      WHERE table_schema = DATABASE()
        AND table_name = 'export_terminal_audit_intents'
      ORDER BY index_name, seq_in_index`,
   );
+  const indexes: ExportTerminalAuditIndexProjection[] = rawIndexes
+    .map((row) => ({
+      ...row,
+      indexName: row.indexName,
+      nonUnique: row.nonUnique,
+      sequence: row.sequence,
+      columnName: row.columnName,
+      collation: row.indexCollation,
+    }))
+    .sort((left, right) => {
+      if (left.indexName === 'PRIMARY' && right.indexName !== 'PRIMARY') return -1;
+      if (right.indexName === 'PRIMARY' && left.indexName !== 'PRIMARY') return 1;
+      if (left.indexName < right.indexName) return -1;
+      if (left.indexName > right.indexName) return 1;
+      return Number(left.sequence) - Number(right.sequence);
+    });
   const [checks] = await connection.query<ExportTerminalAuditCheckProjection[]>(
     `SELECT tc.constraint_name AS constraintName, cc.check_clause AS checkClause
      FROM information_schema.table_constraints tc

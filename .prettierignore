@@ -3,6 +3,8 @@ node_modules/
 **/.next/
 **/coverage/
 **/public/downloads/
+**/.sceneboard-leases/
+**/.sceneboard-releases/
 sceneboard-mcp/plugins/sceneboard/runtime/index.js
 package-lock.json
 test/certification/**/*.json

@@ -43,11 +43,23 @@ type ExportPageApiV1 = {
 
 type ExportNetworkPolicyResultV1 = ReturnType<typeof createExportNetworkPolicyV1>;
 
-export const exportChromiumLaunchOptionsV1 = (input: { executablePath: string; timeout: number }) =>
+export const exportChromiumSandboxEnabledV1 = (
+  environment: Readonly<Record<string, string | undefined>> = process.env,
+): boolean =>
+  !(
+    environment.APP_ENV === 'development' &&
+    environment.SCENEBOARD_EXPORT_DISABLE_CHROMIUM_SANDBOX === 'true'
+  );
+
+export const exportChromiumLaunchOptionsV1 = (input: {
+  executablePath: string;
+  timeout: number;
+  chromiumSandbox?: boolean;
+}) =>
   Object.freeze({
     headless: true,
     executablePath: input.executablePath,
-    chromiumSandbox: true,
+    chromiumSandbox: input.chromiumSandbox ?? true,
     timeout: input.timeout,
   });
 
@@ -412,6 +424,7 @@ export class ExportRendererServiceV1 {
         this.browserRuntime.launch(
           exportChromiumLaunchOptionsV1({
             executablePath,
+            chromiumSandbox: exportChromiumSandboxEnabledV1(),
             timeout: Math.min(EXPORT_RENDER_TIMEOUT_MS_V1, Math.max(1, deadline - Date.now())),
           }),
         ),

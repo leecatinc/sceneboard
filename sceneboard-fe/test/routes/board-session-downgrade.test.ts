@@ -74,7 +74,7 @@ test('owner, pairing, and one-time credential paths expose synchronous invalidat
   assert.match(ownerControls, /setForcedCloseEpoch\(\(current\) => current \+ 1\)/u);
   assert.match(pairing, /for \(const controller of requestAborts\.current\.values\(\)\)/u);
   assert.match(pairing, /clearCreatedPairingSession\(window\.sessionStorage\)/u);
-  assert.match(pairing, /setRotatedCredential\(null\)/u);
+  assert.match(pairing, /setBoardGrant\(null\)/u);
   assert.match(share, /requestAbortRef\.current\?\.abort\(\)/u);
   assert.match(share, /invalidateSecret\(\)/u);
 });

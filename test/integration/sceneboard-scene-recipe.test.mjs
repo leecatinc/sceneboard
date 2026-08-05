@@ -90,6 +90,38 @@ test('native recipe compilation is canonical and binding is exact', () => {
   );
 });
 
+test('CLI compiles an exact scene replacement input', () => {
+  const recipe = JSON.stringify({
+    recipeVersion: 1,
+    root: { kind: 'markdown', key: 'summary', markdown: '# Summary' },
+  });
+  const output = JSON.parse(
+    execFileSync(
+      process.execPath,
+      [
+        cli,
+        'compile',
+        '-',
+        '--output',
+        'scene-replace-input',
+        '--board-id',
+        'board_1',
+        '--expected-revision-id',
+        'revision_1',
+        '--idempotency-key',
+        'recipe:test:cli:0001',
+      ],
+      { input: recipe, encoding: 'utf8' },
+    ),
+  );
+  assert.deepEqual(Object.keys(output), [
+    'boardId',
+    'expectedRevisionId',
+    'idempotencyKey',
+    'scene',
+  ]);
+});
+
 test('six native presets are discoverable and compile without artifact nodes', () => {
   const listed = JSON.parse(
     execFileSync(process.execPath, [cli, 'preset-list'], { encoding: 'utf8' }),

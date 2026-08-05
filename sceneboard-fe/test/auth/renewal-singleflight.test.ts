@@ -92,6 +92,37 @@ const setup = (responses: Response[], initial: string | null = null) => {
   };
 };
 
+test('Google login exchanges only the ID token through the existing exclusive session sequence', async () => {
+  const anonymousGeneration = 'CCCCCCCCCCCCCCCCCCCCCC';
+  const value = setup(
+    [
+      json(
+        { error: { code: 'UNAUTHENTICATED', message: 'Authentication is required' } },
+        401,
+        'cleared',
+      ),
+      json(
+        {
+          csrfToken: 'lcbcsrf_v1.a.binding.nonce.1800000000000.mac',
+          expiresAt: '2026-07-16T20:00:00.000Z',
+        },
+        200,
+        anonymousGeneration,
+      ),
+      json(snapshot('session_google'), 200, generationA),
+    ],
+    'cleared',
+  );
+  const result = await value.coordinator.authenticate('google', { idToken: 'firebase-id-token' });
+  assert.equal(value.requests.length, 3);
+  assert.equal(result.kind, 'ok');
+  assert.deepEqual(value.locks, ['exclusive']);
+  assert.equal(value.requests[2]?.url, 'https://sceneboard.dev/api/v1/auth/google');
+  assert.equal(value.requests[2]?.init?.body, JSON.stringify({ idToken: 'firebase-id-token' }));
+  const headers = value.requests[2]?.init?.headers as Headers;
+  assert.equal(headers.get('X-CSRF-Token'), 'lcbcsrf_v1.a.binding.nonce.1800000000000.mac');
+});
+
 test('private reconciliation is one exclusive fixed session probe and commits generation after body consumption', async () => {
   const value = setup([json(snapshot('session_1'), 200, generationA)]);
   const result = await value.coordinator.reconcileSessionGeneration();
@@ -216,6 +247,78 @@ test('two renewal callers share one exclusive acquisition and one renewal POST',
       'https://sceneboard.dev/api/v1/auth/session/renew',
     ],
   );
+});
+
+test('a shared 401 probes without rotating and invalidates an expired bound generation', async () => {
+  const value = setup([
+    json(snapshot('session_1'), 200, generationA),
+    json({ error: { code: 'UNAUTHENTICATED', message: 'Authentication is required' } }, 401),
+    json(
+      { error: { code: 'UNAUTHENTICATED', message: 'Authentication is required' } },
+      401,
+      'cleared',
+    ),
+  ]);
+  await value.coordinator.reconcileSessionGeneration();
+  const bound = await value.coordinator.bindCurrentGeneration();
+  assert.equal(bound.kind, 'bound');
+  if (bound.kind !== 'bound') return;
+  let invalidated = false;
+  const unsubscribe = value.coordinator.subscribeGenerationInvalidation(bound.binding, () => {
+    invalidated = true;
+  });
+
+  const result = await value.coordinator.dispatchShared({
+    path: '/api/v1/boards',
+    method: 'GET',
+  });
+
+  assert.equal(result.kind, 'reconciliation_required');
+  assert.equal(invalidated, true);
+  assert.equal(value.values.get(sessionCoordinationConstants.GENERATION_KEY), 'cleared');
+  assert.deepEqual(
+    value.requests.map((request) => request.url),
+    [
+      'https://sceneboard.dev/api/v1/auth/session',
+      'https://sceneboard.dev/api/v1/boards',
+      'https://sceneboard.dev/api/v1/auth/session',
+    ],
+  );
+  unsubscribe();
+});
+
+test('an export 401 also reconciles and invalidates an expired bound generation', async () => {
+  const value = setup([
+    json(snapshot('session_1'), 200, generationA),
+    json({ error: { code: 'UNAUTHENTICATED', message: 'Authentication is required' } }, 401),
+    json(
+      { error: { code: 'UNAUTHENTICATED', message: 'Authentication is required' } },
+      401,
+      'cleared',
+    ),
+  ]);
+  await value.coordinator.reconcileSessionGeneration();
+  const bound = await value.coordinator.bindCurrentGeneration();
+  assert.equal(bound.kind, 'bound');
+  if (bound.kind !== 'bound') return;
+  let invalidated = false;
+  const unsubscribe = value.coordinator.subscribeGenerationInvalidation(bound.binding, () => {
+    invalidated = true;
+  });
+
+  const result = await value.coordinator.dispatchShared({
+    path: '/api/v1/boards/board_1/exports',
+    method: 'POST',
+    body: { format: 'pdf', revisionId: 'revision_1' },
+    csrfToken: csrf,
+    responseKind: 'export',
+  });
+
+  assert.equal(result.kind, 'reconciliation_required');
+  assert.equal(invalidated, true);
+  assert.equal(value.values.get(sessionCoordinationConstants.GENERATION_KEY), 'cleared');
+  assert.equal(value.requests[1]?.init?.redirect, 'manual');
+  unsubscribe();
 });
 
 test('logout commits an empty 204 response with the cleared generation proof', async () => {

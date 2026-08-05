@@ -80,6 +80,9 @@
     { "publisherId": "PUB-MIGRATION-025", "kind": "migration-sql", "ownerIssue": "I-44", "boundaryOwner": "D2", "path": "sceneboard-be/src/database/migrations/sql/025_d10_account_api_keys.up.sql" },
     { "publisherId": "PUB-MIGRATION-026", "kind": "migration-sql", "ownerIssue": "I-44", "boundaryOwner": "D3", "path": "sceneboard-be/src/database/migrations/sql/026_d10_document_v3_checkpoint.up.sql" },
     { "publisherId": "PUB-MIGRATION-027", "kind": "migration-sql", "ownerIssue": "I-44", "boundaryOwner": "D3", "path": "sceneboard-be/src/database/migrations/sql/027_d10_revision_export_hold.up.sql" },
+    { "publisherId": "PUB-MIGRATION-028", "kind": "migration-sql", "ownerIssue": "I-44", "boundaryOwner": "D3", "path": "sceneboard-be/src/database/migrations/sql/028_d10_document_replace_idempotency.up.sql" },
+    { "publisherId": "PUB-MIGRATION-029", "kind": "migration-sql", "ownerIssue": "I-44", "boundaryOwner": "D2", "path": "sceneboard-be/src/database/migrations/sql/029_d10_export_terminal_audit.up.sql" },
+    { "publisherId": "PUB-MIGRATION-030", "kind": "migration-sql", "ownerIssue": "I-44", "boundaryOwner": "D3", "path": "sceneboard-be/src/database/migrations/sql/030_d10_revision_retention_backfill.up.sql" },
     { "publisherId": "PUB-HTTP-SHARE", "kind": "http-route", "ownerIssue": "I-29", "boundaryOwner": "D2", "path": "sceneboard-be/src/shares/share.controller.ts" },
     { "publisherId": "PUB-HTTP-ANALYTICS", "kind": "http-route", "ownerIssue": "I-42", "boundaryOwner": "D2", "path": "sceneboard-be/src/share-analytics/share-analytics.controller.ts" },
     { "publisherId": "PUB-MCP-REGISTRY", "kind": "mcp-tool", "ownerIssue": "I-40", "boundaryOwner": "D6", "path": "sceneboard-mcp/src/tools/register-tools.ts" },
@@ -128,7 +131,10 @@
     { "version": "024", "publisherId": "PUB-MIGRATION-024" },
     { "version": "025", "publisherId": "PUB-MIGRATION-025" },
     { "version": "026", "publisherId": "PUB-MIGRATION-026" },
-    { "version": "027", "publisherId": "PUB-MIGRATION-027" }
+    { "version": "027", "publisherId": "PUB-MIGRATION-027" },
+    { "version": "028", "publisherId": "PUB-MIGRATION-028" },
+    { "version": "029", "publisherId": "PUB-MIGRATION-029" },
+    { "version": "030", "publisherId": "PUB-MIGRATION-030" }
   ],
   "exclusions": [
     {

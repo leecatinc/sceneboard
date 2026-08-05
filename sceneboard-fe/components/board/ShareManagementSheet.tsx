@@ -19,10 +19,12 @@ import {
   type ShareSecretRequestV1,
   type ShareSecretStateV1,
 } from '../../lib/board/share-secret-state';
+import { buildPublicShareUrlV1 } from '../../lib/board/share-link';
 import { useI18n } from '../i18n/I18nProvider';
 import { ConfirmationDialog } from '../app/ConfirmationDialog';
 import { ShareAnalyticsPanel } from './ShareAnalyticsPanel';
 import type { OwnerAdminCloseRegistration } from './OwnerAdminControls';
+import { OwnerAdminActionIcon } from './OwnerAdminActionIcon';
 import styles from './ShareManagementSheet.module.css';
 
 type SecretResult = SharePublishResultV1 | ShareRotateResultV1 | SharePasswordResultV1;
@@ -91,7 +93,7 @@ export function ShareManagementSheet({
     requestAbortRef.current = null;
     setLoading(false);
     if (result.kind === 'ok') {
-      setShare(result.value.shares[0] ?? null);
+      setShare(result.value.shares.find((candidate) => candidate.status === 'active') ?? null);
       return;
     }
     setMessage(t('sharing.loadFailed'));
@@ -159,7 +161,6 @@ export function ShareManagementSheet({
       currentRequestRef.current = null;
       secretRef.current = settlement.state;
       setSecret(settlement.state);
-      setBusy(false);
       if (settlement.recovery !== null) {
         setMessage(
           t(
@@ -170,6 +171,7 @@ export function ShareManagementSheet({
         );
       }
       await load();
+      setBusy(false);
     },
     [load, t],
   );
@@ -184,23 +186,35 @@ export function ShareManagementSheet({
       setMessage('');
       const result = await operation(controller.signal);
       if (controller.signal.aborted) return;
-      setBusy(false);
       if (result.kind !== 'ok') {
+        setBusy(false);
         setMessage(t('sharing.actionFailed'));
         return;
       }
       await load();
+      setBusy(false);
     },
     [invalidateSecret, load, t],
   );
 
-  const visibleSecret = secret.status === 'showing' ? (secret.linkToken ?? secret.password) : null;
+  const persistentShareUrl =
+    share === null
+      ? null
+      : buildPublicShareUrlV1(window.location.origin, share.shareId, share.accessGeneration);
+  const visiblePassword =
+    secret.status === 'showing' && secret.password !== null ? secret.password : null;
 
   if (!enabled) return null;
   return (
     <>
-      <button type="button" className="button secondary" onClick={() => setOpen(true)}>
-        {t('sharing.manageShares')}
+      <button
+        type="button"
+        className="button secondary board-owner-action-button"
+        aria-label={t('sharing.manageShares')}
+        title={t('sharing.manageShares')}
+        onClick={() => setOpen(true)}
+      >
+        <OwnerAdminActionIcon kind="share" />
       </button>
       {open && (
         <dialog
@@ -210,6 +224,9 @@ export function ShareManagementSheet({
           onCancel={(event) => {
             event.preventDefault();
             if (!busy) close();
+          }}
+          onPointerDown={(event) => {
+            if (event.target === event.currentTarget && !busy) close();
           }}
         >
           <section className={styles.panel}>
@@ -356,26 +373,49 @@ export function ShareManagementSheet({
                   </div>
                 </div>
               )}
-              {visibleSecret !== null && (
+              {persistentShareUrl !== null && (
                 <section className={styles.secret} aria-live="polite">
-                  <h3>{t('sharing.oneTimeSecret')}</h3>
-                  <p>{t('sharing.secretWarning')}</p>
+                  <h3>{t('sharing.shareLink')}</h3>
+                  <p>{t('sharing.shareLinkAvailable')}</p>
                   <textarea
                     readOnly
-                    value={visibleSecret}
-                    aria-label={t('sharing.oneTimeSecret')}
+                    value={persistentShareUrl}
+                    aria-label={t('sharing.shareLink')}
                   />
                   <button
                     type="button"
                     className="button secondary"
                     onClick={() => {
                       void navigator.clipboard
-                        .writeText(visibleSecret)
+                        .writeText(persistentShareUrl)
                         .then(() => setMessage(t('sharing.copied')))
                         .catch(() => setMessage(t('sharing.copyFailed')));
                     }}
                   >
-                    {t('sharing.copy')}
+                    {t('sharing.copyLink')}
+                  </button>
+                </section>
+              )}
+              {visiblePassword !== null && (
+                <section className={styles.secret} aria-live="polite">
+                  <h3>{t('sharing.oneTimePassword')}</h3>
+                  <p>{t('sharing.secretWarning')}</p>
+                  <textarea
+                    readOnly
+                    value={visiblePassword}
+                    aria-label={t('sharing.oneTimePassword')}
+                  />
+                  <button
+                    type="button"
+                    className="button secondary"
+                    onClick={() => {
+                      void navigator.clipboard
+                        .writeText(visiblePassword)
+                        .then(() => setMessage(t('sharing.copied')))
+                        .catch(() => setMessage(t('sharing.copyFailed')));
+                    }}
+                  >
+                    {t('sharing.copyPassword')}
                   </button>
                 </section>
               )}

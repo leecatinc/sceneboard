@@ -394,10 +394,7 @@ test('document history read sends the explicit V2 selector without changing the 
   };
   await client(fetchValue).getHistory(request);
   await client(fetchValue).getDocumentHistory(request);
-  assert.deepEqual(seen, [
-    '?requestId=request_1',
-    '?requestId=request_1&documentSchemaVersion=2',
-  ]);
+  assert.deepEqual(seen, ['?requestId=request_1', '?requestId=request_1&documentSchemaVersion=2']);
 });
 
 test('preserves an exact D1 error and never retries a terminal authorization result', async () => {

@@ -7,6 +7,7 @@ export type {
   ArtifactHostInstanceIdV1,
   ArtifactLoadPortV1,
   ArtifactMetadataLoadV1,
+  ArtifactPresentationPageChangeEventV1,
   ArtifactResetCommandV1,
   ArtifactViewModeV1,
   ArtifactViewStateEventV1,

@@ -112,5 +112,9 @@ test('CORS route registry confines Last-Event-ID to the exact SSE GET template',
     evaluateCorsPreflightV1('/api/v1/auth/password', 'POST', 'Content-Type, X-CSRF-Token'),
     { allowed: true, method: 'POST', headers: ['Content-Type', 'X-CSRF-Token'] },
   );
+  assert.deepEqual(
+    evaluateCorsPreflightV1('/api/v1/auth/google', 'POST', 'Content-Type, X-CSRF-Token'),
+    { allowed: true, method: 'POST', headers: ['Content-Type', 'X-CSRF-Token'] },
+  );
   assert.deepEqual(evaluateCorsPreflightV1('/unknown', 'GET', undefined), { allowed: false });
 });

@@ -50,13 +50,19 @@ test('BoardUtilityRail renders an exclusive overlay flyout with full access sema
   assert.match(css, /width: 300px/);
 });
 
-test('BoardUtilityRail exposes an owner-only access-management panel', () => {
+test('count-only AI, interaction, and artifact panels remain paused behind one feature switch', () => {
   const rail = source('components/board/BoardUtilityRail.tsx');
-  // The access-management panel is added to the panel list only when owner-management controls are provided.
+  assert.match(rail, /const SUMMARY_PANELS_ENABLED = false/u);
+  assert.match(rail, /SUMMARY_PANELS_ENABLED[\s\S]*id: 'ai'/u);
+  assert.match(rail, /SUMMARY_PANELS_ENABLED[\s\S]*id: 'interactions'/u);
+  assert.match(rail, /SUMMARY_PANELS_ENABLED[\s\S]*id: 'artifacts'/u);
+});
+
+test('BoardUtilityRail exposes owner actions directly without a status or access flyout', () => {
+  const rail = source('components/board/BoardUtilityRail.tsx');
   assert.match(rail, /ownerAdmin\?: ReactNode/u);
-  assert.match(rail, /ownerAdmin \? \[\.\.\.BASE_PANELS, ACCESS_PANEL\] : BASE_PANELS/u);
-  assert.match(rail, /id: 'access', labelKey: 'presentation\.boardControls'/u);
-  // The access-panel flyout exposes the owner-management controls (share/member and destructive management).
-  assert.match(rail, /panel === 'access'/u);
-  assert.match(rail, /styles\.management/u);
+  assert.match(rail, /styles\.ownerActions/u);
+  assert.doesNotMatch(rail, /id: 'activity'/u);
+  assert.doesNotMatch(rail, /id: 'access'/u);
+  assert.doesNotMatch(rail, /viewControls: ReactNode/u);
 });

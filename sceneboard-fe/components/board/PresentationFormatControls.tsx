@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import type { PresentationFormatV1 } from '@sceneboard/board-schema';
 
 import { useI18n } from '../i18n/I18nProvider';
@@ -28,6 +28,11 @@ export function PresentationFormatControls({
   const selectId = useId();
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [selected, setSelected] = useState(value);
+
+  useEffect(() => {
+    if (!pending) setSelected(value);
+  }, [pending, value]);
 
   return (
     <div className={styles.controls}>
@@ -37,16 +42,18 @@ export function PresentationFormatControls({
       <select
         id={selectId}
         className={styles.select}
-        value={value}
+        value={selected}
         disabled={!canEdit || pending}
         aria-describedby={`${selectId}-status`}
         onChange={(event) => {
           const next = event.currentTarget.value as PresentationFormatV1;
           if (next === value || pending || !canEdit) return;
+          setSelected(next);
           setPending(true);
           setFailed(false);
           void onChange(next).then((ok) => {
             setFailed(!ok);
+            if (!ok) setSelected(value);
             setPending(false);
           });
         }}

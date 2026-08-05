@@ -20,6 +20,7 @@ RT="${ARTIFACT_RUNTIME_RESOLVED_INPUT_FILE:?runtime input path is required}"
 EV="${ARTIFACT_RUNTIME_EVIDENCE_FILE:?evidence path is required}"
 
 mkdir -p "$(dirname "$EV")" "$(dirname "$FE")" "$(dirname "$BE")" "$(dirname "$RT")"
+umask 077
 
 printf '{"NEXT_PUBLIC_BOARD_API_URL":"%s","NEXT_PUBLIC_ARTIFACT_RUNTIME_ORIGIN":"%s"}\n' \
   "${ARTIFACT_RUNTIME_API_ORIGIN:?}" "${ARTIFACT_RUNTIME_ORIGIN:?}" > "$FE"
@@ -28,7 +29,6 @@ printf '{"APP_ENV":"%s","BOARD_ALLOWED_ORIGINS":"%s","BOARD_PUBLIC_API_ORIGIN":"
 printf '{"ARTIFACT_RUNTIME_APP_ORIGIN":"%s","ARTIFACT_RUNTIME_API_ORIGIN":"%s","ARTIFACT_RUNTIME_ORIGIN":"%s"}\n' \
   "${ARTIFACT_RUNTIME_APP_ORIGIN:?}" "${ARTIFACT_RUNTIME_API_ORIGIN:?}" "${ARTIFACT_RUNTIME_ORIGIN:?}" > "$RT"
 
-node "$ROOT/scripts/verify-auth-origin-topology.mjs" \
-  --frontend-env "$FE" --backend-env "$BE" --runtime-env "$RT" --out "$EV"
+node "$ROOT/packages/artifact-runtime/deploy/create-dev-origin-evidence.mjs" "$FE" "$BE" "$RT" "$EV"
 
 exec node "$ROOT/packages/artifact-runtime/dist/node/server/main.js"

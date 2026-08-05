@@ -51,6 +51,10 @@ test('bridge parser closes navigation and sourced resize shapes', () => {
     'host.navigation.set',
   );
   assert.equal(
+    sender.send({ type: 'host.presentation', active: true }).message.type,
+    'host.presentation',
+  );
+  assert.equal(
     sender.send({
       type: 'artifact.navigation.wheel',
       xMillionth: 500_000,
@@ -66,6 +70,16 @@ test('bridge parser closes navigation and sourced resize shapes', () => {
     }).message.type,
     'artifact.resize.request',
   );
+  assert.deepEqual(
+    sender.send({
+      type: 'artifact.presentation.page-change',
+      value: { pageId: 'slide-opening', pageIndex: 0, pageCount: 7 },
+    }).message,
+    {
+      type: 'artifact.presentation.page-change',
+      value: { pageId: 'slide-opening', pageIndex: 0, pageCount: 7 },
+    },
+  );
   assert.throws(
     () =>
       sender.send({ type: 'artifact.navigation.wheel', xMillionth: 0, yMillionth: 0, deltaY: 0 }),
@@ -79,6 +93,19 @@ test('bridge parser closes navigation and sourced resize shapes', () => {
       } as never),
     /keys/u,
   );
+  assert.throws(
+    () => sender.send({ type: 'host.presentation', active: 'true' } as never),
+    /presentation/u,
+  );
+  for (const value of [
+    { pageId: '../slide', pageIndex: 0, pageCount: 7 },
+    { pageId: 'slide-opening', pageIndex: 7, pageCount: 7 },
+    { pageId: 'slide-opening', pageIndex: 0, pageCount: 7, extra: true },
+  ])
+    assert.throws(
+      () => sender.send({ type: 'artifact.presentation.page-change', value } as never),
+      /presentation page/u,
+    );
 });
 
 test('bridge endpoint rejects replay, gaps, and pair drift', () => {

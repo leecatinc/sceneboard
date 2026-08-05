@@ -1,7 +1,8 @@
 import { isAbsolute } from 'node:path';
 
-import { GENERATION_PATTERN, TOKEN_PATTERN } from './sceneboard-api-config.mjs';
+import { API_KEY_PATTERN, GENERATION_PATTERN, TOKEN_PATTERN } from './sceneboard-api-config.mjs';
 import {
+  ACCOUNT_API_KEY_SCOPES,
   ARTIFACT_CAPABILITIES,
   BOARD_ERROR_CATEGORIES,
   BOARD_ERROR_STATUS,
@@ -41,6 +42,7 @@ export const validClientName = (value) =>
 
 export const containsSecretValue = (value) =>
   /\blcbg_v1\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}\b/u.test(value) ||
+  /\bsbk_v1\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}\b/u.test(value) ||
   /\b(?:Bearer|PairingProof)\s+[A-Za-z0-9._-]{16,}\b/iu.test(value) ||
   /\b[0-9A-HJKMNP-TV-Z]{6}-[0-9A-HJKMNP-TV-Z]{6}\b/iu.test(value);
 
@@ -49,6 +51,7 @@ export const SENSITIVE_CONTEXT_PATTERN =
 export const isSecretShaped = (value) =>
   typeof value === 'string' &&
   (TOKEN_PATTERN.test(value) ||
+    API_KEY_PATTERN.test(value) ||
     PROOF_PATTERN.test(value) ||
     GENERATION_PATTERN.test(value) ||
     containsSecretValue(value));
@@ -443,7 +446,12 @@ export const parseCapabilities = (value) => {
   };
 };
 
-export const parseConnection = (value, boardId) => {
+export const parseConnection = (value, boardId, credentialMode = 'pairing') =>
+  credentialMode === 'api_key'
+    ? parseApiKeyConnection(value, boardId)
+    : parsePairingConnection(value, boardId);
+
+const parsePairingConnection = (value, boardId) => {
   if (
     !hasExactKeys(value, ['principal', 'grant', 'selectedBoard', 'versions']) ||
     !hasExactKeys(value.principal, ['principalKind', 'principalId', 'grantId']) ||
@@ -563,6 +571,92 @@ export const parseConnection = (value, boardId) => {
     selectedBoard,
     versions: {
       mcpServer: versions.mcpServer,
+      boardProtocol: CONNECTION_VERSIONS.boardProtocol,
+      api: CONNECTION_VERSIONS.api,
+    },
+  };
+};
+
+const parseApiKeyConnection = (value, boardId) => {
+  if (
+    !hasExactKeys(value, ['principal', 'credential', 'selectedBoard', 'versions']) ||
+    !hasExactKeys(value.principal, ['principalKind', 'principalId', 'grantId']) ||
+    !hasExactKeys(value.credential, ['keyPublicId', 'scopes', 'status', 'expiresAt']) ||
+    !hasExactKeys(value.versions, ['mcpServer', 'boardProtocol', 'api'])
+  )
+    return null;
+  const { principal, credential, versions } = value;
+  const scopes = exactCatalog(credential.scopes, ACCOUNT_API_KEY_SCOPES, 1);
+  if (
+    principal.principalKind !== 'service' ||
+    !validGlobalId(principal.principalId) ||
+    principal.grantId !== null ||
+    !validGlobalId(credential.keyPublicId) ||
+    credential.keyPublicId !== principal.principalId ||
+    scopes === null ||
+    credential.status !== 'active' ||
+    !validTimestamp(credential.expiresAt) ||
+    versions.mcpServer !== '0.0.0' ||
+    versions.boardProtocol !== CONNECTION_VERSIONS.boardProtocol ||
+    versions.api !== CONNECTION_VERSIONS.api
+  )
+    return null;
+  if (boardId === null && value.selectedBoard !== null) return null;
+  let selectedBoard = null;
+  if (boardId !== null) {
+    const selected = value.selectedBoard;
+    const capabilities = parseCapabilities(selected?.capabilities);
+    if (
+      !hasExactKeys(selected, ['board', 'capabilities']) ||
+      !hasExactKeys(selected.board, [
+        'boardId',
+        'title',
+        'createdAt',
+        'updatedAt',
+        'archivedAt',
+        'headRevision',
+      ]) ||
+      !hasExactKeys(selected.board.headRevision, ['revisionId', 'revisionNumber', 'createdAt']) ||
+      selected.board.boardId !== boardId ||
+      !safeText(selected.board.title) ||
+      containsSecretValue(selected.board.title) ||
+      !validTimestamp(selected.board.createdAt) ||
+      !validTimestamp(selected.board.updatedAt) ||
+      (selected.board.archivedAt !== null && !validTimestamp(selected.board.archivedAt)) ||
+      !validGlobalId(selected.board.headRevision.revisionId) ||
+      !Number.isSafeInteger(selected.board.headRevision.revisionNumber) ||
+      selected.board.headRevision.revisionNumber < 1 ||
+      !validTimestamp(selected.board.headRevision.createdAt) ||
+      capabilities === null
+    )
+      return null;
+    selectedBoard = {
+      board: {
+        boardId: selected.board.boardId,
+        title: selected.board.title,
+        createdAt: selected.board.createdAt,
+        updatedAt: selected.board.updatedAt,
+        archivedAt: selected.board.archivedAt,
+        headRevision: { ...selected.board.headRevision },
+      },
+      capabilities,
+    };
+  }
+  return {
+    principal: {
+      principalKind: 'service',
+      principalId: principal.principalId,
+      grantId: null,
+    },
+    credential: {
+      keyPublicId: credential.keyPublicId,
+      scopes,
+      status: 'active',
+      expiresAt: credential.expiresAt,
+    },
+    selectedBoard,
+    versions: {
+      mcpServer: '0.0.0',
       boardProtocol: CONNECTION_VERSIONS.boardProtocol,
       api: CONNECTION_VERSIONS.api,
     },

@@ -96,6 +96,16 @@ import {
   ShareAnalyticsEventSchemaV1,
   ShareAnalyticsReportSchemaV1,
 } from './share-analytics.js';
+import {
+  PublicPresentationAnnotationSchemaV1,
+  PublicPresentationEndResultSchemaV1,
+  PublicPresentationEventSchemaV1,
+  PublicPresentationSessionIdSchemaV1,
+  PublicPresentationSessionListSchemaV1,
+  PublicPresentationSnapshotSchemaV1,
+  PublicPresentationStartRequestSchemaV1,
+  PublicPresentationUpdateRequestSchemaV1,
+} from './public-presentation-sessions.js';
 import { RetainedHistoryMetadataSchemaV1 } from './history.js';
 import { BoardAuthorizationPrincipalSchemaV1, BoardMembershipSchemaV1 } from './memberships.js';
 import type { JsonValue } from './json.js';
@@ -842,6 +852,28 @@ export const PublicShareStateParserV1 = createParser(
   'generic',
   true,
   [2, 3],
+);
+export const PublicPresentationSessionIdParserV1 = createParserV1(
+  PublicPresentationSessionIdSchemaV1,
+);
+export const PublicPresentationAnnotationParserV1 = createParserV1(
+  PublicPresentationAnnotationSchemaV1,
+);
+export const PublicPresentationSessionListParserV1 = createParserV1(
+  PublicPresentationSessionListSchemaV1,
+);
+export const PublicPresentationStartRequestParserV1 = createParserV1(
+  PublicPresentationStartRequestSchemaV1,
+);
+export const PublicPresentationSnapshotParserV1 = createParserV1(
+  PublicPresentationSnapshotSchemaV1,
+);
+export const PublicPresentationUpdateRequestParserV1 = createParserV1(
+  PublicPresentationUpdateRequestSchemaV1,
+);
+export const PublicPresentationEventParserV1 = createParserV1(PublicPresentationEventSchemaV1);
+export const PublicPresentationEndResultParserV1 = createParserV1(
+  PublicPresentationEndResultSchemaV1,
 );
 export const ShareAnalyticsContextRequestParserV1 = createParserV1(
   ShareAnalyticsContextRequestSchemaV1,

@@ -237,6 +237,7 @@ test('live security evidence requires repository execution receipts and cleanup 
         producerId: 'test-only.missing-producer',
         expectedCounts: {},
         adapter: function fabricatedTestOnlyPass() {},
+        executeBoundary: function fabricatedTestOnlyBoundary() {},
       }),
     /unknown security producer/u,
   );
@@ -344,7 +345,11 @@ test('live security evidence requires repository execution receipts and cleanup 
     (error) => error?.code === 'SECURITY_LIVE_EVIDENCE_INVALID',
   );
 
-  const assertSemanticMutationRejected = (caseId, mutation) => {
+  const assertSemanticMutationRejected = (
+    caseId,
+    mutation,
+    expectedAttachmentErrorCode = 'SECURITY_LIVE_EVIDENCE_INVALID',
+  ) => {
     const altered = structuredClone(evidence);
     const row = altered.cases.find((candidate) => candidate.caseId === caseId);
     const payload = JSON.parse(Buffer.from(row.artifactBase64, 'base64').toString('utf8'));
@@ -397,14 +402,16 @@ test('live security evidence requires repository execution receipts and cleanup 
           leafBytes,
           { producerKey },
         ),
-      (error) => error?.code === 'SECURITY_LIVE_EVIDENCE_INVALID',
+      (error) => error?.code === expectedAttachmentErrorCode,
     );
   };
   assertSemanticMutationRejected('AUTH-N01', { observedCodeOrState: 'SESSION_CURRENT' });
   assertSemanticMutationRejected(securityCatalog.cases[0].caseId, { cleanupStatus: 'BLOCKED' });
-  assertSemanticMutationRejected(securityCatalog.cases[0].caseId, {
-    implementationSha256: '0'.repeat(64),
-  });
+  assertSemanticMutationRejected(
+    securityCatalog.cases[0].caseId,
+    { implementationSha256: '0'.repeat(64) },
+    'SECURITY_LIVE_ATTACHMENT_SET_INVALID',
+  );
   assert.throws(
     () =>
       validateSecurityLiveEvidence(

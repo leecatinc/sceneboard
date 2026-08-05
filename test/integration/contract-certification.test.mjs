@@ -43,7 +43,7 @@ test('installed-skill secret scanner covers contextual fragments and arbitrary p
   }
 });
 
-test('golden manifest is canonical, stable, and exactly reproducible from all 475 closed inputs', async () => {
+test('golden manifest is canonical, stable, and exactly reproducible from all 476 closed inputs', async () => {
   const golden = await readFixture('golden.v1.json');
   assert.equal(golden.bytes.toString('utf8'), `${canonicalJson(golden.value)}\n`);
   const result = await verifyContractManifest({
@@ -52,9 +52,9 @@ test('golden manifest is canonical, stable, and exactly reproducible from all 47
   });
   assert.equal(result.status, 'PASS');
   assert.equal(result.ownerCount, 9);
-  assert.equal(result.resourceCount, 475);
-  assert.equal(result.migrationCount, 32);
-  assert.equal(result.sqlAssetCount, 35);
+  assert.equal(result.resourceCount, 476);
+  assert.equal(result.migrationCount, 33);
+  assert.equal(result.sqlAssetCount, 36);
   assert.equal(result.finalToolCount, 30);
 });
 

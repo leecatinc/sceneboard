@@ -13,11 +13,14 @@
 }
 
 .presenting {
-  grid-template-rows: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr);
   background: var(--background);
 }
 
-.presenting :global(.board-topbar),
+.presenting:fullscreen {
+  height: 100dvh;
+}
+
 .presenting :global(.status-rail),
 .presenting :global(.notice),
 .presenting :global(.mobile-board-drawer-trigger) {
@@ -25,8 +28,18 @@
 }
 
 .presenting .surface {
-  grid-row: 1;
+  grid-row: 2;
   grid-template-columns: minmax(0, 1fr);
+}
+
+.annotationToolbarSlot {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.annotationToolbarSlot:empty {
+  display: none;
 }
 
 .surface {
@@ -55,7 +68,7 @@
   }
 
   .presenting :global(.mobile-board-background) {
-    grid-row: 1 / -1;
+    grid-row: 2;
   }
 
   .surface {
@@ -65,8 +78,24 @@
   }
 }
 .ownerAdmin {
+  position: relative;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.ownerSettings {
+  position: relative;
+}
+
+.ownerSettingsDanger {
+  padding-top: 14px;
+  border-top: 1px solid var(--danger-border, #fecaca);
+}
+
+@media (max-width: 760px) {
+  .ownerAdmin {
+    width: 100%;
+  }
 }

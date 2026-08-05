@@ -7,7 +7,7 @@ import type { PasswordShareRepository } from './password-share.repository.js';
 import { passwordDatabaseNow } from './password-share.repository.js';
 import type { ShareCookieService } from './share-cookie.service.js';
 import type { ShareRepository } from './share.repository.js';
-import type { ShareTokenService } from './share-token.service.js';
+import type { PublicShareReference, ShareTokenService } from './share-token.service.js';
 
 export interface PasswordShareViewerGrant {
   kind: 'share_viewer';
@@ -35,22 +35,29 @@ export class PasswordShareGuard {
     shareToken: string;
     familyToken: string;
   }): Promise<PasswordShareViewerGrant> {
-    let tokenDigest: Buffer;
+    let reference: PublicShareReference;
     let familyDigest: Buffer;
     try {
-      tokenDigest = this.tokens.digest(input.shareToken);
+      reference = this.tokens.publicReference(input.shareToken);
       familyDigest = this.cookies.familyDigest(input.familyToken);
     } catch {
       throw new ShareContractError('BOARD_NOT_FOUND');
     }
     return this.mysql.withConnection((connection) =>
       withTransaction(connection, 'READ COMMITTED', async () => {
-        const share = await this.shares.lockShareByTokenDigest(connection, tokenDigest);
+        const share =
+          reference.kind === 'secret'
+            ? await this.shares.lockShareByTokenDigest(connection, reference.digest)
+            : await this.shares.lockShareById(connection, reference.shareId);
         if (
           share === null ||
           share.status !== 'active' ||
           share.accessPolicy !== 'P' ||
-          share.credential === null
+          share.credential === null ||
+          (reference.kind === 'secret'
+            ? !share.tokenDigest.equals(reference.digest)
+            : share.shareId !== reference.shareId ||
+              share.accessGeneration !== reference.accessGeneration)
         ) {
           throw new ShareContractError('BOARD_NOT_FOUND');
         }

@@ -16,10 +16,7 @@ import {
   BoardOperationRateLimitGuard,
   type BoardOperationRateLimitClass,
 } from '../../src/rate-limit/board-operation-rate-limit.policy.js';
-import {
-  type RateLimitInput,
-  RateLimitService,
-} from '../../src/rate-limit/rate-limit.service.js';
+import { type RateLimitInput, RateLimitService } from '../../src/rate-limit/rate-limit.service.js';
 
 const snapshot: ActiveAccountApiKeySnapshot = {
   keyPk: '70',
@@ -220,9 +217,7 @@ test('service boundary fails closed for every malformed tuple and preserves thre
       rateLimitInput,
     ),
     (error) =>
-      error instanceof AppError &&
-      error.code === 'RATE_LIMITED' &&
-      error.retryAfterSeconds === 300,
+      error instanceof AppError && error.code === 'RATE_LIMITED' && error.retryAfterSeconds === 300,
   );
   await assert.rejects(
     new RateLimitService(

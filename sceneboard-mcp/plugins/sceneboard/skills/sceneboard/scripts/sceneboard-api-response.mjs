@@ -917,8 +917,15 @@ export const projectBoardEnvelope = (parsed, { requestId, expectedType, status, 
       result: data,
     };
   } else return null;
-  if (expectedType === 'board.create' ? status !== (result.replayed ? 200 : 201) : status !== 200)
-    return null;
+  const createdSuccess = [
+    'board.create',
+    'scene.replace',
+    'scene.clear',
+    'hitl.request',
+    'hitl.respond',
+    'artifact.stop',
+  ].includes(expectedType);
+  if (createdSuccess ? status !== (result.replayed ? 200 : 201) : status !== 200) return null;
   const historyValue = parsed.metadata.history;
   const history = historyValue === null ? null : projectHistoryMetadata(historyValue);
   if (historyValue !== null && history === null) return null;

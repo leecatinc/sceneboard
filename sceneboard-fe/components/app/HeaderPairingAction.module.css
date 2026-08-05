@@ -59,6 +59,17 @@
   }
 }
 
+@media (max-width: 400px) {
+  .action,
+  .status {
+    padding-inline: 8px;
+  }
+
+  .status {
+    gap: 5px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .connecting .dot {
     animation: none;

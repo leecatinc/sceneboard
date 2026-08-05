@@ -69,8 +69,7 @@ export class RateLimitService {
         cause: error,
       });
     }
-    if (!Array.isArray(result) || result.length !== 2)
-      throw new AppError('SERVICE_UNAVAILABLE');
+    if (!Array.isArray(result) || result.length !== 2) throw new AppError('SERVICE_UNAVAILABLE');
     const [count, ttlMs] = result;
     if (
       !Number.isSafeInteger(count) ||

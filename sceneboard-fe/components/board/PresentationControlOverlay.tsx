@@ -28,6 +28,7 @@ export function PresentationControlOverlay({
   onPrevious,
   onNext,
   onExit,
+  navigationDisabled = false,
 }: {
   active: boolean;
   activitySignal: number;
@@ -41,6 +42,7 @@ export function PresentationControlOverlay({
   onPrevious: () => void;
   onNext: () => void;
   onExit: () => void;
+  navigationDisabled?: boolean;
 }) {
   const { t } = useI18n();
   const [controlsFocusWithin, setControlsFocusWithin] = useState(false);
@@ -183,7 +185,7 @@ export function PresentationControlOverlay({
         <button
           ref={previousControlRef}
           type="button"
-          disabled={current <= 1}
+          disabled={navigationDisabled || current <= 1}
           aria-label={t('presentation.previousPage')}
           onClick={() => {
             recordActivity();
@@ -198,7 +200,7 @@ export function PresentationControlOverlay({
         <button
           ref={nextControlRef}
           type="button"
-          disabled={current >= total}
+          disabled={navigationDisabled || current >= total}
           aria-label={t('presentation.nextPage')}
           onClick={() => {
             recordActivity();

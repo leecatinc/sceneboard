@@ -1,10 +1,15 @@
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 
 import { buildMigrationConnectionProfile } from '../../src/database/migrations/certification-state.js';
 import { createMysqlPoolOptions, MysqlService } from '../../src/database/mysql.service.js';
 import { DatabaseOperationAbortedError, withTransaction } from '../../src/database/transaction.js';
 import { parseEnvironment } from '../../src/config/env.schema.js';
+
+// Production deadline timers are intentionally unref'ed. Keep this isolated fake-connection
+// suite alive long enough for those timers without relying on unrelated test workers.
+const deadlineTestKeepAlive = setInterval(() => undefined, 1_000);
+after(() => clearInterval(deadlineTestKeepAlive));
 
 const key = 'A'.repeat(43);
 const environment = parseEnvironment({

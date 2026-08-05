@@ -1,0 +1,41 @@
+.group {
+  display: grid;
+  gap: 22px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 24px;
+  box-shadow: 0 14px 36px rgba(22, 52, 48, 0.08);
+}
+
+.subsection {
+  display: grid;
+  gap: 14px;
+}
+
+.subsection + .subsection {
+  border-top: 1px solid var(--border);
+  padding-top: 22px;
+}
+
+.subsection h2,
+.subsection p {
+  margin-top: 0;
+}
+
+.subsection h2 {
+  margin-bottom: 8px;
+  color: var(--text-strong);
+}
+
+@media (max-width: 800px) {
+  .group {
+    padding: 18px;
+  }
+}
+
+@media (max-width: 320px) {
+  .group {
+    padding: 14px;
+  }
+}

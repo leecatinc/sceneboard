@@ -8,6 +8,7 @@ import {
   type ExportTerminalAuditColumnProjection,
   type ExportTerminalAuditIndexProjection,
   type ExportTerminalAuditTableProjection,
+  verifyExportTerminalAuditPostcondition,
 } from '../../src/database/migrations/postconditions.js';
 import { MIGRATION_REGISTRY } from '../../src/database/migrations/registry.js';
 import { isRecoverableExportTerminalAuditTableExists } from '../../src/database/migrations/runner.js';
@@ -109,7 +110,9 @@ const terminalAuditProjectionV1 = () => ({
 });
 
 test('migration 029 creates one forward-only pending-to-final terminal audit intent table', async () => {
-  const entry = MIGRATION_REGISTRY.at(-1);
+  const entry = MIGRATION_REGISTRY.find(
+    (candidate) => candidate.version === '029_d10_export_terminal_audit',
+  );
   assert.deepEqual(entry, {
     version: '029_d10_export_terminal_audit',
     upAsset: '029_d10_export_terminal_audit.up.sql',
@@ -179,6 +182,21 @@ test('migration 029 postcondition rejects narrowed columns, index drift, and pay
       exact.checks,
     ),
   );
+  const serverNormalized = terminalAuditProjectionV1();
+  serverNormalized.checks = serverNormalized.checks.map((check) => ({
+    ...check,
+    checkClause: check.checkClause
+      .replace(/'(pending|completed|failed)'/gu, "_utf8mb4\\'$1\\'")
+      .replace(/'(EXPORT_[A-Z_]+)'/gu, "_ascii\\'$1\\'"),
+  }));
+  assert.doesNotThrow(() =>
+    assessExportTerminalAuditPostcondition(
+      serverNormalized.tables,
+      serverNormalized.columns,
+      serverNormalized.indexes,
+      serverNormalized.checks,
+    ),
+  );
   const narrowed = terminalAuditProjectionV1();
   narrowed.columns[8] = { ...narrowed.columns[8]!, columnType: 'varchar(32)' };
   assert.throws(() =>
@@ -212,4 +230,34 @@ test('migration 029 postcondition rejects narrowed columns, index drift, and pay
       checkDrift.checks,
     ),
   );
+});
+
+test('migration 029 postcondition maps uppercase information-schema fields explicitly', async () => {
+  const exact = terminalAuditProjectionV1();
+  const connection = {
+    query: (sql: string) => {
+      if (sql.includes('information_schema.tables'))
+        return Promise.resolve([
+          exact.tables.map(({ engine, ...table }) => ({ ...table, tableEngine: engine })),
+        ]);
+      if (sql.includes('information_schema.columns'))
+        return Promise.resolve([
+          exact.columns.map(({ extra, ...column }) => ({ ...column, columnExtra: extra })),
+        ]);
+      if (sql.includes('information_schema.statistics'))
+        return Promise.resolve([
+          exact.indexes
+            .map(({ collation, ...index }) => ({
+              ...index,
+              indexCollation: collation,
+            }))
+            .reverse(),
+        ]);
+      if (sql.includes('information_schema.table_constraints'))
+        return Promise.resolve([exact.checks]);
+      throw new TypeError('unexpected projection query');
+    },
+  };
+
+  await assert.doesNotReject(() => verifyExportTerminalAuditPostcondition(connection as never));
 });

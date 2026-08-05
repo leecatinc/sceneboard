@@ -42,6 +42,10 @@ export interface PasswordChangeRequest {
   newPassword: string;
 }
 
+export interface GoogleIdTokenRequest {
+  idToken: string;
+}
+
 const EMAIL_PATTERN =
   /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/;
 
@@ -54,7 +58,7 @@ const hasExactKeys = (value: Record<string, unknown>, keys: readonly string[]): 
   return actual.length === expected.length && actual.every((key, index) => key === expected[index]);
 };
 
-const parseEmail = (input: unknown): { email: string; emailNormalized: string } => {
+export const parseVerifiedEmail = (input: unknown): { email: string; emailNormalized: string } => {
   if (typeof input !== 'string') throw new AppError('INVALID_PAYLOAD');
   const email = input.replace(/^ +| +$/g, '');
   const emailBytes = Buffer.byteLength(email, 'utf8');
@@ -81,7 +85,7 @@ export const parseAuthCredentials = (input: unknown): AuthCredentials => {
     throw new AppError('INVALID_PAYLOAD');
   if (typeof input.email !== 'string' || typeof input.password !== 'string')
     throw new AppError('INVALID_PAYLOAD');
-  return { ...parseEmail(input.email), password: input.password };
+  return { ...parseVerifiedEmail(input.email), password: input.password };
 };
 
 export const parseSignupCredentials = (input: unknown): SignupCredentials => {
@@ -95,7 +99,7 @@ export const parseSignupCredentials = (input: unknown): SignupCredentials => {
     throw new AppError('INVALID_PAYLOAD');
   }
   return {
-    ...parseEmail(input.email),
+    ...parseVerifiedEmail(input.email),
     password: input.password,
     verificationTicket: input.verificationTicket,
   };
@@ -110,7 +114,7 @@ export const parseEmailVerificationRequest = (input: unknown): EmailVerification
   ) {
     throw new AppError('INVALID_PAYLOAD');
   }
-  return { ...parseEmail(input.email), locale: input.locale as EmailVerificationLocale };
+  return { ...parseVerifiedEmail(input.email), locale: input.locale as EmailVerificationLocale };
 };
 
 export const parseEmailVerificationConfirmation = (
@@ -120,7 +124,19 @@ export const parseEmailVerificationConfirmation = (
     throw new AppError('INVALID_PAYLOAD');
   if (typeof input.code !== 'string' || !/^[0-9]{6}$/.test(input.code))
     throw new AppError('INVALID_PAYLOAD');
-  return { ...parseEmail(input.email), code: input.code };
+  return { ...parseVerifiedEmail(input.email), code: input.code };
+};
+
+export const parseGoogleIdTokenRequest = (input: unknown): GoogleIdTokenRequest => {
+  if (!isRecord(input) || !hasExactKeys(input, ['idToken']) || typeof input.idToken !== 'string')
+    throw new AppError('INVALID_PAYLOAD');
+  if (
+    input.idToken.length < 256 ||
+    input.idToken.length > 16_384 ||
+    !/^[A-Za-z0-9._-]+$/u.test(input.idToken)
+  )
+    throw new AppError('INVALID_PAYLOAD');
+  return { idToken: input.idToken };
 };
 
 export const parsePasswordChangeRequest = (input: unknown): PasswordChangeRequest => {

@@ -4,14 +4,16 @@ import {
   collectArtifactReferencesAcrossSnapshotV2,
   type ArtifactRuntimeSummaryV1,
   type ArtifactReferenceV1,
+  type BoardId,
   type BoardDocument,
   type PublicBoardProjectionV1,
   type PublicArtifactSummaryV1,
+  type RevisionId,
 } from '@sceneboard/board-schema';
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 
 import type { ArtifactRepository } from '../artifacts/artifact.repository.js';
-import { formatPublicUuidV4 } from '../common/ids/public-uuid.storage.js';
+import { formatPublicUuidV4, parsePublicUuidV4 } from '../common/ids/public-uuid.storage.js';
 import { BoardPersistenceError } from '../common/errors/board-persistence.error.js';
 import {
   decodeMediaIdFromStorage,
@@ -74,18 +76,7 @@ export class PublicShareProjectionRepository {
 
   async build(resolved: ResolvedPublicShare, contextId: string): Promise<PublicBoardProjectionV1> {
     const revision = await this.lockRevision(resolved);
-    const decoded = await this.checkpoints.decode({
-      schemaVersion: revision.schemaVersion,
-      codec: revision.codec,
-      payload: revision.payload,
-      canonicalBytes: revision.canonicalBytes,
-      storedBytes: revision.storedBytes,
-      sha256: revision.sha256,
-    });
-    const document: BoardDocument =
-      decoded.kind === 'document'
-        ? decoded.document
-        : adaptLegacySceneToDocumentV2({ boardId: resolved.boardId, scene: decoded.scene });
+    const document = await this.decodeDocument(resolved.boardId, revision);
     const runtimes = await this.readArtifactInventory(resolved, document);
     const orderedArtifacts = collectArtifactReferencesAcrossSnapshotV2({
       boardId: resolved.boardId,
@@ -153,6 +144,66 @@ export class PublicShareProjectionRepository {
     });
     if (!parsed.ok) throw new PublicShareHttpError(503);
     return parsed.data.value;
+  }
+
+  async readPageIds(resolved: ResolvedPublicShare): Promise<ReadonlySet<string>> {
+    const revision = await this.lockRevision(resolved);
+    const document = await this.decodeDocument(resolved.boardId, revision);
+    return new Set(document.pages.map((page) => page.pageId));
+  }
+
+  async readOwnerPageIds(input: {
+    connection: PoolConnection;
+    boardPk: bigint;
+    boardId: BoardId;
+    revisionId: RevisionId;
+  }): Promise<{ revisionPk: bigint; pageIds: ReadonlySet<string> }> {
+    const revision = await this.lockOwnerRevision(input);
+    const document = await this.decodeDocument(input.boardId, revision);
+    return {
+      revisionPk: revision.revisionPk,
+      pageIds: new Set(document.pages.map((page) => page.pageId)),
+    };
+  }
+
+  private async decodeDocument(boardId: BoardId, revision: LockedRevision): Promise<BoardDocument> {
+    const decoded = await this.checkpoints.decode({
+      schemaVersion: revision.schemaVersion,
+      codec: revision.codec,
+      payload: revision.payload,
+      canonicalBytes: revision.canonicalBytes,
+      storedBytes: revision.storedBytes,
+      sha256: revision.sha256,
+    });
+    return decoded.kind === 'document'
+      ? decoded.document
+      : adaptLegacySceneToDocumentV2({ boardId, scene: decoded.scene });
+  }
+
+  private async lockOwnerRevision(input: {
+    connection: PoolConnection;
+    boardPk: bigint;
+    revisionId: RevisionId;
+  }): Promise<LockedRevision> {
+    const [rows] = await input.connection.execute<RevisionRow[]>(
+      `SELECT CAST(r.revision_pk AS CHAR) AS revisionPk, r.revision_id AS revisionId,
+              p.schema_version AS schemaVersion, p.codec, p.payload,
+              p.canonical_bytes AS canonicalBytes, p.stored_bytes AS storedBytes,
+              p.payload_sha256 AS sha256
+       FROM board_revisions r
+       JOIN board_revision_catalog c
+         ON c.board_pk = r.board_pk AND c.revision_pk = r.revision_pk
+       JOIN board_revision_payloads p
+         ON p.revision_pk = r.revision_pk AND p.state = 'available'
+       WHERE r.board_pk = ? AND r.revision_id = ?
+       LIMIT 1 FOR UPDATE`,
+      [input.boardPk.toString(), Buffer.from(parsePublicUuidV4(input.revisionId))],
+    );
+    const row = rows[0];
+    if (rows.length === 0 || row === undefined) throw new PublicShareHttpError(404);
+    if (rows.length !== 1 || formatPublicUuidV4(row.revisionId) !== input.revisionId)
+      throw new PublicShareHttpError(503);
+    return { ...row, revisionPk: databasePk(row.revisionPk) };
   }
 
   private async lockRevision(resolved: ResolvedPublicShare): Promise<LockedRevision> {

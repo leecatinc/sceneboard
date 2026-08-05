@@ -15,9 +15,11 @@ export function BrandMark({ size = 24 }: { size?: number }) {
 export function Brand({
   linked = false,
   label = 'SceneBoard boards',
+  href = '/boards',
 }: {
   linked?: boolean;
   label?: string;
+  href?: string;
 }) {
   const content = (
     <>
@@ -26,7 +28,7 @@ export function Brand({
     </>
   );
   return linked ? (
-    <Link className="brand" href="/boards" aria-label={label}>
+    <Link className="brand" href={href} aria-label={label}>
       {content}
     </Link>
   ) : (

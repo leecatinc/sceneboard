@@ -25,6 +25,7 @@ import { EmailVerificationService } from './email-verification.service.js';
 import { GmailMailerService } from './gmail-mailer.service.js';
 import { PasswordChangeRepository } from './password-change.repository.js';
 import { PasswordChangeService } from './password-change.service.js';
+import { FirebaseGoogleAuthService } from './firebase-google-auth.service.js';
 
 @Module({
   imports: [SceneBoardConfigModule, DatabaseModule, AuditModule, RateLimitModule],
@@ -110,6 +111,19 @@ import { PasswordChangeService } from './password-change.service.js';
       ) => new EmailVerificationService(redis, crypto, mailer, environment.redis.keyPrefix),
     },
     {
+      provide: FirebaseGoogleAuthService,
+      inject: [APP_ENVIRONMENT],
+      useFactory: (environment: AppEnvironment) =>
+        new FirebaseGoogleAuthService(
+          environment.firebaseGoogle ?? {
+            enabled: false,
+            projectId: null,
+            clientEmail: null,
+            privateKey: null,
+          },
+        ),
+    },
+    {
       provide: AuthService,
       inject: [
         AuthPersistenceService,
@@ -117,6 +131,7 @@ import { PasswordChangeService } from './password-change.service.js';
         SessionTokenService,
         CsrfService,
         CryptoService,
+        FirebaseGoogleAuthService,
       ],
       useFactory: (
         persistence: AuthPersistenceService,
@@ -124,7 +139,8 @@ import { PasswordChangeService } from './password-change.service.js';
         sessionTokens: SessionTokenService,
         csrf: CsrfService,
         crypto: CryptoService,
-      ) => new AuthService(persistence, passwords, sessionTokens, csrf, crypto),
+        firebaseGoogle: FirebaseGoogleAuthService,
+      ) => new AuthService(persistence, passwords, sessionTokens, csrf, crypto, firebaseGoogle),
     },
     {
       provide: PasswordChangeService,

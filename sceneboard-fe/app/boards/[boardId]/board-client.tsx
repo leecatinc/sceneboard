@@ -3,17 +3,27 @@
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import { memo, useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import type { BoardNodeV1, BoardSessionAccessV1, PageId } from '@sceneboard/board-schema';
+import type {
+  BoardNodeV1,
+  BoardSessionAccessV1,
+  PageId,
+  PublicPresentationSessionSummaryV1,
+  PublicPresentationSnapshotV1,
+} from '@sceneboard/board-schema';
 import {
   BoardRenderer,
   type DrawingViewStateV1,
   type RendererComponentV1,
 } from '@sceneboard/board-ui/renderer';
-import type { ArtifactLoadPortV1 } from '@sceneboard/board-ui/artifact';
-import type { ArtifactViewModeV1 } from '@sceneboard/board-ui/artifact';
+import type {
+  ArtifactLoadPortV1,
+  ArtifactPresentationPageChangeEventV1,
+  ArtifactViewModeV1,
+} from '@sceneboard/board-ui/artifact';
 import { HitlBlock, type HitlInteractionControllerV1 } from '@sceneboard/board-ui/interaction';
 
 import { BoardStatePanel } from '../../../components/board/BoardStatePanel';
+import { Brand } from '../../../components/app/Brand';
 import { BoardPairingControl } from '../../../components/board/BoardPairingControl';
 import { BoardImageUploadControl } from '../../../components/board/BoardImageUploadControl';
 import {
@@ -29,13 +39,11 @@ import { PageNavigationControls } from '../../../components/board/PageNavigation
 import { PageDisplayModeControls } from '../../../components/board/PageDisplayModeControls';
 import { PageMoveModeControls } from '../../../components/board/PageMoveModeControls';
 import { PresentationStage } from '../../../components/board/PresentationStage';
+import type { PresentationAnnotationDeliveryV1 } from '../../../components/board/PresentationAnnotationLayer';
 import { PresentationModeControls } from '../../../components/board/PresentationModeControls';
-import { PresentationFormatControls } from '../../../components/board/PresentationFormatControls';
-import { PresentationControlOverlay } from '../../../components/board/PresentationControlOverlay';
 import { HitlDecisionWorkspace } from '../../../components/board/HitlDecisionWorkspace';
 import { StatusRail } from '../../../components/board/StatusRail';
 import { BoardUtilityRail } from '../../../components/board/BoardUtilityRail';
-import { BoardViewModeControls } from '../../../components/board/BoardViewModeControls';
 import { HistoryControls } from '../../../components/board/HistoryControls';
 import { ResponsiveBoardChrome } from '../../../components/board/ResponsiveBoardChrome';
 import type { MobileBoardDrawerSlotsV1 } from '../../../components/board/MobileBoardDrawer';
@@ -45,6 +53,10 @@ import { BoardExportApi } from '../../../lib/api/board-export-api';
 import { InvitationApi } from '../../../lib/api/invitation-api';
 import { ShareApi } from '../../../lib/api/share-api';
 import { ShareAnalyticsApi } from '../../../lib/share-analytics/share-analytics-api';
+import {
+  OwnerPresentationApiError,
+  OwnerPresentationSessionApi,
+} from '../../../lib/api/owner-presentation-session';
 import { createAccountMediaResolverV1 } from '../../../lib/api/board-media-api';
 import { authSessionClient } from '../../../lib/auth/session-client';
 import { useHitlInteractionController } from '../../../lib/board/use-hitl-interaction-controller';
@@ -88,7 +100,19 @@ import {
   type PresentationLifecycleEventV1,
   type PresentationLifecycleIdentityV1,
 } from '../../../lib/board/presentation-mode.controller';
+import {
+  presentationAnnotationPageKeyV1,
+  type PresentationAnnotationStrokeV1,
+} from '../../../lib/board/presentation-annotation.controller';
+import {
+  ownerPresentationOperationIsCurrentV1,
+  type OwnerPresentationAdmissionIdentityV1,
+} from '../../../lib/board/owner-presentation-operation';
+import { PublicPresentationSessionDialog } from '../../s/[shareToken]/public-presentation-session-dialog';
 import styles from './board.module.css';
+
+// Keep the completed media-authoring flow available in code while its product entry point is paused.
+const MEDIA_AUTHORING_UI_ENABLED = false;
 
 function ArtifactLoading() {
   const { t } = useI18n();
@@ -245,6 +269,7 @@ export function BoardClient({ boardId }: { boardId: string }) {
   const [exportApi] = useState(() => new BoardExportApi(coordinator));
   const [invitationApi] = useState(() => new InvitationApi(coordinator));
   const [shareApi] = useState(() => new ShareApi(coordinator));
+  const [ownerPresentationApi] = useState(() => new OwnerPresentationSessionApi(coordinator));
   const [shareAnalyticsApi] = useState(() => new ShareAnalyticsApi(coordinator));
   const [renderedAccess, setRenderedAccess] = useState<{
     boardId: string;
@@ -276,31 +301,76 @@ export function BoardClient({ boardId }: { boardId: string }) {
   } | null>(null);
   const [pageAnnouncement, setPageAnnouncement] = useState('');
   const [presentationState, setPresentationState] = useState(createPresentationLifecycleStateV1);
-  const [presentationActivitySignal, setPresentationActivitySignal] = useState(0);
+  const [sessionDialogOpen, setSessionDialogOpen] = useState(false);
+  const [sessionDialogBusy, setSessionDialogBusy] = useState(false);
+  const [sessionDialogError, setSessionDialogError] = useState<string | null>(null);
+  const [availableSessions, setAvailableSessions] = useState<
+    readonly PublicPresentationSessionSummaryV1[]
+  >([]);
+  const [livePresentation, setLivePresentation] = useState<PublicPresentationSnapshotV1 | null>(
+    null,
+  );
+  const [artifactPresentationPage, setArtifactPresentationPage] = useState<{
+    outerPageKey: string;
+    event: ArtifactPresentationPageChangeEventV1;
+  } | null>(null);
   const [artifactCaptureActive, setArtifactCaptureActive] = useState(false);
   const [hitlInteractionActive, setHitlInteractionActive] = useState(false);
   const [moveAvailable, setMoveAvailable] = useState(false);
   const [moveToggle, setMoveToggle] = useState(false);
   const [moveCaptureActive, setMoveCaptureActive] = useState(false);
+  const [annotationToolbarTarget, setAnnotationToolbarTarget] = useState<HTMLElement | null>(null);
   const pageScrollRef = useRef<HTMLDivElement | null>(null);
+  const presentationSurfaceRef = useRef<HTMLElement | null>(null);
   const pageElementEpochRef = useRef(0);
   const pageCanvasTransformRef = useRef<PageCanvasTransformV1 | null>(null);
   const presentationRequestEpochRef = useRef(0);
   const presentationStateRef = useRef(presentationState);
-  const presentationPageRef = useRef<HTMLDivElement | null>(null);
+  const presentationPageRef = useRef<HTMLElement | null>(null);
   const presentationInvokerRef = useRef<HTMLButtonElement | null>(null);
   const presentationButtonRef = useRef<HTMLButtonElement | null>(null);
+  const livePresentationRef = useRef(livePresentation);
+  const pendingPresentationUpdateRef = useRef<{
+    pageId: PageId;
+    strokes: readonly PresentationAnnotationStrokeV1[];
+    delivery: PresentationAnnotationDeliveryV1;
+  } | null>(null);
+  const presentationUpdateInFlightRef = useRef(false);
+  const presentationUpdateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const presentationUpdateLastStartedAtRef = useRef(Number.NEGATIVE_INFINITY);
+  const presentationSessionOperationEpochRef = useRef(0);
+  const resolvedPageIdRef = useRef<PageId | null>(null);
   const lifecycleRouteRef = useRef<string | null>(null);
   const pageIdentityRef = useRef<string | null>(null);
   const captureSourcesRef = useRef(new Set<string>());
   const hitlSourcesRef = useRef(new Set<string>());
   const ownerAdminRef = useRef<OwnerAdminControlsHandle>(null);
+  const exitPresentationRef = useRef<(restoreFocus?: boolean) => void>(() => undefined);
   const capabilityAnnouncementEpochRef = useRef(0);
   const revisionId = session.visibleSnapshot?.revision.revisionId ?? null;
+  livePresentationRef.current = livePresentation;
   const accessForRender =
     renderedAccess.boardId === boardId ? renderedAccess.access : EMPTY_BOARD_SESSION_ACCESS_V1;
   const affordances = useMemo(() => deriveBoardAffordancesV1(accessForRender), [accessForRender]);
+  const canUseOwnerPresentation = affordances['share.manage'];
   const { closeHistory, latest: loadLatestSnapshot, sessionAccess: latestSessionAccess } = session;
+  const canAdmitOwnerPresentation = deriveBoardAffordancesV1(latestSessionAccess)['share.manage'];
+  const presentationSessionAdmissionRef = useRef<OwnerPresentationAdmissionIdentityV1>({
+    mounted: true,
+    boardId,
+    revisionId,
+    allowed: canAdmitOwnerPresentation,
+  });
+  presentationSessionAdmissionRef.current = {
+    mounted: true,
+    boardId,
+    revisionId,
+    allowed: canAdmitOwnerPresentation,
+  };
+
+  useEffect(() => {
+    presentationSessionOperationEpochRef.current += 1;
+  }, [boardId, revisionId]);
 
   useEffect(() => {
     const previousAccess =
@@ -322,6 +392,14 @@ export function BoardClient({ boardId }: { boardId: string }) {
       lost.includes('board.delete')
     )
       ownerAdminRef.current?.closeAndClearOwnerAdmin();
+    if (lost.includes('share.manage')) {
+      presentationSessionOperationEpochRef.current += 1;
+      setSessionDialogOpen(false);
+      setSessionDialogBusy(false);
+      setSessionDialogError(null);
+      setAvailableSessions([]);
+      exitPresentationRef.current(false);
+    }
     if (lost.includes('history.read')) {
       closeHistory();
       void loadLatestSnapshot(true);
@@ -356,6 +434,18 @@ export function BoardClient({ boardId }: { boardId: string }) {
     navigationDocument === null || resolvedPageId === null
       ? -1
       : navigationDocument.pages.findIndex((page) => page.pageId === resolvedPageId);
+  resolvedPageIdRef.current = resolvedPageId;
+  const outerAnnotationPageKey = [
+    boardId,
+    revisionId ?? 'unavailable',
+    resolvedPageId ?? 'unavailable',
+  ].join('\u0000');
+  const annotationPageKey = presentationAnnotationPageKeyV1(
+    outerAnnotationPageKey,
+    artifactPresentationPage?.outerPageKey === outerAnnotationPageKey
+      ? artifactPresentationPage.event
+      : null,
+  );
   const pageDisplayMode = resolvePageDisplayModeV1({
     routeBoardId: boardId,
     viewportClass,
@@ -373,8 +463,11 @@ export function BoardClient({ boardId }: { boardId: string }) {
     setPresentationState(next);
   }, []);
   const bindPageStage = useCallback((element: HTMLDivElement | null) => {
-    if (pageScrollRef.current !== element) pageElementEpochRef.current += 1;
     pageScrollRef.current = element;
+  }, []);
+  const bindPresentationSurface = useCallback((element: HTMLElement | null) => {
+    if (presentationSurfaceRef.current !== element) pageElementEpochRef.current += 1;
+    presentationSurfaceRef.current = element;
   }, []);
   const bindPageCanvasTransform = useCallback((transform: PageCanvasTransformV1 | null) => {
     pageCanvasTransformRef.current = transform;
@@ -394,6 +487,19 @@ export function BoardClient({ boardId }: { boardId: string }) {
   }, []);
   const exitPresentation = useCallback(
     (restoreFocus = true) => {
+      presentationSessionOperationEpochRef.current += 1;
+      const live = livePresentationRef.current;
+      const apiOrigin = process.env.NEXT_PUBLIC_BOARD_API_URL;
+      if (live?.role === 'presenter' && revisionId !== null && apiOrigin !== undefined)
+        void ownerPresentationApi
+          .end({ apiOrigin, boardId, revisionId, sessionId: live.sessionId })
+          .catch(() => undefined);
+      livePresentationRef.current = null;
+      setLivePresentation(null);
+      pendingPresentationUpdateRef.current = null;
+      if (presentationUpdateTimerRef.current !== null)
+        clearTimeout(presentationUpdateTimerRef.current);
+      presentationUpdateTimerRef.current = null;
       presentationRequestEpochRef.current += 1;
       const ownedPage = presentationPageRef.current;
       presentationPageRef.current = null;
@@ -403,10 +509,11 @@ export function BoardClient({ boardId }: { boardId: string }) {
       }
       if (restoreFocus) requestAnimationFrame(restorePresentationFocus);
     },
-    [restorePresentationFocus, transitionPresentation],
+    [boardId, ownerPresentationApi, restorePresentationFocus, revisionId, transitionPresentation],
   );
+  exitPresentationRef.current = exitPresentation;
   const enterPresentation = useCallback(() => {
-    const page = pageScrollRef.current;
+    const page = presentationSurfaceRef.current;
     if (page === null || revisionId === null) return;
     const identity: PresentationLifecycleIdentityV1 = {
       boardId,
@@ -424,7 +531,7 @@ export function BoardClient({ boardId }: { boardId: string }) {
         expected: identity,
         current: presentationStateRef.current.identity,
         capturedPage: page,
-        currentPage: pageScrollRef.current,
+        currentPage: presentationSurfaceRef.current,
       });
     const fallback = () => {
       if (current()) transitionPresentation({ type: 'fallback-focus', identity });
@@ -458,6 +565,292 @@ export function BoardClient({ boardId }: { boardId: string }) {
       else fallback();
     }, fallback);
   }, [boardId, revisionId, transitionPresentation]);
+
+  const refreshPresentationSessions = useCallback(async () => {
+    const apiOrigin = process.env.NEXT_PUBLIC_BOARD_API_URL;
+    if (revisionId === null || apiOrigin === undefined) return;
+    const operationEpoch = presentationSessionOperationEpochRef.current + 1;
+    presentationSessionOperationEpochRef.current = operationEpoch;
+    const expectedAdmission = { boardId, revisionId };
+    const isCurrent = () =>
+      ownerPresentationOperationIsCurrentV1({
+        operationEpoch,
+        currentOperationEpoch: presentationSessionOperationEpochRef.current,
+        expected: expectedAdmission,
+        current: presentationSessionAdmissionRef.current,
+      });
+    setSessionDialogBusy(true);
+    setSessionDialogError(null);
+    try {
+      const result = await ownerPresentationApi.list({ apiOrigin, boardId, revisionId });
+      if (isCurrent()) setAvailableSessions(result.sessions);
+    } catch {
+      if (isCurrent()) setSessionDialogError(t('presentation.liveSessionUnavailable'));
+    } finally {
+      if (isCurrent()) setSessionDialogBusy(false);
+    }
+  }, [boardId, ownerPresentationApi, revisionId, t]);
+
+  const activateLivePresentation = useCallback(
+    (snapshot: PublicPresentationSnapshotV1) => {
+      livePresentationRef.current = snapshot;
+      setLivePresentation(snapshot);
+      setSessionDialogOpen(false);
+      setSessionDialogError(null);
+      if (snapshot.currentPageId !== resolvedPageId) setSelectedPageId(snapshot.currentPageId);
+      enterPresentation();
+    },
+    [enterPresentation, resolvedPageId],
+  );
+
+  const startLivePresentation = useCallback(async () => {
+    const apiOrigin = process.env.NEXT_PUBLIC_BOARD_API_URL;
+    if (revisionId === null || resolvedPageId === null || apiOrigin === undefined) return;
+    const operationEpoch = presentationSessionOperationEpochRef.current + 1;
+    presentationSessionOperationEpochRef.current = operationEpoch;
+    const expectedAdmission = { boardId, revisionId };
+    const isCurrent = () =>
+      ownerPresentationOperationIsCurrentV1({
+        operationEpoch,
+        currentOperationEpoch: presentationSessionOperationEpochRef.current,
+        expected: expectedAdmission,
+        current: presentationSessionAdmissionRef.current,
+      });
+    setSessionDialogBusy(true);
+    setSessionDialogError(null);
+    try {
+      const snapshot = await ownerPresentationApi.start({
+        apiOrigin,
+        boardId,
+        revisionId,
+        currentPageId: resolvedPageId,
+      });
+      if (!isCurrent()) {
+        if (snapshot.role === 'presenter')
+          void ownerPresentationApi
+            .end({ apiOrigin, boardId, revisionId, sessionId: snapshot.sessionId })
+            .catch(() => undefined);
+        return;
+      }
+      activateLivePresentation(snapshot);
+    } catch {
+      if (isCurrent()) setSessionDialogError(t('presentation.liveSessionUnavailable'));
+    } finally {
+      if (isCurrent()) setSessionDialogBusy(false);
+    }
+  }, [activateLivePresentation, boardId, ownerPresentationApi, resolvedPageId, revisionId, t]);
+
+  const joinLivePresentation = useCallback(
+    async (sessionId: string) => {
+      const apiOrigin = process.env.NEXT_PUBLIC_BOARD_API_URL;
+      if (revisionId === null || apiOrigin === undefined) return;
+      const operationEpoch = presentationSessionOperationEpochRef.current + 1;
+      presentationSessionOperationEpochRef.current = operationEpoch;
+      const expectedAdmission = { boardId, revisionId };
+      const isCurrent = () =>
+        ownerPresentationOperationIsCurrentV1({
+          operationEpoch,
+          currentOperationEpoch: presentationSessionOperationEpochRef.current,
+          expected: expectedAdmission,
+          current: presentationSessionAdmissionRef.current,
+        });
+      setSessionDialogBusy(true);
+      setSessionDialogError(null);
+      try {
+        const snapshot = await ownerPresentationApi.get({
+          apiOrigin,
+          boardId,
+          revisionId,
+          sessionId,
+        });
+        if (isCurrent()) activateLivePresentation(snapshot);
+      } catch {
+        if (isCurrent()) {
+          setSessionDialogError(t('presentation.liveSessionUnavailable'));
+          await refreshPresentationSessions();
+        }
+      } finally {
+        if (isCurrent()) setSessionDialogBusy(false);
+      }
+    },
+    [
+      activateLivePresentation,
+      boardId,
+      ownerPresentationApi,
+      refreshPresentationSessions,
+      revisionId,
+      t,
+    ],
+  );
+
+  const flushPresentationUpdate = useCallback(() => {
+    if (presentationUpdateInFlightRef.current) return;
+    const pending = pendingPresentationUpdateRef.current;
+    const active = livePresentationRef.current;
+    const apiOrigin = process.env.NEXT_PUBLIC_BOARD_API_URL;
+    if (
+      pending === null ||
+      active?.role !== 'presenter' ||
+      revisionId === null ||
+      apiOrigin === undefined
+    )
+      return;
+    pendingPresentationUpdateRef.current = null;
+    presentationUpdateInFlightRef.current = true;
+    presentationUpdateLastStartedAtRef.current = performance.now();
+    const update = (expectedVersion: number) =>
+      ownerPresentationApi.update({
+        apiOrigin,
+        boardId,
+        revisionId,
+        sessionId: active.sessionId,
+        update: {
+          expectedVersion,
+          currentPageId: pending.pageId,
+          annotation: {
+            pageId: pending.pageId,
+            strokes: pending.strokes.map((stroke) => ({
+              id: stroke.id,
+              color: stroke.color,
+              width: stroke.width === 2 || stroke.width === 8 ? stroke.width : 4,
+              points: stroke.points.map((point) => ({ x: point.x, y: point.y })),
+            })),
+          },
+        },
+      });
+    void (async () => {
+      try {
+        let next: PublicPresentationSnapshotV1;
+        try {
+          next = await update(active.version);
+        } catch (error) {
+          if (!(error instanceof OwnerPresentationApiError) || error.status !== 409) throw error;
+          const latest = await ownerPresentationApi.get({
+            apiOrigin,
+            boardId,
+            revisionId,
+            sessionId: active.sessionId,
+          });
+          if (latest.role !== 'presenter') throw error;
+          next = await update(latest.version);
+        }
+        if (livePresentationRef.current?.sessionId === next.sessionId) {
+          livePresentationRef.current = next;
+          setLivePresentation(next);
+        }
+      } catch {
+        setSessionDialogError(t('presentation.liveSessionUnavailable'));
+      } finally {
+        presentationUpdateInFlightRef.current = false;
+        if (pendingPresentationUpdateRef.current !== null) {
+          presentationUpdateTimerRef.current = setTimeout(() => {
+            presentationUpdateTimerRef.current = null;
+            flushPresentationUpdate();
+          }, 125);
+        }
+      }
+    })();
+  }, [boardId, ownerPresentationApi, revisionId, t]);
+
+  const handlePresentationStrokesChange = useCallback(
+    (
+      strokes: readonly PresentationAnnotationStrokeV1[],
+      delivery: PresentationAnnotationDeliveryV1,
+    ) => {
+      const pageId = resolvedPageIdRef.current;
+      if (pageId === null || livePresentationRef.current?.role !== 'presenter') return;
+      pendingPresentationUpdateRef.current = { pageId, strokes, delivery };
+      if (delivery === 'final' && presentationUpdateTimerRef.current !== null) {
+        clearTimeout(presentationUpdateTimerRef.current);
+        presentationUpdateTimerRef.current = null;
+      }
+      if (presentationUpdateInFlightRef.current) return;
+      const elapsed = performance.now() - presentationUpdateLastStartedAtRef.current;
+      const delay = Math.max(0, 125 - elapsed);
+      if (delivery === 'final' || delay === 0) {
+        flushPresentationUpdate();
+        return;
+      }
+      if (presentationUpdateTimerRef.current === null)
+        presentationUpdateTimerRef.current = setTimeout(() => {
+          presentationUpdateTimerRef.current = null;
+          flushPresentationUpdate();
+        }, delay);
+    },
+    [flushPresentationUpdate],
+  );
+
+  const livePresentationRole = livePresentation?.role;
+  const livePresentationSessionId = livePresentation?.sessionId;
+
+  useEffect(() => {
+    const apiOrigin = process.env.NEXT_PUBLIC_BOARD_API_URL;
+    if (
+      livePresentationRole !== 'viewer' ||
+      livePresentationSessionId === undefined ||
+      revisionId === null ||
+      apiOrigin === undefined
+    )
+      return;
+    let stopped = false;
+    let source: EventSource | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let retry = 0;
+    const apply = (next: PublicPresentationSnapshotV1) => {
+      const current = livePresentationRef.current;
+      if (
+        current === null ||
+        current.sessionId !== next.sessionId ||
+        next.version < current.version
+      )
+        return;
+      livePresentationRef.current = next;
+      setLivePresentation(next);
+      if (next.currentPageId !== resolvedPageIdRef.current) setSelectedPageId(next.currentPageId);
+    };
+    const connect = () => {
+      if (stopped) return;
+      source?.close();
+      source = new EventSource(
+        ownerPresentationApi.eventsUrl({
+          apiOrigin,
+          boardId,
+          revisionId,
+          sessionId: livePresentationSessionId,
+        }),
+        { withCredentials: true },
+      );
+      source.addEventListener('presentation.state.v1', (event) => {
+        if (!(event instanceof MessageEvent)) return;
+        const next = ownerPresentationApi.parseEvent(String(event.data));
+        if (next === null) return;
+        retry = 0;
+        apply(next);
+      });
+      source.onerror = () => {
+        source?.close();
+        source = null;
+        if (stopped || retry >= 5) return;
+        void ownerPresentationApi
+          .get({ apiOrigin, boardId, revisionId, sessionId: livePresentationSessionId })
+          .then((next) => {
+            if (stopped) return;
+            apply(next);
+            retryTimer = setTimeout(connect, [250, 500, 1_000, 2_000, 4_000][retry++] ?? 4_000);
+          })
+          .catch(() => {
+            if (stopped) return;
+            retryTimer = setTimeout(connect, [250, 500, 1_000, 2_000, 4_000][retry++] ?? 4_000);
+          });
+      };
+    };
+    connect();
+    return () => {
+      stopped = true;
+      source?.close();
+      if (retryTimer !== null) clearTimeout(retryTimer);
+    };
+  }, [boardId, livePresentationRole, livePresentationSessionId, ownerPresentationApi, revisionId]);
 
   const setCaptureActive = useCallback((source: string, active: boolean) => {
     if (active) captureSourcesRef.current.add(source);
@@ -558,7 +951,7 @@ export function BoardClient({ boardId }: { boardId: string }) {
           expected: identity,
           current: identity,
           capturedPage: page,
-          currentPage: pageScrollRef.current,
+          currentPage: presentationSurfaceRef.current,
         })
       )
         return;
@@ -583,17 +976,25 @@ export function BoardClient({ boardId }: { boardId: string }) {
       document.removeEventListener('visibilitychange', exitFocusOnVisibilityLoss);
     };
   }, [exitPresentation, restorePresentationFocus, transitionPresentation]);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    presentationSessionAdmissionRef.current = {
+      ...presentationSessionAdmissionRef.current,
+      mounted: true,
+    };
+    return () => {
+      presentationSessionAdmissionRef.current = {
+        ...presentationSessionAdmissionRef.current,
+        mounted: false,
+      };
+      presentationSessionOperationEpochRef.current += 1;
       presentationRequestEpochRef.current += 1;
       const ownedPage = presentationPageRef.current;
       presentationPageRef.current = null;
       presentationStateRef.current = createPresentationLifecycleStateV1();
       if (ownedPage !== null && document.fullscreenElement === ownedPage)
         void document.exitFullscreen().catch(() => undefined);
-    },
-    [],
-  );
+    };
+  }, []);
   useEffect(() => {
     const navigatePage = (event: KeyboardEvent) => {
       const admission = {
@@ -623,7 +1024,6 @@ export function BoardClient({ boardId }: { boardId: string }) {
       const command = admitPageNavigationKeyV1(admission);
       if (command !== null && selectPage(command)) {
         event.preventDefault();
-        setPresentationActivitySignal((value) => value + 1);
       }
     };
 
@@ -729,6 +1129,10 @@ export function BoardClient({ boardId }: { boardId: string }) {
         snapshotWatermark={context.lastEventSequence}
         load={artifactLoad}
         viewMode={artifactViewMode}
+        presentationActive={presentationActive}
+        onPresentationPageChange={(event) =>
+          setArtifactPresentationPage({ outerPageKey: outerAnnotationPageKey, event })
+        }
         showStopControl={false}
         stopSignal={artifactStopSignal}
         onViewStateChange={(event) => dispatchArtifactView({ type: 'event', event })}
@@ -788,35 +1192,31 @@ export function BoardClient({ boardId }: { boardId: string }) {
         />
       </>
     ) : null;
-  // 아티팩트/드로잉 보기 컨트롤은 해당 콘텐츠가 있을 때만 노출한다.
-  const artifactViewControls = showArtifactControls ? (
-    <BoardViewModeControls
-      value={artifactViewMode}
-      zoom={selectedZoom}
-      canReset={canResetView}
-      onChange={setArtifactViewMode}
-      onReset={resetView}
-    />
-  ) : null;
-  const presentationControls = (
+  const presentationControls = canUseOwnerPresentation ? (
     <PresentationModeControls
       active={presentationActive}
       disabled={presentationState.mode === 'requesting'}
       buttonRef={presentationButtonRef}
-      onEnter={enterPresentation}
+      onEnter={() => {
+        setSessionDialogOpen(true);
+        void refreshPresentationSessions();
+      }}
       onExit={exitPresentation}
     />
-  );
-  const presentationRailControl = (
+  ) : null;
+  const presentationRailControl = canUseOwnerPresentation ? (
     <PresentationModeControls
       active={presentationActive}
       disabled={presentationState.mode === 'requesting'}
       buttonRef={presentationButtonRef}
-      onEnter={enterPresentation}
+      onEnter={() => {
+        setSessionDialogOpen(true);
+        void refreshPresentationSessions();
+      }}
       onExit={exitPresentation}
       variant="rail"
     />
-  );
+  ) : null;
   const pageNavigationControls = (
     <PageNavigationControls
       current={resolvedPageIndex + 1}
@@ -826,32 +1226,29 @@ export function BoardClient({ boardId }: { boardId: string }) {
       statusLabel={t('presentation.pageNavigation')}
       onPrevious={() => selectPage('previous')}
       onNext={() => selectPage('next')}
+      navigationDisabled={presentationActive && livePresentation?.role === 'viewer'}
     />
+  );
+  const presentationTopBar = (
+    <header className="board-topbar board-topbar-presentation">
+      <div className="board-topbar-leading">
+        <Brand linked href="https://sceneboard.dev" label="SceneBoard" />
+      </div>
+      <div className="board-topbar-title">
+        <h2>{session.title}</h2>
+      </div>
+      <div className="board-topbar-actions">
+        <div ref={setAnnotationToolbarTarget} className={styles.annotationToolbarSlot} />
+        <div className="board-topbar-page-navigation">{pageNavigationControls}</div>
+        {presentationControls}
+      </div>
+    </header>
   );
   const pageDisplayControls = (
     <div className="board-page-display-actions">
       {nativePageControls}
       {presentationControls}
     </div>
-  );
-  const sidebarViewControls = (
-    <>
-      {'document' in visibleSnapshot && (
-        <PresentationFormatControls
-          value={
-            visibleSnapshot.document.schemaVersion === 3
-              ? visibleSnapshot.document.format
-              : 'wide_16_9'
-          }
-          canEdit={state.mode.kind === 'live' && affordances['board.write']}
-          onChange={session.changePresentationFormat}
-        />
-      )}
-      {nativePageControls !== null && (
-        <div className="board-page-display-actions">{nativePageControls}</div>
-      )}
-      {artifactViewControls}
-    </>
   );
   const desktopRevisionControls = affordances['history.read'] ? (
     <HistoryControls
@@ -893,6 +1290,8 @@ export function BoardClient({ boardId }: { boardId: string }) {
             ? visibleSnapshot.document.format
             : 'wide_16_9'
         }
+        canEditDocumentFormat={state.mode.kind === 'live' && affordances['board.write']}
+        onDocumentFormatChange={session.changePresentationFormat}
         exportEnabled={canExport}
         analyticsEnabled={canReadShareAnalytics}
         routeKey={routeEpoch}
@@ -900,6 +1299,7 @@ export function BoardClient({ boardId }: { boardId: string }) {
       />
     ) : null;
   const mediaAuthoring =
+    MEDIA_AUTHORING_UI_ENABLED &&
     affordances['media.upload'] &&
     state.mode.kind !== 'history' &&
     session.visibleSnapshot !== null &&
@@ -998,15 +1398,13 @@ export function BoardClient({ boardId }: { boardId: string }) {
       canRename={affordances['board.write']}
     />
   );
-  // Desktop right utility rail — a thin icon column with an overlay flyout that never permanently consumes canvas.
-  // Owner-management controls route to the rail's access panel (mobile uses a separate drawer slot).
+  // Desktop right utility rail — presentation and owner actions stay directly accessible as icons.
   const utilityRail = (
     <BoardUtilityRail
       snapshot={visibleSnapshot}
       presence={state.presence}
       onStopRendering={() => setArtifactStopSignal((value) => value + 1)}
       presentationControl={presentationRailControl}
-      viewControls={sidebarViewControls}
       ownerAdmin={ownerAdmin}
     />
   );
@@ -1017,12 +1415,14 @@ export function BoardClient({ boardId }: { boardId: string }) {
   ) : null;
   return (
     <section
+      ref={bindPresentationSurface}
       className={`board-workspace ${styles.workspace} ${presentationActive ? styles.presenting : ''} ${state.mode.kind === 'history' ? 'is-history' : ''}`}
     >
       <ResponsiveBoardChrome
         slots={chromeSlots}
         routeKey={`${boardId}:${visibleSnapshot.revision.revisionId}`}
         presentationActive={presentationActive}
+        presentationTopBar={presentationTopBar}
         notice={navigationNotice}
         surfaceClassName={styles.surface ?? ''}
         utilityRail={utilityRail}
@@ -1044,7 +1444,16 @@ export function BoardClient({ boardId }: { boardId: string }) {
           stageRef={bindPageStage}
           mode={pageDisplayMode}
           canvasSize={rootCanvas}
+          annotationPageKey={annotationPageKey}
+          annotationToolbarTarget={annotationToolbarTarget}
           presentationActive={presentationActive}
+          annotationReadOnly={livePresentation?.role === 'viewer'}
+          annotationStrokes={
+            livePresentation?.currentPageId === resolvedPageId
+              ? livePresentation.annotation.strokes
+              : []
+          }
+          onAnnotationStrokesChange={handlePresentationStrokesChange}
           moveToggle={moveToggle}
           moveIdentity={`${boardId}:${visibleSnapshot.revision.revisionId}:${resolvedPageId}`}
           onMoveAvailabilityChange={setMoveAvailable}
@@ -1052,31 +1461,7 @@ export function BoardClient({ boardId }: { boardId: string }) {
           onCanvasTransformChange={bindPageCanvasTransform}
           label={t('board.sceneCanvas')}
           toolbar={<div className="board-stage-page-navigation">{pageNavigationControls}</div>}
-          overlay={
-            <PresentationControlOverlay
-              active={presentationActive}
-              activitySignal={presentationActivitySignal}
-              current={resolvedPageIndex + 1}
-              total={navigationDocument.pages.length}
-              dialogOrMenuOpen={false}
-              hitlInteractionActive={hitlInteractionActive}
-              artifactCaptureActive={artifactCaptureActive}
-              moveCaptureActive={moveCaptureActive}
-              additionalControls={
-                <>
-                  {nativePageControls}
-                  {artifactViewControls}
-                </>
-              }
-              onPrevious={() => {
-                if (selectPage('previous')) setPresentationActivitySignal((value) => value + 1);
-              }}
-              onNext={() => {
-                if (selectPage('next')) setPresentationActivitySignal((value) => value + 1);
-              }}
-              onExit={exitPresentation}
-            />
-          }
+          overlay={null}
         >
           <span className="visually-hidden" aria-live="polite" aria-atomic="true">
             {pageAnnouncement}
@@ -1124,6 +1509,21 @@ export function BoardClient({ boardId }: { boardId: string }) {
           )}
         </PresentationStage>
       </ResponsiveBoardChrome>
+      <PublicPresentationSessionDialog
+        open={sessionDialogOpen}
+        busy={sessionDialogBusy}
+        sessions={availableSessions}
+        error={sessionDialogError}
+        onClose={() => {
+          presentationSessionOperationEpochRef.current += 1;
+          setSessionDialogOpen(false);
+          setSessionDialogBusy(false);
+          setSessionDialogError(null);
+        }}
+        onRefresh={() => void refreshPresentationSessions()}
+        onStart={() => void startLivePresentation()}
+        onJoin={(sessionId) => void joinLivePresentation(sessionId)}
+      />
     </section>
   );
 }

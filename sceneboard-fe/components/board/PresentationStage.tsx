@@ -20,6 +20,11 @@ import type {
   PageMovePointerStateV1,
 } from '../../lib/board/page-move-mode.types';
 import { createNestedCanvasFitV1 } from '../../lib/board/page-render-adapter';
+import {
+  PresentationAnnotationLayer,
+  type PresentationAnnotationDeliveryV1,
+} from './PresentationAnnotationLayer';
+import type { PresentationAnnotationStrokeV1 } from '../../lib/board/presentation-annotation.controller';
 import styles from './PresentationStage.module.css';
 
 type CanvasSizeV1 = Readonly<{ width: number; height: number }> | null;
@@ -54,6 +59,11 @@ export function PresentationStage({
   canvasSize,
   toolbar,
   overlay,
+  annotationToolbarTarget,
+  annotationPageKey,
+  annotationReadOnly = false,
+  annotationStrokes = [],
+  onAnnotationStrokesChange,
   presentationActive,
   moveToggle,
   moveIdentity,
@@ -68,6 +78,14 @@ export function PresentationStage({
   canvasSize: CanvasSizeV1;
   toolbar: ReactNode;
   overlay: ReactNode;
+  annotationToolbarTarget?: HTMLElement | null;
+  annotationPageKey?: string;
+  annotationReadOnly?: boolean;
+  annotationStrokes?: readonly PresentationAnnotationStrokeV1[];
+  onAnnotationStrokesChange?: (
+    strokes: readonly PresentationAnnotationStrokeV1[],
+    delivery: PresentationAnnotationDeliveryV1,
+  ) => void;
   presentationActive: boolean;
   moveToggle: boolean;
   moveIdentity: string;
@@ -81,6 +99,7 @@ export function PresentationStage({
   const [contentWidth, setContentWidth] = useState(0);
   const [moveX, setMoveX] = useState(0);
   const [navigationHeight, setNavigationHeight] = useState(0);
+  const [annotationSurface, setAnnotationSurface] = useState({ width: 1, height: 1 });
   const localStageRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
   const toolbarRef = useRef<HTMLDivElement | null>(null);
@@ -95,6 +114,7 @@ export function PresentationStage({
   const modeRef = useRef(mode);
   const moveToggleRef = useRef(moveToggle);
   const hasRootCanvas = canvasSize !== null;
+  const showToolbar = toolbar !== null && !presentationActive;
   modeRef.current = mode;
   moveToggleRef.current = moveToggle;
 
@@ -223,12 +243,22 @@ export function PresentationStage({
         0,
         canvasSize?.width ?? canvasPlane?.scrollWidth ?? content.scrollWidth,
       );
+      const nextAnnotationSurface = {
+        width: Math.max(1, nextViewport.width, content.scrollWidth),
+        height: Math.max(1, nextViewport.height, content.scrollHeight),
+      };
       geometryRef.current = {
         viewportWidth: nextViewport.width,
         contentWidth: nextContentWidth,
       };
       setViewport(nextViewport);
       setContentWidth(nextContentWidth);
+      setAnnotationSurface((current) =>
+        current.width === nextAnnotationSurface.width &&
+        current.height === nextAnnotationSurface.height
+          ? current
+          : nextAnnotationSurface,
+      );
       const available = pageMoveIsAvailableV1(
         modeRef.current,
         nextViewport.width,
@@ -262,6 +292,10 @@ export function PresentationStage({
     presentationActive,
   ]);
   useLayoutEffect(() => {
+    if (!showToolbar) {
+      setNavigationHeight(0);
+      return;
+    }
     const toolbar = toolbarRef.current;
     if (toolbar === null) return;
     const navigation = toolbar.querySelector<HTMLElement>('[data-page-bottom-navigation]');
@@ -272,7 +306,7 @@ export function PresentationStage({
     const observer = new ResizeObserver(measure);
     observer.observe(navigation);
     return () => observer.disconnect();
-  }, []);
+  }, [showToolbar]);
 
   useEffect(() => {
     const geometry = geometryRef.current;
@@ -440,10 +474,16 @@ export function PresentationStage({
   }, [onCanvasTransformChange, transform]);
 
   return (
-    <div className={styles.root} data-presentation-active={presentationActive}>
-      <div ref={toolbarRef} className={styles.toolbar}>
-        {toolbar}
-      </div>
+    <div
+      className={styles.root}
+      data-presentation-active={presentationActive}
+      data-has-toolbar={showToolbar}
+    >
+      {showToolbar && (
+        <div ref={toolbarRef} className={styles.toolbar}>
+          {toolbar}
+        </div>
+      )}
       <div
         ref={bindStage}
         className={styles.stage}
@@ -458,6 +498,20 @@ export function PresentationStage({
         aria-label={label}
       >
         {overlay}
+        <PresentationAnnotationLayer
+          active={presentationActive}
+          pageKey={annotationPageKey ?? moveIdentity}
+          width={annotationSurface.width}
+          height={annotationSurface.height}
+          readOnly={annotationReadOnly}
+          externalStrokes={annotationStrokes}
+          {...(onAnnotationStrokesChange === undefined
+            ? {}
+            : { onVisibleStateChange: onAnnotationStrokesChange })}
+          {...(annotationToolbarTarget === undefined
+            ? {}
+            : { toolbarTarget: annotationToolbarTarget })}
+        />
         <div ref={contentRef} className={styles.content} data-page-move-plane>
           {children}
         </div>

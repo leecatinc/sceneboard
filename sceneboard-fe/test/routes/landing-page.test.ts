@@ -16,15 +16,37 @@ test('the root route is a public product landing page while authentication remai
   assert.match(loginPage, /<LoginForm \/>/);
 });
 
-test('the landing page presents the product story, authentication routes, and R2-ready demo media', () => {
+test('the landing page leads with presentations and preserves the product story and auth routes', () => {
   const landingPage = source('components/landing/LandingPage.tsx');
+  const landingStyles = source('components/landing/LandingPage.module.css');
   const languageSelect = source('components/landing/LandingLanguageSelect.tsx');
   const sessionActions = source('components/landing/LandingSessionActions.tsx');
   const demoVideo = source('components/landing/DemoVideo.tsx');
   const interfaceCatalog = source('lib/i18n/interface-catalog.ts');
 
   assert.match(landingPage, /useI18n/);
-  assert.match(landingPage, /landing\.heroTitleLead/);
+  assert.match(landingPage, /presentation\.landingTitleLead/);
+  assert.match(landingPage, /presentation\.landingPublicTitle/);
+  assert.match(landingPage, /presentation\.landingPresentTitle/);
+  assert.match(landingPage, /presentation\.landingExportTitle/);
+  assert.match(landingPage, /className=\{styles\.presentationPreview\}/);
+  assert.match(landingPage, /href="\/demo\/presentation"/);
+  assert.match(landingPage, /target="_blank"/);
+  assert.match(landingPage, /rel="noopener noreferrer"/);
+  assert.match(landingStyles, /\.hero h1\[data-locale='ko'\][\s\S]*?word-break: keep-all;/);
+  assert.match(
+    landingStyles,
+    /grid-template-columns: minmax\(0, 1\.02fr\) minmax\(540px, 0\.98fr\)/,
+  );
+  assert.match(
+    landingStyles,
+    /\.page\s*\{[^}]*height:\s*100dvh;[^}]*grid-template-rows:\s*auto minmax\(0, 1fr\);[^}]*overflow:\s*hidden;/su,
+  );
+  assert.match(landingStyles, /\.scrollArea\s*\{[^}]*min-height:\s*0;[^}]*overflow-y:\s*auto;/su);
+  assert.ok(
+    landingPage.indexOf('presentation.landingTitleLead') <
+      landingPage.indexOf('landing.heroTitleLead'),
+  );
   assert.match(landingPage, /landing\.decisionTitle/);
   assert.match(landingPage, /landing\.visualTitle/);
   assert.match(interfaceCatalog, /Apache-2\.0/);

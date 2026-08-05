@@ -11,6 +11,8 @@ const ignoredPaths = [
   '**/.next-check/**',
   '**/coverage/**',
   '**/public/downloads/**',
+  '**/.sceneboard-leases/**',
+  '**/.sceneboard-releases/**',
   'sceneboard-mcp/plugins/sceneboard/runtime/index.js',
   '**/next-env.d.ts',
 ];

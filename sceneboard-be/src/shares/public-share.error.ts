@@ -1,4 +1,4 @@
-export type PublicShareFailureStatus = 400 | 404 | 405 | 416 | 429 | 503;
+export type PublicShareFailureStatus = 400 | 404 | 405 | 409 | 416 | 429 | 503;
 
 export class PublicShareHttpError extends Error {
   constructor(

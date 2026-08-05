@@ -3,6 +3,7 @@ import type { ArtifactBridgeMessageV1 } from './envelope.js';
 const CHARGED_AUTHORED_TYPES = new Set<ArtifactBridgeMessageV1['type']>([
   'artifact.ready',
   'artifact.resize.request',
+  'artifact.presentation.page-change',
   'artifact.selection.change',
   'artifact.user-action',
   'artifact.capability.request',

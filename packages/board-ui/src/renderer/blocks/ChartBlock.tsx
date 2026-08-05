@@ -4,6 +4,7 @@ import type { RendererComponentV1 } from '../renderer-types.js';
 import { buildChartGeometryV1 } from './chart-geometry.js';
 
 const palette = ['#02B391', '#328FDD', '#F9A24E', '#EB5757', '#6D5BD0', '#4F6D7A'];
+const projectWideX = (value: number): number => 10 + value * 2.2;
 
 const sourceLabel = (node: ChartNodeV1, value: string | number): string =>
   node.xAxis.valueType === 'datetime' ? new Date(String(value)).toLocaleString() : String(value);
@@ -41,18 +42,18 @@ const visual = (node: ChartNodeV1): ReactNode => {
   return (
     <svg
       className="scene-chart"
-      viewBox="0 0 120 110"
+      viewBox="0 0 240 110"
       role="img"
       aria-label={`${node.chartType} chart visual`}
     >
       <line x1="10" y1="5" x2="10" y2="100" className="scene-axis" />
-      <line x1="10" y1="100" x2="115" y2="100" className="scene-axis" />
+      <line x1="10" y1="100" x2="235" y2="100" className="scene-axis" />
       {node.series.map((series, seriesIndex) => {
         const points = geometry.points.filter((point) => point.seriesId === series.id);
         const visible = points.filter(
           (point) => point.y !== null && point.y >= 0 && point.y <= 100,
         );
-        const coordinates = visible.map((point) => `${10 + point.x},${point.y}`).join(' ');
+        const coordinates = visible.map((point) => `${projectWideX(point.x)},${point.y}`).join(' ');
         const color = palette[seriesIndex % palette.length];
         if (node.chartType === 'bar')
           return (
@@ -60,9 +61,9 @@ const visual = (node: ChartNodeV1): ReactNode => {
               {visible.map((point, index) => (
                 <rect
                   key={index}
-                  x={8 + point.x}
+                  x={projectWideX(point.x) - 4}
                   y={point.y ?? 100}
-                  width="4"
+                  width="8"
                   height={100 - (point.y ?? 100)}
                   fill={color}
                 />
@@ -73,7 +74,13 @@ const visual = (node: ChartNodeV1): ReactNode => {
           return (
             <g key={series.id}>
               {visible.map((point, index) => (
-                <circle key={index} cx={10 + point.x} cy={point.y ?? 100} r="2.4" fill={color} />
+                <circle
+                  key={index}
+                  cx={projectWideX(point.x)}
+                  cy={point.y ?? 100}
+                  r="2.4"
+                  fill={color}
+                />
               ))}
             </g>
           );
@@ -81,7 +88,7 @@ const visual = (node: ChartNodeV1): ReactNode => {
           return (
             <polygon
               key={series.id}
-              points={`10,100 ${coordinates} 110,100`}
+              points={`10,100 ${coordinates} 230,100`}
               fill={color}
               opacity="0.22"
               stroke={color}
@@ -98,7 +105,7 @@ const visual = (node: ChartNodeV1): ReactNode => {
         );
       })}
       {node.xAxis.label && (
-        <text x="62" y="109" textAnchor="middle" className="scene-axis-label">
+        <text x="122" y="109" textAnchor="middle" className="scene-axis-label">
           {node.xAxis.label}
         </text>
       )}

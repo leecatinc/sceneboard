@@ -21,11 +21,11 @@ test('desktop top bar owns page and revision navigation while presentation moves
   assert.match(boardClient, /desktopBoardIdentity/u);
   assert.match(boardClient, /pageNavigation=\{pageNavigationControls\}/u);
   assert.match(boardClient, /revisionControls=\{desktopRevisionControls\}/u);
-  assert.match(boardClient, /viewControls=\{sidebarViewControls\}/u);
   assert.match(boardClient, /presentationControl=\{presentationRailControl\}/u);
-  assert.match(rail, /viewControls: ReactNode/u);
+  assert.doesNotMatch(boardClient, /sidebarViewControls/u);
+  assert.doesNotMatch(rail, /viewControls: ReactNode/u);
   assert.match(rail, /presentationControl: ReactNode/u);
-  assert.match(rail, /t\('board\.viewMode'\)/u);
+  assert.doesNotMatch(rail, /id: 'activity'/u);
   assert.doesNotMatch(rail, /historyControls: ReactNode/u);
   assert.match(presentation, /variant\?: 'default' \| 'rail'/u);
   assert.match(presentation, /aria-label=\{label\}/u);

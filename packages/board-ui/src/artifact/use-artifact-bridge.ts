@@ -67,10 +67,13 @@ export const useArtifactBridgeV1 = (input: ArtifactHostInputV1): ArtifactBridgeV
   const [localStopEpoch, setLocalStopEpoch] = useState(0);
   const cleanupRef = useRef<(() => void) | null>(null);
   const sendNavigationControlRef = useRef<((enabled: boolean) => void) | null>(null);
+  const sendPresentationControlRef = useRef<((active: boolean) => void) | null>(null);
   const onNavigationIntentRef = useRef(input.onNavigationIntent);
+  const onPresentationPageChangeRef = useRef(input.onPresentationPageChange);
   const onResizeRequestRef = useRef(input.onResizeRequest);
   const viewModeRef = useRef(input.viewMode ?? 'fit-page');
   onNavigationIntentRef.current = input.onNavigationIntent;
+  onPresentationPageChangeRef.current = input.onPresentationPageChange;
   onResizeRequestRef.current = input.onResizeRequest;
   viewModeRef.current = input.viewMode ?? 'fit-page';
 
@@ -87,6 +90,11 @@ export const useArtifactBridgeV1 = (input: ArtifactHostInputV1): ArtifactBridgeV
     if (phase !== 'active') return;
     sendNavigationControlRef.current?.(input.viewMode === 'actual');
   }, [input.viewMode, phase]);
+
+  useEffect(() => {
+    if (phase !== 'active' || input.presentationActive === undefined) return;
+    sendPresentationControlRef.current?.(input.presentationActive);
+  }, [input.presentationActive, phase]);
 
   useEffect(() => {
     if (localStopEpoch > 0) return;
@@ -163,6 +171,7 @@ export const useArtifactBridgeV1 = (input: ArtifactHostInputV1): ArtifactBridgeV
       port?.close();
       frame?.remove();
       sendNavigationControlRef.current = null;
+      sendPresentationControlRef.current = null;
       setContentSize(null);
       releasePackage();
     };
@@ -304,6 +313,14 @@ export const useArtifactBridgeV1 = (input: ArtifactHostInputV1): ArtifactBridgeV
             onResizeRequestRef.current?.(message.value);
             return;
           }
+          if (message.type === 'artifact.presentation.page-change') {
+            onPresentationPageChangeRef.current?.({
+              hostInstanceId: input.hostInstanceId,
+              incarnationKey: input.incarnationKey,
+              ...message.value,
+            });
+            return;
+          }
           if (
             message.type === 'artifact.navigation.wheel' ||
             message.type === 'artifact.navigation.pan.start' ||
@@ -361,6 +378,10 @@ export const useArtifactBridgeV1 = (input: ArtifactHostInputV1): ArtifactBridgeV
       sendNavigationControlRef.current = (enabled) => {
         if (endpoint === null || port === null || stopped) return;
         port.postMessage(endpoint.send({ type: 'host.navigation.set', enabled }));
+      };
+      sendPresentationControlRef.current = (active) => {
+        if (endpoint === null || port === null || stopped) return;
+        port.postMessage(endpoint.send({ type: 'host.presentation', active }));
       };
       await waitFor('runner.ready', 5_000);
       assertRunning();

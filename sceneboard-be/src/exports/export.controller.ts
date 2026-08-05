@@ -223,16 +223,10 @@ export class ExportControllerV1 {
         assertDeliveryOwnership();
         for (const [name, value] of Object.entries(headers)) response.setHeader(name, value);
         response.status(200);
-        await writeResponse(
-          request,
-          response,
-          bytes,
-          deliverySignal,
-          () => {
-            responseFinished = true;
-            return lease?.completeResponse() ?? Promise.resolve();
-          },
-        );
+        await writeResponse(request, response, bytes, deliverySignal, () => {
+          responseFinished = true;
+          return lease?.completeResponse() ?? Promise.resolve();
+        });
         responseCommitted = true;
         lease = undefined;
       } finally {

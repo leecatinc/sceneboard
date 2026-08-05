@@ -87,6 +87,14 @@ Document V3 writing likewise remains disabled until
 `BOARD_DOCUMENT_V3_WRITE_ENABLED=true` is set after migration 026 certification; V3-capable
 readers remain available while the writer flag is false.
 
+The signed-out landing's presentation sample uses the server-only
+`SCENEBOARD_PRESENTATION_DEMO_URL` value. Set it to the full, password-free public locator emitted
+by SceneBoard's share UI, for example
+`https://sceneboard.leecat.co.kr/s/share_<22-character-id>_g<generation>`. The frontend rejects raw
+secret-token URLs, non-HTTPS schemes, unapproved origins, query strings, fragments, credentials,
+and alternate paths. Keep the share active; public shares have no scheduled publication expiry and
+remain available until an owner revokes the share, rotates its link, or archives the board.
+
 Board document clients negotiate the checkpoint shape with
 `documentSchemaVersion=1|2|3` on board GET, history, mutation/restore, capabilities,
 and SSE routes. Version 3 adds the document-level `format` value

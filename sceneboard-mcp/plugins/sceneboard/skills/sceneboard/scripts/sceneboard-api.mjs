@@ -101,6 +101,13 @@ const readStdinJson = async () => {
 const pair = async () => {
   const input = validatePairInput(await readStdinJson());
   const config = await resolveApiConfig();
+  if (config.credentialMode === 'api_key') {
+    throw new SceneBoardApiError(
+      'BOARD_API_CONFIG_INVALID',
+      'SceneBoard pairing is unavailable in API-key mode',
+      { details: { recovery: 'use_api_key_set_command' } },
+    );
+  }
   const release = await acquirePairingLock(config);
   const proof = createPairingProof();
   try {

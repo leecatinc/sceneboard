@@ -11,6 +11,8 @@ import {
 } from '../../lib/api/board-export-api';
 import { useI18n } from '../i18n/I18nProvider';
 import type { OwnerAdminCloseRegistration } from './OwnerAdminControls';
+import { OwnerAdminActionIcon } from './OwnerAdminActionIcon';
+import { PresentationFormatControls } from './PresentationFormatControls';
 import styles from './BoardExportControl.module.css';
 
 type ExportPhaseV1 = 'idle' | 'confirming' | 'generating' | 'completed' | 'failed' | 'retry';
@@ -30,21 +32,7 @@ type ExportTargetV1 = Readonly<{
   boardTitle: string;
   revisionId: string;
   revisionNumber: number;
-  documentFormat: PresentationFormatV1;
 }>;
-
-const formatLabelKey = (format: PresentationFormatV1) => {
-  switch (format) {
-    case 'wide_16_9':
-      return 'presentation.formatWide' as const;
-    case 'standard_4_3':
-      return 'presentation.formatStandard' as const;
-    case 'a4_portrait':
-      return 'presentation.formatA4Portrait' as const;
-    case 'a4_landscape':
-      return 'presentation.formatA4Landscape' as const;
-  }
-};
 
 const failureLabelKey = (code: ExportFailureCodeV1) => {
   if (code === 'EXPORT_REQUIRED_CONTENT_UNSUPPORTED')
@@ -68,6 +56,8 @@ export function BoardExportControl({
   revisionId,
   revisionNumber,
   documentFormat,
+  canEditDocumentFormat,
+  onDocumentFormatChange,
   enabled,
   routeKey,
   forcedCloseEpoch,
@@ -79,6 +69,8 @@ export function BoardExportControl({
   revisionId: string;
   revisionNumber: number;
   documentFormat: PresentationFormatV1;
+  canEditDocumentFormat: boolean;
+  onDocumentFormatChange: (format: PresentationFormatV1) => Promise<boolean>;
   enabled: boolean;
   routeKey: string;
   forcedCloseEpoch: number;
@@ -126,6 +118,11 @@ export function BoardExportControl({
   useEffect(() => close, [close, routeKey]);
   useEffect(() => registerClose(close), [close, registerClose]);
   useEffect(() => close(), [close, forcedCloseEpoch]);
+
+  useEffect(() => {
+    if (!open || (state.phase !== 'confirming' && state.phase !== 'idle')) return;
+    setTarget({ boardId, boardTitle, revisionId, revisionNumber });
+  }, [boardId, boardTitle, documentFormat, open, revisionId, revisionNumber, state.phase]);
 
   const begin = useCallback(
     async (retry: boolean) => {
@@ -196,21 +193,22 @@ export function BoardExportControl({
       <button
         ref={triggerRef}
         type="button"
-        className="button secondary"
+        className="button secondary board-owner-action-button"
+        aria-label={t('presentation.exportAction')}
+        title={t('presentation.exportAction')}
         onClick={() => {
           setTarget({
             boardId,
             boardTitle,
             revisionId,
             revisionNumber,
-            documentFormat,
           });
           requestFormatRef.current = null;
           setState({ phase: 'confirming', failure: null });
           setOpen(true);
         }}
       >
-        {t('presentation.exportAction')}
+        <OwnerAdminActionIcon kind="export" />
       </button>
       {open && target !== null && (
         <dialog
@@ -221,6 +219,9 @@ export function BoardExportControl({
           onCancel={(event) => {
             event.preventDefault();
             close();
+          }}
+          onPointerDown={(event) => {
+            if (event.target === event.currentTarget) close();
           }}
         >
           <section className={styles.panel}>
@@ -241,11 +242,12 @@ export function BoardExportControl({
                   <dt>{t('presentation.exportRevision')}</dt>
                   <dd>{t('boards.revision', { number: target.revisionNumber })}</dd>
                 </div>
-                <div>
-                  <dt>{t('presentation.exportDocumentFormat')}</dt>
-                  <dd>{t(formatLabelKey(target.documentFormat))}</dd>
-                </div>
               </dl>
+              <PresentationFormatControls
+                value={documentFormat}
+                canEdit={canEditDocumentFormat && !busy}
+                onChange={onDocumentFormatChange}
+              />
               <fieldset
                 className={styles.formats}
                 disabled={state.phase !== 'confirming' && state.phase !== 'idle'}

@@ -212,6 +212,10 @@ const createInner = async (
       sendParent(incoming);
       return;
     }
+    if (incoming.type === 'artifact.presentation.page-change') {
+      sendParent(incoming);
+      return;
+    }
     if (isNavigationIntent(incoming) && admitNavigation(incoming)) {
       sendParent(incoming);
       return;
@@ -290,6 +294,7 @@ const handleParentMessage = async (event: MessageEvent<unknown>): Promise<void> 
     message.type === 'host.data' ||
     message.type === 'host.viewport' ||
     message.type === 'host.selection' ||
+    message.type === 'host.presentation' ||
     message.type === 'host.capability.result'
   ) {
     if (lifecycle.state !== 'active' || innerEndpoint === null || innerPort === null)

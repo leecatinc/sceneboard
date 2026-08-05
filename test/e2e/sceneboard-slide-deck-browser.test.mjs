@@ -98,9 +98,13 @@ test('slide-deck initializes without ResizeObserver and retains controls and hos
     await page.evaluate(() => {
       window.ResizeObserver = undefined;
       window.__sceneBoardResizeRequests = [];
+      window.__sceneBoardPageChanges = [];
       window.SceneBoardArtifact = {
         requestResize(width, height) {
           window.__sceneBoardResizeRequests.push([width, height]);
+        },
+        changePresentationPage(value) {
+          window.__sceneBoardPageChanges.push(value);
         },
       };
     });
@@ -123,11 +127,19 @@ test('slide-deck initializes without ResizeObserver and retains controls and hos
       true,
     );
     assert.deepEqual(await page.evaluate(() => window.__sceneBoardResizeRequests), [[1920, 1080]]);
+    assert.deepEqual(await page.evaluate(() => window.__sceneBoardPageChanges), [
+      { pageId: 'opening', pageIndex: 0, pageCount: 7 },
+    ]);
 
     await page.locator('[data-deck-next]').click();
     assert.equal(await page.locator('[data-deck-current]').textContent(), '2 / 7');
     assert.equal(await page.locator('[data-deck-progress]').getAttribute('aria-valuenow'), '2');
     assert.equal(await page.locator('[data-deck-slide]:visible').count(), 1);
+    assert.deepEqual((await page.evaluate(() => window.__sceneBoardPageChanges)).at(-1), {
+      pageId: 'problem',
+      pageIndex: 1,
+      pageCount: 7,
+    });
     await context.close();
   } finally {
     await browser.close();

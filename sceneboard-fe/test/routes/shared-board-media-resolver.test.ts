@@ -139,3 +139,17 @@ test('shared resolver denies cross-tuple, wrong-page, absent, duplicate, and abs
     );
   }
 });
+
+test('shared resolver fails closed for artifact inputs', () => {
+  assert.deepEqual(
+    createPublicShareMediaResolverV1(ready)({
+      boardId: 'board_01' as never,
+      revisionId: 'revision_01' as never,
+      pageId: 'page_01' as never,
+      artifact: {} as never,
+      path: 'preview.png',
+      sha256: '0'.repeat(64),
+    }),
+    { error: 'unavailable' },
+  );
+});

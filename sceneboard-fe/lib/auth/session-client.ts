@@ -30,6 +30,10 @@ export class AuthSessionClient {
     return this.coordinator.authenticate('login', { email, password });
   }
 
+  loginWithGoogle(idToken: string) {
+    return this.coordinator.authenticate('google', { idToken });
+  }
+
   async changePassword(
     currentPassword: string,
     newPassword: string,

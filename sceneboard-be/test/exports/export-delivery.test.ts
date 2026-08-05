@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
 import { EventEmitter, getEventListeners, once as onceEvent } from 'node:events';
 import { access } from 'node:fs/promises';
-import { test } from 'node:test';
+import { after, test } from 'node:test';
 import { Worker } from 'node:worker_threads';
+
+const exportDeliveryDeadlineKeepAlive = setInterval(() => undefined, 1_000);
+after(() => clearInterval(exportDeliveryDeadlineKeepAlive));
 
 import {
   presentationFormatDescriptorV1,
@@ -110,8 +113,7 @@ const aggregateBoundaryLeaseV1 = (): Readonly<{
 }> => {
   const source = Buffer.alloc(EXPORT_RENDERED_PAGE_MAX_BYTES_V1);
   PNG.copy(source, 0, 0, 8);
-  const pageCount =
-    EXPORT_RENDERED_PAGES_TOTAL_MAX_BYTES_V1 / EXPORT_RENDERED_PAGE_MAX_BYTES_V1;
+  const pageCount = EXPORT_RENDERED_PAGES_TOTAL_MAX_BYTES_V1 / EXPORT_RENDERED_PAGE_MAX_BYTES_V1;
   assert.equal(Number.isInteger(pageCount), true);
   return {
     source,
@@ -191,8 +193,7 @@ test('PDF encoder uses the shared sandboxed production Chromium launch options',
         boardTitle: lease.boardTitle,
         deadlineMs: Date.now() + 5_000,
       }),
-      (error: unknown) =>
-        error instanceof ExportFailureV1 && error.code === 'EXPORT_ENCODE_FAILED',
+      (error: unknown) => error instanceof ExportFailureV1 && error.code === 'EXPORT_ENCODE_FAILED',
     );
     assert.ok(launchOptions !== undefined);
     assert.deepEqual(Object.keys(launchOptions).sort(), [
@@ -831,9 +832,7 @@ test('real PDF canonicalization worker handoff is abortable without detaching th
       canonicalizationWorker = observedWorkerV1('../../src/exports/pdf-export.encoder.ts', {
         sceneboardPdfWorkerV1: true,
       });
-      const terminate = canonicalizationWorker.worker.terminate.bind(
-        canonicalizationWorker.worker,
-      );
+      const terminate = canonicalizationWorker.worker.terminate.bind(canonicalizationWorker.worker);
       canonicalizationWorker.worker.terminate = () => {
         canonicalizationTerminations += 1;
         return terminate();
@@ -1806,8 +1805,7 @@ test('HTTP export observes a failed audit rejection that arrives after cleanup',
   await withoutUnhandledRejections(async () => {
     await assert.rejects(
       controller.export(BOARD_ID, requestV1() as never, new ResponseV1() as never),
-      (error: unknown) =>
-        error instanceof ExportFailureV1 && error.code === 'EXPORT_ENCODE_FAILED',
+      (error: unknown) => error instanceof ExportFailureV1 && error.code === 'EXPORT_ENCODE_FAILED',
     );
     assert.notEqual(rejectFailedAudit, undefined);
     rejectFailedAudit?.(new Error('fixture late failed audit rejection'));

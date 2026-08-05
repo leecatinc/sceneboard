@@ -14,7 +14,7 @@ import { createNpmCertificationEnvironment } from './lib/certification/process-l
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const inventoryPath = resolve(root, 'test/certification/dependency-inventory.v1.json');
-const legacyMit = new Set(['busboy', 'khroma', 'seq-queue', 'streamsearch']);
+const legacyMit = new Set(['busboy', 'khroma', 'limiter', 'seq-queue', 'streamsearch']);
 const supportedClassifications = ['permissive', 'content-notice', 'reciprocal'];
 const packageNamePattern = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/u;
 const exactVersionPattern = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?$/u;

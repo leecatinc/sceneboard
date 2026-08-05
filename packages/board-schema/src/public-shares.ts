@@ -27,7 +27,11 @@ const canonicalBase64Url32 = (value: string): boolean => {
 
 export const PublicShareTokenSchemaV1 = z
   .string()
-  .refine(canonicalBase64Url32, 'share token must be canonical unpadded base64url');
+  .refine(
+    (value) =>
+      canonicalBase64Url32(value) || /^share_[A-Za-z0-9_-]{22}_g[1-9][0-9]{0,15}$/u.test(value),
+    'share token must be a canonical secret token or persistent share locator',
+  );
 export const PublicContextIdSchemaV1 = z
   .string()
   .refine(canonicalBase64Url32, 'context ID must be canonical unpadded base64url');

@@ -95,3 +95,8 @@ test('derives three full-width purpose-separated keys with context and day bound
   assert.deepEqual(first.replayFamilyKey, nextDay.replayFamilyKey);
   assert.deepEqual(first.viewerDedupeKey, nextDay.viewerDedupeKey);
 });
+
+test('analytics contexts use the full-width public projection context identity', () => {
+  const identities = new ViewerIdentityService(crypto());
+  assert.match(identities.newContextId(), /^[A-Za-z0-9_-]{43}$/u);
+});

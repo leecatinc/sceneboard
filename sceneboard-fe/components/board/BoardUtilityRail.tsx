@@ -7,26 +7,24 @@ import { useI18n } from '../i18n/I18nProvider';
 import { deriveUtilityRailBadgesV1 } from '../../lib/board/utility-rail-badges';
 import styles from './BoardUtilityRail.module.css';
 
-type RailPanel = 'activity' | 'ai' | 'interactions' | 'artifacts' | 'access';
+type RailPanel = 'ai' | 'interactions' | 'artifacts';
 
 type PanelDef = {
   readonly id: RailPanel;
-  readonly labelKey:
-    | 'board.status'
-    | 'board.aiPresence'
-    | 'board.interactions'
-    | 'board.artifacts'
-    | 'presentation.boardControls';
+  readonly labelKey: 'board.aiPresence' | 'board.interactions' | 'board.artifacts';
 };
 
-// The access panel is only surfaced when owner-management controls are provided.
-const ACCESS_PANEL: PanelDef = { id: 'access', labelKey: 'presentation.boardControls' };
+// Count-only summary panels stay implemented but hidden until they provide actionable workflows.
+const SUMMARY_PANELS_ENABLED = false;
 
 const BASE_PANELS: readonly PanelDef[] = [
-  { id: 'activity', labelKey: 'board.status' },
-  { id: 'ai', labelKey: 'board.aiPresence' },
-  { id: 'interactions', labelKey: 'board.interactions' },
-  { id: 'artifacts', labelKey: 'board.artifacts' },
+  ...(SUMMARY_PANELS_ENABLED
+    ? ([
+        { id: 'ai', labelKey: 'board.aiPresence' },
+        { id: 'interactions', labelKey: 'board.interactions' },
+        { id: 'artifacts', labelKey: 'board.artifacts' },
+      ] satisfies readonly PanelDef[])
+    : []),
 ];
 
 export function BoardUtilityRail({
@@ -34,27 +32,22 @@ export function BoardUtilityRail({
   presence,
   onStopRendering,
   presentationControl,
-  viewControls,
   ownerAdmin,
 }: {
   snapshot: BoardSnapshot;
   presence: readonly PresenceSummaryV1[];
   onStopRendering: () => void;
   presentationControl: ReactNode;
-  viewControls: ReactNode;
   ownerAdmin?: ReactNode;
 }) {
   const { t } = useI18n();
   const [open, setOpen] = useState<null | RailPanel>(null);
   const railRef = useRef<HTMLElement | null>(null);
-  // The access panel is added conditionally with owner rights, so keep a stable trigger ref slot for every panel.
-  const panels: readonly PanelDef[] = ownerAdmin ? [...BASE_PANELS, ACCESS_PANEL] : BASE_PANELS;
+  const panels = BASE_PANELS;
   const triggerRefs = useRef<Record<RailPanel, HTMLButtonElement | null>>({
-    activity: null,
     ai: null,
     interactions: null,
     artifacts: null,
-    access: null,
   });
 
   const openCount = snapshot.hitl.filter((item) => item.state === 'open').length;
@@ -107,11 +100,6 @@ export function BoardUtilityRail({
     };
   }, [closePanel, open]);
 
-  // If owner rights vanish (downgrade/disconnect) while the access panel is open, close it so an empty flyout never lingers.
-  useEffect(() => {
-    if (open === 'access' && !ownerAdmin) setOpen(null);
-  }, [open, ownerAdmin]);
-
   const badgeFor = (panel: RailPanel): number | null => {
     if (panel === 'ai') return badges.ai;
     if (panel === 'interactions') return badges.interactions;
@@ -120,14 +108,6 @@ export function BoardUtilityRail({
   };
 
   const flyoutContent = (panel: RailPanel) => {
-    if (panel === 'activity') {
-      return (
-        <section className={styles.section}>
-          <h4>{t('board.viewMode')}</h4>
-          <div className={styles.viewControls}>{viewControls}</div>
-        </section>
-      );
-    }
     if (panel === 'ai') {
       return (
         <div className={styles.metric}>
@@ -143,10 +123,6 @@ export function BoardUtilityRail({
           <span className={styles.metricValue}>{openCount}</span>
         </div>
       );
-    }
-    // The access flyout exposes the owner-only share/member and destructive management controls.
-    if (panel === 'access') {
-      return <div className={styles.management}>{ownerAdmin}</div>;
     }
     return (
       <>
@@ -167,6 +143,7 @@ export function BoardUtilityRail({
     <aside className={styles.rail} ref={railRef} aria-label={t('board.status')}>
       <div className={styles.presentationAction}>{presentationControl}</div>
       <div className={styles.separator} aria-hidden="true" />
+      {ownerAdmin !== undefined && <div className={styles.ownerActions}>{ownerAdmin}</div>}
       {panels.map((panel) => {
         const isOpen = open === panel.id;
         const badge = badgeFor(panel.id);
@@ -216,18 +193,6 @@ export function BoardUtilityRail({
 }
 
 function PanelIcon({ panel }: { panel: RailPanel }) {
-  if (panel === 'activity') {
-    return (
-      <svg className={styles.icon} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path
-          d="M4 6h16M4 12h16M4 18h10"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-        />
-      </svg>
-    );
-  }
   if (panel === 'ai') {
     return (
       <svg className={styles.icon} viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -247,20 +212,6 @@ function PanelIcon({ panel }: { panel: RailPanel }) {
           d="M4 5h16v10H8l-4 4V5z"
           stroke="currentColor"
           strokeWidth="1.8"
-          strokeLinejoin="round"
-        />
-      </svg>
-    );
-  }
-  if (panel === 'access') {
-    return (
-      <svg className={styles.icon} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <circle cx="9" cy="10" r="3.2" stroke="currentColor" strokeWidth="1.8" />
-        <path
-          d="M11.6 12.2L19 19.6M16 16.6l2-2M18.4 18.8l1.8-1.8"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
           strokeLinejoin="round"
         />
       </svg>

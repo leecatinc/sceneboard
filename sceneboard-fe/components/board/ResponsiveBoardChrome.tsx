@@ -21,6 +21,7 @@ export function ResponsiveBoardChrome({
   slots,
   routeKey,
   presentationActive,
+  presentationTopBar,
   notice,
   surfaceClassName,
   utilityRail,
@@ -32,6 +33,7 @@ export function ResponsiveBoardChrome({
   slots: MobileBoardDrawerSlotsV1;
   routeKey: string;
   presentationActive: boolean;
+  presentationTopBar: ReactNode;
   notice: ReactNode;
   surfaceClassName: string;
   utilityRail: ReactNode;
@@ -46,7 +48,9 @@ export function ResponsiveBoardChrome({
   if (mobile) {
     return (
       <>
-        {!presentationActive && (
+        {presentationActive ? (
+          presentationTopBar
+        ) : (
           <MobileBoardDrawer slots={slots} routeKey={routeKey} backgroundRef={backgroundRef} />
         )}
         <div key="mobile-board-background" ref={backgroundRef} className="mobile-board-background">
@@ -61,7 +65,9 @@ export function ResponsiveBoardChrome({
 
   return (
     <>
-      {!presentationActive && (
+      {presentationActive ? (
+        presentationTopBar
+      ) : (
         <BoardTopBar
           boardIdentity={desktopBoardIdentity}
           mediaAuthoring={slots.mediaAuthoring}

@@ -140,11 +140,8 @@ test('does not traverse cyclic or accessor-bearing unknown errors', () => {
     },
   });
 
-  const response = capture(
-    exception,
-    { url: '/api/v1/pairings/claim' },
-    {},
-    (bytes) => records.push(bytes),
+  const response = capture(exception, { url: '/api/v1/pairings/claim' }, {}, (bytes) =>
+    records.push(bytes),
   );
 
   assert.equal(response.status, 500);

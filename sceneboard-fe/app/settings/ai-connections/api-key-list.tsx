@@ -14,12 +14,19 @@ import {
 } from '../../../lib/api/account-api-key-api';
 import type { CurrentGenerationBindingV1 } from '../../../lib/auth/renewal-singleflight';
 import { ApiKeyCreateSheet } from './api-key-create-sheet';
+import { buildApiKeyMcpJsonExample } from './api-key-mcp-example';
 import styles from './api-key-management.module.css';
+import groupStyles from './connection-method-group.module.css';
 
 type DisplayedSecret = {
   value: string;
   generationBinding: CurrentGenerationBindingV1;
 };
+
+type SecretSetupTab = 'mcp' | 'environment';
+
+const POSIX_ENV_EXAMPLE = `export SCENEBOARD_API_KEY='<발급받은 키>'`;
+const POWERSHELL_ENV_EXAMPLE = `$env:SCENEBOARD_API_KEY='<발급받은 키>'`;
 
 const uniqueItems = (items: AccountApiKeyMetadata[]): AccountApiKeyMetadata[] => {
   const seen = new Set<string>();
@@ -51,13 +58,17 @@ export function ApiKeyList() {
   const currentPath = pathname ?? '/settings/ai-connections';
   const [items, setItems] = useState<AccountApiKeyMetadata[]>([]);
   const [secret, setSecret] = useState<DisplayedSecret | null>(null);
-  const [copyStatus, setCopyStatus] = useState<'copied' | 'failed' | null>(null);
+  const [guideItem, setGuideItem] = useState<AccountApiKeyMetadata | null>(null);
+  const [copyStatus, setCopyStatus] = useState<'failed' | null>(null);
+  const [secretSetupTab, setSecretSetupTab] = useState<SecretSetupTab>('mcp');
   const [busy, setBusy] = useState(false);
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [continuationState, setContinuationState] = useState<'idle' | 'loading' | 'error'>('idle');
+  const mcpJsonExample = buildApiKeyMcpJsonExample(secret?.value ?? null);
   const trigger = useRef<HTMLButtonElement>(null);
   const dialog = useRef<HTMLDialogElement>(null);
+  const dialogReturnFocus = useRef<HTMLButtonElement | null>(null);
   const api = useRef<AccountApiKeyApi | null>(null);
   const requestOwnership = useRef(new AccountApiKeyRequestOwnership());
   const staleRecovery = useRef(new AccountApiKeyStaleRecovery());
@@ -66,6 +77,11 @@ export function ApiKeyList() {
   const mounted = useRef(true);
   const viewEpoch = useRef(0);
   const clearSecret = useCallback(() => setSecret(null), []);
+  const clearSetupModal = useCallback(() => {
+    setSecret(null);
+    setGuideItem(null);
+    setCopyStatus(null);
+  }, []);
   const scrubView = useCallback(() => {
     requestOwnership.current.abortAll();
     generationUnsubscribe.current?.();
@@ -74,6 +90,7 @@ export function ApiKeyList() {
     setItems([]);
     setNextCursor(null);
     setSecret(null);
+    setGuideItem(null);
     setBusy(false);
     setContinuationState('idle');
     setCopyStatus(null);
@@ -210,34 +227,17 @@ export function ApiKeyList() {
       generationUnsubscribe.current?.();
       generationUnsubscribe.current = null;
       viewGenerationBinding.current = null;
-      clearSecret();
+      clearSetupModal();
     };
-  }, [clearSecret, currentPath, loadPage, recoverStaleSession, scrubView]);
+  }, [clearSetupModal, currentPath, loadPage, recoverStaleSession, scrubView]);
 
-  useEffect(() => clearSecret, [clearSecret, pathname]);
-
-  useEffect(() => {
-    if (secret === null) return;
-    const deadline = Date.now() + 60_000;
-    const expire = () => {
-      if (Date.now() >= deadline) clearSecret();
-    };
-    const timeout = window.setTimeout(expire, 60_000);
-    const onVisibilityChange = () => {
-      if (document.visibilityState === 'visible') expire();
-    };
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    return () => {
-      window.clearTimeout(timeout);
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-    };
-  }, [clearSecret, secret]);
+  useEffect(() => clearSetupModal, [clearSetupModal, pathname]);
 
   useEffect(() => {
-    if (secret === null) return;
+    if (secret === null && guideItem === null) return;
     const currentDialog = dialog.current;
     if (currentDialog === null) return;
-    const focusTarget = trigger.current;
+    const focusTarget = dialogReturnFocus.current ?? trigger.current;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     currentDialog.showModal();
@@ -246,7 +246,7 @@ export function ApiKeyList() {
       if (currentDialog.open) currentDialog.close();
       focusTarget?.focus();
     };
-  }, [secret]);
+  }, [guideItem, secret]);
 
   useEffect(() => {
     if (copyStatus === null) return;
@@ -255,7 +255,10 @@ export function ApiKeyList() {
   }, [copyStatus]);
 
   return (
-    <section className={`section ${styles.section}`} aria-labelledby="api-key-title">
+    <section
+      className={`section ${groupStyles.group} ${styles.section}`}
+      aria-labelledby="api-key-title"
+    >
       <div className="section-head">
         <div>
           <h2 id="api-key-title">{t('apiKey.title')}</h2>
@@ -269,7 +272,8 @@ export function ApiKeyList() {
           const client = api.current;
           const binding = viewGenerationBinding.current;
           if (client === null || binding === null) return;
-          clearSecret();
+          clearSetupModal();
+          dialogReturnFocus.current = trigger.current;
           const controller = requestOwnership.current.begin('mutation', () => {
             if (mounted.current) setBusy(false);
           });
@@ -293,18 +297,22 @@ export function ApiKeyList() {
                 value: result.value.apiKey,
                 generationBinding: result.value.generationBinding,
               });
+              setGuideItem(null);
+              setSecretSetupTab('mcp');
               setState('ready');
             } else {
-              clearSecret();
+              clearSetupModal();
               setState('error');
             }
           });
         }}
       />
       <div className={styles.list} aria-live="polite" aria-busy={state === 'loading'}>
-        {state === 'loading' && <p className="muted">{t('apiKey.loading')}</p>}
+        {state === 'loading' && (
+          <p className={`${styles.statePanel} muted`}>{t('apiKey.loading')}</p>
+        )}
         {state === 'error' && (
-          <div className={styles.error} role="alert">
+          <div className={styles.errorPanel} role="alert">
             <p>{t('apiKey.error')}</p>
             <button
               type="button"
@@ -318,17 +326,34 @@ export function ApiKeyList() {
             </button>
           </div>
         )}
-        {state === 'ready' && items.length === 0 && <p className="muted">{t('apiKey.empty')}</p>}
+        {state === 'ready' && items.length === 0 && (
+          <p className={`${styles.statePanel} muted`}>{t('apiKey.empty')}</p>
+        )}
         {items.map((item) => (
-          <article className="item" key={item.apiKeyId}>
-            <strong>{item.name}</strong>
-            <span className="muted">
-              {item.prefix} · {t(`apiKey.status.${item.status}`)}
-            </span>
+          <article className={styles.keyItem} key={item.apiKeyId}>
             <button
               type="button"
-              className="button secondary"
-              disabled={busy || item.status === 'revoked'}
+              className={styles.keyGuideButton}
+              onClick={(event) => {
+                clearSecret();
+                setCopyStatus(null);
+                setSecretSetupTab('mcp');
+                setGuideItem(item);
+                dialogReturnFocus.current = event.currentTarget;
+              }}
+            >
+              <span className={styles.keyIdentity}>
+                <strong>{item.name}</strong>
+                <span className="muted">{item.prefix}</span>
+              </span>
+              <span className={styles.status} data-status={item.status}>
+                {t(`apiKey.status.${item.status}`)}
+              </span>
+            </button>
+            <button
+              type="button"
+              className={`button secondary ${styles.revokeButton}`}
+              disabled={busy}
               onClick={() => {
                 if (!window.confirm(t('apiKey.revokeConfirm'))) return;
                 const client = api.current;
@@ -352,9 +377,7 @@ export function ApiKeyList() {
                   setBusy(false);
                   if (result?.kind === 'ok')
                     setItems((current) =>
-                      current.map((value) =>
-                        value.apiKeyId === item.apiKeyId ? { ...value, status: 'revoked' } : value,
-                      ),
+                      current.filter((value) => value.apiKeyId !== item.apiKeyId),
                     );
                   else {
                     clearSecret();
@@ -370,7 +393,7 @@ export function ApiKeyList() {
         {state === 'ready' && nextCursor !== null && (
           <button
             type="button"
-            className="button secondary"
+            className={`button secondary ${styles.loadMore}`}
             disabled={busy || continuationState === 'loading'}
             aria-busy={continuationState === 'loading'}
             onClick={() => loadPage(nextCursor, true)}
@@ -379,7 +402,7 @@ export function ApiKeyList() {
           </button>
         )}
         {continuationState === 'error' && nextCursor !== null && (
-          <div className={styles.error} role="alert">
+          <div className={styles.errorPanel} role="alert">
             <p>{t('apiKey.error')}</p>
             <button
               type="button"
@@ -398,35 +421,137 @@ export function ApiKeyList() {
           </div>
         )}
       </div>
-      {secret !== null && (
+      {(secret !== null || guideItem !== null) && (
         <dialog
           ref={dialog}
           className={styles.dialog}
           aria-labelledby="api-key-secret-title"
           onCancel={(event) => {
             event.preventDefault();
-            if (window.confirm(t('apiKey.closeConfirm'))) clearSecret();
+            if (secret !== null && !window.confirm(t('apiKey.closeConfirm'))) return;
+            clearSetupModal();
           }}
         >
           <section>
-            <h2 id="api-key-secret-title">{t('apiKey.secretTitle')}</h2>
-            <p>{t('apiKey.secretDescription')}</p>
-            <code>{secret.value}</code>
-            <ClipboardCopyButton
-              value={secret.value}
-              autoFocus
-              onCopied={() => {
-                setCopyStatus('copied');
-                clearSecret();
-              }}
-              onCopyFailed={() => setCopyStatus('failed')}
-            />
+            <h2 id="api-key-secret-title">
+              {secret === null ? t('apiKey.guideTitle') : t('apiKey.secretTitle')}
+            </h2>
+            <p>{secret === null ? t('apiKey.guideDescription') : t('apiKey.secretDescription')}</p>
+            {secret !== null ? (
+              <>
+                <div className={styles.secretValue}>
+                  <code>{secret.value}</code>
+                  <ClipboardCopyButton
+                    value={secret.value}
+                    autoFocus
+                    onCopyFailed={() => setCopyStatus('failed')}
+                  />
+                </div>
+                {copyStatus === 'failed' && (
+                  <p className={styles.fieldError} role="alert">
+                    {t('apiKey.copyFailed')}
+                  </p>
+                )}
+                <div className={styles.securityNotice} role="note">
+                  <strong>{t('apiKey.securityTitle')}</strong>
+                  <span>{t('apiKey.securityDescription')}</span>
+                </div>
+              </>
+            ) : (
+              <div className={styles.guideKeySummary}>
+                <strong>{guideItem?.name}</strong>
+                <span className="muted">{guideItem?.prefix}</span>
+              </div>
+            )}
+            <div className={styles.setupGuide}>
+              <h3>{t('apiKey.setupTitle')}</h3>
+              <div className={styles.setupTabs} role="tablist" aria-label={t('apiKey.setupTitle')}>
+                <button
+                  type="button"
+                  id="api-key-mcp-tab"
+                  className={styles.setupTab}
+                  role="tab"
+                  aria-selected={secretSetupTab === 'mcp'}
+                  aria-controls="api-key-mcp-panel"
+                  onClick={() => setSecretSetupTab('mcp')}
+                >
+                  {t('apiKey.mcpTab')}
+                </button>
+                <button
+                  type="button"
+                  id="api-key-environment-tab"
+                  className={styles.setupTab}
+                  role="tab"
+                  aria-selected={secretSetupTab === 'environment'}
+                  aria-controls="api-key-environment-panel"
+                  onClick={() => setSecretSetupTab('environment')}
+                >
+                  {t('apiKey.environmentTab')}
+                </button>
+              </div>
+              {secretSetupTab === 'mcp' ? (
+                <section
+                  id="api-key-mcp-panel"
+                  className={styles.setupPanel}
+                  role="tabpanel"
+                  aria-labelledby="api-key-mcp-tab"
+                >
+                  <p>{t('apiKey.mcpDescription')}</p>
+                  <ol>
+                    <li>{t('apiKey.mcpStepFile')}</li>
+                    <li>{t('apiKey.mcpStepSecret')}</li>
+                    <li>{t('apiKey.mcpStepRestart')}</li>
+                  </ol>
+                  <div className={styles.exampleBlock}>
+                    <div className={styles.exampleHeading}>
+                      <strong>.mcp.json</strong>
+                      <ClipboardCopyButton value={mcpJsonExample} className="button secondary" />
+                    </div>
+                    <pre>
+                      <code>{mcpJsonExample}</code>
+                    </pre>
+                  </div>
+                </section>
+              ) : (
+                <section
+                  id="api-key-environment-panel"
+                  className={styles.setupPanel}
+                  role="tabpanel"
+                  aria-labelledby="api-key-environment-tab"
+                >
+                  <p>{t('apiKey.environmentDescription')}</p>
+                  <div className={styles.exampleBlock}>
+                    <div className={styles.exampleHeading}>
+                      <strong>macOS / Linux</strong>
+                      <ClipboardCopyButton value={POSIX_ENV_EXAMPLE} className="button secondary" />
+                    </div>
+                    <pre>
+                      <code>{POSIX_ENV_EXAMPLE}</code>
+                    </pre>
+                  </div>
+                  <div className={styles.exampleBlock}>
+                    <div className={styles.exampleHeading}>
+                      <strong>Windows PowerShell</strong>
+                      <ClipboardCopyButton
+                        value={POWERSHELL_ENV_EXAMPLE}
+                        className="button secondary"
+                      />
+                    </div>
+                    <pre>
+                      <code>{POWERSHELL_ENV_EXAMPLE}</code>
+                    </pre>
+                  </div>
+                  <p>{t('apiKey.environmentCi')}</p>
+                  <p>{t('apiKey.environmentRestart')}</p>
+                </section>
+              )}
+            </div>
             <button
               type="button"
               className="button secondary"
               onClick={() => {
-                if (!window.confirm(t('apiKey.closeConfirm'))) return;
-                clearSecret();
+                if (secret !== null && !window.confirm(t('apiKey.closeConfirm'))) return;
+                clearSetupModal();
               }}
             >
               {t('apiKey.close')}
@@ -434,13 +559,6 @@ export function ApiKeyList() {
           </section>
         </dialog>
       )}
-      <p className={styles.copyStatus} role="status" aria-live="polite">
-        {copyStatus === 'copied'
-          ? t('ai.copiedToClipboard')
-          : copyStatus === 'failed'
-            ? t('apiKey.copyFailed')
-            : ''}
-      </p>
     </section>
   );
 }

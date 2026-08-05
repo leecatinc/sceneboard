@@ -87,6 +87,10 @@ test('slide-deck routing is limited to the exact presentation-material and PPT t
   assert.match(skill, /case|letter case/i);
   assert.match(skill, /presentation.*do not activate|do not activate.*presentation/is);
   assert.match(slideDeck, /Exact routing contract/);
+  assert.match(slideDeck, /changePresentationPage/);
+  assert.match(slideDeck, /initial notification|first slide is visible/i);
+  assert.match(skill, /custom HTML or PPT-derived presentation artifacts/i);
+  assert.match(skill, /stable logical page IDs/i);
 });
 
 test('transport and browser truth contracts are preserved', () => {

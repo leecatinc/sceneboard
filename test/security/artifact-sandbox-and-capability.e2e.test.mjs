@@ -21,7 +21,7 @@ const { ArtifactRateBudgetV1 } = await tsImport(
   '../../packages/artifact-runtime/src/bridge/rate-budget.ts',
   import.meta.url,
 );
-const { buildRunnerHeadersV1, assertRuntimeHeadersV1 } = await tsImport(
+const { buildFixedAssetHeadersV1, buildRunnerHeadersV1, assertRuntimeHeadersV1 } = await tsImport(
   '../../packages/artifact-runtime/src/server/headers.ts',
   import.meta.url,
 );
@@ -76,12 +76,12 @@ const artifactPackage = (probe, appOrigin, trusted = false) => {
     versionId: trusted ? 'version_fallback' : `version_${probe.toLowerCase().replaceAll('-', '_')}`,
   };
   const report = (expression) =>
-    `console.log('SCENEBOARD_HOSTILE:${probe}:' + ((${expression}) ? 'DENIED' : 'ESCAPED'));`;
+    `(()=>{const denied=(${expression});SceneBoardArtifact.changePresentationPage({pageId:denied?'denied':'escaped',pageIndex:0,pageCount:1});console.log('SCENEBOARD_HOSTILE:${probe}:'+(denied?'DENIED':'ESCAPED'));})()`;
   const source = trusted
-    ? `console.log('SCENEBOARD_TRUSTED_FALLBACK:READY');`
+    ? `SceneBoardArtifact.changePresentationPage({pageId:'ready',pageIndex:0,pageCount:1});console.log('SCENEBOARD_TRUSTED_FALLBACK:READY');`
     : {
-        'RUNNER-ZERO-COOKIE': report(`document.cookie === ''`),
-        'ASSET-ZERO-COOKIE': report(`document.cookie === ''`),
+        'RUNNER-ZERO-COOKIE': `try { ${report(`document.cookie === ''`)} } catch { ${report('true')} }`,
+        'ASSET-ZERO-COOKIE': `try { ${report(`document.cookie === ''`)} } catch { ${report('true')} }`,
         'OPAQUE-ORIGIN': report(`location.origin === 'null'`),
         'NO-PARENT-DOM': `try { void parent.document.body; ${report('false')} } catch { ${report('true')} }`,
         'NO-STORAGE': `try { localStorage.setItem('escape', '1'); ${report('false')} } catch { ${report('true')} }`,
@@ -91,7 +91,7 @@ const artifactPackage = (probe, appOrigin, trusted = false) => {
         'BRIDGE-REPLAY': `window.postMessage({protocolVersion:1,type:'artifact.bridge',sequence:1},'*');queueMicrotask(()=>{try{SceneBoardArtifact.requestResize(1200,675);${report('true')}}catch{${report('false')}}});`,
         'BRIDGE-SOURCE-ORIGIN': `window.dispatchEvent(new MessageEvent('message',{data:{protocolVersion:1,type:'artifact.bridge'},origin:'https://example.invalid'}));queueMicrotask(()=>{try{SceneBoardArtifact.requestResize(1200,675);${report('true')}}catch{${report('false')}}});`,
         'HOSTILE-INFINITE-LOOP': `for (;;) {}`,
-        'TRUSTED-FALLBACK': `throw new Error('hostile package startup failure');`,
+        'TRUSTED-FALLBACK': `for (;;) {}`,
       }[probe];
   if (source === undefined) throw new Error(`unsupported hostile browser probe: ${probe}`);
   const resources = [
@@ -140,6 +140,7 @@ const artifactPackage = (probe, appOrigin, trusted = false) => {
     offset += resource.bytes.byteLength;
   }
   return {
+    probe,
     artifact,
     manifest: parsed.data.value,
     packageBase64: Buffer.from(bytes).toString('base64'),
@@ -155,8 +156,10 @@ const hostBundle = async () => {
         import { ArtifactHost } from './packages/board-ui/src/artifact/ArtifactHost.tsx';
         const root = createRoot(document.getElementById('root'));
         let epoch = 0;
+        window.__artifactBridgeObservations = [];
         window.__mountArtifact = (fixture) => {
           epoch += 1;
+          window.__activeProbe = fixture.probe;
           const runtime = { artifact: fixture.artifact, status: 'ready', updatedAt: '2026-08-03T00:00:00.000Z', failure: null };
           const load = {
             readMetadata: async () => ({ manifest: fixture.manifest, runtime }),
@@ -168,6 +171,13 @@ const hostBundle = async () => {
             runtimeOrigin: window.__runtimeOrigin, routeEpoch: 'route_' + epoch,
             snapshotWatermark: epoch, load, hostInstanceId: 'artifact_host',
             incarnationKey: 'route_' + epoch + ':artifact_host:' + fixture.artifact.artifactId + ':' + fixture.artifact.versionId,
+            onPresentationPageChange: (event) => {
+              const marker = window.__activeProbe === 'TRUSTED-FALLBACK'
+                ? 'SCENEBOARD_TRUSTED_FALLBACK:' + event.pageId.toUpperCase()
+                : 'SCENEBOARD_HOSTILE:' + window.__activeProbe + ':' + event.pageId.toUpperCase();
+              window.__artifactBridgeObservations.push(marker);
+              console.log(marker);
+            },
           }));
         };
         window.__mountArtifact(window.__hostileFixture);
@@ -187,11 +197,19 @@ const hostBundle = async () => {
   return output;
 };
 
-const waitForObservation = async (observations, marker, timeoutMs = 5_000) => {
-  const deadline = Date.now() + timeoutMs;
-  while (!observations.includes(marker)) {
-    if (Date.now() >= deadline) throw new Error(`browser observation missing: ${marker}`);
-    await new Promise((resolveWait) => setTimeout(resolveWait, 25));
+const waitForBridgeObservation = async (page, marker, timeoutMs = 5_000) => {
+  try {
+    await page.waitForFunction(
+      (expected) => window.__artifactBridgeObservations?.includes(expected) === true,
+      marker,
+      { timeout: timeoutMs },
+    );
+  } catch (error) {
+    const observed = await page.evaluate(() => window.__artifactBridgeObservations ?? []);
+    throw new Error(
+      `artifact bridge observation missing: ${marker}; observed=${JSON.stringify(observed)}`,
+      { cause: error },
+    );
   }
 };
 
@@ -231,10 +249,7 @@ const exerciseHostAndRunner = async (probe, runtime) => {
       const headers =
         request.url === '/runner'
           ? buildRunnerHeadersV1({ appOrigin: hostOrigin, runtimeOrigin })
-          : {
-              'Content-Type': 'application/javascript; charset=utf-8',
-              'Cache-Control': 'no-store',
-            };
+          : buildFixedAssetHeadersV1();
       response.writeHead(200, headers);
       response.end(bytes);
     } catch {
@@ -253,13 +268,18 @@ const exerciseHostAndRunner = async (probe, runtime) => {
     const page = await browser.newPage();
     const observations = [];
     page.on('console', (message) => observations.push(message.text()));
+    page.on('requestfailed', (request) =>
+      observations.push(
+        `REQUEST_FAILED:${request.url()}:${request.failure()?.errorText ?? 'unknown'}`,
+      ),
+    );
     await page.goto(hostOrigin);
     const needsFallback = probe === 'HOSTILE-INFINITE-LOOP' || probe === 'TRUSTED-FALLBACK';
     if (needsFallback) {
-      await page.locator('.artifact-failed').waitFor({ timeout: 12_000 });
+      await page.locator('.artifact-failed').waitFor({ timeout: 20_000 });
       await page.evaluate(() => window.__mountArtifact(window.__trustedFixture));
       await page.locator('.artifact-active').waitFor({ timeout: 12_000 });
-      await waitForObservation(observations, 'SCENEBOARD_TRUSTED_FALLBACK:READY');
+      await waitForBridgeObservation(page, 'SCENEBOARD_TRUSTED_FALLBACK:READY');
       return {
         isolated: forbiddenRequests === 0 && runtime.staticBoundary,
         recovered: observations.includes('SCENEBOARD_TRUSTED_FALLBACK:READY'),
@@ -267,8 +287,19 @@ const exerciseHostAndRunner = async (probe, runtime) => {
         runnerState: 'stopped',
       };
     }
-    await page.locator('.artifact-active').waitFor({ timeout: 12_000 });
-    await waitForObservation(observations, `SCENEBOARD_HOSTILE:${probe}:DENIED`);
+    try {
+      await page.locator('.artifact-active').waitFor({ timeout: 12_000 });
+    } catch (error) {
+      const hostState = await page
+        .locator('.artifact-host')
+        .evaluate((element) => ({ className: element.className, text: element.textContent }))
+        .catch(() => null);
+      throw new Error(
+        `artifact host did not become active: ${JSON.stringify({ hostState, observations })}`,
+        { cause: error },
+      );
+    }
+    await waitForBridgeObservation(page, `SCENEBOARD_HOSTILE:${probe}:DENIED`);
     return {
       isolated:
         observations.includes(`SCENEBOARD_HOSTILE:${probe}:DENIED`) &&

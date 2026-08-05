@@ -394,8 +394,10 @@ export class SessionRequestCoordinator implements BoardStreamDispatchPortV1 {
   }
 
   async authenticate(
-    kind: 'signup' | 'login',
-    credentials: { email: string; password: string; verificationTicket?: string },
+    kind: 'signup' | 'login' | 'google',
+    credentials:
+      | { email: string; password: string; verificationTicket?: string }
+      | { idToken: string },
   ): Promise<
     | CoordinatorResult<AuthSessionSnapshot>
     | { kind: 'session_present' }
@@ -481,7 +483,8 @@ export class SessionRequestCoordinator implements BoardStreamDispatchPortV1 {
 
   async dispatchShared(request: SharedCookieRequest): Promise<CoordinatorResult<ConsumedResponse>> {
     if (!this.ensureSupported()) return { kind: 'unsupported_browser' };
-    return this.withApplicationLease('shared', async () => {
+    let sessionRejected = false;
+    const result = await this.withApplicationLease('shared', async () => {
       const headers = new Headers();
       if (request.body !== undefined)
         headers.set('Content-Type', request.contentType ?? 'application/json');
@@ -509,10 +512,16 @@ export class SessionRequestCoordinator implements BoardStreamDispatchPortV1 {
         };
       }
       const consumed = await consume(response, request.signal, request.responseKind);
-      if (request.responseKind !== 'export' && (response.status === 401 || response.status === 503))
+      if (response.status === 401) {
+        sessionRejected = true;
+        return { kind: 'reconciliation_required' as const };
+      }
+      if (request.responseKind !== 'export' && response.status === 503)
         return { kind: 'reconciliation_required' as const };
       return { kind: 'ok' as const, value: consumed };
     }).catch(() => ({ kind: 'reconciliation_required' as const }));
+    if (sessionRejected) await this.reconcileSessionGeneration();
+    return result;
   }
 
   open<T>(
@@ -663,10 +672,12 @@ export class SessionRequestCoordinator implements BoardStreamDispatchPortV1 {
 
   private async fetchExclusive(
     lease: SessionCookieLease,
-    kind: 'session' | 'csrf' | 'signup' | 'login' | 'renew' | 'logout',
+    kind: 'session' | 'csrf' | 'signup' | 'login' | 'google' | 'renew' | 'logout',
     input:
       | {
-          credentials?: { email: string; password: string; verificationTicket?: string };
+          credentials?:
+            | { email: string; password: string; verificationTicket?: string }
+            | { idToken: string };
           csrfToken?: string;
         }
       | undefined,
@@ -921,10 +932,12 @@ const randomMarker = (randomBytes: (length: number) => Uint8Array): string => {
 };
 
 const closedRequest = (
-  kind: 'session' | 'csrf' | 'signup' | 'login' | 'renew' | 'logout',
+  kind: 'session' | 'csrf' | 'signup' | 'login' | 'google' | 'renew' | 'logout',
   input:
     | {
-        credentials?: { email: string; password: string; verificationTicket?: string };
+        credentials?:
+          | { email: string; password: string; verificationTicket?: string }
+          | { idToken: string };
         csrfToken?: string;
       }
     | undefined,
@@ -934,7 +947,7 @@ const closedRequest = (
   if (kind === 'csrf') return { path: '/api/v1/auth/csrf', method: 'GET', headers };
   headers.set('Content-Type', 'application/json');
   if (input?.csrfToken !== undefined) headers.set('X-CSRF-Token', input.csrfToken);
-  if (kind === 'signup' || kind === 'login') {
+  if (kind === 'signup' || kind === 'login' || kind === 'google') {
     if (input?.credentials === undefined || input.csrfToken === undefined)
       throw new TypeError('auth input is incomplete');
     return {

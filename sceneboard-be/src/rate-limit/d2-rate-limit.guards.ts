@@ -3,6 +3,7 @@ import { Reflector } from '@nestjs/core';
 
 import {
   parseAuthCredentials,
+  parseGoogleIdTokenRequest,
   parseEmailVerificationConfirmation,
   parseEmailVerificationRequest,
   parseEmptyObject,
@@ -20,6 +21,7 @@ type D2RateLimitedSurface =
   | 'csrf-bootstrap'
   | 'signup'
   | 'login'
+  | 'google-login'
   | 'email-verification-request'
   | 'email-verification-confirm'
   | 'password-change'
@@ -31,6 +33,9 @@ type D2RateLimitedSurface =
   | 'pairing-redeem'
   | 'grant-rotate'
   | 'public-share-read'
+  | 'public-presentation-read'
+  | 'public-presentation-start'
+  | 'public-presentation-update'
   | 'share-analytics-context'
   | 'share-analytics-event';
 const D2_RATE_LIMITED_SURFACE = Symbol('D2_RATE_LIMITED_SURFACE');
@@ -69,6 +74,9 @@ export class D2PreAuthRateLimitGuard implements CanActivate {
     if (
       surface === 'csrf-bootstrap' ||
       surface === 'public-share-read' ||
+      surface === 'public-presentation-read' ||
+      surface === 'public-presentation-start' ||
+      surface === 'public-presentation-update' ||
       surface === 'share-analytics-context' ||
       surface === 'share-analytics-event'
     ) {
@@ -77,6 +85,8 @@ export class D2PreAuthRateLimitGuard implements CanActivate {
       emailIdentity = parseSignupCredentials(request.body).emailNormalized;
     } else if (surface === 'login') {
       emailIdentity = parseAuthCredentials(request.body).emailNormalized;
+    } else if (surface === 'google-login') {
+      parseGoogleIdTokenRequest(request.body);
     } else if (surface === 'email-verification-request') {
       emailIdentity = parseEmailVerificationRequest(request.body).emailNormalized;
     } else if (surface === 'email-verification-confirm') {
@@ -140,10 +150,14 @@ export class D2PostAuthRateLimitGuard implements CanActivate {
       surface === 'csrf-bootstrap' ||
       surface === 'signup' ||
       surface === 'login' ||
+      surface === 'google-login' ||
       surface === 'email-verification-request' ||
       surface === 'email-verification-confirm' ||
       surface === 'session-renewal' ||
       surface === 'public-share-read' ||
+      surface === 'public-presentation-read' ||
+      surface === 'public-presentation-start' ||
+      surface === 'public-presentation-update' ||
       surface === 'share-analytics-context' ||
       surface === 'share-analytics-event'
     ) {
@@ -200,11 +214,15 @@ export class D2PostAuthRateLimitGuard implements CanActivate {
 
 const preAuthPolicy = (surface: D2RateLimitedSurface): { limit: number; windowMs: number } => {
   if (surface === 'public-share-read') return { limit: 300, windowMs: 5 * 60 * 1_000 };
+  if (surface === 'public-presentation-read') return { limit: 600, windowMs: 5 * 60 * 1_000 };
+  if (surface === 'public-presentation-start') return { limit: 30, windowMs: 10 * 60 * 1_000 };
+  if (surface === 'public-presentation-update') return { limit: 3_000, windowMs: 5 * 60 * 1_000 };
   if (surface === 'share-analytics-context') return { limit: 300, windowMs: 5 * 60 * 1_000 };
   if (surface === 'share-analytics-event') return { limit: 600, windowMs: 5 * 60 * 1_000 };
   if (surface === 'csrf-bootstrap') return { limit: 60, windowMs: 10 * 60 * 1_000 };
   if (surface === 'signup') return { limit: 5, windowMs: 60 * 60 * 1_000 };
   if (surface === 'login') return { limit: 20, windowMs: 15 * 60 * 1_000 };
+  if (surface === 'google-login') return { limit: 20, windowMs: 15 * 60 * 1_000 };
   if (surface === 'email-verification-request') return { limit: 10, windowMs: 60 * 60 * 1_000 };
   if (surface === 'email-verification-confirm') return { limit: 30, windowMs: 15 * 60 * 1_000 };
   if (surface === 'password-change') return { limit: 20, windowMs: 15 * 60 * 1_000 };

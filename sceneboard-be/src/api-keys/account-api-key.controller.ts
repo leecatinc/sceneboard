@@ -79,7 +79,6 @@ export class AccountApiKeyController {
   @Get()
   @HttpCode(200)
   @RequireOrigin()
-  @RequireCsrf('session')
   async list(
     @Query() input: unknown,
     @Req() request: AccountApiKeyRequest,

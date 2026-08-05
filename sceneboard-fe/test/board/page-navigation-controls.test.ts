@@ -19,10 +19,9 @@ const renderControls = (current: number, total: number) =>
     }),
   );
 
-test('legacy one-page navigation announces 1 / 1 without redundant buttons', () => {
+test('one-page navigation stays hidden because there is nowhere to move', () => {
   const html = renderControls(1, 1);
-  assert.match(html, />1 \/ 1</u);
-  assert.doesNotMatch(html, /<button/u);
+  assert.equal(html, '');
 });
 
 test('multi-page controls expose bounded previous and next actions', () => {

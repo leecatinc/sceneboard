@@ -894,7 +894,9 @@ test('keeps raw tokens out of mandatory issuance-audit rejection signals', async
     service.issue({ actor, name: 'Canary audit', expiresInDays: 90, now }),
     (error: unknown) => {
       failureSignal = String(error);
-      return error instanceof Error && error.message === 'simulated mandatory issuance audit failure';
+      return (
+        error instanceof Error && error.message === 'simulated mandatory issuance audit failure'
+      );
     },
   );
   const sinks = JSON.stringify({ persisted, auditFailures, warnings, failureSignal });

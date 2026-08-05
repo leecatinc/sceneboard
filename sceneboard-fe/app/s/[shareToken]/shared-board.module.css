@@ -1,16 +1,16 @@
 .page {
-  min-height: 100dvh;
-  max-height: 100dvh;
-  overflow-y: auto;
+  height: 100dvh;
+  overflow: hidden;
   background: var(--surface-canvas, #f6f7fb);
   color: var(--text-primary, #15171c);
 }
 
 .shell {
-  width: min(1120px, 100%);
-  min-height: 100%;
-  margin: 0 auto;
-  padding: 1rem;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: 100%;
+  height: 100%;
 }
 
 .status {
@@ -28,45 +28,37 @@
 }
 
 .passwordForm input,
-.passwordForm button,
-.toolbar button {
+.passwordForm button {
   min-height: 2.75rem;
-}
-
-.toolbar {
-  position: sticky;
-  z-index: 2;
-  top: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0.75rem;
-  border-radius: 0.75rem;
-  background: color-mix(in srgb, white 92%, transparent);
 }
 
 .reader {
   min-width: 0;
-  padding-block: 1rem 5rem;
+  min-height: 0;
+  display: grid;
+  overflow: clip;
 }
 
-.heading {
-  outline: none;
+.page :global(.board-topbar-leading) {
+  gap: 20px;
 }
 
-.scene {
+.annotationToolbarSlot {
   min-width: 0;
-  overflow-x: auto;
+  display: flex;
+  align-items: center;
+}
+
+.annotationToolbarSlot:empty {
+  display: none;
 }
 
 @media (max-width: 320px) {
-  .shell {
-    padding: 0.5rem;
+  .page :global(.board-topbar) {
+    padding-inline: 8px;
   }
 
-  .toolbar {
-    align-items: stretch;
-    flex-direction: column;
+  .page :global(.board-topbar-leading) {
+    gap: 12px;
   }
 }

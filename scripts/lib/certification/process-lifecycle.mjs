@@ -68,7 +68,9 @@ export const createNpmCertificationEnvironment = (source = {}, { network = false
     allowedKeys: network ? npmNetworkEnvironmentKeys : [],
     overrides: {
       NPM_CONFIG_USERCONFIG: '/dev/null',
-      NPM_CONFIG_GLOBALCONFIG: '/dev/null',
+      // npm 10 rejects loading the same path as both user and global config.
+      // Keep both config scopes empty without triggering that double-load guard.
+      NPM_CONFIG_GLOBALCONFIG: '/dev/null.sceneboard-global-npmrc',
       NPM_CONFIG_UPDATE_NOTIFIER: 'false',
       NPM_CONFIG_FUND: 'false',
     },

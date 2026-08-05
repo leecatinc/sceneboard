@@ -12,6 +12,7 @@ import {
   readJson,
   sha256,
 } from './canonical-json.mjs';
+import { createCertificationChildEnvironment } from './process-lifecycle.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const catalogPath = resolve(root, 'test/certification/security-case-catalog.v1.json');
@@ -523,17 +524,18 @@ export const collectSecurityBoundaryReceipts = async (catalog, identity, options
   const executionNonce = randomBytes(32).toString('base64url');
   const directory = await mkdtemp(join(tmpdir(), 'sceneboard-security-boundary-'));
   try {
-    const environment = {
-      PATH: process.env.PATH,
-      SCENEBOARD_SECURITY_RECEIPT_DIRECTORY: directory,
-      SCENEBOARD_SECURITY_EXECUTION_NONCE: executionNonce,
-      SCENEBOARD_CERTIFICATION_SOURCE_COMMIT: identity.sourceCommit,
-      SCENEBOARD_CERTIFICATION_MANIFEST_SHA256: identity.manifestSha256,
-      SCENEBOARD_CERTIFICATION_PROFILE: identity.profile,
-      APP_ENV: identity.environment,
-      SCENEBOARD_CERTIFICATION_ATTEMPT_ID: identity.attemptId,
-      ...(options.faultOwner ? { SCENEBOARD_SECURITY_FAULT_OWNER: options.faultOwner } : {}),
-    };
+    const environment = createCertificationChildEnvironment(process.env, {
+      overrides: {
+        SCENEBOARD_SECURITY_RECEIPT_DIRECTORY: directory,
+        SCENEBOARD_SECURITY_EXECUTION_NONCE: executionNonce,
+        SCENEBOARD_CERTIFICATION_SOURCE_COMMIT: identity.sourceCommit,
+        SCENEBOARD_CERTIFICATION_MANIFEST_SHA256: identity.manifestSha256,
+        SCENEBOARD_CERTIFICATION_PROFILE: identity.profile,
+        APP_ENV: identity.environment,
+        SCENEBOARD_CERTIFICATION_ATTEMPT_ID: identity.attemptId,
+        ...(options.faultOwner ? { SCENEBOARD_SECURITY_FAULT_OWNER: options.faultOwner } : {}),
+      },
+    });
     const run = spawnSync(process.execPath, ['--test', ...securityOwnerFiles], {
       cwd: root,
       env: environment,
@@ -1504,7 +1506,13 @@ export const validateSecurityLiveAttachmentInventory = (
     ) {
       throw new CertificationError('SECURITY_LIVE_ATTACHMENT_SET_INVALID');
     }
-    return { ...row, artifactBase64: bytes.toString('base64') };
+    return {
+      caseId: row.caseId,
+      evidenceRowId: row.evidenceRowId,
+      evidenceSha256: row.evidenceSha256,
+      authenticationSha256: row.authenticationSha256,
+      artifactBase64: bytes.toString('base64'),
+    };
   });
   const evidence = {
     schemaVersion: 2,

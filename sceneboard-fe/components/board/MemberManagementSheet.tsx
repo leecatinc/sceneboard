@@ -17,6 +17,7 @@ import {
 import { ConfirmationDialog } from '../app/ConfirmationDialog';
 import { useI18n } from '../i18n/I18nProvider';
 import type { OwnerAdminCloseRegistration } from './OwnerAdminControls';
+import { OwnerAdminActionIcon } from './OwnerAdminActionIcon';
 import styles from './MemberManagementSheet.module.css';
 
 type Confirmation =
@@ -156,12 +157,13 @@ export function MemberManagementSheet({
       setMessage('');
       const result = await operation(controller.signal);
       if (controller.signal.aborted || epoch !== requestEpochRef.current) return;
-      setBusyKey(null);
       if (result.kind !== 'ok') {
+        setBusyKey(null);
         setMessage(t('sharing.actionFailed'));
         return;
       }
       await load();
+      setBusyKey(null);
     },
     [load, t],
   );
@@ -182,8 +184,14 @@ export function MemberManagementSheet({
   if (!enabled) return null;
   return (
     <>
-      <button type="button" className="button secondary" onClick={() => setOpen(true)}>
-        {t('sharing.manageMembers')}
+      <button
+        type="button"
+        className="button secondary board-owner-action-button"
+        aria-label={t('sharing.manageMembers')}
+        title={t('sharing.manageMembers')}
+        onClick={() => setOpen(true)}
+      >
+        <OwnerAdminActionIcon kind="members" />
       </button>
       {open && (
         <dialog
@@ -193,6 +201,9 @@ export function MemberManagementSheet({
           onCancel={(event) => {
             event.preventDefault();
             if (busyKey === null) close();
+          }}
+          onPointerDown={(event) => {
+            if (event.target === event.currentTarget && busyKey === null) close();
           }}
         >
           <section className={styles.panel}>

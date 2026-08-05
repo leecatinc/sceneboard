@@ -6,6 +6,7 @@ import type {
 } from '@sceneboard/board-schema';
 import type {
   ArtifactNavigationIntentV1,
+  ArtifactPresentationPageChangeV1,
   ArtifactResizeRequestV1,
 } from '@sceneboard/artifact-runtime/bridge';
 
@@ -36,6 +37,11 @@ export type ArtifactViewStateEventV1 = Readonly<{
   phase: 'register' | 'interaction' | 'unregister';
   scale: number;
 }>;
+export type ArtifactPresentationPageChangeEventV1 = ArtifactPresentationPageChangeV1 &
+  Readonly<{
+    hostInstanceId: ArtifactHostInstanceIdV1;
+    incarnationKey: string;
+  }>;
 export type ArtifactResetCommandV1 = Readonly<{
   hostInstanceId: ArtifactHostInstanceIdV1;
   incarnationKey: string;
@@ -53,10 +59,12 @@ export type ArtifactHostInputV1 = {
   hostInstanceId: ArtifactHostInstanceIdV1;
   incarnationKey: string;
   viewMode?: ArtifactViewModeV1;
+  presentationActive?: boolean;
   showStopControl?: boolean;
   stopSignal?: number;
   onNavigationIntent?(intent: ArtifactNavigationIntentV1): void;
   onResizeRequest?(request: ArtifactResizeRequestV1): void;
+  onPresentationPageChange?(event: ArtifactPresentationPageChangeEventV1): void;
   onViewStateChange?(event: ArtifactViewStateEventV1): void;
   onCaptureActiveChange?(active: boolean): void;
   resetCommand?: ArtifactResetCommandV1 | null;

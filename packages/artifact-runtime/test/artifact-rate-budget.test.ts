@@ -4,10 +4,11 @@ import test from 'node:test';
 import { ArtifactRateBudgetV1, isChargedAuthoredMessageV1 } from '../src/bridge/index.js';
 import type { ArtifactBridgeMessageV1 } from '../src/bridge/index.js';
 
-test('classifies exactly the five authored budget message types', () => {
+test('classifies exactly the six authored budget message types', () => {
   const charged = [
     'artifact.ready',
     'artifact.resize.request',
+    'artifact.presentation.page-change',
     'artifact.selection.change',
     'artifact.user-action',
     'artifact.capability.request',
@@ -28,6 +29,7 @@ test('classifies exactly the five authored budget message types', () => {
     'host.data',
     'host.viewport',
     'host.selection',
+    'host.presentation',
     'host.navigation.set',
     'artifact.navigation.wheel',
     'artifact.navigation.pan.start',
@@ -35,6 +37,7 @@ test('classifies exactly the five authored budget message types', () => {
     'artifact.navigation.pan.end',
     'artifact.navigation.pan.cancel',
     'artifact.resize.request',
+    'artifact.presentation.page-change',
     'artifact.selection.change',
     'artifact.user-action',
     'artifact.capability.request',

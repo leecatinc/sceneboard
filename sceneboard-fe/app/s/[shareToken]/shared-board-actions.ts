@@ -70,11 +70,16 @@ const bootstrap = async (shareToken: string): Promise<PublicShareClientState> =>
 };
 
 export const bootstrapSharedBoard = async (shareToken: string): Promise<SharedBoardActionState> => {
-  try {
-    return await bootstrap(shareToken);
-  } catch {
-    return { state: 'unavailable' };
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const state = await bootstrap(shareToken);
+      if (state.state !== 'unavailable' || attempt === 1) return state;
+    } catch {
+      if (attempt === 1) return { state: 'unavailable' };
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
   }
+  return { state: 'unavailable' };
 };
 
 export const submitSharedBoardPassword = async (

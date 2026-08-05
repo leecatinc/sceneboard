@@ -35,6 +35,12 @@ export interface AppEnvironment {
     user: string;
     appPassword: string;
   };
+  firebaseGoogle?: {
+    enabled: boolean;
+    projectId: string | null;
+    clientEmail: string | null;
+    privateKey: string | null;
+  };
   keys: {
     sessionToken: Buffer;
     grantToken: Buffer;
@@ -175,6 +181,35 @@ const parseGmailUser = (input: EnvironmentInput): string => {
     throw new EnvironmentValidationError('SCENEBOARD_GMAIL_USER', 'must be an ASCII email address');
   }
   return value;
+};
+
+const parseFirebaseGoogle = (
+  input: EnvironmentInput,
+): NonNullable<AppEnvironment['firebaseGoogle']> => {
+  const enabled = parseOptionalBoolean(input, 'FIREBASE_GOOGLE_AUTH_ENABLED', false);
+  if (!enabled) return { enabled, projectId: null, clientEmail: null, privateKey: null };
+  const projectId = required(input, 'FIREBASE_PROJECT_ID');
+  const clientEmail = required(input, 'FIREBASE_CLIENT_EMAIL');
+  const privateKey = required(input, 'FIREBASE_PRIVATE_KEY').replace(/\\n/g, '\n');
+  if (!/^[a-z0-9][a-z0-9-]{4,62}$/u.test(projectId))
+    throw new EnvironmentValidationError(
+      'FIREBASE_PROJECT_ID',
+      'must be a canonical Firebase project id',
+    );
+  if (!/^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.iam\.gserviceaccount\.com$/u.test(clientEmail))
+    throw new EnvironmentValidationError(
+      'FIREBASE_CLIENT_EMAIL',
+      'must be a service-account email',
+    );
+  if (
+    Buffer.byteLength(privateKey, 'utf8') > 16_384 ||
+    !/^-----BEGIN PRIVATE KEY-----\n[\s\S]+\n-----END PRIVATE KEY-----\n?$/u.test(privateKey)
+  )
+    throw new EnvironmentValidationError(
+      'FIREBASE_PRIVATE_KEY',
+      'must be one PKCS#8 PEM private key',
+    );
+  return { enabled, projectId, clientEmail, privateKey };
 };
 
 interface ParsedOrigin {
@@ -380,6 +415,7 @@ export const parseEnvironment = (input: EnvironmentInput): AppEnvironment => {
       user: parseGmailUser(input),
       appPassword: parseBoundedText(input, 'SCENEBOARD_GMAIL_APP_PASSWORD', 8, 128),
     },
+    firebaseGoogle: parseFirebaseGoogle(input),
     keys: {
       sessionToken: parseKey(input, 'SESSION_TOKEN_KEY_B64'),
       grantToken: parseKey(input, 'GRANT_TOKEN_KEY_B64'),

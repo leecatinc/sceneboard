@@ -3,13 +3,13 @@
   "type": "history-retained-compatibility",
   "assets": {
     "packages/board-schema/src/history.ts": "aba89cbd31ca4b2806746720c4ffa823c201d133a9389000da88096e48f3e40a",
-    "packages/board-schema/src/parsers.ts": "f486aecaeae8ff3a8bb49b7800510370478d6389b40100a45f5ddaa281104c2b",
+    "packages/board-schema/src/parsers.ts": "e1746de81454f79354a35823f35409f8434451b88bd8b3f3fb7caf0f036f186f",
     "packages/board-schema/test/fixtures/valid/history-retained-metadata.v1.json": "24b3403be06d4c5c2e28fae815e3e9e868d924f1f8d5abd8a698c946ecf7362d",
     "packages/board-schema/test/fixtures/invalid/history-retained-metadata.v1.json": "e519f0074dfeabc34bdd04b8bd9c27ce306cf370d17a0807baf28aa8c023fa15",
     "packages/board-sdk/src/http/http-result.parser.ts": "2975943447b4db7ff396f4bccf7739b255c2864007463b91a5f2536729aa3b73",
-    "packages/board-sdk/src/client/history-metadata.ts": "4a67c340c9b1ae0426e8112ea4caaf3094f5fd4a16bbb4dcae1a7be3731a6e41",
+    "packages/board-sdk/src/client/history-metadata.ts": "b6334d70d95b6a3ecb3b15bbe4842b31235f0ae6d52f46df75e77a2f1e791a92",
     "sceneboard-fe/lib/api/board-api-types.ts": "46e84756b1b76edefdbc966e5213bcfa08860b1e585d6e7463c7f0b326ff2508",
-    "sceneboard-mcp/src/tools/history.tools.ts": "2fd168467f50d0da4b3e4dde86b9894b436652b38add5ddbd36b1ad844d37cc4"
+    "sceneboard-mcp/src/tools/history.tools.ts": "119e5c1fa91cf862ba9472b4a26f38e9e6d03e004177f6fb9c296c17f4aa33be"
   },
   "compatibility": {
     "oldEmissionOldClient": "pass",
@@ -26,6 +26,6 @@
   "minimumDeployedParserDigests": {
     "sdk": "2975943447b4db7ff396f4bccf7739b255c2864007463b91a5f2536729aa3b73",
     "frontend": "46e84756b1b76edefdbc966e5213bcfa08860b1e585d6e7463c7f0b326ff2508",
-    "mcp": "2fd168467f50d0da4b3e4dde86b9894b436652b38add5ddbd36b1ad844d37cc4"
+    "mcp": "119e5c1fa91cf862ba9472b4a26f38e9e6d03e004177f6fb9c296c17f4aa33be"
   }
 }

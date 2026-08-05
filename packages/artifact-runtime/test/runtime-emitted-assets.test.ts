@@ -23,7 +23,7 @@ const buildAndRead = (): { path: string; sha256: string; source: string } => {
   };
 };
 
-test('deterministic emitted runner contains trusted navigation and one-shot sizing', () => {
+test('deterministic emitted runner contains trusted navigation, presentation controls, and one-shot sizing', () => {
   const first = buildAndRead();
   const second = buildAndRead();
   assert.deepEqual(
@@ -32,6 +32,10 @@ test('deterministic emitted runner contains trusted navigation and one-shot sizi
   );
   assert.equal(first.sha256, first.path.match(/outer\.([0-9a-f]{64})\.js$/u)?.[1]);
   assert.match(first.source, /artifact\.navigation\.wheel/u);
+  assert.match(first.source, /host\.presentation/u);
+  assert.match(first.source, /artifact\.presentation\.page-change/u);
+  assert.match(first.source, /changePresentationPage/u);
+  assert.match(first.source, /user-select/u);
   assert.match(first.source, /artifact bridge envelope is invalid/u);
   assert.match(first.source, /artifact host message is invalid/u);
   assert.doesNotMatch(first.source, /ResizeObserver/u);

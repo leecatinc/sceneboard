@@ -21,7 +21,7 @@ if not familyExpiry or familyExpiry <= now then
   return 0
 end
 if contextExpiry <= now or contextExpiry > familyExpiry then return -1 end
-if redis.call('SET', KEYS[2], ARGV[3], 'PXAT', contextExpiry, 'NX') ~= 'OK' then return -1 end
+if not redis.call('SET', KEYS[2], ARGV[3], 'PXAT', contextExpiry, 'NX') then return -1 end
 return 1`;
 
 const CREATE_CONTEXT_LUA = `

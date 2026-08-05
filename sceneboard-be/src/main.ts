@@ -15,8 +15,14 @@ import { MIGRATION_REGISTRY_VERSION } from './database/migrations/registry.js';
 import { loadMediaNativeCertificationEvidence } from './media/media-native-certification.js';
 import { MEDIA_WRITER_GATE, type MediaWriterGate } from './media/media-writer-gate.js';
 
+interface EtagConfigurableHttpServer {
+  disable(setting: 'etag'): void;
+}
+
 export const bootstrap = async (): Promise<void> => {
   const app = await NestFactory.create(AppModule, { bodyParser: false });
+  const httpServer = app.getHttpAdapter().getInstance() as EtagConfigurableHttpServer;
+  httpServer.disable('etag');
   const environment = app.get<AppEnvironment>(APP_ENVIRONMENT);
 
   const state = await app.get(MigrationRunner).status();

@@ -13,6 +13,9 @@ import { BOARD_CATALOG } from '../../lib/i18n/catalogs/board';
 import { BOARDS_CATALOG } from '../../lib/i18n/catalogs/boards';
 import { CODEX_CATALOG } from '../../lib/i18n/catalogs/codex';
 import { COMMON_CATALOG } from '../../lib/i18n/catalogs/common';
+import { PRESENTATION_ANNOTATION_CATALOG } from '../../lib/i18n/catalogs/presentation-annotation';
+import { PRESENTATION_LANDING_CATALOG } from '../../lib/i18n/catalogs/presentation-landing';
+import { PRESENTATION_LIVE_CATALOG } from '../../lib/i18n/catalogs/presentation-live';
 import { PRESENTATION_CATALOG } from '../../lib/i18n/catalogs/presentation';
 import { MEDIA_AUTHORING_CATALOG } from '../../lib/i18n/catalogs/media-authoring';
 import { SETTINGS_CATALOG } from '../../lib/i18n/catalogs/settings';
@@ -114,6 +117,17 @@ test('presentation messages are isolated from the frozen catalog baseline', () =
       'presentation.exportTooLarge',
       'presentation.exportTemporaryFailed',
       'presentation.exportFailed',
+      ...PRESENTATION_LIVE_CATALOG.map((row) => row[0]),
+      'presentation.annotationTools',
+      'presentation.annotationPointer',
+      'presentation.annotationPen',
+      'presentation.annotationEraser',
+      'presentation.annotationPenColor',
+      'presentation.annotationPenWidth',
+      'presentation.annotationUndo',
+      'presentation.annotationRedo',
+      'presentation.annotationClearAll',
+      ...PRESENTATION_LANDING_CATALOG.map((row) => row[0]),
     ],
   );
 });
@@ -152,6 +166,9 @@ test('topic catalogs have one owner per key and stay below the physical line cap
     ['api-key-management', API_KEY_MANAGEMENT_CATALOG],
     ['codex', CODEX_CATALOG],
     ['presentation', PRESENTATION_CATALOG],
+    ['presentation-live', PRESENTATION_LIVE_CATALOG],
+    ['presentation-annotation', PRESENTATION_ANNOTATION_CATALOG],
+    ['presentation-landing', PRESENTATION_LANDING_CATALOG],
     ['media-authoring', MEDIA_AUTHORING_CATALOG],
     ['sharing', SHARING_CATALOG],
     ['analytics', ANALYTICS_CATALOG],

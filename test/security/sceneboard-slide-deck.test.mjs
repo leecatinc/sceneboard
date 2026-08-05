@@ -57,6 +57,7 @@ test('KitCatHub seven-slide deck compiles deterministically with no capabilities
   assert.match(first.source.javascript, /Math\.max\(0,Math\.min/);
   assert.match(first.source.javascript, /ResizeObserver/);
   assert.match(first.source.javascript, /requestResize\(1920,1080\)/);
+  assert.match(first.source.javascript, /changePresentationPage/);
   assert.match(first.source.css, /prefers-reduced-motion:reduce/);
   assert.doesNotMatch(
     `${first.source.html}${first.source.css}${first.source.javascript}`,
@@ -82,6 +83,9 @@ test('slide-deck initializes and navigates when ResizeObserver is unavailable', 
     setAttribute(name, value) {
       this.attributes.set(name, value);
     },
+    getAttribute(name) {
+      return this.attributes.get(name) ?? null;
+    },
     removeAttribute(name) {
       this.attributes.delete(name);
     },
@@ -91,12 +95,14 @@ test('slide-deck initializes and navigates when ResizeObserver is unavailable', 
   });
   const stage = element();
   const slides = Array.from({ length: 7 }, element);
+  slides.forEach((slide, index) => slide.setAttribute('data-deck-slide', `slide-${index + 1}`));
   const previous = element();
   const next = element();
   const current = element();
   const bar = element();
   let focused = 0;
   let hostResizeRequests = 0;
+  const pageChanges = [];
   const root = {
     ...element(),
     clientWidth: 960,
@@ -127,6 +133,9 @@ test('slide-deck initializes and navigates when ResizeObserver is unavailable', 
             assert.deepEqual([width, height], [1920, 1080]);
             hostResizeRequests += 1;
           },
+          changePresentationPage(value) {
+            pageChanges.push(value);
+          },
         },
       },
       requestAnimationFrame(callback) {
@@ -142,12 +151,24 @@ test('slide-deck initializes and navigates when ResizeObserver is unavailable', 
   assert.equal(stage.style.transform, 'scale(0.5)');
   assert.equal(focused, 1);
   assert.equal(hostResizeRequests, 1);
+  assert.deepEqual(
+    pageChanges.map((value) => ({ ...value })),
+    [{ pageId: 'slide-1', pageIndex: 0, pageCount: 7 }],
+  );
 
   next.listeners.get('click')();
   assert.equal(slides.filter((slide) => !slide.hidden).length, 1);
   assert.equal(current.textContent, '2 / 7');
   assert.equal(bar.attributes.get('aria-valuenow'), '2');
   assert.equal(bar.style.values.get('--sb-deck-progress'), `${(2 / 7) * 100}%`);
+  assert.deepEqual(
+    { ...pageChanges.at(-1) },
+    {
+      pageId: 'slide-2',
+      pageIndex: 1,
+      pageCount: 7,
+    },
+  );
 });
 
 test('slide-deck rejects duplicate keys, empty titles, unknown types, and non-16:9 recipes', () => {

@@ -4,6 +4,7 @@ import { type FormEvent, useEffect, useState } from 'react';
 
 import { useI18n } from '../../../components/i18n/I18nProvider';
 import { authSessionClient } from '../../../lib/auth/session-client';
+import { obtainFirebaseGoogleIdToken } from '../../../lib/auth/firebase-google.client';
 
 export function LoginForm() {
   const { t } = useI18n();
@@ -38,6 +39,25 @@ export function LoginForm() {
     setBusy(false);
   }
 
+  async function submitGoogle() {
+    setBusy(true);
+    setError(null);
+    try {
+      const idToken = await obtainFirebaseGoogleIdToken();
+      const result = await authSessionClient().loginWithGoogle(idToken);
+      if (result.kind === 'ok' || result.kind === 'session_present') {
+        window.location.assign('/settings/ai-connections');
+        return;
+      }
+      if (result.kind === 'invalid_credentials') setError(t('auth.googleInvalid'));
+      else setError(t('auth.googleFailed'));
+    } catch {
+      setError(t('auth.googleFailed'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <form className="form" onSubmit={submit}>
       <label className="field">
@@ -61,6 +81,14 @@ export function LoginForm() {
       )}
       <button className="button" disabled={!ready || busy}>
         {busy ? t('auth.signingIn') : t('auth.signIn')}
+      </button>
+      <button
+        className="button secondary"
+        type="button"
+        disabled={!ready || busy}
+        onClick={() => void submitGoogle()}
+      >
+        {t('auth.signInWithGoogle')}
       </button>
     </form>
   );

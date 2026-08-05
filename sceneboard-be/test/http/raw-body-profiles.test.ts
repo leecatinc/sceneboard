@@ -10,6 +10,7 @@ const bytes = (source: string): Uint8Array => new TextEncoder().encode(source);
 
 test('selects static D2 and D1 profiles from method plus canonical pathname only', () => {
   assert.equal(matchRawBodyProfile('POST', '/api/v1/auth/login')?.kind, 'd2-rest-json-body');
+  assert.equal(matchRawBodyProfile('POST', '/api/v1/auth/google')?.kind, 'd2-rest-json-body');
   assert.equal(matchRawBodyProfile('GET', '/api/v1/pairings/pair_1')?.kind, 'd2-no-body');
   assert.equal(
     matchRawBodyProfile('POST', '/api/v1/boards/board_1/mutations')?.kind,

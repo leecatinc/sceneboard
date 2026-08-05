@@ -1,0 +1,141 @@
+.root {
+  position: absolute;
+  z-index: 10;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+
+.canvas {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.canvas[data-tool='pen'],
+.canvas[data-tool='eraser'] {
+  cursor: crosshair;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.canvas[data-tool='eraser'] {
+  cursor: cell;
+}
+
+.stroke {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.toolbar {
+  position: sticky;
+  z-index: 1;
+  top: max(12px, env(safe-area-inset-top));
+  width: max-content;
+  max-width: calc(100vw - 24px);
+  margin: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 12px;
+  background: rgba(22, 52, 48, 0.94);
+  color: white;
+  padding: 5px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+  pointer-events: auto;
+}
+
+.toolbar button {
+  min-height: 34px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  padding: 5px 9px;
+}
+
+.toolbar button[aria-pressed='true'] {
+  border-color: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.toolbar button:disabled {
+  opacity: 0.42;
+}
+
+.toolbar[data-placement='topbar'] {
+  position: static;
+  max-width: 100%;
+  margin: 0;
+  flex-wrap: nowrap;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 0;
+  box-shadow: none;
+}
+
+.toolbar[data-placement='topbar'] button {
+  min-height: 32px;
+  border-color: var(--border);
+  background: var(--surface);
+  padding: 4px 8px;
+}
+
+.toolbar[data-placement='topbar'] button[aria-pressed='true'] {
+  border-color: var(--secondary);
+  background: var(--surface-muted);
+}
+
+.colorControl {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.colorControl input {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+.widthControl {
+  min-width: 62px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 0 6px;
+}
+
+@media (max-width: 480px) {
+  .toolbar {
+    top: max(8px, env(safe-area-inset-top));
+    margin: 8px;
+  }
+
+  .toolbar button {
+    min-height: 40px;
+    padding-inline: 8px;
+  }
+}

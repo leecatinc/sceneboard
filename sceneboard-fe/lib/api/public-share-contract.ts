@@ -53,6 +53,7 @@ export const createPublicShareMediaResolverV1 = (
   const ready = parsed.data.value;
 
   return (input) => {
+    if (!('mediaId' in input)) return UNAVAILABLE_MEDIA;
     const mediaId = MediaIdParserV1.parse(input.mediaId);
     const pageId = PageIdParserV1.parse(input.pageId);
     if (

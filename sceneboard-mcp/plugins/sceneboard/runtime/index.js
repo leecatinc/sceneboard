@@ -26842,7 +26842,10 @@ var canonicalBase64Url32 = (value) => {
     return false;
   }
 };
-var PublicShareTokenSchemaV1 = z.string().refine(canonicalBase64Url32, "share token must be canonical unpadded base64url");
+var PublicShareTokenSchemaV1 = z.string().refine(
+  (value) => canonicalBase64Url32(value) || /^share_[A-Za-z0-9_-]{22}_g[1-9][0-9]{0,15}$/u.test(value),
+  "share token must be a canonical secret token or persistent share locator"
+);
 var PublicContextIdSchemaV1 = z.string().refine(canonicalBase64Url32, "context ID must be canonical unpadded base64url");
 var ShareCsrfTokenSchemaV1 = z.string().min(1).max(512).regex(/^[\x21-\x7e]+$/u);
 var PUBLIC_ARTIFACT_PATH = /^\/api\/v1\/public\/shares\/[A-Za-z0-9_-]{1,128}\/revisions\/[A-Za-z0-9_-]{1,128}\/g\/[1-9][0-9]{0,15}\/[1-9][0-9]{0,15}\/artifacts\/[A-Za-z0-9_-]{1,128}\/versions\/[A-Za-z0-9_-]{1,128}\/package\?contextId=[A-Za-z0-9_-]{43}$/u;
@@ -27044,6 +27047,96 @@ var ShareAnalyticsErrorEnvelopeSchemaV1 = z.object({
     message: z.string().min(1).max(128),
     requestId: GlobalIdStringSchemaV1
   }).strict()
+}).strict();
+
+// packages/board-schema/src/public-presentation-sessions.ts
+var PUBLIC_PRESENTATION_MAX_SESSIONS_V1 = 5;
+var PUBLIC_PRESENTATION_MAX_STROKES_V1 = 64;
+var PUBLIC_PRESENTATION_MAX_POINTS_PER_STROKE_V1 = 128;
+var PUBLIC_PRESENTATION_MAX_POINTS_V1 = 1024;
+var PublicPresentationSessionIdSchemaV1 = PublicContextIdSchemaV1;
+var PublicPresentationRoleSchemaV1 = z.enum(["presenter", "viewer"]);
+var PublicPresentationStatusSchemaV1 = z.enum(["active", "ended"]);
+var PublicPresentationPointSchemaV1 = z.object({
+  x: z.number().finite().min(0).max(1),
+  y: z.number().finite().min(0).max(1)
+}).strict();
+var PublicPresentationStrokeSchemaV1 = z.object({
+  id: z.string().min(1).max(128).regex(/^[\x21-\x7e]+$/u),
+  points: z.array(PublicPresentationPointSchemaV1).min(1).max(PUBLIC_PRESENTATION_MAX_POINTS_PER_STROKE_V1),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/u),
+  width: z.union([z.literal(2), z.literal(4), z.literal(8)])
+}).strict();
+var PublicPresentationAnnotationSchemaV1 = z.object({
+  pageId: PageIdSchemaV1,
+  strokes: z.array(PublicPresentationStrokeSchemaV1).max(PUBLIC_PRESENTATION_MAX_STROKES_V1)
+}).strict().superRefine((annotation, context) => {
+  const totalPoints = annotation.strokes.reduce((sum, stroke) => sum + stroke.points.length, 0);
+  if (totalPoints > PUBLIC_PRESENTATION_MAX_POINTS_V1)
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["strokes"],
+      message: "presentation point limit exceeded"
+    });
+  const ids = /* @__PURE__ */ new Set();
+  annotation.strokes.forEach((stroke, index) => {
+    if (ids.has(stroke.id))
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["strokes", index, "id"],
+        message: "duplicate presentation stroke ID"
+      });
+    ids.add(stroke.id);
+  });
+});
+var PublicPresentationSessionSummarySchemaV1 = z.object({
+  sessionId: PublicPresentationSessionIdSchemaV1,
+  role: PublicPresentationRoleSchemaV1,
+  startedAt: TimestampSchemaV1,
+  updatedAt: TimestampSchemaV1,
+  expiresAt: TimestampSchemaV1
+}).strict();
+var PublicPresentationSessionListSchemaV1 = z.object({
+  sessions: z.array(PublicPresentationSessionSummarySchemaV1).max(PUBLIC_PRESENTATION_MAX_SESSIONS_V1)
+}).strict();
+var PublicPresentationStartRequestSchemaV1 = z.object({ currentPageId: PageIdSchemaV1 }).strict();
+var PublicPresentationSnapshotSchemaV1 = z.object({
+  sessionId: PublicPresentationSessionIdSchemaV1,
+  role: PublicPresentationRoleSchemaV1,
+  status: PublicPresentationStatusSchemaV1,
+  version: z.number().int().safe().min(0),
+  currentPageId: PageIdSchemaV1,
+  annotation: PublicPresentationAnnotationSchemaV1,
+  startedAt: TimestampSchemaV1,
+  updatedAt: TimestampSchemaV1,
+  expiresAt: TimestampSchemaV1
+}).strict().superRefine((snapshot, context) => {
+  if (snapshot.annotation.pageId !== snapshot.currentPageId)
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["annotation", "pageId"],
+      message: "annotation page must match current page"
+    });
+});
+var PublicPresentationUpdateRequestSchemaV1 = z.object({
+  expectedVersion: z.number().int().safe().min(0),
+  currentPageId: PageIdSchemaV1,
+  annotation: PublicPresentationAnnotationSchemaV1
+}).strict().superRefine((update, context) => {
+  if (update.annotation.pageId !== update.currentPageId)
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["annotation", "pageId"],
+      message: "annotation page must match current page"
+    });
+});
+var PublicPresentationEventSchemaV1 = z.object({
+  type: z.literal("presentation.state.v1"),
+  snapshot: PublicPresentationSnapshotSchemaV1
+}).strict();
+var PublicPresentationEndResultSchemaV1 = z.object({
+  sessionId: PublicPresentationSessionIdSchemaV1,
+  status: z.literal("ended")
 }).strict();
 
 // packages/board-schema/src/invitations.ts
@@ -29569,6 +29662,28 @@ var PublicShareStateParserV1 = createParser(
   true,
   [2, 3]
 );
+var PublicPresentationSessionIdParserV1 = createParserV1(
+  PublicPresentationSessionIdSchemaV1
+);
+var PublicPresentationAnnotationParserV1 = createParserV1(
+  PublicPresentationAnnotationSchemaV1
+);
+var PublicPresentationSessionListParserV1 = createParserV1(
+  PublicPresentationSessionListSchemaV1
+);
+var PublicPresentationStartRequestParserV1 = createParserV1(
+  PublicPresentationStartRequestSchemaV1
+);
+var PublicPresentationSnapshotParserV1 = createParserV1(
+  PublicPresentationSnapshotSchemaV1
+);
+var PublicPresentationUpdateRequestParserV1 = createParserV1(
+  PublicPresentationUpdateRequestSchemaV1
+);
+var PublicPresentationEventParserV1 = createParserV1(PublicPresentationEventSchemaV1);
+var PublicPresentationEndResultParserV1 = createParserV1(
+  PublicPresentationEndResultSchemaV1
+);
 var ShareAnalyticsContextRequestParserV1 = createParserV1(
   ShareAnalyticsContextRequestSchemaV1
 );
@@ -31416,7 +31531,6 @@ var FRAME_LIMIT = 64;
 var waitForFrame = async (child, signal) => new Promise((resolve3, reject) => {
   signal?.throwIfAborted();
   let bytes = Buffer.alloc(0);
-  let timer;
   const cleanup = () => {
     clearTimeout(timer);
     child.stdout.off("data", onData);
@@ -31456,7 +31570,7 @@ var waitForFrame = async (child, signal) => new Promise((resolve3, reject) => {
   child.stdout.once("end", onEnd);
   child.once("error", onError);
   signal?.addEventListener("abort", onAbort, { once: true });
-  timer = setTimeout(onTimeout, 2e3);
+  const timer = setTimeout(onTimeout, 2e3);
   timer.unref();
 });
 var LinuxProfileLeaseHelperAdapterV1 = class {
@@ -31724,10 +31838,11 @@ var ApiKeyTokenProviderV1 = class {
 var SECRET_KEY = /(authorization|token|proof|challenge|code|password|cookie|secret|path|generation)/i;
 var TOKEN_PATTERN3 = /(?:lcbg_v1|sbk_v1)\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}/g;
 var PAIRING_PROOF_PATTERN = /PairingProof\s+[A-Za-z0-9_-]+/gi;
+var EMBEDDED_SECRET_PATTERN = /Bearer\s+[A-Za-z0-9_-]{43}|sk-[A-Za-z0-9_-]{43}|[A-Z]{6}-[A-Z]{6}/g;
 var redactSecretsV1 = (value, depth = 0) => {
   if (depth > 8) return "[REDACTED]";
   if (typeof value === "string") {
-    return value.replace(TOKEN_PATTERN3, "[REDACTED]").replace(PAIRING_PROOF_PATTERN, "PairingProof [REDACTED]");
+    return value.replace(TOKEN_PATTERN3, "[REDACTED]").replace(PAIRING_PROOF_PATTERN, "PairingProof [REDACTED]").replace(EMBEDDED_SECRET_PATTERN, "[REDACTED]");
   }
   if (Array.isArray(value)) return value.map((item) => redactSecretsV1(item, depth + 1));
   if (value !== null && typeof value === "object") {
@@ -38419,11 +38534,31 @@ var toolSuccessV1 = (tool, requestId, result, metadata) => asCallResult(
   false,
   `${tool} completed (${requestId})`
 );
-var toolFailureV1 = (tool, requestId, source, value) => asCallResult(
-  { ok: false, tool, requestId, error: { source, value } },
-  true,
-  `${tool} failed: ${String(value.code ?? "UNKNOWN")} (${requestId})`
-);
+var toolFailureV1 = (tool, requestId, source, value) => {
+  const safeValue = redactSecretsV1(value);
+  if (typeof value.code === "string") safeValue.code = value.code;
+  const preserveSchemaPaths = (sourceValue, safe) => {
+    if (sourceValue === null || safe === null || typeof sourceValue !== "object" || typeof safe !== "object" || Array.isArray(sourceValue) || Array.isArray(safe))
+      return;
+    const sourceRecord = sourceValue;
+    const safeRecord = safe;
+    for (const [key, nested] of Object.entries(sourceRecord)) {
+      if (key === "path" && Array.isArray(nested) && nested.every(
+        (segment) => typeof segment === "string" && /^[A-Za-z0-9_-]{1,128}$/u.test(segment) || Number.isSafeInteger(segment) && Number(segment) >= 0
+      )) {
+        safeRecord.path = [...nested];
+      } else {
+        preserveSchemaPaths(nested, safeRecord[key]);
+      }
+    }
+  };
+  preserveSchemaPaths(value, safeValue);
+  return asCallResult(
+    { ok: false, tool, requestId, error: { source, value: safeValue } },
+    true,
+    `${tool} failed: ${String(safeValue.code ?? "UNKNOWN")} (${requestId})`
+  );
+};
 var sdkToolResultV1 = (tool, requestId, result, metadata) => {
   if (result.ok)
     return toolSuccessV1(

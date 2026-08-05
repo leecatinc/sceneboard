@@ -82,6 +82,14 @@ export const GRANT_SCOPES = [
   'artifact.publish',
   'artifact.control',
 ];
+export const ACCOUNT_API_KEY_SCOPES = [
+  'board:archive',
+  'board:create',
+  'board:read',
+  'board:write',
+  'export:read',
+  'history:read',
+];
 export const LIFECYCLE_PERMISSIONS = ['board.create', 'board.archive'];
 export const ARTIFACT_CAPABILITIES = ['clipboard.write', 'download', 'fullscreen', 'network.fetch'];
 

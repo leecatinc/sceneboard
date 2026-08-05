@@ -45,6 +45,11 @@ export type ArtifactResizeRequestV1 = Readonly<{
   height: number;
   source: 'explicit' | 'observer';
 }>;
+export type ArtifactPresentationPageChangeV1 = Readonly<{
+  pageId: string;
+  pageIndex: number;
+  pageCount: number;
+}>;
 
 export type ArtifactBridgeMessageV1 =
   | { type: 'host.bootstrap'; appOrigin: string; runtimeOrigin: string; policyEpoch: Base64Url22 }
@@ -95,9 +100,11 @@ export type ArtifactBridgeMessageV1 =
   | { type: 'host.data'; revisionId: string; projectionId: string; value: JsonValue }
   | { type: 'host.viewport'; value: { width: number; height: number; devicePixelRatio: number } }
   | { type: 'host.selection'; value: { nodeIds: string[] } }
+  | { type: 'host.presentation'; active: boolean }
   | ArtifactNavigationControlV1
   | ArtifactNavigationIntentV1
   | { type: 'artifact.resize.request'; value: ArtifactResizeRequestV1 }
+  | { type: 'artifact.presentation.page-change'; value: ArtifactPresentationPageChangeV1 }
   | { type: 'artifact.selection.change'; value: { nodeIds: string[] } }
   | {
       type: 'artifact.user-action';
@@ -179,6 +186,7 @@ export type ParsedArtifactBridgeEnvelopeV1 = {
 const ID_22 = /^[A-Za-z0-9_-]{22}$/u;
 const HEX_64 = /^[0-9a-f]{64}$/u;
 const COLOR = /^#[0-9a-f]{6}$/u;
+const PRESENTATION_PAGE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u;
 const ENVELOPE_KEYS = [
   'protocolVersion',
   'type',
@@ -214,6 +222,7 @@ const MESSAGE_KEYS: Readonly<Record<ArtifactBridgeMessageV1['type'], readonly st
     'host.data': ['type', 'revisionId', 'projectionId', 'value'],
     'host.viewport': ['type', 'value'],
     'host.selection': ['type', 'value'],
+    'host.presentation': ['type', 'active'],
     'host.navigation.set': ['type', 'enabled'],
     'artifact.navigation.wheel': ['type', 'xMillionth', 'yMillionth', 'deltaY'],
     'artifact.navigation.pan.start': ['type', 'pointerId', 'xMillionth', 'yMillionth'],
@@ -221,6 +230,7 @@ const MESSAGE_KEYS: Readonly<Record<ArtifactBridgeMessageV1['type'], readonly st
     'artifact.navigation.pan.end': ['type', 'pointerId', 'deltaX', 'deltaY'],
     'artifact.navigation.pan.cancel': ['type', 'pointerId'],
     'artifact.resize.request': ['type', 'value'],
+    'artifact.presentation.page-change': ['type', 'value'],
     'artifact.selection.change': ['type', 'value'],
     'artifact.user-action': ['type', 'requestId', 'capability'],
     'artifact.capability.request': ['type', 'requestId', 'capability', 'payload'],
@@ -246,6 +256,7 @@ const CONTROL_CAPS: Readonly<Record<ArtifactBridgeMessageV1['type'], number>> = 
   'host.data': 65_536,
   'host.viewport': 1_024,
   'host.selection': 8_192,
+  'host.presentation': 1_024,
   'host.navigation.set': 1_024,
   'artifact.navigation.wheel': 1_024,
   'artifact.navigation.pan.start': 1_024,
@@ -253,6 +264,7 @@ const CONTROL_CAPS: Readonly<Record<ArtifactBridgeMessageV1['type'], number>> = 
   'artifact.navigation.pan.end': 1_024,
   'artifact.navigation.pan.cancel': 1_024,
   'artifact.resize.request': 1_024,
+  'artifact.presentation.page-change': 1_024,
   'artifact.selection.change': 8_192,
   'artifact.user-action': 1_024,
   'artifact.capability.request': 67_584,
@@ -523,9 +535,24 @@ const validateMessage = (message: Record<string, unknown>): ArtifactBridgeMessag
       ids(value.nodeIds);
       break;
     }
+    case 'artifact.presentation.page-change': {
+      const value = record(message.value, 'presentation page');
+      if (!exactKeys(value, ['pageId', 'pageIndex', 'pageCount']))
+        throw new TypeError('presentation page keys are invalid');
+      if (typeof value.pageId !== 'string' || !PRESENTATION_PAGE_ID.test(value.pageId))
+        throw new TypeError('presentation page ID is invalid');
+      const pageIndex = integer(value.pageIndex, 0, 999, 'presentation page index');
+      const pageCount = integer(value.pageCount, 1, 1_000, 'presentation page count');
+      if (pageIndex >= pageCount) throw new TypeError('presentation page range is invalid');
+      break;
+    }
     case 'host.navigation.set':
       if (typeof message.enabled !== 'boolean')
         throw new TypeError('navigation control is invalid');
+      break;
+    case 'host.presentation':
+      if (typeof message.active !== 'boolean')
+        throw new TypeError('presentation control is invalid');
       break;
     case 'artifact.navigation.wheel':
       integer(message.xMillionth, 0, 1_000_000, 'navigation x');

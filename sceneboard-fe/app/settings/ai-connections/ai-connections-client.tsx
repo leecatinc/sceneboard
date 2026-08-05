@@ -25,6 +25,7 @@ import { GrantList } from './grant-list';
 import { SkillInstallGuide } from './skill-install-guide';
 import { useI18n } from '../../../components/i18n/I18nProvider';
 import { ApiKeyList } from './api-key-list';
+import groupStyles from './connection-method-group.module.css';
 
 export function AiConnectionsClient() {
   const { t } = useI18n();
@@ -68,8 +69,8 @@ export function AiConnectionsClient() {
     const auth = authSessionClient();
     const api = new BoardApiClient(auth.sharedCoordinator());
     setClients({ auth, api });
-    void auth.reconcile().then(async (result) => {
-      if (result.kind !== 'ok' || result.value === null) {
+    void (async () => {
+      if (auth.snapshot() === null) {
         window.location.assign('/login');
         return;
       }
@@ -95,7 +96,7 @@ export function AiConnectionsClient() {
         }
       }
       setBusy(null);
-    });
+    })();
     // `authSessionClient` is the process-wide client singleton; bootstrap runs once per mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -303,43 +304,60 @@ export function AiConnectionsClient() {
         </div>
       </header>
       <SkillInstallGuide />
-      <ApiKeyList />
-      {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      )}
-      {created &&
-        !pairings.some(
-          (pairing) => pairing.pairingId === created.pairingId && pairing.state === 'pending',
-        ) && <PairingCard pairing={created} onDismiss={dismissCreatedPairing} />}
-      {rotatedToken && (
-        <article className="item">
-          <h3>{t('ai.newCredential')}</h3>
-          <p className="muted">{t('ai.newCredentialDescription')}</p>
-          <div className="code">{rotatedToken}</div>
-          <button className="button secondary" onClick={() => setRotatedToken(null)}>
-            {t('common.dismiss')}
-          </button>
-        </article>
-      )}
-      <section className="section">
-        <div className="section-head">
-          <div>
-            <h2>{t('ai.pairingRequests')}</h2>
-            <p className="muted">{t('ai.pairingDescription')}</p>
+      <section
+        className={`section ${groupStyles.group}`}
+        aria-labelledby="ai-client-connection-title"
+      >
+        {error && (
+          <p className="error" role="alert">
+            {error}
+          </p>
+        )}
+        <section className={groupStyles.subsection}>
+          <div className="section-head">
+            <div>
+              <h2 id="ai-client-connection-title">{t('ai.pairingRequests')}</h2>
+              <p className="muted">{t('ai.pairingDescription')}</p>
+            </div>
+            <button
+              className="button"
+              disabled={busy !== null}
+              onClick={() => void createPairing()}
+            >
+              {t('ai.createCode')}
+            </button>
           </div>
-          <button className="button" disabled={busy !== null} onClick={() => void createPairing()}>
-            {t('ai.createCode')}
-          </button>
-        </div>
-        <PairingRequestList
-          pairings={pairings.filter(
-            (pairing) => pairing.pairingId !== created?.pairingId || pairing.state !== 'created',
+          {created &&
+            !pairings.some(
+              (pairing) => pairing.pairingId === created.pairingId && pairing.state === 'pending',
+            ) && <PairingCard pairing={created} onDismiss={dismissCreatedPairing} />}
+          <PairingRequestList
+            pairings={pairings.filter(
+              (pairing) => pairing.pairingId !== created?.pairingId || pairing.state !== 'created',
+            )}
+            selectedPairingId={selectedPairingId}
+            onSelect={setSelectedPairingId}
+          />
+        </section>
+        <section className={groupStyles.subsection}>
+          <h2>{t('ai.approvedClients')}</h2>
+          {rotatedToken && (
+            <article className="item">
+              <h3>{t('ai.newCredential')}</h3>
+              <p className="muted">{t('ai.newCredentialDescription')}</p>
+              <div className="code">{rotatedToken}</div>
+              <button className="button secondary" onClick={() => setRotatedToken(null)}>
+                {t('common.dismiss')}
+              </button>
+            </article>
           )}
-          selectedPairingId={selectedPairingId}
-          onSelect={setSelectedPairingId}
-        />
+          <GrantList
+            grants={grants}
+            busyGrantId={busy}
+            onRotate={(id) => void rotate(id)}
+            onRevoke={revoke}
+          />
+        </section>
       </section>
       {selectedPairing !== null && (
         <PairingRequestModal
@@ -353,15 +371,7 @@ export function AiConnectionsClient() {
           onCancel={() => void cancel(selectedPairing.pairingId)}
         />
       )}
-      <section className="section">
-        <h2>{t('ai.approvedClients')}</h2>
-        <GrantList
-          grants={grants}
-          busyGrantId={busy}
-          onRotate={(id) => void rotate(id)}
-          onRevoke={revoke}
-        />
-      </section>
+      <ApiKeyList />
     </section>
   );
 }

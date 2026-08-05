@@ -20,7 +20,7 @@ import {
 import type { ShareCookieService, ShareFamilyCookieInspection } from './share-cookie.service.js';
 import { PublicShareHttpError } from './public-share.error.js';
 import type { LockedShare, ShareRepository } from './share.repository.js';
-import type { ShareTokenService } from './share-token.service.js';
+import type { PublicShareReference, ShareTokenService } from './share-token.service.js';
 import type { StoredPublicContext } from './public-context.store.js';
 
 interface BoardRow extends RowDataPacket {
@@ -67,23 +67,23 @@ export class PublicShareResolver {
   }): Promise<InitialPublicResolution<Value>> {
     const parsedToken = PublicShareTokenParserV1.parse(input.shareToken);
     if (!parsedToken.ok) throw new PublicShareHttpError(404);
-    let digest: Buffer;
+    let reference: PublicShareReference;
     try {
-      digest = this.tokens.digest(parsedToken.data.value);
+      reference = this.tokens.publicReference(parsedToken.data.value);
     } catch {
       throw new PublicShareHttpError(404);
     }
     return this.withStore((connection) =>
       withTransaction(connection, 'READ COMMITTED', async () => {
-        const observed = await this.shares.readShareByTokenDigest(connection, digest);
+        const observed = await this.readReferencedShare(connection, reference);
         if (observed === null) throw new PublicShareHttpError(404);
         const board = await this.lockBoard(connection, observed.boardPk);
-        const share = await this.shares.lockShareByTokenDigest(connection, digest);
+        const share = await this.lockReferencedShare(connection, reference);
         if (
           share === null ||
           share.boardPk !== observed.boardPk ||
           share.status !== 'active' ||
-          !share.tokenDigest.equals(digest)
+          !this.matchesReference(share, reference)
         )
           throw new PublicShareHttpError(404);
         const nowSql = await passwordDatabaseNow(connection);
@@ -120,6 +120,31 @@ export class PublicShareResolver {
     );
   }
 
+  private readReferencedShare(
+    connection: PoolConnection,
+    reference: PublicShareReference,
+  ): Promise<LockedShare | null> {
+    return reference.kind === 'secret'
+      ? this.shares.readShareByTokenDigest(connection, reference.digest)
+      : this.shares.readShareById(connection, reference.shareId);
+  }
+
+  private lockReferencedShare(
+    connection: PoolConnection,
+    reference: PublicShareReference,
+  ): Promise<LockedShare | null> {
+    return reference.kind === 'secret'
+      ? this.shares.lockShareByTokenDigest(connection, reference.digest)
+      : this.shares.lockShareById(connection, reference.shareId);
+  }
+
+  private matchesReference(share: LockedShare, reference: PublicShareReference): boolean {
+    return reference.kind === 'secret'
+      ? share.tokenDigest.equals(reference.digest)
+      : share.shareId === reference.shareId &&
+          share.accessGeneration === reference.accessGeneration;
+  }
+
   async withContext<Value>(input: {
     context: StoredPublicContext;
     shareFamily: ShareFamilyCookieInspection;
@@ -140,9 +165,13 @@ export class PublicShareResolver {
           throw new PublicShareHttpError(404);
         const nowSql = await passwordDatabaseNow(connection);
         const now = parseMysqlTimestampUtc(nowSql);
+        const contextValidUntil = new Date(input.context.validUntil).valueOf();
+        const contextFamilyExpiresAt = new Date(input.context.familyExpiresAt).valueOf();
         if (
-          now.valueOf() >= parseMysqlTimestampUtc(input.context.validUntil).valueOf() ||
-          now.valueOf() >= parseMysqlTimestampUtc(input.context.familyExpiresAt).valueOf()
+          !Number.isFinite(contextValidUntil) ||
+          !Number.isFinite(contextFamilyExpiresAt) ||
+          now.valueOf() >= contextValidUntil ||
+          now.valueOf() >= contextFamilyExpiresAt
         )
           throw new PublicShareHttpError(404);
         if (share.accessPolicy === 'P') {
@@ -172,9 +201,12 @@ export class PublicShareResolver {
     if (!parsedShareId.ok) throw new PublicShareHttpError(404);
     return this.withStore((connection) =>
       withTransaction(connection, 'READ COMMITTED', async () => {
+        const observed = await this.shares.readShareById(connection, parsedShareId.data.value);
+        if (observed === null) throw new PublicShareHttpError(404);
+        const board = await this.lockBoard(connection, observed.boardPk);
         const share = await this.shares.lockShareById(connection, parsedShareId.data.value);
-        if (share === null || share.status !== 'active') throw new PublicShareHttpError(404);
-        const board = await this.lockBoard(connection, share.boardPk);
+        if (share === null || share.boardPk !== observed.boardPk || share.status !== 'active')
+          throw new PublicShareHttpError(404);
         const nowSql = await passwordDatabaseNow(connection);
         const now = parseMysqlTimestampUtc(nowSql);
         if (share.accessPolicy === 'P') {

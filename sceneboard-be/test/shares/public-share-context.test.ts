@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import type { CryptoService } from '../../src/common/security/crypto.service.js';
@@ -55,4 +56,34 @@ test('context cookie inspection distinguishes absent, malformed, and duplicate a
     service.issue('localhost').setCookie,
     `sceneboard_public_context_dev=${token}; Max-Age=1800; Path=/; HttpOnly; SameSite=Lax`,
   );
+});
+
+test('context renewal accepts Redis Lua status replies and compares stored ISO expiries directly', () => {
+  const store = readFileSync(
+    new URL('../../src/shares/public-context.store.ts', import.meta.url),
+    'utf8',
+  );
+  const resolver = readFileSync(
+    new URL('../../src/shares/public-share.resolver.ts', import.meta.url),
+    'utf8',
+  );
+  assert.match(store, /if not redis\.call\('SET',[\s\S]*?'NX'\) then return -1 end/u);
+  assert.doesNotMatch(store, /redis\.call\('SET',[\s\S]*?~= 'OK'/u);
+  assert.match(resolver, /new Date\(input\.context\.validUntil\)\.valueOf\(\)/u);
+  assert.match(resolver, /new Date\(input\.context\.familyExpiresAt\)\.valueOf\(\)/u);
+  assert.doesNotMatch(
+    resolver,
+    /parseMysqlTimestampUtc\(input\.context\.(?:validUntil|familyExpiresAt)\)/u,
+  );
+});
+
+test('public share resolution acquires board and share locks in one canonical order', () => {
+  const resolver = readFileSync(
+    new URL('../../src/shares/public-share.resolver.ts', import.meta.url),
+    'utf8',
+  );
+  const byShareId = resolver.match(
+    /async withPublicShareId[\s\S]*?const observed = await this\.shares\.readShareById[\s\S]*?const board = await this\.lockBoard[\s\S]*?const share = await this\.shares\.lockShareById/u,
+  );
+  assert.notEqual(byShareId, null);
 });

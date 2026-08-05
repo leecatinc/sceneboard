@@ -38,7 +38,11 @@ export const matchesExportWebHostV1 = (
   return host === new URL(origin).host;
 };
 
-export const buildPublicShareDocumentPolicyV1 = (nonce: string, apiOrigin: string): string => {
+export const buildPublicShareDocumentPolicyV1 = (
+  nonce: string,
+  apiOrigin: string,
+  runtimeOrigin: string,
+): string => {
   if (!/^[A-Za-z0-9+/]{16,128}={0,2}$/u.test(nonce))
     throw new TypeError('public share nonce is invalid');
   return [
@@ -51,7 +55,7 @@ export const buildPublicShareDocumentPolicyV1 = (nonce: string, apiOrigin: strin
     "media-src 'self'",
     "font-src 'self'",
     `connect-src 'self' ${canonicalOrigin(apiOrigin)}`,
-    "frame-src 'none'",
+    `frame-src ${canonicalOrigin(runtimeOrigin)}`,
     "frame-ancestors 'none'",
     "form-action 'self'",
     "worker-src 'none'",
@@ -74,7 +78,7 @@ export const buildExportRenderDocumentPolicyV1 = (
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
     `style-src-elem 'self' 'nonce-${nonce}'`,
     "style-src-attr 'unsafe-inline'",
-    `img-src ${api} data:`,
+    `img-src 'self' ${api} data:`,
     "media-src 'none'",
     `font-src ${api}`,
     `connect-src ${api}`,
@@ -114,7 +118,11 @@ export function middleware(request: NextRequest) {
         process.env.SCENEBOARD_EXPORT_API_ORIGIN ?? '',
         process.env.SCENEBOARD_EXPORT_ARTIFACT_RUNTIME_ORIGIN ?? '',
       )
-    : buildPublicShareDocumentPolicyV1(nonce, process.env.NEXT_PUBLIC_BOARD_API_URL ?? '');
+    : buildPublicShareDocumentPolicyV1(
+        nonce,
+        process.env.NEXT_PUBLIC_BOARD_API_URL ?? '',
+        process.env.NEXT_PUBLIC_ARTIFACT_RUNTIME_ORIGIN ?? '',
+      );
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-nonce', nonce);
   requestHeaders.set('content-security-policy', policy);

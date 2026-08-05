@@ -10,6 +10,11 @@
   "productionApproval": false,
   "installScriptApproval": [
     {
+      "path": "node_modules/@firebase/util",
+      "name": "@firebase/util",
+      "version": "1.15.2"
+    },
+    {
       "path": "node_modules/esbuild",
       "name": "esbuild",
       "version": "0.25.12"
@@ -18,6 +23,11 @@
       "path": "node_modules/fsevents",
       "name": "fsevents",
       "version": "2.3.2"
+    },
+    {
+      "path": "node_modules/protobufjs",
+      "name": "protobufjs",
+      "version": "7.6.5"
     },
     {
       "path": "node_modules/sharp",

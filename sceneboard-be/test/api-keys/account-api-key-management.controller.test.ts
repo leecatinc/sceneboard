@@ -77,9 +77,7 @@ test('session management keeps default scope, limiter inputs, and safe responses
     },
   });
 
-  const created = await value.create(
-    request({ displayName: 'Automation', expiresInDays: 90 }),
-  );
+  const created = await value.create(request({ displayName: 'Automation', expiresInDays: 90 }));
   assert.equal(created.metadata, metadata);
   assert.equal(
     (calls.find(([name]) => name === 'issue-service')?.[1] as { scopes?: unknown }).scopes,
@@ -130,7 +128,7 @@ test('cursor is owner-bound, endpoint-bound, canonical, and expires after fiftee
   }
 });
 
-test('route source is session, origin, and CSRF protected without board-principal admission', async () => {
+test('route source protects reads by session and same-origin fetch while mutations also require CSRF', async () => {
   const source = await readFile(
     new URL('../../src/api-keys/account-api-key.controller.ts', import.meta.url),
     'utf8',
@@ -138,7 +136,9 @@ test('route source is session, origin, and CSRF protected without board-principa
   assert.match(source, /@Controller\('api\/v1\/account\/api-keys'\)/u);
   assert.match(source, /@RequireSession\(\)/u);
   assert.equal((source.match(/@RequireOrigin\(\)/gu) ?? []).length, 3);
-  assert.equal((source.match(/@RequireCsrf\('session'\)/gu) ?? []).length, 3);
+  assert.equal((source.match(/@RequireCsrf\('session'\)/gu) ?? []).length, 2);
+  assert.match(source, /@Get\(\)[\s\S]*?@RequireOrigin\(\)[\s\S]*?async list/u);
+  assert.doesNotMatch(source, /@Get\(\)[\s\S]*?@RequireCsrf\('session'\)[\s\S]*?async list/u);
   assert.doesNotMatch(source, /RequireBoardPrincipal/u);
 });
 
@@ -181,10 +181,11 @@ test('create DTO requires a closed duration and preserves exact scope selection 
 
 test('create DTO admits every exact database-clock expiry duration', () => {
   for (const expiresInDays of [30, 90, 365] as const) {
-    assert.deepEqual(
-      parseAccountApiKeyCreateDto({ displayName: 'Automation', expiresInDays }),
-      { displayName: 'Automation', scopes: undefined, expiresInDays },
-    );
+    assert.deepEqual(parseAccountApiKeyCreateDto({ displayName: 'Automation', expiresInDays }), {
+      displayName: 'Automation',
+      scopes: undefined,
+      expiresInDays,
+    });
   }
 });
 

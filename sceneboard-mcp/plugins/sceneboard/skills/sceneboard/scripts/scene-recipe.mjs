@@ -129,10 +129,15 @@ const parseFlags = (args, positionalMax) => {
   return { values, positional };
 };
 
-const outputFor = (recipe, values) =>
-  values.output === 'scene'
-    ? compileSceneRecipe(recipe)
-    : compileSceneRecipeReplaceInput(recipe, values);
+const outputFor = (recipe, values) => {
+  if (values.output === 'scene') return compileSceneRecipe(recipe);
+  const { boardId, expectedRevisionId, idempotencyKey } = values;
+  return compileSceneRecipeReplaceInput(recipe, {
+    boardId,
+    expectedRevisionId,
+    idempotencyKey,
+  });
+};
 
 const listPresets = async () => {
   const names = [];

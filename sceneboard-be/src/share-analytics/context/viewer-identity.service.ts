@@ -92,7 +92,9 @@ export class ViewerIdentityService {
   }
 
   newContextId(): string {
-    return this.crypto.randomBase64Url(16);
+    // Public projections embed this ID in artifact and media URLs, whose public-share
+    // contract requires a canonical 32-byte context identifier.
+    return this.crypto.randomBase64Url(32);
   }
 
   assertCsrf(input: {

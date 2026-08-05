@@ -134,6 +134,7 @@ export const requestJson = async ({
   requirePairingHeaders = null,
   correlation = null,
   connectionBoardId = undefined,
+  connectionCredentialMode = 'pairing',
   timeoutMs = config.timeoutMs,
   operationDeadline = null,
   fetchImpl = fetch,
@@ -273,7 +274,7 @@ export const requestJson = async ({
       throw responseError;
     }
     if (connectionBoardId !== undefined) {
-      const connection = parseConnection(parsed, connectionBoardId);
+      const connection = parseConnection(parsed, connectionBoardId, connectionCredentialMode);
       if (connection === null) {
         throw new SceneBoardApiError(
           'BOARD_API_RESPONSE_INVALID',
@@ -498,7 +499,11 @@ const authorizedRequest = async (config, credential, options) => {
       authorization: `Bearer ${credential.accessToken}`,
     });
   } catch (error) {
-    if (error instanceof SceneBoardApiError && error.code === 'UNAUTHENTICATED') {
+    if (
+      credential.credentialMode === 'pairing' &&
+      error instanceof SceneBoardApiError &&
+      error.code === 'UNAUTHENTICATED'
+    ) {
       try {
         await deleteCredentialIfGeneration(config, credential.generation);
       } catch {
@@ -508,6 +513,15 @@ const authorizedRequest = async (config, credential, options) => {
     throw error;
   }
 };
+
+const CREATED_SUCCESS_TYPES = new Set([
+  'board.create',
+  'scene.replace',
+  'scene.clear',
+  'hitl.request',
+  'hitl.respond',
+  'artifact.stop',
+]);
 
 export const invokeProtected = async (operation, input, { cwd, env, fetchImpl } = {}) => {
   const config = await resolveApiConfig({ cwd, env });
@@ -520,9 +534,13 @@ export const invokeProtected = async (operation, input, { cwd, env, fetchImpl } 
   if (credential === null) {
     throw new SceneBoardApiError(
       'BOARD_API_NOT_CONNECTED',
-      'SceneBoard API fallback is not paired',
+      config.credentialMode === 'api_key'
+        ? 'SceneBoard API fallback has no configured API key'
+        : 'SceneBoard API fallback is not paired',
       {
-        details: { recovery: 'run_pair' },
+        details: {
+          recovery: config.credentialMode === 'api_key' ? 'set_api_key' : 'run_pair',
+        },
       },
     );
   }
@@ -531,7 +549,7 @@ export const invokeProtected = async (operation, input, { cwd, env, fetchImpl } 
     ...spec,
     requestId,
     allowedErrorCodes: OPERATION_ERROR_CODES[operation],
-    expectedStatus: spec.expectedType === 'board.create' ? [200, 201] : [200],
+    expectedStatus: CREATED_SUCCESS_TYPES.has(spec.expectedType) ? [200, 201] : [200],
     timeoutMs:
       spec.minimumTimeoutMs === undefined
         ? undefined
@@ -551,6 +569,7 @@ const connectionStatus = async (input, { config, requestId, fetchImpl }) => {
     baseOrigin: config.baseUrl,
     timeoutMs: config.timeoutMs,
     hasToken: credential !== null,
+    credentialMode: config.credentialMode,
   };
   if (credential === null)
     return {
@@ -564,7 +583,10 @@ const connectionStatus = async (input, { config, requestId, fetchImpl }) => {
       metadata: null,
     };
   const query = new URLSearchParams({ requestId });
-  if (input.boardId !== null) query.set('boardId', input.boardId);
+  if (input.boardId !== null) {
+    query.set('boardId', input.boardId);
+    if (config.credentialMode === 'api_key') query.set('authorizationOperation', 'board.get');
+  }
   try {
     const result = await requestJson({
       config,
@@ -575,6 +597,7 @@ const connectionStatus = async (input, { config, requestId, fetchImpl }) => {
       allowedErrorCodes: OPERATION_ERROR_CODES.board_connection_status,
       requirePairingHeaders: 'connection',
       connectionBoardId: input.boardId,
+      connectionCredentialMode: config.credentialMode,
       fetchImpl,
     });
     return {
@@ -590,10 +613,12 @@ const connectionStatus = async (input, { config, requestId, fetchImpl }) => {
   } catch (error) {
     if (error instanceof SceneBoardApiError && error.code === 'UNAUTHENTICATED') {
       let deleted = false;
-      try {
-        deleted = await deleteCredentialIfGeneration(config, credential.generation);
-      } catch {
-        // Credential cleanup is best-effort while reporting invalid state.
+      if (credential.credentialMode === 'pairing') {
+        try {
+          deleted = await deleteCredentialIfGeneration(config, credential.generation);
+        } catch {
+          // Credential cleanup is best-effort while reporting invalid state.
+        }
       }
       let hasToken = !deleted;
       if (!deleted) {
@@ -646,8 +671,14 @@ const invokeScenePatch = async (input, { config, requestId, fetchImpl }) => {
   if (credential === null)
     throw new SceneBoardApiError(
       'BOARD_API_NOT_CONNECTED',
-      'SceneBoard API fallback is not paired',
-      { details: { recovery: 'run_pair' } },
+      config.credentialMode === 'api_key'
+        ? 'SceneBoard API fallback has no configured API key'
+        : 'SceneBoard API fallback is not paired',
+      {
+        details: {
+          recovery: config.credentialMode === 'api_key' ? 'set_api_key' : 'run_pair',
+        },
+      },
     );
   // A scene patch is one public operation backed by two HTTP requests. Keep the
   // public request ID for the mutation/result, but give the prerequisite head
@@ -699,7 +730,7 @@ const invokeScenePatch = async (input, { config, requestId, fetchImpl }) => {
   const envelope = await authorizedRequest(config, credential, {
     ...spec,
     requestId,
-    expectedStatus: [200],
+    expectedStatus: [200, 201],
     allowedErrorCodes: OPERATION_ERROR_CODES.board_scene_patch,
     operationDeadline,
     fetchImpl,
@@ -739,4 +770,5 @@ export const publicConfig = (config) => ({
   profile: config.profile,
   baseOrigin: config.baseUrl,
   timeoutMs: config.timeoutMs,
+  credentialMode: config.credentialMode,
 });

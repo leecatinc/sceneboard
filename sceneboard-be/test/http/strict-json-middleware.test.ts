@@ -37,6 +37,35 @@ test('reads and attaches one strict D2 body before downstream handlers', async (
   assert.equal(Object.getPrototypeOf(input.body), null);
 });
 
+test('attaches strict D2 bodies for share, invitation, and member management routes', async () => {
+  for (const [method, url, value] of [
+    [
+      'POST',
+      '/api/v1/boards/AAECAwQFBgcICQoLDA0ODw/shares',
+      { pinnedRevisionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' },
+    ],
+    [
+      'POST',
+      '/api/v1/boards/AAECAwQFBgcICQoLDA0ODw/invitations',
+      { email: 'qa@example.com', role: 'viewer' },
+    ],
+    [
+      'PATCH',
+      '/api/v1/boards/AAECAwQFBgcICQoLDA0ODw/members/AAECAwQFBgcICQoLDA0ODw',
+      { role: 'editor', version: 1 },
+    ],
+  ] as const) {
+    const source = JSON.stringify(value);
+    const input = request(method, url, source, {
+      'content-type': 'application/json',
+      'content-length': String(Buffer.byteLength(source)),
+    });
+    assert.equal(await run(input), undefined);
+    assert.equal(JSON.stringify(input.body), source);
+    assert.equal(Object.getPrototypeOf(input.body), null);
+  }
+});
+
 test('retains D1 raw bytes and parsed contract on private symbols', async () => {
   const source =
     '{"protocolVersion":1,"requestId":"request_01","type":"board.create","title":"SceneBoard","idempotencyKey":"0123456789abcdef"}';
@@ -92,6 +121,49 @@ test('selects the isolated V2 document media profile and preserves the nested sh
   assert.equal(
     (profiled[D1_PARSED_BODY] as { command?: { type?: string } }).command?.type,
     'document.replace',
+  );
+});
+
+test('selects the V3 document media profile used by document format changes', async () => {
+  const source = JSON.stringify({
+    protocolVersion: 1,
+    requestId: 'request_document_3',
+    idempotencyKey: '0123456789abcdef',
+    boardId: 'AAECAwQFBgcICQoLDA0ODw',
+    expectedRevisionId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    command: {
+      type: 'document.replace',
+      document: {
+        schemaVersion: 3,
+        format: 'standard_4_3',
+        defaultPageId: 'page_1',
+        pages: [
+          {
+            pageId: 'page_1',
+            title: '',
+            displayMode: 'fit-page',
+            scene: { protocolVersion: 1, type: 'scene', root: null },
+          },
+        ],
+      },
+    },
+  });
+  const input = request(
+    'POST',
+    '/api/v1/boards/AAECAwQFBgcICQoLDA0ODw/mutations?documentSchemaVersion=3',
+    source,
+    {
+      'content-type': 'application/vnd.sceneboard.document+json;version=3',
+      'content-encoding': 'identity',
+      'content-length': String(Buffer.byteLength(source)),
+    },
+  );
+  assert.equal(await run(input), undefined);
+  const profiled = input as typeof input & Record<symbol, unknown>;
+  assert.equal(
+    (profiled[D1_PARSED_BODY] as { command?: { document?: { format?: string } } }).command?.document
+      ?.format,
+    'standard_4_3',
   );
 });
 

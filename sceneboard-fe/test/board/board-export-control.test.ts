@@ -5,7 +5,7 @@ import test from 'node:test';
 const source = (relative: string): string =>
   readFileSync(new URL(`../../${relative}`, import.meta.url), 'utf8');
 
-test('owner export confirmation pins revision, document format and exact server retryability', () => {
+test('owner export confirmation pins the latest revision and exact server retryability', () => {
   const control = source('components/board/BoardExportControl.tsx');
   const client = source('app/boards/[boardId]/board-client.tsx');
   assert.match(control, /setTarget\(\{\s*boardId,\s*boardTitle,\s*revisionId,\s*revisionNumber/su);
@@ -13,7 +13,13 @@ test('owner export confirmation pins revision, document format and exact server 
   assert.match(control, /retry \? requestFormatRef\.current : format/u);
   assert.match(control, /if \(!retry\) requestFormatRef\.current = requestFormat/u);
   assert.match(control, /boards\.revision/);
-  assert.match(control, /formatLabelKey\(target\.documentFormat\)/);
+  assert.match(control, /<PresentationFormatControls/u);
+  assert.match(control, /value=\{documentFormat\}/u);
+  assert.match(control, /onChange=\{onDocumentFormatChange\}/u);
+  assert.match(
+    control,
+    /if \(!open \|\| \(state\.phase !== 'confirming' && state\.phase !== 'idle'\)\) return;/u,
+  );
   assert.match(control, /state\.failure\?\.retryable === true/);
   assert.match(control, /disabled=\{state\.phase !== 'confirming' && state\.phase !== 'idle'\}/u);
   assert.doesNotMatch(control, /status\s*===\s*(429|500|503|504)/u);
@@ -56,6 +62,7 @@ test('export dialog restores focus, announces status and remains usable at 320px
   const control = source('components/board/BoardExportControl.tsx');
   const styles = source('components/board/BoardExportControl.module.css');
   assert.match(control, /requestAnimationFrame\(\(\) => triggerRef\.current\?\.focus\(\)\)/u);
+  assert.match(control, /event\.target === event\.currentTarget\) close\(\)/u);
   assert.match(control, /aria-labelledby=\{titleId\}/u);
   assert.match(control, /aria-describedby=\{descriptionId\}/u);
   assert.match(control, /aria-live="polite"/u);

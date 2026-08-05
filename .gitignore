@@ -26,6 +26,9 @@ logs/
 .certification-fixtures/
 test-results/
 playwright-report/
+**/.sceneboard-current
+**/.sceneboard-leases/
+**/.sceneboard-releases/
 
 # Local recordings, screenshots, and temporary output
 record/output/

@@ -4,6 +4,7 @@ import { type RefObject, useState } from 'react';
 import type { AccountApiKeyScopeV1 } from '@sceneboard/board-schema';
 
 import { useI18n } from '../../../components/i18n/I18nProvider';
+import { formatApiKeyNameTimestamp } from './api-key-name';
 import styles from './api-key-management.module.css';
 
 const ALL_SCOPES: AccountApiKeyScopeV1[] = [
@@ -30,8 +31,7 @@ export function ApiKeyCreateSheet({
 }) {
   const { t } = useI18n();
   const [name, setName] = useState('');
-  const [nameError, setNameError] = useState(false);
-  const [selected, setSelected] = useState<AccountApiKeyScopeV1[]>(['board:read']);
+  const [selected, setSelected] = useState<AccountApiKeyScopeV1[]>([...ALL_SCOPES]);
   const [days, setDays] = useState('90');
   const toggle = (scope: AccountApiKeyScopeV1) =>
     setSelected((current) =>
@@ -44,13 +44,13 @@ export function ApiKeyCreateSheet({
       className={styles.form}
       onSubmit={(event) => {
         event.preventDefault();
-        const displayName = name.trim();
-        if (selected.length === 0 || displayName.length === 0) {
-          setNameError(displayName.length === 0);
-          return;
-        }
+        if (selected.length === 0) return;
+        const trimmedName = name.trim();
+        const displayName =
+          trimmedName.length > 0
+            ? trimmedName
+            : t('apiKey.defaultName', { timestamp: formatApiKeyNameTimestamp(new Date()) });
         setName(displayName);
-        setNameError(false);
         onCreate({
           displayName,
           scopes: selected,
@@ -58,47 +58,69 @@ export function ApiKeyCreateSheet({
         });
       }}
     >
-      <label>
-        {t('apiKey.name')}
+      <label className={styles.field}>
+        <span>{t('apiKey.name')}</span>
         <input
+          className={styles.control}
           value={name}
           maxLength={80}
-          required
-          aria-invalid={nameError}
-          aria-describedby={nameError ? 'api-key-name-error' : undefined}
-          onChange={(event) => {
-            setName(event.target.value);
-            if (nameError) setNameError(false);
-          }}
+          aria-describedby="api-key-name-hint"
+          onChange={(event) => setName(event.target.value)}
         />
-        {nameError && (
-          <span id="api-key-name-error" className={styles.error} role="alert">
-            {t('apiKey.nameRequired')}
-          </span>
-        )}
+        <span id="api-key-name-hint" className={styles.fieldHint}>
+          {t('apiKey.nameAutoHint')}
+        </span>
       </label>
-      <fieldset>
+      <fieldset className={styles.scopeFieldset}>
         <legend>{t('apiKey.scopes')}</legend>
-        {ALL_SCOPES.map((scope) => (
-          <label key={scope}>
-            <input
-              type="checkbox"
-              checked={selected.includes(scope)}
-              onChange={() => toggle(scope)}
-            />
-            {scope}
-          </label>
-        ))}
+        <div className={styles.scopeToolbar}>
+          <button
+            type="button"
+            className={`button secondary ${styles.scopeAction}`}
+            disabled={selected.length === ALL_SCOPES.length}
+            onClick={() => setSelected([...ALL_SCOPES])}
+          >
+            {t('apiKey.selectAllScopes')}
+          </button>
+          <button
+            type="button"
+            className={`button secondary ${styles.scopeAction}`}
+            disabled={selected.length === 0}
+            onClick={() => setSelected([])}
+          >
+            {t('apiKey.clearAllScopes')}
+          </button>
+        </div>
+        <div className={styles.scopeGrid}>
+          {ALL_SCOPES.map((scope) => (
+            <label className={styles.scopeOption} key={scope}>
+              <input
+                type="checkbox"
+                checked={selected.includes(scope)}
+                onChange={() => toggle(scope)}
+              />
+              <span>{scope}</span>
+            </label>
+          ))}
+        </div>
       </fieldset>
-      <label>
-        {t('apiKey.expires')}
-        <select value={days} onChange={(event) => setDays(event.target.value)}>
+      <label className={styles.field}>
+        <span>{t('apiKey.expires')}</span>
+        <select
+          className={styles.control}
+          value={days}
+          onChange={(event) => setDays(event.target.value)}
+        >
           <option value="30">{t('apiKey.expiry30')}</option>
           <option value="90">{t('apiKey.expiry90')}</option>
           <option value="365">{t('apiKey.expiry365')}</option>
         </select>
       </label>
-      <button ref={triggerRef} className="button" disabled={busy || selected.length === 0}>
+      <button
+        ref={triggerRef}
+        className={`button ${styles.submit}`}
+        disabled={busy || selected.length === 0}
+      >
         {t('apiKey.create')}
       </button>
     </form>

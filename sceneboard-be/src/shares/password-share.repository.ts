@@ -30,7 +30,7 @@ const affectedOne = (result: ResultSetHeader): void => {
 };
 
 export const passwordDatabaseNow = async (connection: PoolConnection): Promise<string> => {
-  const [rows] = await connection.execute<ClockRow[]>('SELECT UTC_TIMESTAMP(6) AS nowSql');
+  const [rows] = await connection.execute<ClockRow[]>('SELECT UTC_TIMESTAMP(3) AS nowSql');
   const nowSql = rows[0]?.nowSql;
   if (nowSql === undefined) throw new ShareContractError('SERVICE_UNAVAILABLE', 1);
   parseMysqlTimestampUtc(nowSql);

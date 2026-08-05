@@ -19,6 +19,7 @@ export const createAccountMediaResolverV1 = (
   if (!boardId.ok || !revisionId.ok) return () => UNAVAILABLE;
 
   return (input) => {
+    if (!('mediaId' in input)) return UNAVAILABLE;
     const mediaId = MediaIdParserV1.parse(input.mediaId);
     const pageId = PageIdParserV1.parse(input.pageId);
     if (

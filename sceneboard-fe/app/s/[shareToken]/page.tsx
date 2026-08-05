@@ -14,14 +14,7 @@ export default async function SharedBoardPage({
   params: Promise<{ shareToken: string }>;
 }) {
   const { shareToken } = await params;
-  const initialState = await bootstrapSharedBoard(shareToken);
   const bootstrapAction = bootstrapSharedBoard.bind(null, shareToken);
   const passwordAction = submitSharedBoardPassword.bind(null, shareToken);
-  return (
-    <SharedBoardClient
-      initialState={initialState}
-      bootstrapAction={bootstrapAction}
-      passwordAction={passwordAction}
-    />
-  );
+  return <SharedBoardClient bootstrapAction={bootstrapAction} passwordAction={passwordAction} />;
 }

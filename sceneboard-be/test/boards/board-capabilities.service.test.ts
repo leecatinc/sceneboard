@@ -45,10 +45,7 @@ test('projects frozen V1/V2 and occurrence-aware V3 capability selectors', () =>
   assert.equal(v3.schemaVersion, '1.2.0');
   assert.equal('maxArtifactReferenceOccurrences' in v1.limits, false);
   assert.equal('maxArtifactReferenceOccurrences' in v2.limits, false);
-  assert.equal(
-    v3.limits.maxArtifactReferenceOccurrences,
-    MAX_ARTIFACT_REFERENCE_OCCURRENCES,
-  );
+  assert.equal(v3.limits.maxArtifactReferenceOccurrences, MAX_ARTIFACT_REFERENCE_OCCURRENCES);
 });
 
 test('projects current authorized capabilities in one repeatable-read board cut', async () => {
