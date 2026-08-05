@@ -34,8 +34,8 @@ const parseObject = (bytes, label) => {
 const frontend = parseObject(frontendBytes, 'frontend input');
 const backend = parseObject(backendBytes, 'backend input');
 const runtime = parseObject(runtimeBytes, 'runtime input');
-if (backend.APP_ENV !== 'staging')
-  throw new TypeError('development runtime evidence requires the staging environment');
+if (!['staging', 'production'].includes(backend.APP_ENV))
+  throw new TypeError('hosted runtime evidence requires the staging or production environment');
 
 const frontendOrigin = canonicalOriginV1(backend.BOARD_ALLOWED_ORIGINS, 'frontend origin').origin;
 const apiOrigin = canonicalOriginV1(backend.BOARD_PUBLIC_API_ORIGIN, 'API origin').origin;
