@@ -14,9 +14,26 @@ export type ArtifactStageSizeV1 = Readonly<{
   height: number;
 }>;
 
+export type ArtifactFitRenderScaleV1 = Readonly<{
+  viewportScale: number;
+  compositorScale: number;
+}>;
+
 const finitePositive = (value: number): boolean => Number.isFinite(value) && value > 0;
 const finiteTransform = (value: ArtifactViewTransformV1): boolean =>
   finitePositive(value.scale) && Number.isFinite(value.x) && Number.isFinite(value.y);
+
+export const resolveArtifactFitRenderScaleV1 = (input: {
+  visualScale: number;
+  responsiveFixedCanvas: boolean;
+}): ArtifactFitRenderScaleV1 => {
+  const visualScale = finitePositive(input.visualScale) ? input.visualScale : 1;
+  const viewportScale = input.responsiveFixedCanvas && visualScale < 1 ? visualScale : 1;
+  return {
+    viewportScale,
+    compositorScale: visualScale / viewportScale,
+  };
+};
 
 export const centerArtifactViewV1 = (input: {
   availableWidth: number;

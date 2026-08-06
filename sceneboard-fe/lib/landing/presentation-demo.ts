@@ -5,6 +5,12 @@ const PRESENTATION_DEMO_ORIGINS = new Set([
 
 const PERSISTENT_SHARE_PATH = /^\/s\/share_[A-Za-z0-9_-]{22}_g([1-9][0-9]{0,15})$/u;
 
+export type PresentationDemoLanguage = 'en' | 'ko';
+
+export const resolvePresentationDemoLanguage = (
+  rawLocale: string | string[] | undefined,
+): PresentationDemoLanguage => (rawLocale === 'ko' ? 'ko' : 'en');
+
 export const resolvePresentationDemoUrl = (rawValue: string | undefined): string | null => {
   if (rawValue === undefined || rawValue.length === 0 || rawValue.trim() !== rawValue) return null;
 

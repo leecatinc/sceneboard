@@ -35,6 +35,15 @@ test('deterministic emitted runner contains trusted navigation, presentation con
   assert.match(first.source, /host\.presentation/u);
   assert.match(first.source, /artifact\.presentation\.page-change/u);
   assert.match(first.source, /changePresentationPage/u);
+  assert.match(first.source, /responsive-fixed-canvas/u);
+  assert.match(first.source, /data-sb-slide-deck/u);
+  assert.doesNotMatch(first.source, /body > \.deck/u);
+  assert.match(first.source, /data-deck-stage/u);
+  assert.match(first.source, /zoom/u);
+  assert.match(first.source, /sbMobilePresentationSafety/u);
+  assert.match(first.source, /background-image:none!important/u);
+  assert.match(first.source, /contain:layout paint style/u);
+  assert.match(first.source, /removeEventListener/u);
   assert.match(first.source, /user-select/u);
   assert.match(first.source, /artifact bridge envelope is invalid/u);
   assert.match(first.source, /artifact host message is invalid/u);

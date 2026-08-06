@@ -44,6 +44,7 @@ export type ArtifactResizeRequestV1 = Readonly<{
   width: number;
   height: number;
   source: 'explicit' | 'observer';
+  renderMode?: 'responsive-fixed-canvas';
 }>;
 export type ArtifactPresentationPageChangeV1 = Readonly<{
   pageId: string;
@@ -508,7 +509,9 @@ const validateMessage = (message: Record<string, unknown>): ArtifactBridgeMessag
       const allowed =
         type === 'host.viewport'
           ? ['width', 'height', 'devicePixelRatio']
-          : ['width', 'height', 'source'];
+          : value.renderMode === undefined
+            ? ['width', 'height', 'source']
+            : ['width', 'height', 'source', 'renderMode'];
       if (!exactKeys(value, allowed)) throw new TypeError('viewport keys are invalid');
       integer(value.width, 1, 16_384, 'width');
       integer(value.height, 1, 16_384, 'height');
@@ -526,6 +529,12 @@ const validateMessage = (message: Record<string, unknown>): ArtifactBridgeMessag
         value.source !== 'observer'
       )
         throw new TypeError('resize source is invalid');
+      if (
+        type === 'artifact.resize.request' &&
+        value.renderMode !== undefined &&
+        value.renderMode !== 'responsive-fixed-canvas'
+      )
+        throw new TypeError('resize render mode is invalid');
       break;
     }
     case 'host.selection':

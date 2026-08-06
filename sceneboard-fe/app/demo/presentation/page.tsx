@@ -1,9 +1,22 @@
 import { notFound, redirect } from 'next/navigation';
 
-import { resolvePresentationDemoUrl } from '../../../lib/landing/presentation-demo';
+import {
+  resolvePresentationDemoLanguage,
+  resolvePresentationDemoUrl,
+} from '../../../lib/landing/presentation-demo';
 
-export default function PresentationDemoPage() {
-  const destination = resolvePresentationDemoUrl(process.env.SCENEBOARD_PRESENTATION_DEMO_URL);
+interface PresentationDemoPageProps {
+  searchParams: Promise<{ locale?: string | string[] }>;
+}
+
+export default async function PresentationDemoPage({ searchParams }: PresentationDemoPageProps) {
+  const language = resolvePresentationDemoLanguage((await searchParams).locale);
+  const rawDestination =
+    language === 'ko'
+      ? (process.env.SCENEBOARD_PRESENTATION_DEMO_URL_KO ??
+        process.env.SCENEBOARD_PRESENTATION_DEMO_URL)
+      : process.env.SCENEBOARD_PRESENTATION_DEMO_URL_EN;
+  const destination = resolvePresentationDemoUrl(rawDestination);
   if (destination === null) notFound();
   redirect(destination);
 }

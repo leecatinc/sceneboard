@@ -23,3 +23,10 @@ Run commands from the affected package until a unified monorepo command is intro
 - Keep fixtures deterministic and redact secrets and personal data from logs, screenshots, and recordings.
 - Record the commands, result, and any unverified surface in the completion report.
 - Do not use `npx`; use package scripts or local binaries.
+
+## E2E account lifecycle
+
+- Normal E2E runs must reuse a pre-provisioned dedicated test account. Do not create a new user through the sign-up flow for each run.
+- Read reusable test credentials only from approved environment variables or a secret store. Never commit or print them.
+- Account provisioning is a separate one-time bootstrap operation. Run it only when the dedicated account does not exist and the operation is explicitly required.
+- Tests for the sign-up feature itself must use an isolated, uniquely identified account and clean it up when the environment supports safe teardown; they are not part of the normal authenticated E2E bootstrap.

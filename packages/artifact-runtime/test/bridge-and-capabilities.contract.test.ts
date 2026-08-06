@@ -156,6 +156,34 @@ test('bridge endpoint rejects same-realm validation-time message mutation', () =
   }
 });
 
+test('bridge endpoint admits only the built-in responsive fixed-canvas resize mode', () => {
+  const sender = new ArtifactBridgeEndpointV1({ channelId: ID, sessionId: ID, artifact });
+  assert.doesNotThrow(() =>
+    sender.send({
+      type: 'artifact.resize.request',
+      value: {
+        width: 1_920,
+        height: 1_080,
+        source: 'explicit',
+        renderMode: 'responsive-fixed-canvas',
+      },
+    }),
+  );
+  assert.throws(
+    () =>
+      sender.send({
+        type: 'artifact.resize.request',
+        value: {
+          width: 1_920,
+          height: 1_080,
+          source: 'explicit',
+          renderMode: 'untrusted-mode',
+        } as never,
+      }),
+    /render mode/u,
+  );
+});
+
 test('host lifecycle has only named legal edges', () => {
   const machine = new ArtifactHostStateMachineV1();
   assert.equal(machine.advance('mount'), 'outer_bootstrap');

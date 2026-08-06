@@ -24,7 +24,8 @@ const validSize = (value: ArtifactResizeRequestV1): boolean =>
   Number.isInteger(value.height) &&
   value.height >= 1 &&
   value.height <= 16_384 &&
-  (value.source === 'explicit' || value.source === 'observer');
+  (value.source === 'explicit' || value.source === 'observer') &&
+  (value.renderMode === undefined || value.renderMode === 'responsive-fixed-canvas');
 
 export const admitArtifactResizeRequestV1 = (
   state: ArtifactResizeQueueV1,

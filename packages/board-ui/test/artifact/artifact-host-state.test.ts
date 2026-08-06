@@ -16,7 +16,9 @@ const resize = (
   width: number,
   height: number,
   source: 'observer' | 'explicit',
-): ArtifactResizeRequestV1 => ({ width, height, source });
+  renderMode?: 'responsive-fixed-canvas',
+): ArtifactResizeRequestV1 =>
+  renderMode === undefined ? { width, height, source } : { width, height, source, renderMode };
 
 const resetInput = (
   epoch: number,
@@ -47,6 +49,13 @@ test('resize admission owns observer-once, explicit precedence, and latest expli
   const taken = takePendingArtifactResizeV1(result.state);
   assert.deepEqual(taken.pending, resize(1600, 900, 'explicit'));
   assert.equal(taken.state.pending, null);
+
+  result = admitArtifactResizeRequestV1(
+    taken.state,
+    resize(1920, 1080, 'explicit', 'responsive-fixed-canvas'),
+  );
+  assert.equal(result.accepted, true);
+  assert.equal(result.state.pending?.renderMode, 'responsive-fixed-canvas');
 });
 
 test('resize admission rejects invalid bounds and equal sizes remain a no-op', () => {

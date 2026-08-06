@@ -1,8 +1,10 @@
 'use client';
 
 import Link from 'next/link';
+import { useRef, type MouseEvent, type PointerEvent } from 'react';
 
 import type { MessageKey } from '../../lib/i18n/catalog';
+import { shouldUseCurrentTabForPresentationSample } from '../../lib/landing/presentation-sample-navigation';
 import { BrandMark } from '../app/Brand';
 import { useI18n } from '../i18n/I18nProvider';
 import { DemoVideo } from './DemoVideo';
@@ -64,6 +66,30 @@ const presentationCapabilities = [
 
 export function LandingPage() {
   const { locale, t } = useI18n();
+  const presentationSamplePointerType = useRef<'mouse' | 'touch' | null>(null);
+
+  const recordPresentationSamplePointer = (event: PointerEvent<HTMLAnchorElement>) => {
+    presentationSamplePointerType.current = event.pointerType === 'touch' ? 'touch' : 'mouse';
+  };
+
+  const openPresentationSample = (event: MouseEvent<HTMLAnchorElement>) => {
+    const activationSource =
+      event.detail === 0 ? 'keyboard' : (presentationSamplePointerType.current ?? 'mouse');
+    presentationSamplePointerType.current = null;
+    const hasModifierKey = event.altKey || event.ctrlKey || event.metaKey || event.shiftKey;
+
+    if (
+      !shouldUseCurrentTabForPresentationSample({
+        isPrimaryClick: event.button === 0,
+        hasModifierKey,
+        activationSource,
+      })
+    )
+      return;
+
+    event.preventDefault();
+    window.location.assign(event.currentTarget.href);
+  };
 
   return (
     <div className={styles.page}>
@@ -97,9 +123,14 @@ export function LandingPage() {
               <div className={styles.heroActions}>
                 <a
                   className={styles.primaryAction}
-                  href="/demo/presentation"
+                  href={`/demo/presentation?locale=${locale === 'ko' ? 'ko' : 'en'}`}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onPointerDown={recordPresentationSamplePointer}
+                  onPointerCancel={() => {
+                    presentationSamplePointerType.current = null;
+                  }}
+                  onClick={openPresentationSample}
                 >
                   {t('presentation.landingSampleAction')}
                 </a>

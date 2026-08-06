@@ -30,9 +30,17 @@ test('the landing page leads with presentations and preserves the product story 
   assert.match(landingPage, /presentation\.landingPresentTitle/);
   assert.match(landingPage, /presentation\.landingExportTitle/);
   assert.match(landingPage, /className=\{styles\.presentationPreview\}/);
-  assert.match(landingPage, /href="\/demo\/presentation"/);
+  assert.match(
+    landingPage,
+    /href=\{`\/demo\/presentation\?locale=\$\{locale === 'ko' \? 'ko' : 'en'\}`\}/,
+  );
   assert.match(landingPage, /target="_blank"/);
   assert.match(landingPage, /rel="noopener noreferrer"/);
+  assert.match(landingPage, /onClick=\{openPresentationSample\}/);
+  assert.match(landingPage, /onPointerDown=\{recordPresentationSamplePointer\}/);
+  assert.match(landingPage, /event\.pointerType === 'touch'/);
+  assert.match(landingPage, /event\.detail === 0 \? 'keyboard'/);
+  assert.match(landingPage, /window\.location\.assign\(event\.currentTarget\.href\)/);
   assert.match(landingStyles, /\.hero h1\[data-locale='ko'\][\s\S]*?word-break: keep-all;/);
   assert.match(
     landingStyles,

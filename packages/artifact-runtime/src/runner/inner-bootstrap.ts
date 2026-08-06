@@ -86,6 +86,7 @@ const nativeMessageEventPortsGetter = Object.getOwnPropertyDescriptor(
 const nativeObjectKeys = Object.keys;
 const nativeObjectHasOwn = Object.hasOwn;
 const nativeArrayIsArray = Array.isArray;
+const nativeNumberIsFinite = Number.isFinite;
 const nativeNumberIsInteger = Number.isInteger;
 const nativeMathMax = Math.max;
 const nativeMathMin = Math.min;
@@ -94,6 +95,8 @@ const nativeEventCancelableGetter = Object.getOwnPropertyDescriptor(
   'cancelable',
 )?.get;
 const nativeEventPreventDefault = Event.prototype.preventDefault;
+const nativeEventTargetAddEventListener = EventTarget.prototype.addEventListener;
+const nativeEventTargetRemoveEventListener = EventTarget.prototype.removeEventListener;
 const nativeMouseEventButtonGetter = Object.getOwnPropertyDescriptor(
   MouseEvent.prototype,
   'button',
@@ -126,6 +129,14 @@ const nativeDocumentHiddenGetter = Object.getOwnPropertyDescriptor(
   Document.prototype,
   'hidden',
 )?.get;
+const nativeNavigatorUserAgentGetter = Object.getOwnPropertyDescriptor(
+  Navigator.prototype,
+  'userAgent',
+)?.get;
+const nativeNavigatorMaxTouchPointsGetter = Object.getOwnPropertyDescriptor(
+  Navigator.prototype,
+  'maxTouchPoints',
+)?.get;
 const nativeWindowInnerWidthGetter = Object.getOwnPropertyDescriptor(window, 'innerWidth')?.get;
 const nativeWindowInnerHeightGetter = Object.getOwnPropertyDescriptor(window, 'innerHeight')?.get;
 const nativeElementSetPointerCapture = Element.prototype.setPointerCapture;
@@ -133,6 +144,9 @@ const nativeElementHasPointerCapture = Element.prototype.hasPointerCapture;
 const nativeElementReleasePointerCapture = Element.prototype.releasePointerCapture;
 const nativeDocumentElement = document.documentElement;
 const nativeDocumentElementStyle = nativeDocumentElement.style;
+const nativeHtmlElement = HTMLElement;
+const nativeCss = CSS;
+const nativeCssSupports = CSS.supports;
 const nativeCssSetProperty = CSSStyleDeclaration.prototype.setProperty;
 const nativeCssRemoveProperty = CSSStyleDeclaration.prototype.removeProperty;
 const nativeArrayBufferByteLengthGetter = Object.getOwnPropertyDescriptor(
@@ -161,13 +175,37 @@ let outboundSequence = 1;
 let inboundSequence = 2;
 let scriptUrl: string | null = null;
 let scriptElement: HTMLScriptElement | null = null;
+let responsiveFixedCanvasStyleElement: HTMLStyleElement | null = null;
+let mobilePresentationSafetyStyleElement: HTMLStyleElement | null = null;
 let firstMeasureFrame: number | null = null;
 let secondMeasureFrame: number | null = null;
+let responsiveFixedCanvasFrame: number | null = null;
 let disposed = false;
 let navigationEnabled = false;
 let presentationSelectionDisabled = false;
+let presentationActive = false;
 let activePointer: { id: number; x: number; y: number } | null = null;
-let lastExplicitResize: Readonly<{ width: number; height: number }> | null = null;
+let lastExplicitResize: Readonly<{
+  width: number;
+  height: number;
+  renderMode?: 'responsive-fixed-canvas';
+}> | null = null;
+let responsiveFixedCanvasBase: Readonly<{ width: number; height: number }> | null = null;
+
+const isAndroidTouchDevice = (): boolean => {
+  if (
+    nativeNavigatorUserAgentGetter === undefined ||
+    nativeNavigatorMaxTouchPointsGetter === undefined
+  )
+    return false;
+  const userAgent = nativeReflectApply(nativeNavigatorUserAgentGetter, navigator, []) as string;
+  const maxTouchPoints = nativeReflectApply(
+    nativeNavigatorMaxTouchPointsGetter,
+    navigator,
+    [],
+  ) as number;
+  return userAgent.indexOf('Android') >= 0 && maxTouchPoints > 0;
+};
 
 const send = (message: ArtifactBridgeMessageV1, binary?: ArrayBuffer): void => {
   if (disposed) return;
@@ -265,6 +303,73 @@ const setPresentationSelectionDisabled = (disabled: boolean): void => {
   nativeReflectApply(nativeCssRemoveProperty, nativeDocumentElementStyle, ['user-select']);
   nativeReflectApply(nativeCssRemoveProperty, nativeDocumentElementStyle, ['-webkit-user-select']);
 };
+
+const applyMobilePresentationSafety = (): void => {
+  if (!isAndroidTouchDevice() || mobilePresentationSafetyStyleElement !== null) return;
+  const presentationRoot = document.querySelector('[data-sb-slide-deck="v1"]');
+  if (!(presentationRoot instanceof nativeHtmlElement)) return;
+  nativeDocumentElement.dataset.sbMobilePresentationSafety = 'true';
+  mobilePresentationSafetyStyleElement = document.createElement('style');
+  mobilePresentationSafetyStyleElement.textContent =
+    '[data-sb-slide-deck="v1"]{contain:layout paint style;isolation:isolate}' +
+    '[data-sb-slide-deck="v1"] *{' +
+    'animation:none!important;transition:none!important;filter:none!important;' +
+    '-webkit-filter:none!important;backdrop-filter:none!important;' +
+    '-webkit-backdrop-filter:none!important;box-shadow:none!important;text-shadow:none!important}' +
+    '[data-sb-slide-deck="v1"],[data-sb-slide-deck="v1"] *{background-image:none!important}';
+  document.head.append(mobilePresentationSafetyStyleElement);
+};
+
+const removeMobilePresentationSafety = (): void => {
+  if (mobilePresentationSafetyStyleElement !== null)
+    nativeReflectApply(nativeElementRemove, mobilePresentationSafetyStyleElement, []);
+  mobilePresentationSafetyStyleElement = null;
+  delete nativeDocumentElement.dataset.sbMobilePresentationSafety;
+};
+
+const applyResponsiveFixedCanvasRasterScale = (): void => {
+  const base = responsiveFixedCanvasBase;
+  if (base === null || !nativeReflectApply(nativeCssSupports, nativeCss, ['zoom', '0.5'])) return;
+  const root = document.querySelector('[data-sb-slide-deck="v1"]');
+  const stage = root?.querySelector('[data-deck-stage]');
+  if (!(root instanceof nativeHtmlElement) || !(stage instanceof nativeHtmlElement)) return;
+  if (responsiveFixedCanvasStyleElement === null) {
+    responsiveFixedCanvasStyleElement = document.createElement('style');
+    responsiveFixedCanvasStyleElement.textContent =
+      '[data-sb-slide-deck="v1"] [data-deck-stage]{transform:none!important}';
+    document.head.append(responsiveFixedCanvasStyleElement);
+  }
+  const viewportWidth = nativeReflectApply(nativeWindowInnerWidthGetter, window, []) as number;
+  const viewportHeight = nativeReflectApply(nativeWindowInnerHeightGetter, window, []) as number;
+  const scale = nativeMathMin(viewportWidth / base.width, viewportHeight / base.height);
+  if (!nativeNumberIsFinite(scale) || scale <= 0) return;
+  nativeReflectApply(nativeCssSetProperty, stage.style, ['zoom', String(scale), 'important']);
+  nativeReflectApply(nativeCssSetProperty, stage.style, ['transform', 'none', 'important']);
+};
+
+const scheduleResponsiveFixedCanvasRasterScale = (): void => {
+  if (responsiveFixedCanvasBase === null || responsiveFixedCanvasFrame !== null) return;
+  responsiveFixedCanvasFrame = nativeReflectApply(nativeRequestAnimationFrame, nativeGlobalThis, [
+    () => {
+      applyResponsiveFixedCanvasRasterScale();
+      responsiveFixedCanvasFrame = nativeReflectApply(
+        nativeRequestAnimationFrame,
+        nativeGlobalThis,
+        [
+          () => {
+            responsiveFixedCanvasFrame = null;
+            applyResponsiveFixedCanvasRasterScale();
+          },
+        ],
+      ) as number;
+    },
+  ]) as number;
+};
+
+nativeReflectApply(nativeEventTargetAddEventListener, window, [
+  'resize',
+  scheduleResponsiveFixedCanvasRasterScale,
+]);
 
 window.addEventListener(
   'selectstart',
@@ -421,12 +526,24 @@ const dispose = (): void => {
   if (port !== null) nativeReflectApply(nativePortClose, port, []);
   if (scriptElement !== null) nativeReflectApply(nativeElementRemove, scriptElement, []);
   scriptElement = null;
+  if (responsiveFixedCanvasStyleElement !== null)
+    nativeReflectApply(nativeElementRemove, responsiveFixedCanvasStyleElement, []);
+  responsiveFixedCanvasStyleElement = null;
+  removeMobilePresentationSafety();
   if (scriptUrl !== null) nativeReflectApply(nativeRevokeObjectUrl, nativeUrl, [scriptUrl]);
   scriptUrl = null;
   if (firstMeasureFrame !== null)
     nativeReflectApply(nativeCancelAnimationFrame, nativeGlobalThis, [firstMeasureFrame]);
   if (secondMeasureFrame !== null)
     nativeReflectApply(nativeCancelAnimationFrame, nativeGlobalThis, [secondMeasureFrame]);
+  if (responsiveFixedCanvasFrame !== null)
+    nativeReflectApply(nativeCancelAnimationFrame, nativeGlobalThis, [responsiveFixedCanvasFrame]);
+  responsiveFixedCanvasFrame = null;
+  responsiveFixedCanvasBase = null;
+  nativeReflectApply(nativeEventTargetRemoveEventListener, window, [
+    'resize',
+    scheduleResponsiveFixedCanvasRasterScale,
+  ]);
   navigation.dispose();
   activePointer = null;
   hostListeners.clear();
@@ -442,6 +559,8 @@ window.SceneBoardArtifact = Object.freeze({
     return () => hostListeners.delete(listener);
   },
   requestResize(width: number, height: number): void {
+    const standardDeck = document.querySelector('[data-sb-slide-deck="v1"]') !== null;
+    const renderMode = standardDeck ? ('responsive-fixed-canvas' as const) : undefined;
     if (
       nativeNumberIsInteger(width) &&
       nativeNumberIsInteger(height) &&
@@ -449,9 +568,24 @@ window.SceneBoardArtifact = Object.freeze({
       width <= 16_384 &&
       height >= 1 &&
       height <= 16_384
-    )
-      lastExplicitResize = { width, height };
-    send({ type: 'artifact.resize.request', value: { width, height, source: 'explicit' } });
+    ) {
+      lastExplicitResize =
+        renderMode === undefined ? { width, height } : { width, height, renderMode };
+      if (standardDeck) {
+        responsiveFixedCanvasBase = { width, height };
+        applyResponsiveFixedCanvasRasterScale();
+        scheduleResponsiveFixedCanvasRasterScale();
+      }
+      if (renderMode === 'responsive-fixed-canvas' && presentationActive)
+        applyMobilePresentationSafety();
+    }
+    send({
+      type: 'artifact.resize.request',
+      value:
+        renderMode === undefined
+          ? { width, height, source: 'explicit' }
+          : { width, height, source: 'explicit', renderMode },
+    });
   },
   changePresentationPage(value: ArtifactPresentationPageChangeV1): void {
     send({ type: 'artifact.presentation.page-change', value });
@@ -675,7 +809,11 @@ window.addEventListener(
           return;
         }
         if (incoming.type === 'host.presentation') {
+          presentationActive = incoming.active;
           setPresentationSelectionDisabled(incoming.active);
+          if (incoming.active && responsiveFixedCanvasBase !== null)
+            applyMobilePresentationSafety();
+          else removeMobilePresentationSafety();
           return;
         }
         for (const listener of hostListeners) listener(incoming, binary);

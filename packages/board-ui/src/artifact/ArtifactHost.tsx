@@ -15,6 +15,7 @@ import {
   fitArtifactViewV1,
   mapArtifactAnchorV1,
   panArtifactViewByInnerDeltaV1,
+  resolveArtifactFitRenderScaleV1,
   sizeArtifactStageV1,
   zoomArtifactViewV1,
   type ArtifactViewTransformV1,
@@ -43,6 +44,7 @@ function AdmittedArtifactHost(input: ArtifactHostInputV1) {
   const sizeFrameRef = useRef<number | null>(null);
   const generationRef = useRef(0);
   const appliedResetEpochRef = useRef(0);
+  const renderModeRef = useRef<ArtifactResizeRequestV1['renderMode']>(undefined);
   const priorModeRef = useRef(input.viewMode ?? 'fit-page');
   const latestInputRef = useRef(input);
   latestInputRef.current = input;
@@ -79,14 +81,17 @@ function AdmittedArtifactHost(input: ArtifactHostInputV1) {
     [],
   );
 
-  const writeTransform = useCallback((next: ArtifactViewTransformV1) => {
-    const container = containerElementRef.current;
-    const transformPlane = container?.querySelector<HTMLElement>('.artifact-runtime-transform');
-    if (container === null || transformPlane === null || transformPlane === undefined) return;
-    transformRef.current = next;
-    transformPlane.style.transform = `translate3d(${next.x}px, ${next.y}px, 0) scale(${next.scale})`;
-    container.dataset.zoomPercent = String(Math.round(next.scale * 100));
-  }, []);
+  const writeTransform = useCallback(
+    (next: ArtifactViewTransformV1, renderedScale = next.scale) => {
+      const container = containerElementRef.current;
+      const transformPlane = container?.querySelector<HTMLElement>('.artifact-runtime-transform');
+      if (container === null || transformPlane === null || transformPlane === undefined) return;
+      transformRef.current = next;
+      transformPlane.style.transform = `translate3d(${next.x}px, ${next.y}px, 0) scale(${renderedScale})`;
+      container.dataset.zoomPercent = String(Math.round(next.scale * 100));
+    },
+    [],
+  );
 
   const applyLayout = useCallback(
     (resetActual = false) => {
@@ -108,13 +113,14 @@ function AdmittedArtifactHost(input: ArtifactHostInputV1) {
       const availableHeight = Math.max(1, container.clientHeight);
       const size = baseSizeRef.current;
       const mode = latestInputRef.current.viewMode ?? 'fit-page';
-      transformPlane.style.width = `${size.width}px`;
-      transformPlane.style.height = `${size.height}px`;
-      frame.style.width = `${size.width}px`;
-      frame.style.height = `${size.height}px`;
       frame.style.transform = 'none';
+      frame.style.setProperty('zoom', '1');
       container.dataset.viewMode = mode;
       if (mode === 'actual') {
+        frame.style.width = `${size.width}px`;
+        frame.style.height = `${size.height}px`;
+        transformPlane.style.width = `${size.width}px`;
+        transformPlane.style.height = `${size.height}px`;
         const next =
           resetActual || !hasInteractedRef.current
             ? centerArtifactViewV1({
@@ -144,6 +150,16 @@ function AdmittedArtifactHost(input: ArtifactHostInputV1) {
         contentWidth: size.width,
         contentHeight: size.height,
       });
+      const renderScale = resolveArtifactFitRenderScaleV1({
+        visualScale: next.scale,
+        responsiveFixedCanvas: renderModeRef.current === 'responsive-fixed-canvas',
+      });
+      const viewportWidth = size.width * renderScale.viewportScale;
+      const viewportHeight = size.height * renderScale.viewportScale;
+      frame.style.width = `${viewportWidth}px`;
+      frame.style.height = `${viewportHeight}px`;
+      transformPlane.style.width = `${viewportWidth}px`;
+      transformPlane.style.height = `${viewportHeight}px`;
       const stageSize = sizeArtifactStageV1({
         mode,
         availableWidth,
@@ -154,7 +170,7 @@ function AdmittedArtifactHost(input: ArtifactHostInputV1) {
       });
       stage.style.width = `${stageSize.width}px`;
       stage.style.height = `${stageSize.height}px`;
-      writeTransform(next);
+      writeTransform(next, renderScale.compositorScale);
     },
     [writeTransform],
   );
@@ -173,8 +189,10 @@ function AdmittedArtifactHost(input: ArtifactHostInputV1) {
         resizeQueueRef.current = taken.state;
         const pending = taken.pending;
         if (pending === null) return;
+        const renderModeChanged = renderModeRef.current !== pending.renderMode;
+        renderModeRef.current = pending.renderMode;
         const current = baseSizeRef.current;
-        if (!changesArtifactSizeV1(current, pending)) return;
+        if (!renderModeChanged && !changesArtifactSizeV1(current, pending)) return;
         baseSizeRef.current = { width: pending.width, height: pending.height };
         applyLayout(
           !hasInteractedRef.current && (latestInputRef.current.viewMode ?? 'fit-page') === 'actual',
@@ -281,6 +299,7 @@ function AdmittedArtifactHost(input: ArtifactHostInputV1) {
     sizeFrameRef.current = null;
     resizeQueueRef.current = createArtifactResizeQueueV1();
     baseSizeRef.current = { width: ARTIFACT_BASE_WIDTH, height: ARTIFACT_BASE_HEIGHT };
+    renderModeRef.current = undefined;
     transformRef.current = { scale: 1, x: 0, y: 0 };
     hasInteractedRef.current = false;
     isPanningRef.current = false;

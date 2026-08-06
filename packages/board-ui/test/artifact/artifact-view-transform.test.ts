@@ -9,6 +9,7 @@ import {
   mapArtifactAnchorV1,
   panArtifactViewByInnerDeltaV1,
   panArtifactViewV1,
+  resolveArtifactFitRenderScaleV1,
   sizeArtifactStageV1,
   zoomArtifactViewV1,
 } from '../../src/artifact/artifact-view-transform.js';
@@ -81,6 +82,35 @@ test('fit-page contains a 1920x1080 slide in a matching-aspect viewport without 
       contentHeight: 1_080,
     }),
     { scale: 2 / 3, x: 0, y: 0 },
+  );
+});
+
+test('uses a Fold3-sized viewport for a responsive 1920px fixed canvas', () => {
+  const visualScale = 344 / 1920;
+  const renderScale = resolveArtifactFitRenderScaleV1({
+    visualScale,
+    responsiveFixedCanvas: true,
+  });
+
+  assert.deepEqual(renderScale, {
+    viewportScale: visualScale,
+    compositorScale: 1,
+  });
+  assert.equal(1920 * renderScale.viewportScale, 344);
+});
+
+test('keeps the transform-only fallback for generic, upscaled, and invalid fits', () => {
+  assert.deepEqual(
+    resolveArtifactFitRenderScaleV1({ visualScale: 0.25, responsiveFixedCanvas: false }),
+    { viewportScale: 1, compositorScale: 0.25 },
+  );
+  assert.deepEqual(
+    resolveArtifactFitRenderScaleV1({ visualScale: 1.5, responsiveFixedCanvas: true }),
+    { viewportScale: 1, compositorScale: 1.5 },
+  );
+  assert.deepEqual(
+    resolveArtifactFitRenderScaleV1({ visualScale: Number.NaN, responsiveFixedCanvas: true }),
+    { viewportScale: 1, compositorScale: 1 },
   );
 });
 
