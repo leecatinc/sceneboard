@@ -6,6 +6,7 @@ import { pathToFileURL } from 'node:url';
 const REQUIRED_FIXTURES = [
   'SCENEBOARD_BROWSER_BOARD_URL',
   'SCENEBOARD_BROWSER_PUBLIC_ARTIFACT_URL',
+  'SCENEBOARD_BROWSER_STORAGE_STATE',
 ];
 
 export const requireLiveBrowserFixtures = (environment = process.env) => {
@@ -26,11 +27,15 @@ const run = () => {
     .filter((name) => name.endsWith('.spec.ts'))
     .sort()
     .map((name) => resolve(browserTestDirectory, name));
-  const result = spawnSync(process.execPath, [tsxCli, '--test', ...browserTests], {
-    cwd: process.cwd(),
-    env: process.env,
-    stdio: 'inherit',
-  });
+  const result = spawnSync(
+    process.execPath,
+    [tsxCli, '--test', '--test-concurrency=1', ...browserTests],
+    {
+      cwd: process.cwd(),
+      env: process.env,
+      stdio: 'inherit',
+    },
+  );
   if (result.error !== undefined) throw result.error;
   process.exitCode = result.status ?? 1;
 };

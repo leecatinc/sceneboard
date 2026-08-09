@@ -3,6 +3,7 @@ import test from 'node:test';
 import { chromium, type Locator } from 'playwright';
 
 const boardUrl = process.env.SCENEBOARD_BROWSER_BOARD_URL;
+const storageState = process.env.SCENEBOARD_BROWSER_STORAGE_STATE;
 
 async function assertReachable(locator: Locator) {
   await locator.scrollIntoViewIfNeeded();
@@ -28,14 +29,19 @@ async function assertReachable(locator: Locator) {
 }
 
 test(
-  'SceneBoard route has one PAGE scroll owner and reachable terminal content',
-  { skip: boardUrl === undefined },
+  'SceneBoard route reserves vertical scrolling for PAGE and keeps terminal content reachable',
+  { skip: boardUrl === undefined || storageState === undefined },
   async () => {
     assert.ok(boardUrl);
+    assert.ok(storageState);
     const browser = await chromium.launch({ headless: true });
     try {
-      const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
-      await page.goto(boardUrl, { waitUntil: 'networkidle' });
+      const page = await browser.newPage({
+        viewport: { width: 1280, height: 800 },
+        storageState,
+      });
+      await page.goto(boardUrl, { waitUntil: 'domcontentloaded' });
+      await page.locator('[data-page-scroll-owner="PAGE"]').waitFor();
       const candidates = page.locator(
         [
           '[data-page-scroll-owner]',
@@ -63,7 +69,11 @@ test(
           })
           .map((element) => element.getAttribute('data-page-scroll-owner')),
       );
-      assert.deepEqual(owners, ['PAGE']);
+      assert.equal(await page.locator('[data-page-scroll-owner="PAGE"]').count(), 1);
+      assert.equal(
+        owners.every((owner) => owner === 'PAGE'),
+        true,
+      );
       assert.equal(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,

@@ -386,11 +386,11 @@ browser-full/
 The repository owns three distinct evidence classes and must report them
 separately:
 
-| Evidence class                 | Command / location                             | Gate rule                                                         |
-| ------------------------------ | ---------------------------------------------- | ----------------------------------------------------------------- |
-| Self-contained Chromium        | `npm run test:browser:c10` / `e2e/*.test.mjs`  | Runs in `npm run check`; zero skips and zero browser errors       |
-| Live disposable-environment UI | `npm run test:browser:live` / `test/browser/*` | Requires both fixture URLs and fails closed when either is absent |
-| Contract/certification         | `npm run test:certification` / `test/e2e/*`    | May prove API/runtime contracts but is not counted as UI evidence |
+| Evidence class                 | Command / location                             | Gate rule                                                                                                                |
+| ------------------------------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Self-contained Chromium        | `npm run test:browser:c10` / `e2e/*.test.mjs`  | Runs in `npm run check`; zero skips and zero browser errors                                                              |
+| Live disposable-environment UI | `npm run test:browser:live` / `test/browser/*` | Requires both fixture URLs plus an authenticated Playwright storage-state file and fails closed when any input is absent |
+| Contract/certification         | `npm run test:certification` / `test/e2e/*`    | May prove API/runtime contracts but is not counted as UI evidence                                                        |
 
 Files that only inspect source text remain useful as static contract tests,
 but they must not be counted as browser E2E coverage or used as the sole
@@ -398,16 +398,16 @@ evidence for focus, layout, rendering, or user interaction.
 
 ### 19.1 Current browser automation coverage and open gates
 
-| Journey                                        | Current executable evidence                                      | Status / remaining requirement                                       |
-| ---------------------------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------- |
-| Public landing graph and workflow JSON         | `e2e/landing-graph-engineering.test.mjs`                         | Automated at desktop, portrait, landscape, keyboard, CSP, and motion |
-| API-key create-sheet scope selection           | `e2e/api-key-create-sheet-browser.test.mjs`                      | Automated component seam; live create/use/reload/revoke remains      |
-| Artifact host capability and clipboard         | `e2e/artifact-host-behavior.test.mjs`, clipboard/authority tests | Automated host seam; real board hydration/revocation remains         |
-| Workflow artifact rendering                    | `e2e/workflow-graph-artifact.test.mjs`                           | Automated generated runtime; real board composition remains          |
-| Board page/mobile/presentation/public artifact | `test/browser/*.spec.ts`                                         | Live-fixture suite; release environment must supply isolated URLs    |
-| Pairing to exact board plus live update        | API certification and manual scenario only                       | Open P0 browser journey                                              |
-| History, reconnect, HITL, error recovery       | Contract tests and manual scenario only                          | Open P1 integrated browser journey                                   |
-| Shared password viewer and token canary        | Static/API contracts plus live public-artifact spec              | Open P1 wrong-password to pinned-revision browser journey            |
+| Journey                                        | Current executable evidence                                      | Status / remaining requirement                                                        |
+| ---------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Public landing graph and workflow JSON         | `e2e/landing-graph-engineering.test.mjs`                         | Automated at desktop, portrait, landscape, keyboard, CSP, and motion                  |
+| API-key create-sheet scope selection           | `e2e/api-key-create-sheet-browser.test.mjs`                      | Automated component seam; live create/use/reload/revoke remains                       |
+| Artifact host capability and clipboard         | `e2e/artifact-host-behavior.test.mjs`, clipboard/authority tests | Automated host seam; real board hydration/revocation remains                          |
+| Workflow artifact rendering                    | `e2e/workflow-graph-artifact.test.mjs`                           | Automated generated runtime; real board composition remains                           |
+| Board page/mobile/presentation/public artifact | `test/browser/*.spec.ts`                                         | Live-fixture suite; release must supply isolated URLs and authenticated storage state |
+| Pairing to exact board plus live update        | API certification and manual scenario only                       | Open P0 browser journey                                                               |
+| History, reconnect, HITL, error recovery       | Contract tests and manual scenario only                          | Open P1 integrated browser journey                                                    |
+| Shared password viewer and token canary        | Static/API contracts plus live public-artifact spec              | Open P1 wrong-password to pinned-revision browser journey                             |
 
 Each suite records the following JSON:
 

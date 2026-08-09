@@ -18,34 +18,43 @@ test(
           value: () => Promise.reject(new DOMException('denied', 'NotAllowedError')),
         });
       });
-      await page.goto(publicArtifactUrl, { waitUntil: 'networkidle' });
+      await page.goto(publicArtifactUrl, { waitUntil: 'domcontentloaded' });
       const active = page.locator(
         '.artifact-host.artifact-active > .artifact-frame-container .artifact-runtime-frame',
       );
       await active.waitFor({ state: 'visible', timeout: 20_000 });
-      assert.equal(await page.locator('.artifact-fallback').count(), 0);
+      await page.locator('.artifact-fallback').waitFor({ state: 'hidden', timeout: 20_000 });
+      assert.equal(await page.locator('.artifact-fallback:visible').count(), 0);
       assert.equal(await page.getByText(/execution disabled|실행.*비활성/iu).count(), 0);
       const findArtifactFrame = async (): Promise<{
         frame: ReturnType<typeof page.frames>[number];
         pageCount: number;
       } | null> => {
         for (const frame of page.frames()) {
+          if (frame === page.mainFrame()) continue;
           const text = await frame
             .locator('body')
             .innerText()
             .catch(() => '');
+          if (text.trim() === '') continue;
           const match = text.match(/1\s*\/\s*([1-9][0-9]*)/u);
-          if (match?.[1] !== undefined) return { frame, pageCount: Number(match[1]) };
+          return { frame, pageCount: Number(match?.[1] ?? 1) };
         }
         return null;
       };
-      const deadline = Date.now() + 10_000;
+      const artifactDeadline = Date.now() + 10_000;
       let artifact = await findArtifactFrame();
-      while (artifact === null && Date.now() < deadline) {
+      while (artifact === null && Date.now() < artifactDeadline) {
         await page.waitForTimeout(100);
         artifact = await findArtifactFrame();
       }
       assert.ok(artifact);
+      const { frame: artifactFrame, pageCount } = artifact;
+      const sessionsLoaded = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'GET' &&
+          response.url().includes('/presentation-sessions'),
+      );
       await page
         .getByRole('button', { name: /presentation|present|프리젠테이션|발표 시작/iu })
         .click();
@@ -53,13 +62,14 @@ test(
         name: /live presentation|실시간 발표/iu,
       });
       await livePresentation.waitFor({ state: 'visible' });
+      await sessionsLoaded;
       await livePresentation
         .getByRole('button', { name: /start new presentation|새 발표 시작/iu })
         .click();
       await active.waitFor({ state: 'visible' });
-      const presentationControls = page.locator('[data-presentation-controls]');
-      await presentationControls.waitFor({ state: 'attached' });
-      assert.equal(await presentationControls.count(), 1);
+      const presentationStage = page.locator('[data-presentation-active="true"]');
+      await presentationStage.waitFor({ state: 'attached' });
+      assert.equal(await presentationStage.count(), 1);
       const runtimeFrame = page.locator('.artifact-runtime-frame');
       await runtimeFrame.evaluate((element) => {
         element.dataset.browserSmokeIdentity = 'preserve';
@@ -111,7 +121,6 @@ test(
       await annotationToolbar.getByRole('button', { name: /redo|다시 실행/iu }).click();
       assert.equal(await stroke.count(), 1);
       await annotationToolbar.getByRole('button', { name: /pointer|포인터/iu }).click();
-      const { frame: artifactFrame, pageCount } = artifact;
       const selectionDeadline = Date.now() + 5_000;
       while (
         (await artifactFrame.evaluate(
@@ -129,6 +138,8 @@ test(
         await artifactNext.click();
         await artifactFrame.getByText(new RegExp(`2\\s*\\/\\s*${pageCount}`, 'u')).waitFor();
       }
+      await exitPresentation.click();
+      await page.locator('[data-presentation-active="false"]').waitFor({ state: 'attached' });
     } finally {
       await browser.close();
     }
