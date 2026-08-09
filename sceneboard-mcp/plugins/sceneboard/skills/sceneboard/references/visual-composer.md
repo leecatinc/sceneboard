@@ -59,7 +59,16 @@ scene-artifact.mjs place [FILE|-]
 scene-artifact.mjs --help
 ```
 
-Templates are `animated-data-story`, `architecture-map`, `demo-showcase`, `metric-story`, `process-flow`, `slide-deck`, `threejs-showcase`, `timeline`, and `webgl-showcase`. Motion is one of `none`, `subtle`, `staged`, or `focus`.
+Templates are `animated-data-story`, `architecture-map`, `demo-showcase`, `metric-story`, `process-flow`, `slide-deck`, `threejs-showcase`, `timeline`, `webgl-showcase`, and `workflow-graph`. Motion is one of `none`, `subtle`, `staged`, or `focus`.
+
+`workflow-graph` is the closed review surface for a validated WorkflowSpec. It is not the ordinary
+flow-decoration route: follow [graph-engineering.md](graph-engineering.md) for source boundaries,
+provenance, validation, capability-aware compilation, publication, and conversational edits. Nodes
+and edges are independently inspectable. The capability-aware export variant keeps canonical JSON
+out of the visible layout and exposes only copy and JSON export controls; manual fallback remains
+read-only and selectable. In the authenticated board, prefer the host's `Fill area` view so the
+responsive graph owns the remaining viewport instead of inheriting the template's intrinsic aspect
+ratio. `Fit page`, `Fit width`, and `100%` remain explicit user-selectable fallbacks.
 
 `slide-deck` is the closed 1920×1080 PPT-style deck. It is an explicit routing
 exception only for requests containing `발표자료` or case-insensitive `ppt`; ordinary
@@ -83,7 +92,7 @@ The template emits only its compiler-owned local interaction program. It request
 
 `webgl-showcase` is the engine-free true-3D alternative with the same exact `{scene,camera}` content. It uses compiler-owned WebGL 1 shaders and geometry, capped high-density rendering, pointer camera movement, context-loss handling, reduced-motion handling, and responsive resize observation. Use it when the smallest runtime surface matters more than advanced lighting and materials.
 
-Compile returns exact `{artifactRecipeVersion:1,type:"artifact-draft",template,motion,source:{artifactId:null,html,css,javascript,requestedCapabilities:[]},placement:{nodeId,title,fallbackText}}`. Place accepts `{artifact:{artifactId,versionId},placement:{nodeId,title,fallbackText}}` and returns one exact `content.artifact` node. Every shipped template requests `requestedCapabilities:[]`; neither the model nor this compiler approves capabilities. The server does not sanitize or rewrite the separate JavaScript field, so use only compiler-owned closed templates.
+Compile returns exact `{artifactRecipeVersion:1,type:"artifact-draft",template,motion,source:{artifactId:null,html,css,javascript,requestedCapabilities},placement:{nodeId,title,fallbackText}}`. Place accepts `{artifact:{artifactId,versionId},placement:{nodeId,title,fallbackText}}` and returns one exact `content.artifact` node. Templates request no capabilities except `workflow-graph`: `copyMode:"clipboard"` and the compatibility alias `copyMode:"export"` request only `clipboard.write`, while `copyMode:"manual"` requests none. Select a host-copy variant only after a fresh server capability read. Neither the model nor this compiler approves capabilities. The server does not sanitize or rewrite the separate JavaScript field, so use only compiler-owned closed templates.
 
 ## Two-stage publish and place
 
@@ -111,6 +120,7 @@ Apply the canonical [human-readable delivery contract](../SKILL.md#human-readabl
 - For Canvas, treat CSS size as layout size and set its backing dimensions to `round(cssSize × min(devicePixelRatio, 2))`; reset the drawing transform to that same ratio and redraw through `ResizeObserver`. Never assume the HTML width/height attributes match the displayed size.
 - For WebGL, request antialiasing, enable depth testing, set the drawing buffer from the displayed size at `min(devicePixelRatio, 2)`, update `gl.viewport` after every resize, and keep animation near 60 frames per second. Stop unique motion under `prefers-reduced-motion`, handle context loss without exposing internals, and keep a complete accessible text description over or beside the canvas.
 - Recompute geometry or rendering whenever the artifact viewport or SceneBoard fit mode changes. Use `requestResize` only with the template's declared intrinsic size; it does not replace responsive rendering.
+- Treat the host's `Fill area` mode as a responsive viewport contract, not as a non-uniform stretch. Workflow graphs and responsive applications should consume the full iframe dimensions. Fixed slide decks must preserve their internal canvas aspect ratio even when the outer iframe fills the board.
 - Prefer `threejs-showcase` when polished depth, lighting, soft shadows, materials, and camera motion matter. Three.js r184 is supplied only by the artifact runtime as a trusted content-hashed local asset. Never paste a minified engine into an artifact, reference a CDN, or request network access to fetch a renderer.
 - Prefer `webgl-showcase` for a smaller engine-free 3D surface or when directly authored shaders are the point of the demonstration.
 

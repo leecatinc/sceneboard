@@ -33,9 +33,14 @@ test('six delegated descriptors map exact D7/D8 requests without aliases or opti
     },
   } as unknown as BoardSdkHttpClient;
   const gateway = {
-    call: async <T>(operation: (value: BoardSdkHttpClient) => Promise<T>) => ({
+    call: async <T>(
+      _toolName: string,
+      _authorizationOperation: string,
+      options: { signal?: AbortSignal },
+      operation: (value: BoardSdkHttpClient, snapshot: unknown, signal: AbortSignal) => Promise<T>,
+    ) => ({
       connected: true as const,
-      value: await operation(client),
+      value: await operation(client, {}, options.signal ?? new AbortController().signal),
     }),
   } as unknown as ProtectedBoardGatewayV1;
   const artifacts = new ArtifactToolHandlersV1(gateway);

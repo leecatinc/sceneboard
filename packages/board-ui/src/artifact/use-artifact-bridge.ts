@@ -12,6 +12,7 @@ import { decodeArtifactPackageV1 } from '@sceneboard/artifact-runtime/package';
 import { OUTER_SANDBOX_TOKENS_V1 } from '@sceneboard/artifact-runtime/policy';
 
 import type { ArtifactHostInputV1 } from './ports.js';
+import { ArtifactCapabilityDispatcherV1 } from './artifact-capability-dispatch.js';
 import { dispatchArtifactNavigationIntentV1 } from './navigation-dispatch.js';
 
 export type ArtifactHostPhaseV1 =
@@ -72,10 +73,16 @@ export const useArtifactBridgeV1 = (input: ArtifactHostInputV1): ArtifactBridgeV
   const onPresentationPageChangeRef = useRef(input.onPresentationPageChange);
   const onResizeRequestRef = useRef(input.onResizeRequest);
   const viewModeRef = useRef(input.viewMode ?? 'fit-page');
+  const allowedArtifactRequestCapabilitiesRef = useRef(
+    input.allowedArtifactRequestCapabilities ?? [],
+  );
+  const artifactCapabilityEpochRef = useRef(input.artifactCapabilityEpoch ?? 0);
   onNavigationIntentRef.current = input.onNavigationIntent;
   onPresentationPageChangeRef.current = input.onPresentationPageChange;
   onResizeRequestRef.current = input.onResizeRequest;
   viewModeRef.current = input.viewMode ?? 'fit-page';
+  allowedArtifactRequestCapabilitiesRef.current = input.allowedArtifactRequestCapabilities ?? [];
+  artifactCapabilityEpochRef.current = input.artifactCapabilityEpoch ?? 0;
 
   const stop = useCallback(() => {
     cleanupRef.current?.();
@@ -129,6 +136,7 @@ export const useArtifactBridgeV1 = (input: ArtifactHostInputV1): ArtifactBridgeV
     let watchdogTimer: ReturnType<typeof setInterval> | null = null;
     let watchdogDeadline: ReturnType<typeof setTimeout> | null = null;
     let navigationTimer: ReturnType<typeof setTimeout> | null = null;
+    let capabilityDispatcher: ArtifactCapabilityDispatcherV1 | null = null;
     let stopped = false;
 
     const releasePackage = (): void => {
@@ -159,6 +167,8 @@ export const useArtifactBridgeV1 = (input: ArtifactHostInputV1): ArtifactBridgeV
       if (watchdogDeadline !== null) clearTimeout(watchdogDeadline);
       if (navigationTimer !== null) clearTimeout(navigationTimer);
       navigationTimer = null;
+      capabilityDispatcher?.dispose();
+      capabilityDispatcher = null;
       rejectWaiters(new TypeError('artifact host disposed'));
       if (endpoint !== null && port !== null && !endpoint.closed) {
         try {
@@ -232,6 +242,17 @@ export const useArtifactBridgeV1 = (input: ArtifactHostInputV1): ArtifactBridgeV
         !sameManifest(decoded.manifest, confirmed.manifest)
       )
         throw new TypeError('artifact loader cut did not certify');
+      capabilityDispatcher = new ArtifactCapabilityDispatcherV1({
+        requestedCapabilities: decoded.manifest.requestedCapabilities,
+        allowedCapabilities: allowedArtifactRequestCapabilitiesRef.current,
+        capabilityEpoch: artifactCapabilityEpochRef.current,
+        writeClipboard: async (text) => {
+          if (navigator.clipboard?.writeText === undefined)
+            throw new TypeError('clipboard write is unavailable');
+          await navigator.clipboard.writeText(text);
+        },
+        now: () => performance.now(),
+      });
 
       frame = document.createElement('iframe');
       frame.title = 'SceneBoard isolated artifact';
@@ -304,6 +325,10 @@ export const useArtifactBridgeV1 = (input: ArtifactHostInputV1): ArtifactBridgeV
             transfers = { messagePorts: event.ports.length, arrayBufferBytes: [binary.byteLength] };
           }
           const message = endpoint.receive(source, transfers).envelope.message;
+          capabilityDispatcher?.updateAllowedCapabilities(
+            allowedArtifactRequestCapabilitiesRef.current,
+            artifactCapabilityEpochRef.current,
+          );
           if (message.type === 'runner.watchdog.pong') {
             if (watchdogDeadline !== null) clearTimeout(watchdogDeadline);
             watchdogDeadline = null;
@@ -335,11 +360,43 @@ export const useArtifactBridgeV1 = (input: ArtifactHostInputV1): ArtifactBridgeV
             );
             return;
           }
-          if (
-            message.type === 'artifact.selection.change' ||
-            message.type === 'artifact.user-action' ||
-            message.type === 'artifact.capability.request'
-          ) {
+          if (message.type === 'artifact.user-action') {
+            if (binary !== null) new Uint8Array(binary).fill(0);
+            capabilityDispatcher?.admitAction(message);
+            return;
+          }
+          if (message.type === 'artifact.capability.request') {
+            if (message.capability !== 'clipboard.write' || capabilityDispatcher === null) {
+              if (binary !== null) new Uint8Array(binary).fill(0);
+              return;
+            }
+            const admittedDispatcher = capabilityDispatcher;
+            const admittedBinary = binary;
+            void admittedDispatcher
+              .dispatch(message, admittedBinary)
+              .then((result) => {
+                if (
+                  stopped ||
+                  endpoint === null ||
+                  port === null ||
+                  capabilityDispatcher !== admittedDispatcher
+                )
+                  return;
+                port.postMessage(
+                  endpoint.send({
+                    type: 'host.capability.result',
+                    requestId: message.requestId,
+                    capability: message.capability,
+                    ...result,
+                  }),
+                );
+              })
+              .finally(() => {
+                if (admittedBinary !== null) new Uint8Array(admittedBinary).fill(0);
+              });
+            return;
+          }
+          if (message.type === 'artifact.selection.change') {
             if (binary !== null) new Uint8Array(binary).fill(0);
             return;
           }

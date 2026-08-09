@@ -86,6 +86,9 @@ export class ArtifactToolHandlersV1 {
     const parsed = ArtifactGetInputSchemaV1.safeParse(raw);
     if (!parsed.success) return validationFailureV1('board_artifact_get', requestId, parsed.error);
     const result = await this.gateway.call(
+      'board_artifact_get',
+      'artifact.get',
+      { signal, authorization: { boardId: parsed.data.boardId, operation: 'artifact.get' } },
       (client, _snapshot, operationSignal) =>
         client.getArtifact(
           {
@@ -100,7 +103,6 @@ export class ArtifactToolHandlersV1 {
           },
           operationSignal,
         ),
-      { signal },
     );
     return result.connected
       ? sdkToolResultV1('board_artifact_get', requestId, result.value, null)
@@ -117,6 +119,9 @@ export class ArtifactToolHandlersV1 {
     const parsed = ArtifactPutInputSchemaV1.safeParse(raw);
     if (!parsed.success) return validationFailureV1('board_artifact_put', requestId, parsed.error);
     const result = await this.gateway.call(
+      'board_artifact_put',
+      'artifact.publish',
+      { signal, authorization: { boardId: parsed.data.boardId, operation: 'artifact.publish' } },
       (client, _snapshot, operationSignal) =>
         client.putArtifact(
           requestId as RequestId,
@@ -133,7 +138,6 @@ export class ArtifactToolHandlersV1 {
           },
           operationSignal,
         ),
-      { signal },
     );
     return result.connected
       ? sdkToolResultV1('board_artifact_put', requestId, result.value, null)
@@ -150,6 +154,9 @@ export class ArtifactToolHandlersV1 {
     const parsed = ArtifactStopInputSchemaV1.safeParse(raw);
     if (!parsed.success) return validationFailureV1('board_artifact_stop', requestId, parsed.error);
     const result = await this.gateway.call(
+      'board_artifact_stop',
+      'artifact.stop',
+      { signal, authorization: { boardId: parsed.data.boardId, operation: 'artifact.stop' } },
       (client, _snapshot, operationSignal) =>
         client.mutateBoard(
           {
@@ -169,7 +176,6 @@ export class ArtifactToolHandlersV1 {
           },
           operationSignal,
         ),
-      { signal },
     );
     return result.connected
       ? sdkToolResultV1('board_artifact_stop', requestId, result.value, null)

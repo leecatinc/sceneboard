@@ -12,7 +12,7 @@ test('web and MCP authoring consume the one canonical image placement transform'
     assert.match(consumer, /@sceneboard\/board-sdk\/document-transform/u);
     assert.match(consumer, /placeMediaImageOnPageV1/u);
   }
-  assert.match(canonical, /export const placeMediaImageOnPageV1/u);
+  assert.match(canonical, /export (?:const|function) placeMediaImageOnPageV1/u);
   assert.doesNotMatch(mcp, /(?:function|const) placeMediaImageOnPageV1\s*[=(]/u);
 });
 

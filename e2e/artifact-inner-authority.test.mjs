@@ -144,7 +144,7 @@ const readMouse = (descriptor, event) => Reflect.apply(descriptor.get, event, []
 window.addEventListener('wheel', (event) => { if (event.isTrusted) { probe.wheelClient = { x: readMouse(trustedPrimitives.clientX, event), y: readMouse(trustedPrimitives.clientY, event) }; probe.call = false; } });
 window.addEventListener('pointerdown', (event) => { if (event.isTrusted && readMouse(trustedPrimitives.button, event) === 1) probe.panClient.start = { x: readMouse(trustedPrimitives.clientX, event), y: readMouse(trustedPrimitives.clientY, event) }; });
 window.addEventListener('pointerup', (event) => { if (event.isTrusted && readMouse(trustedPrimitives.button, event) === 1) probe.panClient.end = { x: readMouse(trustedPrimitives.clientX, event), y: readMouse(trustedPrimitives.clientY, event) }; });
-const expectedPublicKeys = ['changeSelection', 'onHostMessage', 'requestCapability', 'requestResize', 'userAction'];
+const expectedPublicKeys = ['changePresentationPage', 'changeSelection', 'onHostMessage', 'requestCapability', 'requestResize', 'userAction'];
 probe.publicKeys = reflectOwnKeys(SceneBoardArtifact).map(String).sort();
 probe.unexpectedPublicKeys = probe.publicKeys.filter((key) => !expectedPublicKeys.includes(key));
 const unsubscribe = SceneBoardArtifact.onHostMessage((message, binary) => { probe.hostMessages.push(message.type); probe.hostBinaries.push(binary ? [...new Uint8Array(binary)] : null); });
@@ -421,6 +421,7 @@ test(
         hostBinaries: [],
         publicCalls: 4,
         publicKeys: [
+          'changePresentationPage',
           'changeSelection',
           'onHostMessage',
           'requestCapability',

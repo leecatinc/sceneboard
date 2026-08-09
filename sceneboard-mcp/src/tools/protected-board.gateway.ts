@@ -822,6 +822,9 @@ export class ProtectedBoardGatewayV1 {
       boardId: string;
       requestId: string;
       requiredCapabilities: readonly string[];
+      apiKeyToolName?: AccountApiKeyToolNameV1;
+      apiKeyOperationPlan?: AccountApiKeyOperationV1 | AccountApiKeyOperationPlanV1;
+      apiKeyAuthorizationOperation?: AccountApiKeyOperationV1;
       signal?: AbortSignal;
     }>,
     operation: (context: AuthorizedBoardOperationContextV1) => Promise<T>,
@@ -847,15 +850,37 @@ export class ProtectedBoardGatewayV1 {
       }
       if (rawSnapshot === null) return { authorized: false, reason: 'not_connected' };
       if (
-        this.options.credentialMode === 'api_key' ||
         rawSnapshot.version !== 1 ||
         typeof rawSnapshot.generation !== 'string' ||
         !GENERATION_PATTERN_V1.test(rawSnapshot.generation) ||
         typeof rawSnapshot.accessToken !== 'string' ||
-        !ACCESS_TOKEN_PATTERN_V1.test(rawSnapshot.accessToken)
+        (this.options.credentialMode !== 'api_key' &&
+          !ACCESS_TOKEN_PATTERN_V1.test(rawSnapshot.accessToken))
       )
         return { authorized: false, reason: 'credential_unavailable' };
       const snapshot = Object.freeze({ ...rawSnapshot });
+      const credentialMode = this.options.credentialMode ?? 'pairing';
+      const requestedOperations =
+        input.apiKeyOperationPlan === undefined
+          ? null
+          : typeof input.apiKeyOperationPlan === 'string'
+            ? [input.apiKeyOperationPlan]
+            : input.apiKeyOperationPlan;
+      const apiKeyPolicy =
+        input.apiKeyToolName === undefined ? null : accountApiKeyToolPolicyV1(input.apiKeyToolName);
+      const apiKeyPlan = apiKeyPolicy?.operationPlans.find(
+        ({ operations }) =>
+          requestedOperations !== null &&
+          operations.length === requestedOperations.length &&
+          operations.every((operation, index) => operation === requestedOperations[index]),
+      );
+      if (
+        credentialMode === 'api_key' &&
+        (apiKeyPlan === undefined ||
+          input.apiKeyAuthorizationOperation === undefined ||
+          !apiKeyPlan.operations.includes(input.apiKeyAuthorizationOperation))
+      )
+        return { authorized: false, reason: 'credential_unavailable' };
       const connection = await waitWithinGatewayDeadlineV1(
         new ConnectionHttpClientV1({
           baseUrl: this.options.baseUrl,
@@ -863,7 +888,14 @@ export class ProtectedBoardGatewayV1 {
           timeoutMs: this.options.timeoutMs,
           logger: this.options.logger,
           ...(this.options.now === undefined ? {} : { now: this.options.now }),
-        }).get(input.boardId, input.requestId, snapshot.accessToken, deadline.signal, 'pairing'),
+        }).get(
+          input.boardId,
+          input.requestId,
+          snapshot.accessToken,
+          deadline.signal,
+          credentialMode,
+          credentialMode === 'api_key' ? input.apiKeyAuthorizationOperation : undefined,
+        ),
         deadline.signal,
       );
       const connectionCause = deadline.cause();
@@ -884,32 +916,55 @@ export class ProtectedBoardGatewayV1 {
         }
         return { authorized: false, reason: 'local', error: connection.error };
       }
-      if (!('grant' in connection.value))
-        return { authorized: false, reason: 'credential_unavailable' };
-      const selected = connection.value.selectedBoard;
-      const grant = connection.value.grant;
-      if (
-        selected === null ||
-        !input.requiredCapabilities.every(
-          (capability) =>
-            grant.scopes.includes(capability as never) &&
-            selected.capabilities.grantedCapabilities.includes(capability as never),
+      if (credentialMode === 'api_key') {
+        const credential = 'credential' in connection.value ? connection.value.credential : null;
+        if (
+          credential === null ||
+          apiKeyPlan === undefined ||
+          !apiKeyPlan.scopes.every((scope) => credential.scopes.includes(scope))
         )
-      )
-        return {
-          authorized: false,
-          reason: 'board',
-          error: {
-            protocolVersion: 1,
-            type: 'board.error',
-            code: 'BOARD_NOT_FOUND',
-            message: 'Board not found',
-            category: 'not_found',
-            retryable: false,
-            httpStatusHint: 404,
-            details: null,
-          },
-        };
+          return {
+            authorized: false,
+            reason: 'board',
+            error: {
+              protocolVersion: 1,
+              type: 'board.error',
+              code: 'FORBIDDEN',
+              message: 'Insufficient API key scope',
+              category: 'auth',
+              retryable: false,
+              httpStatusHint: 403,
+              details: null,
+            },
+          };
+      } else {
+        if (!('grant' in connection.value))
+          return { authorized: false, reason: 'credential_unavailable' };
+        const selected = connection.value.selectedBoard;
+        const grant = connection.value.grant;
+        if (
+          selected === null ||
+          !input.requiredCapabilities.every(
+            (capability) =>
+              grant.scopes.includes(capability as never) &&
+              selected.capabilities.grantedCapabilities.includes(capability as never),
+          )
+        )
+          return {
+            authorized: false,
+            reason: 'board',
+            error: {
+              protocolVersion: 1,
+              type: 'board.error',
+              code: 'BOARD_NOT_FOUND',
+              message: 'Board not found',
+              category: 'not_found',
+              retryable: false,
+              httpStatusHint: 404,
+              details: null,
+            },
+          };
+      }
       const value = await waitWithinGatewayDeadlineV1(
         operation({
           snapshot,

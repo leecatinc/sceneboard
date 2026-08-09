@@ -216,6 +216,9 @@ export class InteractionToolHandlersV1 {
         definition.error as unknown as Record<string, unknown>,
       );
     const result = await this.gateway.call(
+      'board_interaction_request',
+      'hitl.request',
+      { signal, authorization: { boardId: parsed.data.boardId, operation: 'hitl.request' } },
       (client, _snapshot, operationSignal) =>
         client.mutateBoard(
           {
@@ -232,7 +235,6 @@ export class InteractionToolHandlersV1 {
           },
           operationSignal,
         ),
-      { signal },
     );
     return result.connected
       ? sdkToolResultV1('board_interaction_request', requestId, result.value, null)
@@ -250,6 +252,9 @@ export class InteractionToolHandlersV1 {
     if (!parsed.success)
       return validationFailureV1('board_interaction_status', requestId, parsed.error);
     const result = await this.gateway.call(
+      'board_interaction_status',
+      'hitl.read',
+      { signal, authorization: { boardId: parsed.data.boardId, operation: 'hitl.read' } },
       (client, _snapshot, operationSignal) =>
         client.getInteraction(
           {
@@ -268,7 +273,6 @@ export class InteractionToolHandlersV1 {
           },
           operationSignal,
         ),
-      { signal },
     );
     return result.connected
       ? sdkToolResultV1('board_interaction_status', requestId, result.value, null)
@@ -294,6 +298,9 @@ export class InteractionToolHandlersV1 {
         response.error as unknown as Record<string, unknown>,
       );
     const result = await this.gateway.call(
+      'board_interaction_respond',
+      'hitl.respond',
+      { signal, authorization: { boardId: parsed.data.boardId, operation: 'hitl.respond' } },
       (client, _snapshot, operationSignal) =>
         client.mutateBoard(
           {
@@ -310,7 +317,6 @@ export class InteractionToolHandlersV1 {
           },
           operationSignal,
         ),
-      { signal },
     );
     return result.connected
       ? sdkToolResultV1('board_interaction_respond', requestId, result.value, null)

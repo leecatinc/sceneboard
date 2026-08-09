@@ -138,6 +138,14 @@ export const API_KEY_TOOL_NAMES_V1 = [
   'board_history_list',
   'board_history_get',
   'board_history_restore',
+  'sceneboard_media_upload',
+  'sceneboard_media_place',
+  'board_artifact_get',
+  'board_artifact_put',
+  'board_artifact_stop',
+  'board_interaction_request',
+  'board_interaction_status',
+  'board_interaction_respond',
   'board_export',
 ] as const satisfies readonly BoardToolNameV1[];
 
@@ -814,7 +822,7 @@ export const registerCoreToolsV1 = (
     (raw, signal) => documents.defaultSet(raw, signal),
     true,
   );
-  if (credentialMode === 'pairing') {
+  if (credentialMode === 'pairing' || credentialMode === 'api_key') {
     add(
       'sceneboard_media_upload',
       'Upload one explicitly authorized local PNG, JPEG, or WebP file.',
@@ -830,7 +838,7 @@ export const registerCoreToolsV1 = (
       true,
     );
   }
-  if (credentialMode === 'pairing' && options.downstreamReady === true) {
+  if (options.downstreamReady === true) {
     add(
       'board_artifact_get',
       'Read one exact immutable artifact/version manifest and runtime state.',
@@ -885,7 +893,7 @@ export const registerCoreToolsV1 = (
     );
   }
 
-  if (credentialMode === 'pairing' && options.downstreamReady === true) {
+  if (options.downstreamReady === true) {
     add(
       'board_interaction_request',
       'Create an exact human interaction, then immediately await it with board_interaction_status.',

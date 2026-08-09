@@ -15,6 +15,7 @@ import {
 import { splitSqlStatements } from './sql-splitter.js';
 import {
   verifyAccountApiKeyPostcondition,
+  verifyAccountApiKeyScopeCapacityPostcondition,
   verifyDocumentReplaceIdempotencyPostcondition,
   verifyDocumentV3CheckpointPostcondition,
   verifyExportTerminalAuditPostcondition,
@@ -835,6 +836,10 @@ export class MigrationRunner {
     connection: PoolConnection,
     postcondition: string,
   ): Promise<void> {
+    if (postcondition === 'd10_account_api_key_scope_capacity_v1') {
+      await verifyAccountApiKeyScopeCapacityPostcondition(connection);
+      return;
+    }
     if (postcondition === 'd10_revision_retention_backfill_v1') {
       await this.verifyRevisionRetentionBackfill(connection);
       return;

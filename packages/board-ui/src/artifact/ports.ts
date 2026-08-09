@@ -2,6 +2,7 @@ import type {
   ArtifactManifestV1,
   ArtifactReferenceV1,
   ArtifactRuntimeSummaryV1,
+  ArtifactRequestCapabilityV1,
   BoardId,
 } from '@sceneboard/board-schema';
 import type {
@@ -29,7 +30,7 @@ export interface ArtifactLoadPortV1 {
   releasePackage?(bytes: Uint8Array): void;
 }
 
-export type ArtifactViewModeV1 = 'fit-page' | 'fit-width' | 'actual';
+export type ArtifactViewModeV1 = 'fill' | 'fit-page' | 'fit-width' | 'actual';
 export type ArtifactHostInstanceIdV1 = string;
 export type ArtifactViewStateEventV1 = Readonly<{
   hostInstanceId: ArtifactHostInstanceIdV1;
@@ -48,7 +49,7 @@ export type ArtifactResetCommandV1 = Readonly<{
   epoch: number;
 }>;
 
-export type ArtifactHostInputV1 = {
+type ArtifactHostBaseInputV1 = {
   boardId: BoardId;
   artifact: ArtifactReferenceV1;
   runtime: ArtifactRuntimeSummaryV1;
@@ -69,3 +70,15 @@ export type ArtifactHostInputV1 = {
   onCaptureActiveChange?(active: boolean): void;
   resetCommand?: ArtifactResetCommandV1 | null;
 };
+
+export type ArtifactHostInputV1 = ArtifactHostBaseInputV1 &
+  (
+    | Readonly<{
+        allowedArtifactRequestCapabilities?: undefined;
+        artifactCapabilityEpoch?: undefined;
+      }>
+    | Readonly<{
+        allowedArtifactRequestCapabilities: readonly ArtifactRequestCapabilityV1[];
+        artifactCapabilityEpoch: number;
+      }>
+  );

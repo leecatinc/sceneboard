@@ -6,6 +6,7 @@ node_modules/
 **/.sceneboard-leases/
 **/.sceneboard-releases/
 sceneboard-mcp/plugins/sceneboard/runtime/index.js
+sceneboard-mcp/plugins/sceneboard/skills/sceneboard/
 package-lock.json
 test/certification/**/*.json
 packages/board-schema/test/fixtures/**/*.json

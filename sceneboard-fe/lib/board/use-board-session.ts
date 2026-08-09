@@ -5,6 +5,7 @@ import {
   BoardIdParserV1,
   projectDocumentV2ToV3,
   type BoardSessionAccessV1,
+  type ArtifactRequestCapabilityV1,
   type BoardSnapshot,
   type PageCursorV1,
   type PresentationFormatV1,
@@ -116,6 +117,9 @@ export function useBoardSession(boardIdValue: string) {
     EMPTY_BOARD_SESSION_ACCESS_V1,
   );
   const [capabilityUiEpoch, setCapabilityUiEpoch] = useState(0);
+  const [artifactRequestCapabilities, setArtifactRequestCapabilities] = useState<
+    readonly ArtifactRequestCapabilityV1[]
+  >([]);
   const sessionAccessRef = useRef<BoardSessionAccessV1>(EMPTY_BOARD_SESSION_ACCESS_V1);
   const api = useMemo(() => new BoardApiClient(authSessionClient().sharedCoordinator()), []);
   const routeEpoch = useRef(new RequestEpochV1());
@@ -160,6 +164,9 @@ export function useBoardSession(boardIdValue: string) {
       const next = result.value.sessionAccess;
       const current = sessionAccessRef.current;
       if (next.capabilityEpoch >= current.capabilityEpoch) {
+        setArtifactRequestCapabilities([
+          ...result.value.capabilities.allowedArtifactRequestCapabilities,
+        ]);
         if (!sameBoardSessionAccessV1(current, next)) {
           writeAbort.current?.abort();
           writeIdentity.current = null;
@@ -169,6 +176,7 @@ export function useBoardSession(boardIdValue: string) {
       }
       return true;
     }
+    setArtifactRequestCapabilities([]);
     const notFound =
       (result.kind === 'api_error' && result.status === 404) ||
       (result.kind === 'board_error' && result.error.code === 'BOARD_NOT_FOUND');
@@ -262,15 +270,12 @@ export function useBoardSession(boardIdValue: string) {
   );
 
   const load = useCallback(async () => {
-    const parsed = BoardIdParserV1.parse(boardIdValue);
-    if (!parsed.ok) {
-      setPhase('invalid');
-      setError({ kind: 'not_found', message: 'This board address is invalid.', retryable: false });
-      return;
-    }
     initialAbort.current?.abort();
     capabilityRequest.current?.controller.abort();
     capabilityRequest.current = null;
+    capabilityUiEpochRef.current += 1;
+    setCapabilityUiEpoch(capabilityUiEpochRef.current);
+    setArtifactRequestCapabilities([]);
     const controller = new AbortController();
     initialAbort.current = controller;
     setPhase('loading');
@@ -279,6 +284,12 @@ export function useBoardSession(boardIdValue: string) {
     writeIdentity.current = null;
     sessionAccessRef.current = EMPTY_BOARD_SESSION_ACCESS_V1;
     setSessionAccess(EMPTY_BOARD_SESSION_ACCESS_V1);
+    const parsed = BoardIdParserV1.parse(boardIdValue);
+    if (!parsed.ok) {
+      setPhase('invalid');
+      setError({ kind: 'not_found', message: 'This board address is invalid.', retryable: false });
+      return;
+    }
     const result = await api.getBoard(parsed.data.value, controller.signal);
     if (controller.signal.aborted) return;
     if (result.kind !== 'ok') {
@@ -695,6 +706,7 @@ export function useBoardSession(boardIdValue: string) {
     changePresentationFormat,
     sessionAccess,
     capabilityUiEpoch,
+    artifactRequestCapabilities,
     refreshCapabilities,
   };
 }

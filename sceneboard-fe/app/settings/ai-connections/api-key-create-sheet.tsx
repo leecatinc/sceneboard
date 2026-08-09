@@ -1,20 +1,14 @@
 'use client';
 
 import { type RefObject, useState } from 'react';
-import type { AccountApiKeyScopeV1 } from '@sceneboard/board-schema';
+import { ACCOUNT_API_KEY_SCOPES_V1, type AccountApiKeyScopeV1 } from '@sceneboard/board-schema';
 
 import { useI18n } from '../../../components/i18n/I18nProvider';
 import { formatApiKeyNameTimestamp } from './api-key-name';
 import styles from './api-key-management.module.css';
 
-const ALL_SCOPES: AccountApiKeyScopeV1[] = [
-  'board:archive',
-  'board:create',
-  'board:read',
-  'board:write',
-  'export:read',
-  'history:read',
-];
+const ALL_SCOPES: AccountApiKeyScopeV1[] = [...ACCOUNT_API_KEY_SCOPES_V1];
+const DEFAULT_SCOPES: readonly AccountApiKeyScopeV1[] = ['board:read'];
 
 export function ApiKeyCreateSheet({
   busy,
@@ -31,7 +25,7 @@ export function ApiKeyCreateSheet({
 }) {
   const { t } = useI18n();
   const [name, setName] = useState('');
-  const [selected, setSelected] = useState<AccountApiKeyScopeV1[]>([...ALL_SCOPES]);
+  const [selected, setSelected] = useState<AccountApiKeyScopeV1[]>([...DEFAULT_SCOPES]);
   const [days, setDays] = useState('90');
   const toggle = (scope: AccountApiKeyScopeV1) =>
     setSelected((current) =>

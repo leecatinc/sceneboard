@@ -1,8 +1,8 @@
 # SceneBoard contract certification manifests
 
 The D1-D9 baseline remains frozen in `contract-input-inventory.v1.json` and
-`contract-manifest.v1.json`. It now contains 475 alias-independent resources,
-32 migration registry entries, and 35 SQL assets. `npm run verify:contracts`
+`contract-manifest.v1.json`. It now contains 495 alias-independent resources,
+34 migration registry entries, and 37 SQL assets. `npm run verify:contracts`
 recomputes that baseline read-only.
 
 The presentation increment has a separate closed authority:

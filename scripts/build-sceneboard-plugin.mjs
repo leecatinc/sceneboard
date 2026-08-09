@@ -389,7 +389,9 @@ try {
   }
 
   if (checkOnly) {
-    const checkRoot = pluginRoot;
+    const activeReleaseName = await readActiveReleaseName();
+    const checkRoot =
+      activeReleaseName === null ? pluginRoot : resolve(releaseStore, activeReleaseName);
     const checkPath = (path) => resolve(checkRoot, path.slice(pluginRoot.length + 1));
     await assertCanonicalInventory(checkRoot);
     const checks = [assertEqualFile(runtimeCandidate, checkPath(runtimeTarget), 'plugin runtime')];
@@ -526,6 +528,14 @@ try {
         throw new Error('SceneBoard plugin publication interrupted');
       await withPublicationLock(async () => {
         await writeFile(resolve(sealedRelease, activatedMarker), '', { flag: 'wx', mode: 0o400 });
+        const canonicalRuntimeCandidate = resolve(pluginRoot, `.runtime-${generationName}.tmp`);
+        try {
+          await copyFile(runtimeCandidate, canonicalRuntimeCandidate);
+          await chmod(canonicalRuntimeCandidate, 0o644);
+          await rename(canonicalRuntimeCandidate, runtimeTarget);
+        } finally {
+          await rm(canonicalRuntimeCandidate, { force: true });
+        }
         await rename(pointerCandidate, releasePointer);
         await publishingHandle.close();
         await rm(resolve(sealedRelease, publishingMarker), { force: true });

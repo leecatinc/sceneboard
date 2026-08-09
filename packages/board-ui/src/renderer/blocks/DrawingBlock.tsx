@@ -174,7 +174,7 @@ function InteractiveDrawingBlock({
         return;
       }
       const next = fitArtifactViewV1({
-        mode,
+        mode: mode === 'fill' ? 'fit-page' : mode,
         availableWidth,
         availableHeight,
         contentWidth,

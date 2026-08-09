@@ -44,6 +44,7 @@ import { PresentationModeControls } from '../../../components/board/Presentation
 import { HitlDecisionWorkspace } from '../../../components/board/HitlDecisionWorkspace';
 import { StatusRail } from '../../../components/board/StatusRail';
 import { BoardUtilityRail } from '../../../components/board/BoardUtilityRail';
+import { BoardViewModeControls } from '../../../components/board/BoardViewModeControls';
 import { HistoryControls } from '../../../components/board/HistoryControls';
 import { ResponsiveBoardChrome } from '../../../components/board/ResponsiveBoardChrome';
 import type { MobileBoardDrawerSlotsV1 } from '../../../components/board/MobileBoardDrawer';
@@ -251,7 +252,7 @@ export function BoardClient({ boardId }: { boardId: string }) {
   const router = useRouter();
   const session = useBoardSession(boardId);
   const [selectedTabs, setSelectedTabs] = useState<Record<string, string>>({});
-  const [artifactViewMode, setArtifactViewMode] = useState<ArtifactViewModeV1>('fit-page');
+  const [artifactViewMode, setArtifactViewMode] = useState<ArtifactViewModeV1>('fill');
   const [artifactStopSignal, setArtifactStopSignal] = useState(0);
   const [artifactViews, dispatchArtifactView] = useReducer(
     reduceArtifactViewRegistryV1,
@@ -1128,6 +1129,8 @@ export function BoardClient({ boardId }: { boardId: string }) {
         incarnationKey={incarnationKey}
         snapshotWatermark={context.lastEventSequence}
         load={artifactLoad}
+        allowedArtifactRequestCapabilities={session.artifactRequestCapabilities}
+        artifactCapabilityEpoch={session.sessionAccess.capabilityEpoch}
         viewMode={artifactViewMode}
         presentationActive={presentationActive}
         onPresentationPageChange={(event) =>
@@ -1398,6 +1401,16 @@ export function BoardClient({ boardId }: { boardId: string }) {
       canRename={affordances['board.write']}
     />
   );
+  const desktopViewControls = showArtifactControls ? (
+    <BoardViewModeControls
+      compact
+      value={artifactViewMode}
+      zoom={selectedZoom}
+      canReset={canResetView}
+      onChange={setArtifactViewMode}
+      onReset={resetView}
+    />
+  ) : null;
   // Desktop right utility rail — presentation and owner actions stay directly accessible as icons.
   const utilityRail = (
     <BoardUtilityRail
@@ -1428,6 +1441,7 @@ export function BoardClient({ boardId }: { boardId: string }) {
         utilityRail={utilityRail}
         desktopBoardIdentity={desktopBoardIdentity}
         pageNavigation={pageNavigationControls}
+        viewControls={desktopViewControls}
         revisionControls={desktopRevisionControls}
       >
         {capabilityAnnouncement !== null && (

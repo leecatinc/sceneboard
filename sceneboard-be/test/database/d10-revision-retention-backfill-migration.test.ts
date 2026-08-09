@@ -4,8 +4,10 @@ import test from 'node:test';
 
 import { MIGRATION_REGISTRY } from '../../src/database/migrations/registry.js';
 
-test('revision retention backfill is the latest irreversible migration', () => {
-  const entry = MIGRATION_REGISTRY.at(-1);
+test('revision retention backfill remains an irreversible registered migration', () => {
+  const entry = MIGRATION_REGISTRY.find(
+    ({ version }) => version === '030_d10_revision_retention_backfill',
+  );
   assert.deepEqual(entry, {
     version: '030_d10_revision_retention_backfill',
     upAsset: '030_d10_revision_retention_backfill.up.sql',

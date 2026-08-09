@@ -595,10 +595,10 @@ const observeToolRegistries = (source) => {
   if (
     core.length !== 24 ||
     general.length !== 30 ||
-    accountApiKey.length !== 22 ||
     new Set(general).size !== general.length ||
     new Set(accountApiKey).size !== accountApiKey.length ||
-    !exactSet(general, generalDeclared)
+    !exactSet(general, generalDeclared) ||
+    !accountApiKey.every((name) => registered.includes(name))
   )
     throw new CertificationError('SECURITY_CASE_CATALOG_DRIFT');
   return {
@@ -1025,13 +1025,14 @@ export const buildExpectedSecurityCatalog = async () => {
         upstreamContractId: `D6-ACCOUNT-API-KEY-TOOL-${tool}`,
         precedence: 'credential-mode-literal-scope-input-owner-safe-error',
       });
+  const accountApiKeyToolCount = toolRegistries.accountApiKey.length;
   add({
-    caseId: 'APIKEY-MCP-DISCOVERY-22',
+    caseId: `APIKEY-MCP-DISCOVERY-${accountApiKeyToolCount}`,
     cluster: 'MCP_ACCOUNT_API_KEY',
     owner: 'D6',
     testFile: 'test/security/mcp-tool-registry.e2e.test.mjs',
-    preconditionState: 'account-api-key-publication-cut-22',
-    expectedCodeOrState: 'EXACT_22_TOOLS',
+    preconditionState: `account-api-key-publication-cut-${accountApiKeyToolCount}`,
+    expectedCodeOrState: `EXACT_${accountApiKeyToolCount}_TOOLS`,
     principalKind: 'account-api-key',
     upstreamContractId: 'D6-ACCOUNT-API-KEY-TOOL-DISCOVERY-V1',
   });

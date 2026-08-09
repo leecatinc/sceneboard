@@ -21,10 +21,13 @@ declare global {
       runtimeOrigin: string;
       packageBase64: string;
       manifest: unknown;
+      allowedArtifactRequestCapabilities?: readonly ['clipboard.write'];
+      artifactCapabilityEpoch?: number;
     }>;
     __artifactHostHarness?: Readonly<{
       mode(mode: ArtifactViewModeV1): void;
       callbackVersion(version: number): void;
+      capabilityEpoch(epoch: number): void;
       stop(): void;
       reset(): void;
       unmount(): void;
@@ -55,12 +58,16 @@ const navigationEvents: unknown[] = [];
 const resizeEvents: unknown[] = [];
 let setMode: ((mode: ArtifactViewModeV1) => void) | null = null;
 let setCallbackVersion: ((version: number) => void) | null = null;
+let setCapabilityEpoch: ((epoch: number) => void) | null = null;
 let stopHost: (() => void) | null = null;
 let resetView: (() => void) | null = null;
 
 function Fixture() {
   const [mode, updateMode] = useState<ArtifactViewModeV1>('actual');
   const [callbackVersion, updateCallbackVersion] = useState(0);
+  const [capabilityEpoch, updateCapabilityEpoch] = useState(
+    window.__artifactFixture.artifactCapabilityEpoch ?? 0,
+  );
   const [stopSignal, setStopSignal] = useState(0);
   const [registry, dispatchRegistry] = useReducer(
     reduceArtifactViewRegistryV1,
@@ -69,6 +76,7 @@ function Fixture() {
   );
   setMode = updateMode;
   setCallbackVersion = updateCallbackVersion;
+  setCapabilityEpoch = updateCapabilityEpoch;
   stopHost = () => setStopSignal((value) => value + 1);
   resetView = () => dispatchRegistry({ type: 'reset' });
   const resetCommand = useMemo(() => registry.resetCommand, [registry.resetCommand]);
@@ -107,6 +115,10 @@ function Fixture() {
           resizeEvents.push({ version: callbackVersion, ...request });
           throw new TypeError('fixture consumer failure');
         }}
+        allowedArtifactRequestCapabilities={
+          window.__artifactFixture.allowedArtifactRequestCapabilities ?? []
+        }
+        artifactCapabilityEpoch={capabilityEpoch}
       />
     </I18nProvider>
   );
@@ -123,6 +135,11 @@ window.__artifactHostHarness = Object.freeze({
     if (setCallbackVersion === null)
       throw new TypeError('artifact host callback-version setter is unavailable');
     flushSync(() => setCallbackVersion?.(version));
+  },
+  capabilityEpoch(epoch) {
+    if (setCapabilityEpoch === null)
+      throw new TypeError('artifact capability-epoch setter is unavailable');
+    flushSync(() => setCapabilityEpoch?.(epoch));
   },
   stop() {
     if (stopHost === null) throw new TypeError('artifact host stop setter is unavailable');

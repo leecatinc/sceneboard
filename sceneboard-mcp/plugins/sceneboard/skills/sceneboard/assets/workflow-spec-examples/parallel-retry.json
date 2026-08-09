@@ -1,0 +1,269 @@
+{
+  "schemaVersion": "1.0",
+  "workflow": {
+    "id": "workflow_research",
+    "title": "Parallel research with retry",
+    "summary": "Run two research tracks and merge the evidence.",
+    "evidence": {
+      "basis": "explicit",
+      "confidence": 1,
+      "sourceRefs": [
+        {
+          "sourceId": "source_skill",
+          "startLine": null,
+          "endLine": null,
+          "locator": "SKILL.md"
+        }
+      ]
+    }
+  },
+  "sources": [
+    {
+      "id": "source_skill",
+      "kind": "skill",
+      "label": "Research skill",
+      "digest": null
+    }
+  ],
+  "entryNodeIds": ["research_start"],
+  "exitNodeIds": ["research_end"],
+  "nodes": [
+    {
+      "id": "research_start",
+      "kind": "start",
+      "label": "Start",
+      "purpose": null,
+      "instructions": [],
+      "stateInputs": [],
+      "stateOutputs": [],
+      "tools": [],
+      "skills": [],
+      "retryPolicy": null,
+      "errorPolicy": null,
+      "subflowId": null,
+      "control": null,
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+    },
+    {
+      "id": "research_parallel",
+      "kind": "parallel",
+      "label": "Run research tracks",
+      "purpose": null,
+      "instructions": [],
+      "stateInputs": [],
+      "stateOutputs": [],
+      "tools": [],
+      "skills": [],
+      "retryPolicy": null,
+      "errorPolicy": null,
+      "subflowId": null,
+      "control": {
+        "mode": "all",
+        "branchEdgeIds": ["research_edge_primary", "research_edge_secondary"]
+      },
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+    },
+    {
+      "id": "research_primary",
+      "kind": "action",
+      "label": "Primary research",
+      "purpose": null,
+      "instructions": [],
+      "stateInputs": [],
+      "stateOutputs": [],
+      "tools": [],
+      "skills": [],
+      "retryPolicy": {
+        "maxAttempts": 3,
+        "backoff": "exponential",
+        "initialDelayMs": 100,
+        "maxDelayMs": 1000,
+        "retryOn": ["transient"]
+      },
+      "errorPolicy": null,
+      "subflowId": null,
+      "control": null,
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+    },
+    {
+      "id": "research_secondary",
+      "kind": "subflow",
+      "label": "Secondary review",
+      "purpose": null,
+      "instructions": [],
+      "stateInputs": [],
+      "stateOutputs": [],
+      "tools": [],
+      "skills": [],
+      "retryPolicy": null,
+      "errorPolicy": null,
+      "subflowId": "subflow_review",
+      "control": null,
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+    },
+    {
+      "id": "research_join",
+      "kind": "join",
+      "label": "Merge evidence",
+      "purpose": null,
+      "instructions": [],
+      "stateInputs": [],
+      "stateOutputs": [],
+      "tools": [],
+      "skills": [],
+      "retryPolicy": null,
+      "errorPolicy": null,
+      "subflowId": null,
+      "control": {
+        "mode": "all",
+        "incomingEdgeIds": [
+          "research_edge_primary_join",
+          "research_edge_secondary_join"
+        ]
+      },
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+    },
+    {
+      "id": "research_end",
+      "kind": "end",
+      "label": "Complete",
+      "purpose": null,
+      "instructions": [],
+      "stateInputs": [],
+      "stateOutputs": [],
+      "tools": [],
+      "skills": [],
+      "retryPolicy": null,
+      "errorPolicy": null,
+      "subflowId": null,
+      "control": null,
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+    }
+  ],
+  "edges": [
+    {
+      "id": "research_edge_start",
+      "kind": "normal",
+      "fromNodeId": "research_start",
+      "toNodeId": "research_parallel",
+      "label": null,
+      "condition": null,
+      "priority": null,
+      "stateKeys": [],
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+    },
+    {
+      "id": "research_edge_primary",
+      "kind": "parallel",
+      "fromNodeId": "research_parallel",
+      "toNodeId": "research_primary",
+      "label": null,
+      "condition": null,
+      "priority": null,
+      "stateKeys": [],
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+    },
+    {
+      "id": "research_edge_secondary",
+      "kind": "parallel",
+      "fromNodeId": "research_parallel",
+      "toNodeId": "research_secondary",
+      "label": null,
+      "condition": null,
+      "priority": null,
+      "stateKeys": [],
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+    },
+    {
+      "id": "research_edge_primary_join",
+      "kind": "join",
+      "fromNodeId": "research_primary",
+      "toNodeId": "research_join",
+      "label": null,
+      "condition": null,
+      "priority": null,
+      "stateKeys": [],
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+    },
+    {
+      "id": "research_edge_secondary_join",
+      "kind": "join",
+      "fromNodeId": "research_secondary",
+      "toNodeId": "research_join",
+      "label": null,
+      "condition": null,
+      "priority": null,
+      "stateKeys": [],
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+    },
+    {
+      "id": "research_edge_end",
+      "kind": "normal",
+      "fromNodeId": "research_join",
+      "toNodeId": "research_end",
+      "label": null,
+      "condition": null,
+      "priority": null,
+      "stateKeys": [],
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+    }
+  ],
+  "subflows": [
+    {
+      "id": "subflow_review",
+      "title": "Secondary review",
+      "entryNodeIds": ["review_start"],
+      "exitNodeIds": ["review_end"],
+      "nodes": [
+        {
+          "id": "review_start",
+          "kind": "start",
+          "label": "Start review",
+          "purpose": null,
+          "instructions": [],
+          "stateInputs": [],
+          "stateOutputs": [],
+          "tools": [],
+          "skills": [],
+          "retryPolicy": null,
+          "errorPolicy": null,
+          "subflowId": null,
+          "control": null,
+          "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+        },
+        {
+          "id": "review_end",
+          "kind": "end",
+          "label": "Finish review",
+          "purpose": null,
+          "instructions": [],
+          "stateInputs": [],
+          "stateOutputs": [],
+          "tools": [],
+          "skills": [],
+          "retryPolicy": null,
+          "errorPolicy": null,
+          "subflowId": null,
+          "control": null,
+          "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+        }
+      ],
+      "edges": [
+        {
+          "id": "review_edge",
+          "kind": "normal",
+          "fromNodeId": "review_start",
+          "toNodeId": "review_end",
+          "label": null,
+          "condition": null,
+          "priority": null,
+          "stateKeys": [],
+          "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+        }
+      ],
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+    }
+  ],
+  "unresolvedQuestions": [],
+  "warnings": []
+}

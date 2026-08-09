@@ -2,26 +2,40 @@ import {
   canonicalizeSceneRecipeJson,
   deriveSceneRecipeNodeId,
   stringifyCanonicalSceneRecipeJson,
-} from './scene-recipe-core.mjs';
-import { renderSlideDeck, SLIDE_DECK_PROGRAM } from './scene-artifact-slide-deck.mjs';
+} from "./scene-recipe-core.mjs";
+import {
+  renderSlideDeck,
+  SLIDE_DECK_PROGRAM,
+} from "./scene-artifact-slide-deck.mjs";
+import {
+  renderWorkflowGraph,
+  WORKFLOW_GRAPH_PROGRAM_V2 as WORKFLOW_GRAPH_PROGRAM,
+} from "./scene-artifact-workflow-graph.mjs";
+import { validateWorkflowSpec } from "./workflow-spec-core.mjs";
 
 export const SCENE_ARTIFACT_RECIPE_VERSION = 1;
 export const SCENE_ARTIFACT_TEMPLATE_VERSION = 1;
 export const SCENE_ARTIFACT_TEMPLATE_NAMES_V1 = Object.freeze([
-  'animated-data-story',
-  'architecture-map',
-  'demo-showcase',
-  'metric-story',
-  'process-flow',
-  'slide-deck',
-  'threejs-showcase',
-  'timeline',
-  'webgl-showcase',
+  "animated-data-story",
+  "architecture-map",
+  "demo-showcase",
+  "metric-story",
+  "process-flow",
+  "slide-deck",
+  "threejs-showcase",
+  "timeline",
+  "webgl-showcase",
+  "workflow-graph",
 ]);
-export const SCENE_ARTIFACT_MOTION_LEVELS_V1 = Object.freeze(['none', 'subtle', 'staged', 'focus']);
+export const SCENE_ARTIFACT_MOTION_LEVELS_V1 = Object.freeze([
+  "none",
+  "subtle",
+  "staged",
+  "focus",
+]);
 
 const deepFreeze = (value) => {
-  if (value && typeof value === 'object' && !Object.isFrozen(value)) {
+  if (value && typeof value === "object" && !Object.isFrozen(value)) {
     Object.freeze(value);
     Object.values(value).forEach(deepFreeze);
   }
@@ -29,7 +43,12 @@ const deepFreeze = (value) => {
 };
 
 export const SCENE_ARTIFACT_LIMITS_V1 = deepFreeze({
-  json: { maxBytes: 65536, maxDepth: 16, maxContainerEntries: 512, maxUserTextScalars: 8192 },
+  json: {
+    maxBytes: 65536,
+    maxDepth: 16,
+    maxContainerEntries: 512,
+    maxUserTextScalars: 8192,
+  },
   text: {
     commonMinScalars: 1,
     placementKeyMaxScalars: 200,
@@ -100,7 +119,10 @@ export const SCENE_ARTIFACT_LIMITS_V1 = deepFreeze({
     cssRulesMax: 1024,
     cssDeclarationsMax: 16384,
   },
-  catalog: { descriptorCount: 9, descriptorMaxBytes: 4096 },
+  catalog: {
+    descriptorCount: SCENE_ARTIFACT_TEMPLATE_NAMES_V1.length,
+    descriptorMaxBytes: 4096,
+  },
   motion: {
     subtleOpacityStart: 0.92,
     subtleDurationMs: 280,
@@ -123,25 +145,26 @@ export const SCENE_ARTIFACT_LIMITS_V1 = deepFreeze({
 });
 
 const MESSAGES = Object.freeze({
-  INVALID_JSON: 'Artifact JSON is invalid.',
-  INVALID_ARTIFACT_RECIPE: 'Artifact recipe is invalid.',
-  UNSUPPORTED_ARTIFACT_RECIPE_VERSION: 'Artifact recipe version is unsupported.',
-  UNKNOWN_FIELD: 'Artifact input contains an unknown field.',
-  UNKNOWN_TEMPLATE: 'Artifact template is unsupported.',
-  INVALID_TEMPLATE_DESCRIPTOR: 'Artifact template descriptor is invalid.',
-  INVALID_VALUE: 'Artifact input value is invalid.',
-  INVALID_RELATION: 'Artifact input relation is invalid.',
-  LIMIT_EXCEEDED: 'Artifact input limit is exceeded.',
-  PAYLOAD_TOO_LARGE: 'Artifact payload is too large.',
-  UNSAFE_ARTIFACT_SOURCE: 'Artifact source is unsafe.',
-  INVALID_PLACEMENT: 'Artifact placement input is invalid.',
+  INVALID_JSON: "Artifact JSON is invalid.",
+  INVALID_ARTIFACT_RECIPE: "Artifact recipe is invalid.",
+  UNSUPPORTED_ARTIFACT_RECIPE_VERSION:
+    "Artifact recipe version is unsupported.",
+  UNKNOWN_FIELD: "Artifact input contains an unknown field.",
+  UNKNOWN_TEMPLATE: "Artifact template is unsupported.",
+  INVALID_TEMPLATE_DESCRIPTOR: "Artifact template descriptor is invalid.",
+  INVALID_VALUE: "Artifact input value is invalid.",
+  INVALID_RELATION: "Artifact input relation is invalid.",
+  LIMIT_EXCEEDED: "Artifact input limit is exceeded.",
+  PAYLOAD_TOO_LARGE: "Artifact payload is too large.",
+  UNSAFE_ARTIFACT_SOURCE: "Artifact source is unsafe.",
+  INVALID_PLACEMENT: "Artifact placement input is invalid.",
 });
 
 export class SceneArtifactError extends Error {
   constructor(code, path = []) {
     super(MESSAGES[code] ?? MESSAGES.INVALID_ARTIFACT_RECIPE);
-    this.name = 'SceneArtifactError';
-    this.code = MESSAGES[code] ? code : 'INVALID_ARTIFACT_RECIPE';
+    this.name = "SceneArtifactError";
+    this.code = MESSAGES[code] ? code : "INVALID_ARTIFACT_RECIPE";
     this.path = [...path];
   }
 }
@@ -151,46 +174,50 @@ const fail = (code, path = []) => {
 };
 const object = (value) =>
   value !== null &&
-  typeof value === 'object' &&
+  typeof value === "object" &&
   !Array.isArray(value) &&
-  (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null);
-const closed = (value, fields, path, code = 'INVALID_ARTIFACT_RECIPE') => {
+  (Object.getPrototypeOf(value) === Object.prototype ||
+    Object.getPrototypeOf(value) === null);
+const closed = (value, fields, path, code = "INVALID_ARTIFACT_RECIPE") => {
   if (!object(value)) fail(code, path);
   const keys = Object.keys(value);
-  for (const key of keys) if (!fields.includes(key)) fail('UNKNOWN_FIELD', [...path, key]);
-  for (const key of fields) if (!Object.hasOwn(value, key)) fail(code, [...path, key]);
+  for (const key of keys)
+    if (!fields.includes(key)) fail("UNKNOWN_FIELD", [...path, key]);
+  for (const key of fields)
+    if (!Object.hasOwn(value, key)) fail(code, [...path, key]);
 };
 const scalars = (value) => Array.from(value).length;
 const text = (value, max, path, nullable = false) => {
   if (nullable && value === null) return;
   if (
-    typeof value !== 'string' ||
+    typeof value !== "string" ||
     scalars(value) < 1 ||
     scalars(value) > max ||
     /[\u0000-\u0008\u000b\u000c\u000e-\u001f\ud800-\udfff]/u.test(value)
   )
-    fail('INVALID_VALUE', path);
+    fail("INVALID_VALUE", path);
 };
 const array = (value, min, max, path) => {
   if (!Array.isArray(value) || value.length < min || value.length > max)
-    fail('LIMIT_EXCEEDED', path);
+    fail("LIMIT_EXCEEDED", path);
 };
 const escapeHtml = (value) =>
   value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 
 export const shouldUseSceneSlideDeck = (request) =>
-  typeof request === 'string' && (request.includes('발표자료') || /ppt/i.test(request));
+  typeof request === "string" &&
+  (request.includes("발표자료") || /ppt/i.test(request));
 
 export const stringifyCanonicalSceneArtifactJson = (value) => {
   try {
     return stringifyCanonicalSceneRecipeJson(value);
   } catch {
-    fail('INVALID_VALUE', []);
+    fail("INVALID_VALUE", []);
   }
 };
 
@@ -200,33 +227,44 @@ const parseJson = (bytes, placement) => {
     : bytes instanceof Uint8Array
       ? Buffer.from(bytes)
       : null;
-  if (!buffer) fail('INVALID_JSON', []);
-  if (buffer.length > SCENE_ARTIFACT_LIMITS_V1.json.maxBytes) fail('PAYLOAD_TOO_LARGE', []);
+  if (!buffer) fail("INVALID_JSON", []);
+  if (buffer.length > SCENE_ARTIFACT_LIMITS_V1.json.maxBytes)
+    fail("PAYLOAD_TOO_LARGE", []);
   let value;
   try {
-    value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(buffer));
+    value = JSON.parse(
+      new TextDecoder("utf-8", { fatal: true }).decode(buffer),
+    );
   } catch {
-    fail('INVALID_JSON', []);
+    fail("INVALID_JSON", []);
   }
-  return placement ? validatePlacement(value) : validateSceneArtifactRecipe(value);
+  return placement
+    ? validatePlacement(value)
+    : validateSceneArtifactRecipe(value);
 };
 export const parseSceneArtifactRecipeJson = (bytes) => parseJson(bytes, false);
-export const parseSceneArtifactPlacementJson = (bytes) => parseJson(bytes, true);
+export const parseSceneArtifactPlacementJson = (bytes) =>
+  parseJson(bytes, true);
 
 export const validateSceneArtifactTemplateDescriptor = (value) => {
   closed(
     value,
-    ['artifactTemplateVersion', 'name', 'renderer', 'defaultSize'],
+    ["artifactTemplateVersion", "name", "renderer", "defaultSize"],
     [],
-    'INVALID_TEMPLATE_DESCRIPTOR',
+    "INVALID_TEMPLATE_DESCRIPTOR",
   );
   if (
     value.artifactTemplateVersion !== 1 ||
     !SCENE_ARTIFACT_TEMPLATE_NAMES_V1.includes(value.name) ||
     value.renderer !== value.name
   )
-    fail('INVALID_TEMPLATE_DESCRIPTOR', []);
-  closed(value.defaultSize, ['width', 'height'], ['defaultSize'], 'INVALID_TEMPLATE_DESCRIPTOR');
+    fail("INVALID_TEMPLATE_DESCRIPTOR", []);
+  closed(
+    value.defaultSize,
+    ["width", "height"],
+    ["defaultSize"],
+    "INVALID_TEMPLATE_DESCRIPTOR",
+  );
   const { width, height } = value.defaultSize;
   if (
     !Number.isSafeInteger(width) ||
@@ -236,238 +274,254 @@ export const validateSceneArtifactTemplateDescriptor = (value) => {
     height < 240 ||
     height > 1080
   )
-    fail('INVALID_TEMPLATE_DESCRIPTOR', ['defaultSize']);
+    fail("INVALID_TEMPLATE_DESCRIPTOR", ["defaultSize"]);
   return canonicalizeSceneRecipeJson(value);
 };
 
 const validateContent = (recipe) => {
   const { content, template } = recipe;
-  if (template === 'metric-story') {
-    closed(content, ['metrics'], ['content']);
-    array(content.metrics, 1, 6, ['content', 'metrics']);
+  if (template === "metric-story") {
+    closed(content, ["metrics"], ["content"]);
+    array(content.metrics, 1, 6, ["content", "metrics"]);
     content.metrics.forEach((item, index) => {
-      const p = ['content', 'metrics', index];
-      closed(item, ['label', 'value', 'detail', 'trend'], p);
-      text(item.label, 60, [...p, 'label']);
-      text(item.value, 40, [...p, 'value']);
-      text(item.detail, 120, [...p, 'detail'], true);
-      if (!['up', 'down', 'flat'].includes(item.trend)) fail('INVALID_VALUE', [...p, 'trend']);
+      const p = ["content", "metrics", index];
+      closed(item, ["label", "value", "detail", "trend"], p);
+      text(item.label, 60, [...p, "label"]);
+      text(item.value, 40, [...p, "value"]);
+      text(item.detail, 120, [...p, "detail"], true);
+      if (!["up", "down", "flat"].includes(item.trend))
+        fail("INVALID_VALUE", [...p, "trend"]);
     });
-  } else if (template === 'process-flow') {
-    closed(content, ['steps'], ['content']);
-    array(content.steps, 2, 10, ['content', 'steps']);
+  } else if (template === "process-flow") {
+    closed(content, ["steps"], ["content"]);
+    array(content.steps, 2, 10, ["content", "steps"]);
     let active = 0;
     content.steps.forEach((item, index) => {
-      const p = ['content', 'steps', index];
-      closed(item, ['label', 'detail', 'status'], p);
-      text(item.label, 60, [...p, 'label']);
-      text(item.detail, 120, [...p, 'detail'], true);
-      if (!['complete', 'active', 'pending', 'blocked'].includes(item.status))
-        fail('INVALID_VALUE', [...p, 'status']);
-      if (item.status === 'active') active += 1;
+      const p = ["content", "steps", index];
+      closed(item, ["label", "detail", "status"], p);
+      text(item.label, 60, [...p, "label"]);
+      text(item.detail, 120, [...p, "detail"], true);
+      if (!["complete", "active", "pending", "blocked"].includes(item.status))
+        fail("INVALID_VALUE", [...p, "status"]);
+      if (item.status === "active") active += 1;
     });
-    if (active > 1) fail('INVALID_RELATION', ['content', 'steps']);
-  } else if (template === 'architecture-map') {
-    closed(content, ['nodes', 'edges'], ['content']);
-    array(content.nodes, 2, 12, ['content', 'nodes']);
-    array(content.edges, 0, 16, ['content', 'edges']);
+    if (active > 1) fail("INVALID_RELATION", ["content", "steps"]);
+  } else if (template === "architecture-map") {
+    closed(content, ["nodes", "edges"], ["content"]);
+    array(content.nodes, 2, 12, ["content", "nodes"]);
+    array(content.edges, 0, 16, ["content", "edges"]);
     const ids = new Set();
     content.nodes.forEach((item, index) => {
-      const p = ['content', 'nodes', index];
-      closed(item, ['key', 'label', 'role'], p);
+      const p = ["content", "nodes", index];
+      closed(item, ["key", "label", "role"], p);
       if (
-        typeof item.key !== 'string' ||
+        typeof item.key !== "string" ||
         !/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(item.key) ||
         ids.has(item.key)
       )
-        fail('INVALID_RELATION', [...p, 'key']);
+        fail("INVALID_RELATION", [...p, "key"]);
       ids.add(item.key);
-      text(item.label, 60, [...p, 'label']);
-      if (!['source', 'service', 'store', 'external'].includes(item.role))
-        fail('INVALID_VALUE', [...p, 'role']);
+      text(item.label, 60, [...p, "label"]);
+      if (!["source", "service", "store", "external"].includes(item.role))
+        fail("INVALID_VALUE", [...p, "role"]);
     });
     const pairs = new Set();
     content.edges.forEach((item, index) => {
-      const p = ['content', 'edges', index];
-      closed(item, ['from', 'to', 'label'], p);
-      text(item.label, 60, [...p, 'label'], true);
+      const p = ["content", "edges", index];
+      closed(item, ["from", "to", "label"], p);
+      text(item.label, 60, [...p, "label"], true);
       const pair = `${item.from}\u0000${item.to}`;
-      if (!ids.has(item.from) || !ids.has(item.to) || item.from === item.to || pairs.has(pair))
-        fail('INVALID_RELATION', p);
+      if (
+        !ids.has(item.from) ||
+        !ids.has(item.to) ||
+        item.from === item.to ||
+        pairs.has(pair)
+      )
+        fail("INVALID_RELATION", p);
       pairs.add(pair);
     });
-  } else if (template === 'timeline') {
-    closed(content, ['events'], ['content']);
-    array(content.events, 2, 12, ['content', 'events']);
+  } else if (template === "timeline") {
+    closed(content, ["events"], ["content"]);
+    array(content.events, 2, 12, ["content", "events"]);
     let current = 0;
     content.events.forEach((item, index) => {
-      const p = ['content', 'events', index];
-      closed(item, ['date', 'label', 'detail', 'status'], p);
-      text(item.date, 32, [...p, 'date']);
-      text(item.label, 60, [...p, 'label']);
-      text(item.detail, 120, [...p, 'detail'], true);
-      if (!['past', 'current', 'future'].includes(item.status))
-        fail('INVALID_VALUE', [...p, 'status']);
-      if (item.status === 'current') current += 1;
+      const p = ["content", "events", index];
+      closed(item, ["date", "label", "detail", "status"], p);
+      text(item.date, 32, [...p, "date"]);
+      text(item.label, 60, [...p, "label"]);
+      text(item.detail, 120, [...p, "detail"], true);
+      if (!["past", "current", "future"].includes(item.status))
+        fail("INVALID_VALUE", [...p, "status"]);
+      if (item.status === "current") current += 1;
     });
-    if (current > 1) fail('INVALID_RELATION', ['content', 'events']);
-  } else if (template === 'demo-showcase') {
-    closed(content, ['kind', 'selection', 'phase'], ['content']);
+    if (current > 1) fail("INVALID_RELATION", ["content", "events"]);
+  } else if (template === "demo-showcase") {
+    closed(content, ["kind", "selection", "phase"], ["content"]);
     if (
       ![
-        'illustration',
-        'diorama',
-        'prototype',
-        'data-story',
-        'incident',
-        'mission-control',
-        'code-review',
+        "illustration",
+        "diorama",
+        "prototype",
+        "data-story",
+        "incident",
+        "mission-control",
+        "code-review",
       ].includes(content.kind)
     )
-      fail('INVALID_VALUE', ['content', 'kind']);
-    text(content.selection, 64, ['content', 'selection']);
-    text(content.phase, 32, ['content', 'phase']);
+      fail("INVALID_VALUE", ["content", "kind"]);
+    text(content.selection, 64, ["content", "selection"]);
+    text(content.phase, 32, ["content", "phase"]);
     const allowed = {
       illustration: {
-        selection: ['sunny-garden', 'space-adventure', 'rainy-city'],
-        phase: ['outline', 'color'],
+        selection: ["sunny-garden", "space-adventure", "rainy-city"],
+        phase: ["outline", "color"],
       },
       diorama: {
-        selection: ['golden-garden', 'space-observatory', 'neon-street'],
-        phase: ['ready'],
+        selection: ["golden-garden", "space-observatory", "neon-street"],
+        phase: ["ready"],
       },
       prototype: {
-        selection: ['calm-itinerary', 'visual-explorer', 'risk-checker'],
-        phase: ['initial', 'improved'],
+        selection: ["calm-itinerary", "visual-explorer", "risk-checker"],
+        phase: ["initial", "improved"],
       },
-      'data-story': { selection: ['support-week'], phase: ['ready'] },
+      "data-story": { selection: ["support-week"], phase: ["ready"] },
       incident: {
-        selection: ['cache-unavailable', 'pool-exhausted', 'queue-backlog'],
-        phase: ['failure', 'recovery'],
+        selection: ["cache-unavailable", "pool-exhausted", "queue-backlog"],
+        phase: ["failure", "recovery"],
       },
-      'mission-control': { selection: ['launch-readiness'], phase: ['ready'] },
-      'code-review': {
-        selection: ['no-charge', 'checkout-speed', 'concurrent-inventory'],
-        phase: ['review', 'final'],
+      "mission-control": { selection: ["launch-readiness"], phase: ["ready"] },
+      "code-review": {
+        selection: ["no-charge", "checkout-speed", "concurrent-inventory"],
+        phase: ["review", "final"],
       },
     }[content.kind];
     if (!allowed.selection.includes(content.selection))
-      fail('INVALID_RELATION', ['content', 'selection']);
-    if (!allowed.phase.includes(content.phase)) fail('INVALID_RELATION', ['content', 'phase']);
-  } else if (template === 'webgl-showcase' || template === 'threejs-showcase') {
-    closed(content, ['scene', 'camera'], ['content']);
-    if (!['garden-cat', 'space-cat', 'neon-cat'].includes(content.scene))
-      fail('INVALID_VALUE', ['content', 'scene']);
-    if (!['orbit', 'still'].includes(content.camera)) fail('INVALID_VALUE', ['content', 'camera']);
-  } else if (template === 'slide-deck') {
-    closed(content, ['deckLabel', 'slides'], ['content']);
-    text(content.deckLabel, 80, ['content', 'deckLabel']);
-    array(content.slides, 1, 20, ['content', 'slides']);
+      fail("INVALID_RELATION", ["content", "selection"]);
+    if (!allowed.phase.includes(content.phase))
+      fail("INVALID_RELATION", ["content", "phase"]);
+  } else if (template === "webgl-showcase" || template === "threejs-showcase") {
+    closed(content, ["scene", "camera"], ["content"]);
+    if (!["garden-cat", "space-cat", "neon-cat"].includes(content.scene))
+      fail("INVALID_VALUE", ["content", "scene"]);
+    if (!["orbit", "still"].includes(content.camera))
+      fail("INVALID_VALUE", ["content", "camera"]);
+  } else if (template === "slide-deck") {
+    closed(content, ["deckLabel", "slides"], ["content"]);
+    text(content.deckLabel, 80, ["content", "deckLabel"]);
+    array(content.slides, 1, 20, ["content", "slides"]);
     const keys = new Set();
-    const common = ['key', 'type', 'eyebrow', 'title', 'subtitle'];
+    const common = ["key", "type", "eyebrow", "title", "subtitle"];
     const fields = {
-      cover: [...common, 'badges', 'highlights'],
-      problem: [...common, 'items'],
-      process: [...common, 'steps'],
-      'business-model': [...common, 'offers'],
-      metrics: [...common, 'metrics'],
-      evidence: [...common, 'metrics'],
-      timeline: [...common, 'events'],
-      closing: [...common, 'actions', 'closingLine'],
+      cover: [...common, "badges", "highlights"],
+      problem: [...common, "items"],
+      process: [...common, "steps"],
+      "business-model": [...common, "offers"],
+      metrics: [...common, "metrics"],
+      evidence: [...common, "metrics"],
+      timeline: [...common, "events"],
+      closing: [...common, "actions", "closingLine"],
     };
     const validateLabelDetail = (item, path) => {
-      closed(item, ['label', 'detail'], path);
-      text(item.label, 72, [...path, 'label']);
-      text(item.detail, 180, [...path, 'detail']);
+      closed(item, ["label", "detail"], path);
+      text(item.label, 72, [...path, "label"]);
+      text(item.detail, 180, [...path, "detail"]);
     };
     content.slides.forEach((slide, index) => {
-      const path = ['content', 'slides', index];
-      if (!object(slide)) fail('INVALID_ARTIFACT_RECIPE', path);
+      const path = ["content", "slides", index];
+      if (!object(slide)) fail("INVALID_ARTIFACT_RECIPE", path);
       const type = slide.type;
-      if (!Object.hasOwn(fields, type)) fail('INVALID_VALUE', [...path, 'type']);
+      if (!Object.hasOwn(fields, type))
+        fail("INVALID_VALUE", [...path, "type"]);
       closed(slide, fields[type], path);
       if (
-        typeof slide.key !== 'string' ||
+        typeof slide.key !== "string" ||
         !/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(slide.key) ||
         keys.has(slide.key)
       )
-        fail('INVALID_RELATION', [...path, 'key']);
+        fail("INVALID_RELATION", [...path, "key"]);
       keys.add(slide.key);
-      text(slide.eyebrow, 48, [...path, 'eyebrow'], true);
-      text(slide.title, 120, [...path, 'title']);
-      text(slide.subtitle, 220, [...path, 'subtitle'], true);
-      if (type === 'cover') {
-        array(slide.badges, 1, 4, [...path, 'badges']);
-        slide.badges.forEach((item, itemIndex) => text(item, 48, [...path, 'badges', itemIndex]));
-        array(slide.highlights, 1, 3, [...path, 'highlights']);
+      text(slide.eyebrow, 48, [...path, "eyebrow"], true);
+      text(slide.title, 120, [...path, "title"]);
+      text(slide.subtitle, 220, [...path, "subtitle"], true);
+      if (type === "cover") {
+        array(slide.badges, 1, 4, [...path, "badges"]);
+        slide.badges.forEach((item, itemIndex) =>
+          text(item, 48, [...path, "badges", itemIndex]),
+        );
+        array(slide.highlights, 1, 3, [...path, "highlights"]);
         slide.highlights.forEach((item, itemIndex) =>
-          validateLabelDetail(item, [...path, 'highlights', itemIndex]),
+          validateLabelDetail(item, [...path, "highlights", itemIndex]),
         );
-      } else if (type === 'problem') {
-        array(slide.items, 2, 4, [...path, 'items']);
+      } else if (type === "problem") {
+        array(slide.items, 2, 4, [...path, "items"]);
         slide.items.forEach((item, itemIndex) =>
-          validateLabelDetail(item, [...path, 'items', itemIndex]),
+          validateLabelDetail(item, [...path, "items", itemIndex]),
         );
-      } else if (type === 'process') {
-        array(slide.steps, 3, 6, [...path, 'steps']);
+      } else if (type === "process") {
+        array(slide.steps, 3, 6, [...path, "steps"]);
         slide.steps.forEach((item, itemIndex) =>
-          validateLabelDetail(item, [...path, 'steps', itemIndex]),
+          validateLabelDetail(item, [...path, "steps", itemIndex]),
         );
-      } else if (type === 'business-model') {
-        array(slide.offers, 2, 3, [...path, 'offers']);
+      } else if (type === "business-model") {
+        array(slide.offers, 2, 3, [...path, "offers"]);
         slide.offers.forEach((offer, itemIndex) => {
-          const offerPath = [...path, 'offers', itemIndex];
-          closed(offer, ['label', 'price', 'detail', 'features'], offerPath);
-          text(offer.label, 72, [...offerPath, 'label']);
-          text(offer.price, 48, [...offerPath, 'price']);
-          text(offer.detail, 180, [...offerPath, 'detail']);
-          array(offer.features, 1, 4, [...offerPath, 'features']);
+          const offerPath = [...path, "offers", itemIndex];
+          closed(offer, ["label", "price", "detail", "features"], offerPath);
+          text(offer.label, 72, [...offerPath, "label"]);
+          text(offer.price, 48, [...offerPath, "price"]);
+          text(offer.detail, 180, [...offerPath, "detail"]);
+          array(offer.features, 1, 4, [...offerPath, "features"]);
           offer.features.forEach((feature, featureIndex) =>
-            text(feature, 100, [...offerPath, 'features', featureIndex]),
+            text(feature, 100, [...offerPath, "features", featureIndex]),
           );
         });
-      } else if (type === 'metrics' || type === 'evidence') {
-        array(slide.metrics, 2, 4, [...path, 'metrics']);
+      } else if (type === "metrics" || type === "evidence") {
+        array(slide.metrics, 2, 4, [...path, "metrics"]);
         slide.metrics.forEach((metric, itemIndex) => {
-          const metricPath = [...path, 'metrics', itemIndex];
-          closed(metric, ['value', 'label', 'detail'], metricPath);
-          text(metric.value, 48, [...metricPath, 'value']);
-          text(metric.label, 72, [...metricPath, 'label']);
-          text(metric.detail, 180, [...metricPath, 'detail']);
+          const metricPath = [...path, "metrics", itemIndex];
+          closed(metric, ["value", "label", "detail"], metricPath);
+          text(metric.value, 48, [...metricPath, "value"]);
+          text(metric.label, 72, [...metricPath, "label"]);
+          text(metric.detail, 180, [...metricPath, "detail"]);
         });
-      } else if (type === 'timeline') {
-        array(slide.events, 3, 7, [...path, 'events']);
+      } else if (type === "timeline") {
+        array(slide.events, 3, 7, [...path, "events"]);
         slide.events.forEach((event, itemIndex) => {
-          const eventPath = [...path, 'events', itemIndex];
-          closed(event, ['date', 'label', 'detail'], eventPath);
-          text(event.date, 48, [...eventPath, 'date']);
-          text(event.label, 72, [...eventPath, 'label']);
-          text(event.detail, 180, [...eventPath, 'detail']);
+          const eventPath = [...path, "events", itemIndex];
+          closed(event, ["date", "label", "detail"], eventPath);
+          text(event.date, 48, [...eventPath, "date"]);
+          text(event.label, 72, [...eventPath, "label"]);
+          text(event.detail, 180, [...eventPath, "detail"]);
         });
       } else {
-        array(slide.actions, 1, 3, [...path, 'actions']);
+        array(slide.actions, 1, 3, [...path, "actions"]);
         slide.actions.forEach((item, itemIndex) =>
-          validateLabelDetail(item, [...path, 'actions', itemIndex]),
+          validateLabelDetail(item, [...path, "actions", itemIndex]),
         );
-        text(slide.closingLine, 180, [...path, 'closingLine']);
+        text(slide.closingLine, 180, [...path, "closingLine"]);
       }
     });
+  } else if (template === "workflow-graph") {
+    closed(content, ["workflowSpec", "copyMode"], ["content"]);
+    validateWorkflowSpec(content.workflowSpec);
+    if (!["manual", "clipboard", "export"].includes(content.copyMode))
+      fail("INVALID_VALUE", ["content", "copyMode"]);
   } else {
-    closed(content, ['seriesLabel', 'unit', 'points'], ['content']);
-    text(content.seriesLabel, 60, ['content', 'seriesLabel']);
-    text(content.unit, 20, ['content', 'unit'], true);
-    array(content.points, 2, 12, ['content', 'points']);
+    closed(content, ["seriesLabel", "unit", "points"], ["content"]);
+    text(content.seriesLabel, 60, ["content", "seriesLabel"]);
+    text(content.unit, 20, ["content", "unit"], true);
+    array(content.points, 2, 12, ["content", "points"]);
     content.points.forEach((item, index) => {
-      const p = ['content', 'points', index];
-      closed(item, ['label', 'value'], p);
-      text(item.label, 40, [...p, 'label']);
+      const p = ["content", "points", index];
+      closed(item, ["label", "value"], p);
+      text(item.label, 40, [...p, "label"]);
       if (
         !Number.isFinite(item.value) ||
         Object.is(item.value, -0) ||
         item.value < -1e9 ||
         item.value > 1e9
       )
-        fail('INVALID_VALUE', [...p, 'value']);
+        fail("INVALID_VALUE", [...p, "value"]);
     });
   }
 };
@@ -476,27 +530,28 @@ export const validateSceneArtifactRecipe = (value) => {
   closed(
     value,
     [
-      'artifactRecipeVersion',
-      'template',
-      'placementKey',
-      'title',
-      'fallbackText',
-      'theme',
-      'size',
-      'motion',
-      'content',
+      "artifactRecipeVersion",
+      "template",
+      "placementKey",
+      "title",
+      "fallbackText",
+      "theme",
+      "size",
+      "motion",
+      "content",
     ],
     [],
   );
   if (value.artifactRecipeVersion !== 1)
-    fail('UNSUPPORTED_ARTIFACT_RECIPE_VERSION', ['artifactRecipeVersion']);
+    fail("UNSUPPORTED_ARTIFACT_RECIPE_VERSION", ["artifactRecipeVersion"]);
   if (!SCENE_ARTIFACT_TEMPLATE_NAMES_V1.includes(value.template))
-    fail('UNKNOWN_TEMPLATE', ['template']);
-  text(value.placementKey, 200, ['placementKey']);
-  text(value.title, 200, ['title']);
-  text(value.fallbackText, 200, ['fallbackText']);
-  if (!['light', 'dark', 'high-contrast'].includes(value.theme)) fail('INVALID_VALUE', ['theme']);
-  closed(value.size, ['width', 'height'], ['size']);
+    fail("UNKNOWN_TEMPLATE", ["template"]);
+  text(value.placementKey, 200, ["placementKey"]);
+  text(value.title, 200, ["title"]);
+  text(value.fallbackText, 200, ["fallbackText"]);
+  if (!["light", "dark", "high-contrast"].includes(value.theme))
+    fail("INVALID_VALUE", ["theme"]);
+  closed(value.size, ["width", "height"], ["size"]);
   if (
     !Number.isSafeInteger(value.size.width) ||
     value.size.width < 320 ||
@@ -505,17 +560,20 @@ export const validateSceneArtifactRecipe = (value) => {
     value.size.height < 240 ||
     value.size.height > 1080
   )
-    fail('INVALID_VALUE', ['size']);
+    fail("INVALID_VALUE", ["size"]);
   if (
-    value.template === 'slide-deck' &&
-    (value.theme !== 'dark' || value.size.width !== 1920 || value.size.height !== 1080)
+    value.template === "slide-deck" &&
+    (value.theme !== "dark" ||
+      value.size.width !== 1920 ||
+      value.size.height !== 1080)
   )
-    fail('INVALID_RELATION', ['size']);
-  if (!SCENE_ARTIFACT_MOTION_LEVELS_V1.includes(value.motion)) fail('INVALID_VALUE', ['motion']);
+    fail("INVALID_RELATION", ["size"]);
+  if (!SCENE_ARTIFACT_MOTION_LEVELS_V1.includes(value.motion))
+    fail("INVALID_VALUE", ["motion"]);
   validateContent(value);
   const userTextScalars = [];
   const collectText = (entry) => {
-    if (typeof entry === 'string') userTextScalars.push(scalars(entry));
+    if (typeof entry === "string") userTextScalars.push(scalars(entry));
     else if (Array.isArray(entry)) entry.forEach(collectText);
     else if (object(entry)) Object.values(entry).forEach(collectText);
   };
@@ -524,26 +582,27 @@ export const validateSceneArtifactRecipe = (value) => {
     userTextScalars.reduce((total, count) => total + count, 0) >
     SCENE_ARTIFACT_LIMITS_V1.json.maxUserTextScalars
   )
-    fail('LIMIT_EXCEEDED', ['content']);
+    fail("LIMIT_EXCEEDED", ["content"]);
   return canonicalizeSceneRecipeJson(value);
 };
 
 const palette = (theme) =>
-  theme === 'dark'
-    ? ['#0f172a', '#f8fafc', '#2dd4bf', '#1e293b']
-    : theme === 'high-contrast'
-      ? ['#000000', '#ffffff', '#ffff00', '#222222']
-      : ['#ffffff', '#0f172a', '#0f766e', '#f1f5f9'];
+  theme === "dark"
+    ? ["#0f172a", "#f8fafc", "#2dd4bf", "#1e293b"]
+    : theme === "high-contrast"
+      ? ["#000000", "#ffffff", "#ffff00", "#222222"]
+      : ["#ffffff", "#0f172a", "#0f766e", "#f1f5f9"];
 const motionCss = (motion) => {
-  if (motion === 'none') return '';
+  if (motion === "none") return "";
   const body =
-    motion === 'subtle'
-      ? 'opacity:.92;transform:translateY(4px)'
-      : motion === 'staged'
-        ? 'opacity:0;transform:translateY(8px)'
-        : 'opacity:.86;transform:scale(1)';
-  const duration = motion === 'subtle' ? '280ms' : motion === 'staged' ? '320ms' : '640ms';
-  const count = motion === 'focus' ? '2' : '1';
+    motion === "subtle"
+      ? "opacity:.92;transform:translateY(4px)"
+      : motion === "staged"
+        ? "opacity:0;transform:translateY(8px)"
+        : "opacity:.86;transform:scale(1)";
+  const duration =
+    motion === "subtle" ? "280ms" : motion === "staged" ? "320ms" : "640ms";
+  const count = motion === "focus" ? "2" : "1";
   return `.sb-artifact-v1-motion{animation:sb-artifact-v1-reveal ${duration} ease-out ${count}}@keyframes sb-artifact-v1-reveal{from{${body}}to{opacity:1;transform:none}}@media (prefers-reduced-motion: reduce){.sb-artifact-v1-motion{animation:none!important;transition:none!important;transform:none!important;opacity:1!important}}`;
 };
 const baseCss = (recipe) => {
@@ -646,18 +705,18 @@ const illustrationDefs = `<defs><linearGradient id="sky-gradient" x1="0" y1="0" 
 const coloredCat = `<ellipse cx="520" cy="492" rx="176" ry="20" fill="#163044" opacity=".18"/><path d="M642 410c88-79 184-51 191 24 5 54-44 79-94 54 51-8 58-45 34-65-28-23-74 2-116 46z" fill="url(#cat-coat-gradient)"/><path d="M418 338c-32 31-45 91-25 143 37 22 84 30 132 29 49 1 95-8 130-31 18-53 2-112-32-143z" fill="url(#cat-coat-gradient)"/><ellipse cx="520" cy="420" rx="75" ry="75" fill="url(#cat-cream-gradient)"/><path d="M383 247l21-132 96 68c25-11 51-11 77 0l95-68 15 137c12 89-54 139-152 139-101 0-166-51-152-144z" fill="url(#cat-coat-gradient)"/><path d="M412 157l66 48-58 25zM651 157l-61 49 53 23z" fill="#ef8290"/><path d="M437 223c25-22 53-27 81-10-34-4-57 6-74 28zM552 214c29-18 59-12 80 10l-8 18c-18-21-41-30-72-28z" fill="#d45f2d" opacity=".72"/><g class="cat-detail"><ellipse cx="474" cy="272" rx="34" ry="41" fill="#fff8e8"/><ellipse cx="590" cy="272" rx="34" ry="41" fill="#fff8e8"/><ellipse cx="478" cy="273" rx="14" ry="22" fill="#24745f"/><ellipse cx="586" cy="273" rx="14" ry="22" fill="#24745f"/><ellipse cx="480" cy="277" rx="7" ry="15" fill="#132438"/><ellipse cx="584" cy="277" rx="7" ry="15" fill="#132438"/><circle cx="474" cy="265" r="5" fill="#fff"/><circle cx="578" cy="265" r="5" fill="#fff"/><ellipse cx="493" cy="326" rx="45" ry="31" fill="#fff1d5"/><ellipse cx="567" cy="326" rx="45" ry="31" fill="#fff1d5"/><path d="M531 307l20 13-20 17-20-17z" fill="#9e4760"/><path d="M531 337c-2 23-19 31-37 28m37-28c2 23 19 31 37 28" fill="none" stroke="#26374a" stroke-width="6" stroke-linecap="round"/><path d="M445 330l-112-20m113 42-120 8m288-30 112-20m-113 42 120 8" fill="none" stroke="#26374a" stroke-width="5" stroke-linecap="round"/><path d="M455 190l28 14m-37 9 30 10m137-34-29 15m39 8-31 11" fill="none" stroke="#b84f2e" stroke-width="8" stroke-linecap="round"/><path d="M469 374c37 25 86 25 123 0" fill="none" stroke="#d86935" stroke-width="9" stroke-linecap="round"/><ellipse cx="420" cy="492" rx="48" ry="24" fill="#fff0d1"/><ellipse cx="624" cy="492" rx="48" ry="24" fill="#fff0d1"/><path d="M482 397c-16 31-17 68-5 92m88-92c16 31 17 68 5 92" fill="none" stroke="#ed914b" stroke-width="8" stroke-linecap="round"/></g>`;
 
 const illustrationColorLayers = (selection) => {
-  if (selection === 'sunny-garden')
+  if (selection === "sunny-garden")
     return `${illustrationDefs}<rect width="1200" height="520" fill="url(#sky-gradient)"/><g fill="#fff" opacity=".72"><ellipse cx="188" cy="104" rx="76" ry="26"/><ellipse cx="244" cy="95" rx="52" ry="34"/><ellipse cx="815" cy="112" rx="72" ry="25"/><ellipse cx="866" cy="101" rx="42" ry="31"/></g><circle cx="1032" cy="92" r="72" fill="url(#sun-gradient)"/><g class="garden-depth"><path d="M0 346c191-77 345-70 510 0 175 73 356 60 690-28v202H0z" fill="#a7e6a0"/><path d="M0 408c250-70 430-35 604 18 197 60 392 38 596-20v114H0z" fill="#54bd78"/><path d="M852 484V267" stroke="#74442e" stroke-width="42" stroke-linecap="round"/><g fill="url(#leaf-gradient)"><circle cx="785" cy="250" r="72"/><circle cx="895" cy="205" r="91"/><circle cx="996" cy="260" r="78"/><circle cx="903" cy="286" r="76"/></g><path d="M93 469c72-78 139-64 187 5M985 473c67-70 133-54 181 4" fill="none" stroke="#238a59" stroke-width="13" stroke-linecap="round"/><g fill="#fff4a8" stroke="#ef8a50" stroke-width="4"><circle cx="138" cy="441" r="16"/><circle cx="216" cy="462" r="13"/><circle cx="1050" cy="443" r="16"/><circle cx="1124" cy="469" r="13"/></g><g fill="#ff7d9c"><circle cx="138" cy="441" r="6"/><circle cx="216" cy="462" r="5"/><circle cx="1050" cy="443" r="6"/><circle cx="1124" cy="469" r="5"/></g><path d="M105 197c34-24 64 22 32 49-35-22-46-37-32-49zm47 0c-34-24-64 22-32 49 35-22 46-37 32-49z" fill="#ffe36e" stroke="#cf7745" stroke-width="3"/></g>${coloredCat}`;
-  if (selection === 'space-adventure')
+  if (selection === "space-adventure")
     return `${illustrationDefs}<rect width="1200" height="520" fill="#101936"/><circle cx="1020" cy="120" r="69" fill="#dce7f5"/><circle cx="995" cy="98" r="19" fill="#fff" opacity=".8"/><circle cx="930" cy="320" r="86" fill="#8b6fe8"/><path d="M839 324q90-38 180 0" fill="none" stroke="#f6d365" stroke-width="18"/><g fill="#ffd166"><circle cx="150" cy="125" r="10"/><circle cx="260" cy="78" r="7"/><circle cx="760" cy="115" r="8"/><circle cx="1090" cy="235" r="7"/><circle cx="820" cy="72" r="5"/></g><path d="M870 268l52-92 52 92-52 31z" fill="#ef5b5b"/><path d="M922 190v96" stroke="#f8fafc" stroke-width="13"/><ellipse cx="520" cy="485" rx="330" ry="31" fill="#26345f"/>${coloredCat}`;
   return `${illustrationDefs}<rect width="1200" height="520" fill="#9fb8d0"/><rect y="382" width="1200" height="138" fill="#60778d"/><rect x="120" y="190" width="180" height="192" fill="#56738c"/><rect x="340" y="120" width="220" height="262" fill="#3e607d"/><rect x="600" y="220" width="190" height="162" fill="#6d8296"/><rect x="830" y="150" width="220" height="232" fill="#405b75"/><g fill="#ffd166"><rect x="155" y="230" width="28" height="34"/><rect x="225" y="290" width="28" height="34"/><rect x="382" y="166" width="28" height="34"/><rect x="475" y="244" width="28" height="34"/><rect x="654" y="260" width="28" height="34"/><rect x="874" y="205" width="28" height="34"/><rect x="964" y="280" width="28" height="34"/></g><path d="M760 430q80-92 160 0z" fill="#ffd84d"/><rect x="835" y="430" width="10" height="77" rx="5" fill="#172033"/><ellipse cx="240" cy="455" rx="110" ry="24" fill="#b8e5f7" opacity=".78"/><ellipse cx="970" cy="472" rx="130" ry="25" fill="#b8e5f7" opacity=".78"/>${coloredCat}`;
 };
 
 const illustrationSketch = (selection) => {
   const scenery =
-    selection === 'sunny-garden'
+    selection === "sunny-garden"
       ? '<circle cx="1010" cy="95" r="55"/><path d="M930 470v-180m0 40-80-70m80 90 90-80"/><circle cx="850" cy="260" r="55"/><circle cx="1015" cy="270" r="58"/>'
-      : selection === 'space-adventure'
+      : selection === "space-adventure"
         ? '<circle cx="1020" cy="120" r="62"/><path d="M900 250l45-80 45 80-45 35zM150 100l12 25 28 4-20 20 5 28-25-13-25 13 5-28-20-20 28-4z"/>'
         : '<path d="M80 380h1040M120 380V190h180v190m40 0V120h220v260m40 0V220h190v160m40 0V150h220v230M760 430q80-90 160 0M840 430v80"/><path d="M120 80l-20 40m130-40-20 40m130-40-20 40m130-40-20 40m130-40-20 40"/>';
   return `<g class="sketch"><path d="M383 247l21-132 96 68q38-17 77 0l95-68 15 137q12 89-152 139-166-51-152-144z"/><ellipse cx="474" cy="272" rx="34" ry="41"/><ellipse cx="590" cy="272" rx="34" ry="41"/><path d="M531 307l20 13-20 17-20-17zM531 337c-2 23-19 31-37 28m37-28c2 23 19 31 37 28M445 330l-112-20m113 42-120 8m288-30 112-20m-113 42 120 8M418 338c-32 31-45 91-25 143 78 40 187 38 262-2 18-53 2-112-32-143M482 397c-16 31-17 68-5 92m88-92c16 31 17 68 5 92M642 410c88-79 184-51 191 24 5 54-44 79-94 54 51-8 58-45 34-65-28-23-74 2-116 46M455 190l28 14m-37 9 30 10m137-34-29 15m39 8-31 11"/><ellipse cx="420" cy="492" rx="48" ry="24"/><ellipse cx="624" cy="492" rx="48" ry="24"/>${scenery}</g>`;
@@ -668,77 +727,80 @@ const renderDemoShowcase = (recipe) => {
   const { kind, selection, phase } = recipe.content;
   const shell = (eyebrow, inner) =>
     `<main class="sb-demo" data-sb-demo-showcase="v1" data-kind="${h(kind)}" data-selection="${h(selection)}" data-phase="${h(phase)}"><p class="eyebrow">${h(eyebrow)}</p><h1>${h(recipe.title)}</h1><p class="sub">${h(recipe.fallbackText)}</p>${inner}<div class="demo-log" data-demo-log>Built live by Codex. Every interaction stays inside this demo.</div></main>`;
-  if (kind === 'illustration') {
+  if (kind === "illustration") {
     return shell(
-      'Human-guided illustration',
+      "Human-guided illustration",
       `<section class="cat-stage"><svg viewBox="0 0 1200 520" role="img" aria-label="A polished editorial cat illustration in the selected ${h(selection)} setting"><g class="cat-color">${illustrationColorLayers(selection)}</g>${illustrationSketch(selection)}</svg></section>`,
     );
   }
-  if (kind === 'diorama') {
+  if (kind === "diorama") {
     const icons =
-      selection === 'golden-garden'
-        ? ['☀️', '🌳 🌻 🦋', '🌿', '🐈', '🌸 🌼']
-        : selection === 'space-observatory'
-          ? ['✨', '🌙 🪐', '🚀', '🐈‍⬛', '⭐ ✦']
-          : ['🌧️', '🏙️', '☂️', '🐈', '💧 ✨'];
+      selection === "golden-garden"
+        ? ["☀️", "🌳 🌻 🦋", "🌿", "🐈", "🌸 🌼"]
+        : selection === "space-observatory"
+          ? ["✨", "🌙 🪐", "🚀", "🐈‍⬛", "⭐ ✦"]
+          : ["🌧️", "🏙️", "☂️", "🐈", "💧 ✨"];
     return shell(
-      'Interactive 3D paper world',
+      "Interactive 3D paper world",
       `<section class="paper-scene" data-demo-stage><div class="paper-world"><div class="paper-layer atmosphere">${icons[0]}</div><div class="paper-layer back"><span class="paper-shape">${icons[1]}</span></div><div class="paper-layer middle"><span class="paper-shape">${icons[2]}</span></div><div class="paper-layer cat">${icons[3]}</div><div class="paper-layer front">${icons[4]}</div></div></section><p class="sub">Move the pointer to explore the depth.</p>`,
     );
   }
-  if (kind === 'prototype')
+  if (kind === "prototype")
     return shell(
-      'Clickable product prototype',
-      `<section class="demo-grid prototype-layout"><div class="phone"><div class="phone-top"><span>Trip Calm</span><span>Day 2</span></div><div class="phone-view" data-phone-view="home"><h2>${selection === 'risk-checker' ? 'Booking confidence' : 'Today at a glance'}</h2><div class="trip-item">09:00 · Museum reservation</div><div class="trip-item">12:30 · Riverside lunch</div><button class="demo-btn primary" data-demo-screen="detail" data-demo-message="The traveler opened Tuesday’s plan.">${phase === 'improved' ? 'Review Tuesday plan' : 'Open plan'}</button></div><div class="phone-view" data-phone-view="detail" hidden><h2>Tuesday plan</h2><p>One timing warning needs attention.</p><button class="demo-btn primary" data-demo-screen="confirm" data-demo-message="The traveler opened the save confirmation.">Save calm plan</button></div><div class="phone-view" data-phone-view="confirm" hidden><h2>Plan saved</h2><p>Your day plan is ready offline.</p></div></div><div class="demo-card"><h2>A complex itinerary becomes one calm day.</h2><p>One primary action, visible timing risks, and plain language make the next step obvious.</p><button class="demo-btn" data-demo-reset>Reset demo</button><p><strong>Selected experience:</strong> ${h(selection)}</p></div></section>`,
+      "Clickable product prototype",
+      `<section class="demo-grid prototype-layout"><div class="phone"><div class="phone-top"><span>Trip Calm</span><span>Day 2</span></div><div class="phone-view" data-phone-view="home"><h2>${selection === "risk-checker" ? "Booking confidence" : "Today at a glance"}</h2><div class="trip-item">09:00 · Museum reservation</div><div class="trip-item">12:30 · Riverside lunch</div><button class="demo-btn primary" data-demo-screen="detail" data-demo-message="The traveler opened Tuesday’s plan.">${phase === "improved" ? "Review Tuesday plan" : "Open plan"}</button></div><div class="phone-view" data-phone-view="detail" hidden><h2>Tuesday plan</h2><p>One timing warning needs attention.</p><button class="demo-btn primary" data-demo-screen="confirm" data-demo-message="The traveler opened the save confirmation.">Save calm plan</button></div><div class="phone-view" data-phone-view="confirm" hidden><h2>Plan saved</h2><p>Your day plan is ready offline.</p></div></div><div class="demo-card"><h2>A complex itinerary becomes one calm day.</h2><p>One primary action, visible timing risks, and plain language make the next step obvious.</p><button class="demo-btn" data-demo-reset>Reset demo</button><p><strong>Selected experience:</strong> ${h(selection)}</p></div></section>`,
     );
-  if (kind === 'data-story')
+  if (kind === "data-story")
     return shell(
-      'Illustrative sample data',
+      "Illustrative sample data",
       `<section class="demo-grid story"><div><div class="bars"><div class="bar" style="--v:50"><span>Mon<br>120</span></div><div class="bar" style="--v:61"><span>Tue<br>145</span></div><div class="bar spike" style="--v:88"><span>Wed<br>210</span></div><div class="bar spike" style="--v:100"><span>Thu<br>238</span></div><div class="bar" style="--v:77"><span>Fri<br>184</span></div><div class="bar" style="--v:41"><span>Sat<br>98</span></div><div class="bar" style="--v:35"><span>Sun<br>84</span></div></div><button class="demo-btn" data-story-replay>Replay story</button></div><div class="decision demo-card"><h2>Demand spike</h2><p>Demand peaked on Thursday.</p><p>Response time more than doubled from Sunday to Thursday.</p><p>Recovery began as the backlog cleared on Friday.</p><strong>Decision: add temporary coverage before the midweek peak.</strong></div></section>`,
     );
-  if (kind === 'incident')
+  if (kind === "incident")
     return shell(
-      'Fictional incident simulation',
-      `<section class="demo-grid incident-map" data-active-incident="${h(phase)}"><div><div class="system-line"><div class="node">Browser</div><span class="arrow">→</span><div class="node">Gateway</div><span class="arrow">→</span><div class="node affected">Application API</div><span class="arrow">→</span><div class="node affected">${selection === 'cache-unavailable' ? 'Redis cache' : selection === 'pool-exhausted' ? 'MySQL pool' : 'Worker queue'}</div></div><div class="incident-controls"><button class="demo-btn" data-incident-state="healthy">Healthy</button><button class="demo-btn" data-incident-state="failure">Failure</button><button class="demo-btn" data-incident-state="recovery">Recovery</button></div></div><div class="demo-card"><h2>Customer impact</h2><p>Only affected request paths slow down; unaffected delivery remains healthy.</p><ol><li>Protect new traffic.</li><li>Reduce pressure safely.</li><li>Restore capacity gradually.</li></ol><strong>A person still authorizes the recovery.</strong></div></section>`,
+      "Fictional incident simulation",
+      `<section class="demo-grid incident-map" data-active-incident="${h(phase)}"><div><div class="system-line"><div class="node">Browser</div><span class="arrow">→</span><div class="node">Gateway</div><span class="arrow">→</span><div class="node affected">Application API</div><span class="arrow">→</span><div class="node affected">${selection === "cache-unavailable" ? "Redis cache" : selection === "pool-exhausted" ? "MySQL pool" : "Worker queue"}</div></div><div class="incident-controls"><button class="demo-btn" data-incident-state="healthy">Healthy</button><button class="demo-btn" data-incident-state="failure">Failure</button><button class="demo-btn" data-incident-state="recovery">Recovery</button></div></div><div class="demo-card"><h2>Customer impact</h2><p>Only affected request paths slow down; unaffected delivery remains healthy.</p><ol><li>Protect new traffic.</li><li>Reduce pressure safely.</li><li>Restore capacity gradually.</li></ol><strong>A person still authorizes the recovery.</strong></div></section>`,
     );
-  if (kind === 'mission-control')
+  if (kind === "mission-control")
     return shell(
-      'Every AI change preserved',
+      "Every AI change preserved",
       `<section class="demo-grid mission"><div class="ring">92%</div><div class="checks"><div class="check">18 of 20 reliability checks passed</div><div class="check">Risk beacon: verify rendering in a real browser</div><div class="check">Decision gate: final rehearsal may begin</div></div></section>`,
     );
   return shell(
-    'Illustrative code review',
+    "Illustrative code review",
     `<section class="demo-grid review"><article class="demo-card"><h2>Before</h2><div class="flow"><span class="step">Checkout</span><span>→</span><span class="step risk">Charge card</span><span>→</span><span class="step">Reserve inventory</span></div><p>Risk: payment can happen before availability is known.</p></article><article class="demo-card"><h2>After</h2><div class="flow"><span class="step">Checkout</span><span>→</span><span class="step gate">Validate inventory</span><span>→</span><span class="step after-charge">Charge card</span><span>→</span><span class="step after-charge">Confirmation</span><span class="pulse"></span></div><p class="stop-note">No charge made — ask the customer to retry.</p></article></section><button class="demo-btn primary" data-review-play>Play request</button> <button class="demo-btn" data-review-toggle aria-pressed="false">Simulate unavailable inventory</button><p><strong>Human review priority:</strong> ${h(selection)}</p>`,
   );
 };
 
 const render = (recipe) => {
   const h = escapeHtml;
-  const cls = `sb-artifact-v1-root${recipe.motion === 'none' ? '' : ' sb-artifact-v1-motion'}`;
+  const cls = `sb-artifact-v1-root${recipe.motion === "none" ? "" : " sb-artifact-v1-motion"}`;
   let body;
   let javascript = null;
-  if (recipe.template === 'metric-story')
-    body = `<div class="sb-artifact-v1-grid">${recipe.content.metrics.map((m) => `<article class="sb-artifact-v1-card"><h2>${h(m.label)}</h2><strong class="sb-artifact-v1-accent">${h(m.value)}</strong>${m.detail === null ? '' : `<p>${h(m.detail)}</p>`}<p>Trend: ${h(m.trend)}</p></article>`).join('')}</div>`;
-  else if (recipe.template === 'process-flow') {
+  if (recipe.template === "metric-story")
+    body = `<div class="sb-artifact-v1-grid">${recipe.content.metrics.map((m) => `<article class="sb-artifact-v1-card"><h2>${h(m.label)}</h2><strong class="sb-artifact-v1-accent">${h(m.value)}</strong>${m.detail === null ? "" : `<p>${h(m.detail)}</p>`}<p>Trend: ${h(m.trend)}</p></article>`).join("")}</div>`;
+  else if (recipe.template === "process-flow") {
     const items = recipe.content.steps
       .map(
         (s, i) =>
-          `<li><strong>${i + 1}. ${h(s.label)}</strong> — ${h(s.status)}${s.detail === null ? '' : `<p>${h(s.detail)}</p>`}</li>`,
+          `<li><strong>${i + 1}. ${h(s.label)}</strong> — ${h(s.status)}${s.detail === null ? "" : `<p>${h(s.detail)}</p>`}</li>`,
       )
-      .join('');
-    body = `${svg(recipe.title, recipe.fallbackText, recipe.content.steps.map((_, i) => `<circle cx="${80 + i * 70}" cy="120" r="22" fill="#0f766e"/>`).join(''))}<ol>${items}</ol>`;
-  } else if (recipe.template === 'architecture-map') {
+      .join("");
+    body = `${svg(recipe.title, recipe.fallbackText, recipe.content.steps.map((_, i) => `<circle cx="${80 + i * 70}" cy="120" r="22" fill="#0f766e"/>`).join(""))}<ol>${items}</ol>`;
+  } else if (recipe.template === "architecture-map") {
     const facts =
-      recipe.content.nodes.map((n) => `<li>${h(n.label)} (${h(n.role)})</li>`).join('') +
+      recipe.content.nodes
+        .map((n) => `<li>${h(n.label)} (${h(n.role)})</li>`)
+        .join("") +
       recipe.content.edges
         .map(
-          (e) => `<li>${h(e.from)} → ${h(e.to)}${e.label === null ? '' : `: ${h(e.label)}`}</li>`,
+          (e) =>
+            `<li>${h(e.from)} → ${h(e.to)}${e.label === null ? "" : `: ${h(e.label)}`}</li>`,
         )
-        .join('');
-    body = `${svg(recipe.title, recipe.fallbackText, recipe.content.nodes.map((_, i) => `<rect x="${30 + (i % 4) * 190}" y="${30 + Math.floor(i / 4) * 90}" width="150" height="56" rx="8" fill="#ccfbf1" stroke="#0f766e"/>`).join(''))}<ul>${facts}</ul>`;
-  } else if (recipe.template === 'timeline') {
-    body = `${svg(recipe.title, recipe.fallbackText, '<line x1="40" y1="150" x2="760" y2="150" stroke="#0f766e" stroke-width="4"/>')}<ol>${recipe.content.events.map((e) => `<li><strong>${h(e.date)} — ${h(e.label)}</strong> (${h(e.status)})${e.detail === null ? '' : `<p>${h(e.detail)}</p>`}</li>`).join('')}</ol>`;
-  } else if (recipe.template === 'demo-showcase')
+        .join("");
+    body = `${svg(recipe.title, recipe.fallbackText, recipe.content.nodes.map((_, i) => `<rect x="${30 + (i % 4) * 190}" y="${30 + Math.floor(i / 4) * 90}" width="150" height="56" rx="8" fill="#ccfbf1" stroke="#0f766e"/>`).join(""))}<ul>${facts}</ul>`;
+  } else if (recipe.template === "timeline") {
+    body = `${svg(recipe.title, recipe.fallbackText, '<line x1="40" y1="150" x2="760" y2="150" stroke="#0f766e" stroke-width="4"/>')}<ol>${recipe.content.events.map((e) => `<li><strong>${h(e.date)} — ${h(e.label)}</strong> (${h(e.status)})${e.detail === null ? "" : `<p>${h(e.detail)}</p>`}</li>`).join("")}</ol>`;
+  } else if (recipe.template === "demo-showcase")
     return {
       artifactId: null,
       html: renderDemoShowcase(recipe),
@@ -746,8 +808,14 @@ const render = (recipe) => {
       javascript: DEMO_SHOWCASE_PROGRAM,
       requestedCapabilities: [],
     };
-  else if (recipe.template === 'slide-deck') return renderSlideDeck(recipe);
-  else if (recipe.template === 'threejs-showcase')
+  else if (recipe.template === "slide-deck") return renderSlideDeck(recipe);
+  else if (recipe.template === "workflow-graph")
+    return renderWorkflowGraph(
+      recipe.content,
+      recipe.title,
+      recipe.fallbackText,
+    );
+  else if (recipe.template === "threejs-showcase")
     return {
       artifactId: null,
       html: renderThreejsShowcase(recipe),
@@ -755,7 +823,7 @@ const render = (recipe) => {
       javascript: THREEJS_SHOWCASE_PROGRAM_PREMIUM,
       requestedCapabilities: [],
     };
-  else if (recipe.template === 'webgl-showcase')
+  else if (recipe.template === "webgl-showcase")
     return {
       artifactId: null,
       html: renderWebglShowcase(recipe),
@@ -764,14 +832,16 @@ const render = (recipe) => {
       requestedCapabilities: [],
     };
   else {
-    const values = stringifyCanonicalSceneArtifactJson(recipe.content.points.map((p) => p.value));
-    body = `<table><caption>${h(recipe.content.seriesLabel)}</caption><tbody>${recipe.content.points.map((p) => `<tr><th>${h(p.label)}</th><td>${p.value}${recipe.content.unit === null ? '' : ` ${h(recipe.content.unit)}`}</td></tr>`).join('')}</tbody></table><canvas width="800" height="240" role="img" aria-label="${h(recipe.fallbackText)}" data-sb-artifact-canvas="animated-data-story-v1" data-sb-artifact-values="${h(values)}" data-sb-artifact-motion="${recipe.motion}"></canvas>`;
+    const values = stringifyCanonicalSceneArtifactJson(
+      recipe.content.points.map((p) => p.value),
+    );
+    body = `<table><caption>${h(recipe.content.seriesLabel)}</caption><tbody>${recipe.content.points.map((p) => `<tr><th>${h(p.label)}</th><td>${p.value}${recipe.content.unit === null ? "" : ` ${h(recipe.content.unit)}`}</td></tr>`).join("")}</tbody></table><canvas width="800" height="240" role="img" aria-label="${h(recipe.fallbackText)}" data-sb-artifact-canvas="animated-data-story-v1" data-sb-artifact-values="${h(values)}" data-sb-artifact-motion="${recipe.motion}"></canvas>`;
     javascript = CANVAS_PROGRAM;
   }
   const marker =
-    recipe.template === 'animated-data-story'
+    recipe.template === "animated-data-story"
       ? ' data-sb-artifact-root="animated-data-story-v1"'
-      : '';
+      : "";
   return {
     artifactId: null,
     html: `<main class="${cls}"${marker}><h1>${h(recipe.title)}</h1><p>${h(recipe.fallbackText)}</p>${body}</main>`,
@@ -784,19 +854,21 @@ const render = (recipe) => {
 export const auditSceneArtifactSource = (source) => {
   closed(
     source,
-    ['artifactId', 'html', 'css', 'javascript', 'requestedCapabilities'],
-    ['source'],
-    'UNSAFE_ARTIFACT_SOURCE',
+    ["artifactId", "html", "css", "javascript", "requestedCapabilities"],
+    ["source"],
+    "UNSAFE_ARTIFACT_SOURCE",
   );
   if (
     source.artifactId !== null ||
-    !Array.isArray(source.requestedCapabilities) ||
-    source.requestedCapabilities.length !== 0
+    !Array.isArray(source.requestedCapabilities)
   )
-    fail('UNSAFE_ARTIFACT_SOURCE', ['source']);
-  const htmlBytes = Buffer.byteLength(source.html ?? ''),
-    cssBytes = Buffer.byteLength(source.css ?? ''),
-    jsBytes = source.javascript === null ? 0 : Buffer.byteLength(source.javascript ?? '');
+    fail("UNSAFE_ARTIFACT_SOURCE", ["source"]);
+  const htmlBytes = Buffer.byteLength(source.html ?? ""),
+    cssBytes = Buffer.byteLength(source.css ?? ""),
+    jsBytes =
+      source.javascript === null
+        ? 0
+        : Buffer.byteLength(source.javascript ?? "");
   if (
     htmlBytes < 1 ||
     htmlBytes > 262144 ||
@@ -805,19 +877,20 @@ export const auditSceneArtifactSource = (source) => {
     jsBytes > 32768 ||
     htmlBytes + cssBytes + jsBytes > 360448
   )
-    fail('PAYLOAD_TOO_LARGE', ['source']);
+    fail("PAYLOAD_TOO_LARGE", ["source"]);
   if (
-    typeof source.html !== 'string' ||
-    typeof source.css !== 'string' ||
+    typeof source.html !== "string" ||
+    typeof source.css !== "string" ||
     (source.javascript !== null &&
       source.javascript !== CANVAS_PROGRAM &&
       source.javascript !== DEMO_SHOWCASE_PROGRAM &&
       source.javascript !== SLIDE_DECK_PROGRAM &&
+      source.javascript !== WORKFLOW_GRAPH_PROGRAM &&
       source.javascript !== THREEJS_SHOWCASE_PROGRAM &&
       source.javascript !== THREEJS_SHOWCASE_PROGRAM_PREMIUM &&
       source.javascript !== WEBGL_SHOWCASE_PROGRAM)
   )
-    fail('UNSAFE_ARTIFACT_SOURCE', ['source']);
+    fail("UNSAFE_ARTIFACT_SOURCE", ["source"]);
   const tags = source.html.match(/<[^>]*>/g) ?? [];
   if (
     tags.some(
@@ -825,45 +898,62 @@ export const auditSceneArtifactSource = (source) => {
         /<\s*(script|iframe|object|embed|link|meta|img)\b/i.test(tag) ||
         /\s(on[a-z]+|href|src|xlink:href)\s*=/i.test(tag),
     ) ||
-    /(@import|@font-face|url\s*\(|image-set\s*\(|expression\s*\()/i.test(source.css)
+    /(@import|@font-face|url\s*\(|image-set\s*\(|expression\s*\()/i.test(
+      source.css,
+    )
   )
-    fail('UNSAFE_ARTIFACT_SOURCE', ['source']);
-  const hasCanvas = source.html.includes('data-sb-artifact-canvas="animated-data-story-v1"');
+    fail("UNSAFE_ARTIFACT_SOURCE", ["source"]);
+  const hasCanvas = source.html.includes(
+    'data-sb-artifact-canvas="animated-data-story-v1"',
+  );
   if ((source.javascript === CANVAS_PROGRAM) !== hasCanvas)
-    fail('UNSAFE_ARTIFACT_SOURCE', ['source', 'javascript']);
+    fail("UNSAFE_ARTIFACT_SOURCE", ["source", "javascript"]);
   const hasDemoShowcase = source.html.includes('data-sb-demo-showcase="v1"');
   if ((source.javascript === DEMO_SHOWCASE_PROGRAM) !== hasDemoShowcase)
-    fail('UNSAFE_ARTIFACT_SOURCE', ['source', 'javascript']);
+    fail("UNSAFE_ARTIFACT_SOURCE", ["source", "javascript"]);
   const hasSlideDeck = source.html.includes('data-sb-slide-deck="v1"');
   if ((source.javascript === SLIDE_DECK_PROGRAM) !== hasSlideDeck)
-    fail('UNSAFE_ARTIFACT_SOURCE', ['source', 'javascript']);
+    fail("UNSAFE_ARTIFACT_SOURCE", ["source", "javascript"]);
+  const hasWorkflowGraph = source.html.includes('data-sb-workflow-graph="v1"');
+  if ((source.javascript === WORKFLOW_GRAPH_PROGRAM) !== hasWorkflowGraph)
+    fail("UNSAFE_ARTIFACT_SOURCE", ["source", "javascript"]);
+  const requestedCapabilities = JSON.stringify(source.requestedCapabilities);
+  if (
+    hasWorkflowGraph
+      ? !["[]", '["clipboard.write"]'].includes(requestedCapabilities)
+      : requestedCapabilities !== "[]"
+  )
+    fail("UNSAFE_ARTIFACT_SOURCE", ["source", "requestedCapabilities"]);
   const hasWebglShowcase = source.html.includes('data-sb-webgl-showcase="v1"');
   if ((source.javascript === WEBGL_SHOWCASE_PROGRAM) !== hasWebglShowcase)
-    fail('UNSAFE_ARTIFACT_SOURCE', ['source', 'javascript']);
-  const hasThreejsShowcase = source.html.includes('data-sb-threejs-showcase="v1"');
+    fail("UNSAFE_ARTIFACT_SOURCE", ["source", "javascript"]);
+  const hasThreejsShowcase = source.html.includes(
+    'data-sb-threejs-showcase="v1"',
+  );
   if (
     (source.javascript === THREEJS_SHOWCASE_PROGRAM ||
-      source.javascript === THREEJS_SHOWCASE_PROGRAM_PREMIUM) !== hasThreejsShowcase
+      source.javascript === THREEJS_SHOWCASE_PROGRAM_PREMIUM) !==
+    hasThreejsShowcase
   )
-    fail('UNSAFE_ARTIFACT_SOURCE', ['source', 'javascript']);
+    fail("UNSAFE_ARTIFACT_SOURCE", ["source", "javascript"]);
   return canonicalizeSceneRecipeJson(source);
 };
 
 export const compileSceneArtifactDraft = (input, descriptor) => {
   const recipe = validateSceneArtifactRecipe(input);
   const template = validateSceneArtifactTemplateDescriptor(descriptor);
-  if (template.name !== recipe.template) fail('INVALID_RELATION', ['template']);
+  if (template.name !== recipe.template) fail("INVALID_RELATION", ["template"]);
   const source = auditSceneArtifactSource(render(recipe));
   return {
     artifactRecipeVersion: 1,
-    type: 'artifact-draft',
+    type: "artifact-draft",
     template: recipe.template,
     motion: recipe.motion,
     source,
     placement: {
       nodeId: deriveSceneRecipeNodeId({
-        path: ['root'],
-        nodeKind: 'content.artifact',
+        path: ["root"],
+        nodeKind: "content.artifact",
         key: recipe.placementKey,
       }),
       title: recipe.title,
@@ -873,24 +963,34 @@ export const compileSceneArtifactDraft = (input, descriptor) => {
 };
 
 const validatePlacement = (input) => {
-  closed(input, ['artifact', 'placement'], [], 'INVALID_PLACEMENT');
-  closed(input.artifact, ['artifactId', 'versionId'], ['artifact'], 'INVALID_PLACEMENT');
-  closed(input.placement, ['nodeId', 'title', 'fallbackText'], ['placement'], 'INVALID_PLACEMENT');
+  closed(input, ["artifact", "placement"], [], "INVALID_PLACEMENT");
+  closed(
+    input.artifact,
+    ["artifactId", "versionId"],
+    ["artifact"],
+    "INVALID_PLACEMENT",
+  );
+  closed(
+    input.placement,
+    ["nodeId", "title", "fallbackText"],
+    ["placement"],
+    "INVALID_PLACEMENT",
+  );
   if (
     !/^[A-Za-z0-9_-]{1,128}$/.test(input.artifact.artifactId) ||
     !/^[A-Za-z0-9_-]{1,128}$/.test(input.artifact.versionId) ||
     !/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(input.placement.nodeId)
   )
-    fail('INVALID_PLACEMENT', []);
-  text(input.placement.title, 200, ['placement', 'title']);
-  text(input.placement.fallbackText, 200, ['placement', 'fallbackText']);
+    fail("INVALID_PLACEMENT", []);
+  text(input.placement.title, 200, ["placement", "title"]);
+  text(input.placement.fallbackText, 200, ["placement", "fallbackText"]);
   return canonicalizeSceneRecipeJson(input);
 };
 export const createSceneArtifactPlacement = (input) => {
   const value = validatePlacement(input);
   return {
     id: value.placement.nodeId,
-    type: 'content.artifact',
+    type: "content.artifact",
     title: value.placement.title,
     artifact: value.artifact,
     fallbackText: value.placement.fallbackText,

@@ -118,22 +118,26 @@ export type ArtifactBridgeMessageV1 =
       capability: ArtifactRequestCapabilityV1;
       payload: Record<string, unknown>;
     }
-  | {
+  | ({
       type: 'host.capability.result';
       requestId: Base64Url22;
       capability: ArtifactRequestCapabilityV1;
-      ok: boolean;
-      result?: Record<string, unknown>;
-      error?:
-        | 'not_requested'
-        | 'policy_denied'
-        | 'activation_required'
-        | 'activation_expired'
-        | 'invalid_request'
-        | 'revoked'
-        | 'timeout'
-        | 'unavailable';
-    }
+    } & (
+      | { ok: true; result: { byteLength: number }; error?: never }
+      | {
+          ok: false;
+          result?: never;
+          error:
+            | 'not_requested'
+            | 'policy_denied'
+            | 'activation_required'
+            | 'activation_expired'
+            | 'invalid_request'
+            | 'revoked'
+            | 'timeout'
+            | 'unavailable';
+        }
+    ))
   | {
       type: 'host.dispose';
       reason:
@@ -613,6 +617,30 @@ const validateMessage = (message: Record<string, unknown>): ArtifactBridgeMessag
           : !Object.hasOwn(message, 'error') || Object.hasOwn(message, 'result')
       )
         throw new TypeError('capability result branch is invalid');
+      if (message.ok) {
+        const result = record(message.result, 'capability result');
+        if (!exactKeys(result, ['byteLength']))
+          throw new TypeError('capability result value is invalid');
+        const maximumByteLength =
+          message.capability === 'network.fetch' || message.capability === 'download'
+            ? 1_048_576
+            : message.capability === 'clipboard.write'
+              ? 49_152
+              : 0;
+        integer(result.byteLength, 0, maximumByteLength, 'capability result byte length');
+      } else if (
+        ![
+          'not_requested',
+          'policy_denied',
+          'activation_required',
+          'activation_expired',
+          'invalid_request',
+          'revoked',
+          'timeout',
+          'unavailable',
+        ].includes(String(message.error))
+      )
+        throw new TypeError('capability result error is invalid');
       break;
     case 'host.dispose':
       if (

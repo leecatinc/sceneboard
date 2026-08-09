@@ -8,6 +8,7 @@ import { shouldUseCurrentTabForPresentationSample } from '../../lib/landing/pres
 import { BrandMark } from '../app/Brand';
 import { useI18n } from '../i18n/I18nProvider';
 import { DemoVideo } from './DemoVideo';
+import { GraphEngineeringHero } from './GraphEngineeringHero';
 import { LandingLanguageSelect } from './LandingLanguageSelect';
 import { LandingSessionActions } from './LandingSessionActions';
 import styles from './LandingPage.module.css';
@@ -111,7 +112,13 @@ export function LandingPage() {
 
       <div className={styles.scrollArea}>
         <main id="main-content">
-          <section className={styles.hero} aria-label={t('presentation.landingHeroAria')}>
+          <GraphEngineeringHero />
+
+          <section
+            className={styles.hero}
+            aria-label={t('presentation.landingHeroAria')}
+            data-landing-capability="presentation"
+          >
             <div className={styles.heroCopy}>
               <p className={styles.eyebrow}>{t('presentation.landingEyebrow')}</p>
               <h1 data-locale={locale}>
@@ -191,6 +198,50 @@ export function LandingPage() {
             ))}
           </section>
 
+          <section
+            className={styles.decisionSection}
+            id="decision-workspace"
+            aria-labelledby="decision-title"
+            data-landing-capability="hitl"
+          >
+            <div className={styles.decisionCopy}>
+              <p className={styles.eyebrow}>{t('landing.decisionEyebrow')}</p>
+              <h2 id="decision-title">{t('landing.decisionTitle')}</h2>
+              <p>{t('landing.decisionBody')}</p>
+              <ul>
+                <li>{t('landing.decisionReason')}</li>
+                <li>{t('landing.decisionChanges')}</li>
+                <li>{t('landing.decisionEvidence')}</li>
+                <li>{t('landing.decisionConsequence')}</li>
+              </ul>
+            </div>
+            <div className={styles.decisionCard}>
+              <div className={styles.decisionHeader}>
+                <span>{t('hitl.decisionWorkspace')}</span>
+                <span>{t('landing.reversibleChoice')}</span>
+              </div>
+              <h3>{t('landing.riskTitle')}</h3>
+              <p>{t('landing.riskBody')}</p>
+              <div className={styles.choiceSelected}>
+                <span aria-hidden="true" />
+                <div>
+                  <strong>{t('landing.inventoryTitle')}</strong>
+                  <small>{t('landing.inventoryBody')}</small>
+                </div>
+              </div>
+              <div className={styles.choice}>
+                <span aria-hidden="true" />
+                <div>
+                  <strong>{t('landing.duplicateTitle')}</strong>
+                  <small>{t('landing.duplicateBody')}</small>
+                </div>
+              </div>
+              <button type="button" tabIndex={-1} aria-hidden="true">
+                {t('landing.submitResponse')}
+              </button>
+            </div>
+          </section>
+
           <section className={styles.codexStory} aria-label={t('landing.heroAria')}>
             <div className={styles.codexStoryCopy}>
               <p className={styles.eyebrow}>{t('landing.heroEyebrow')}</p>
@@ -250,49 +301,6 @@ export function LandingPage() {
                   <p>{t(card.bodyKey)}</p>
                 </article>
               ))}
-            </div>
-          </section>
-
-          <section
-            className={styles.decisionSection}
-            id="decision-workspace"
-            aria-labelledby="decision-title"
-          >
-            <div className={styles.decisionCopy}>
-              <p className={styles.eyebrow}>{t('landing.decisionEyebrow')}</p>
-              <h2 id="decision-title">{t('landing.decisionTitle')}</h2>
-              <p>{t('landing.decisionBody')}</p>
-              <ul>
-                <li>{t('landing.decisionReason')}</li>
-                <li>{t('landing.decisionChanges')}</li>
-                <li>{t('landing.decisionEvidence')}</li>
-                <li>{t('landing.decisionConsequence')}</li>
-              </ul>
-            </div>
-            <div className={styles.decisionCard}>
-              <div className={styles.decisionHeader}>
-                <span>{t('hitl.decisionWorkspace')}</span>
-                <span>{t('landing.reversibleChoice')}</span>
-              </div>
-              <h3>{t('landing.riskTitle')}</h3>
-              <p>{t('landing.riskBody')}</p>
-              <div className={styles.choiceSelected}>
-                <span aria-hidden="true" />
-                <div>
-                  <strong>{t('landing.inventoryTitle')}</strong>
-                  <small>{t('landing.inventoryBody')}</small>
-                </div>
-              </div>
-              <div className={styles.choice}>
-                <span aria-hidden="true" />
-                <div>
-                  <strong>{t('landing.duplicateTitle')}</strong>
-                  <small>{t('landing.duplicateBody')}</small>
-                </div>
-              </div>
-              <button type="button" tabIndex={-1} aria-hidden="true">
-                {t('landing.submitResponse')}
-              </button>
             </div>
           </section>
 

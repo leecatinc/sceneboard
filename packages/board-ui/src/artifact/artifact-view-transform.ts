@@ -126,7 +126,7 @@ export const fitArtifactViewV1 = (input: {
 };
 
 export const sizeArtifactStageV1 = (input: {
-  mode: 'fit-page' | 'fit-width' | 'actual';
+  mode: 'fill' | 'fit-page' | 'fit-width' | 'actual';
   availableWidth: number;
   availableHeight: number;
   contentWidth: number;
@@ -144,7 +144,7 @@ export const sizeArtifactStageV1 = (input: {
   ) {
     return { width: 1, height: 1 };
   }
-  if (input.mode === 'actual')
+  if (input.mode === 'fill' || input.mode === 'actual')
     return { width: input.availableWidth, height: input.availableHeight };
   return {
     width: Math.max(input.availableWidth, input.contentWidth * input.scale),

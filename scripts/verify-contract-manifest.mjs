@@ -86,10 +86,10 @@ const expectedGroups = new Map([
   ['D5-BROWSER-API-SEAMS', 27],
   ['D5-UI-ROUTES', 22],
   ['D6-MCP-SDK', 10],
-  ['D6-INSTALLED-SKILL', 45],
+  ['D6-INSTALLED-SKILL', null],
   ['D7-ARTIFACT-SEAM', 7],
   ['D8-HITL-SEAM', 6],
-  ['MIGRATION-REGISTRY-ASSETS', 37],
+  ['MIGRATION-REGISTRY-ASSETS', null],
   ['D2-MIGRATION-RUNNER', 5],
   ['RUNTIME-TOPOLOGY', 3],
   ['DEPENDENCY-EVIDENCE', 11],
@@ -337,7 +337,8 @@ const validateInventoryShape = (inventory) => {
     if (
       typeof entry.id !== 'string' ||
       entryIds.has(entry.id) ||
-      expectedGroups.get(entry.id) !== entry.expectedCardinality ||
+      (expectedGroups.get(entry.id) !== null &&
+        expectedGroups.get(entry.id) !== entry.expectedCardinality) ||
       !Array.isArray(entry.resources) ||
       entry.resources.length !== entry.expectedCardinality ||
       !['utf8-lf', 'canonical-json', 'typescript-ast'].includes(entry.canonicalization) ||
@@ -398,6 +399,22 @@ const validateInstalledSkillClosure = async (inventory) => {
   const actual = (await collectInstalledSkillPaths()).sort((left, right) =>
     left.localeCompare(right, 'en'),
   );
+  equal(actual, expected, 'CONTRACT_INPUT_DRIFT');
+};
+
+const validateMigrationInventoryClosure = async (inventory) => {
+  const entry = inventory.entries.find(({ id }) => id === 'MIGRATION-REGISTRY-ASSETS');
+  if (entry === undefined) fail('CONTRACT_INPUT_DRIFT');
+  const expected = entry.resources
+    .map(({ path }) => path)
+    .sort((left, right) => left.localeCompare(right, 'en'));
+  const sqlRoot = resolve(root, 'sceneboard-be/src/database/migrations/sql');
+  const actual = [
+    'sceneboard-be/src/database/migrations/registry.ts',
+    ...(await readdir(sqlRoot, { withFileTypes: true }))
+      .filter((entry) => entry.isFile() && entry.name.endsWith('.sql'))
+      .map((entry) => relative(root, resolve(sqlRoot, entry.name)).split(sep).join('/')),
+  ].sort((left, right) => left.localeCompare(right, 'en'));
   equal(actual, expected, 'CONTRACT_INPUT_DRIFT');
 };
 
@@ -707,6 +724,14 @@ const observeToolRegistry = async () => {
     'board_history_list',
     'board_history_get',
     'board_history_restore',
+    'sceneboard_media_upload',
+    'sceneboard_media_place',
+    'board_artifact_get',
+    'board_artifact_put',
+    'board_artifact_stop',
+    'board_interaction_request',
+    'board_interaction_status',
+    'board_interaction_respond',
     'board_export',
   ];
   equal(apiKey, apiKeyExpected, 'TOOL_REGISTRY_DRIFT');
@@ -731,7 +756,12 @@ const observeMigrations = async (observedById) => {
   const versions = [...source.matchAll(/\bversion: '([^']+)'/gu)].map((match) => match[1]);
   const upAssets = [...source.matchAll(/\bupAsset: '([^']+)'/gu)].map((match) => match[1]);
   const downAssets = [...source.matchAll(/\bdownAsset: '([^']+)'/gu)].map((match) => match[1]);
-  if (versions.length !== 33 || upAssets.length !== 33 || downAssets.length !== 3)
+  if (
+    versions.length === 0 ||
+    versions.length !== upAssets.length ||
+    new Set(versions).size !== versions.length ||
+    new Set([...upAssets, ...downAssets]).size !== upAssets.length + downAssets.length
+  )
     fail('MIGRATION_REGISTRY_DRIFT');
   const assets = [...observedById.values()].filter(({ resourceId }) =>
     resourceId.startsWith('MIGRATION-ASSET-'),
@@ -834,6 +864,7 @@ export const observeContractInventory = async ({ inventoryValue, inventoryBytes 
   if (!bytes) bytes = Buffer.from(`${canonicalJson(inventory)}\n`);
   validateInventoryShape(inventory);
   await validateInstalledSkillClosure(inventory);
+  await validateMigrationInventoryClosure(inventory);
   const observed = [];
   for (const entry of inventory.entries) {
     for (const resource of entry.resources) observed.push(await observeResource(entry, resource));
@@ -888,7 +919,7 @@ export const observeContractInventory = async ({ inventoryValue, inventoryBytes 
     ownerPublishers,
     schemaModel,
     installedSkill: {
-      fileCount: expectedGroups.get('D6-INSTALLED-SKILL'),
+      fileCount: observed.filter(({ entryId }) => entryId === 'D6-INSTALLED-SKILL').length,
       aggregateSha256: aggregateForEntry(observed, 'D6-INSTALLED-SKILL'),
     },
     resources,

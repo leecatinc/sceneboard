@@ -116,6 +116,16 @@ function AdmittedArtifactHost(input: ArtifactHostInputV1) {
       frame.style.transform = 'none';
       frame.style.setProperty('zoom', '1');
       container.dataset.viewMode = mode;
+      if (mode === 'fill') {
+        frame.style.width = `${availableWidth}px`;
+        frame.style.height = `${availableHeight}px`;
+        transformPlane.style.width = `${availableWidth}px`;
+        transformPlane.style.height = `${availableHeight}px`;
+        stage.style.width = `${availableWidth}px`;
+        stage.style.height = `${availableHeight}px`;
+        writeTransform({ scale: 1, x: 0, y: 0 });
+        return;
+      }
       if (mode === 'actual') {
         frame.style.width = `${size.width}px`;
         frame.style.height = `${size.height}px`;

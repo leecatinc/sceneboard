@@ -8,14 +8,18 @@ import { buildApiKeyMcpJsonExample } from '../../app/settings/ai-connections/api
 const root = new URL('../../', import.meta.url);
 const source = (path: string) => readFileSync(new URL(path, root), 'utf8');
 
-test('API-key settings preserve pairing and default to every account API-key scope', () => {
+test('API-key settings preserve pairing and default to minimum read-only authority', () => {
   const owner = source('app/settings/ai-connections/ai-connections-client.tsx');
   const form = source('app/settings/ai-connections/api-key-create-sheet.tsx');
   assert.match(
     owner,
     /<SkillInstallGuide \/>[\s\S]*<PairingRequestList[\s\S]*<GrantList[\s\S]*<ApiKeyList \/>/u,
   );
-  assert.ok(form.includes('useState<AccountApiKeyScopeV1[]>([...ALL_SCOPES])'));
+  assert.ok(
+    form.includes("const DEFAULT_SCOPES: readonly AccountApiKeyScopeV1[] = ['board:read']"),
+  );
+  assert.ok(form.includes('useState<AccountApiKeyScopeV1[]>([...DEFAULT_SCOPES])'));
+  assert.equal(form.includes('useState<AccountApiKeyScopeV1[]>([...ALL_SCOPES])'), false);
   assert.match(form, /scopes: selected/u);
   assert.match(form, /setSelected\(\[\.\.\.ALL_SCOPES\]\)/u);
   assert.match(form, /setSelected\(\[\]\)/u);

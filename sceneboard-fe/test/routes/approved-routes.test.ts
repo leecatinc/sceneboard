@@ -261,12 +261,17 @@ test('board chrome keeps page and revision navigation in the compact bar and pre
     chromeSlots,
     /<BoardViewModeControls\s+value=\{viewMode\}\s+zoom=\{artifactZoom\}\s+canReset=\{canResetArtifactView\}/,
   );
-  assert.match(viewModes, /'fit-page', 'fit-width', 'actual'/);
+  assert.match(viewModes, /'fill', 'fit-page', 'fit-width', 'actual'/);
+  assert.match(viewModes, /fill: t\('presentation\.fillArea'\)/);
+  assert.match(viewModes, /compact \? '100%' : t\('presentation\.actualSize'\)/);
   assert.match(viewModes, /aria-pressed=\{value === mode\}/);
   assert.match(viewModes, /board\.artifactZoomStatus/);
   assert.match(viewModes, /aria-live="polite"/);
   assert.match(viewModes, /board\.resetArtifactView/);
   assert.match(boardClient, /dispatchArtifactView\(\{ type: 'clear' \}\)/);
+  assert.match(boardClient, /useState<ArtifactViewModeV1>\('fill'\)/);
+  assert.match(boardClient, /<BoardViewModeControls\s+compact/);
+  assert.match(boardClient, /viewControls=\{desktopViewControls\}/);
   assert.match(
     boardClient,
     /drawingView=\{\{[\s\S]*?mode:\s*artifactViewMode,[\s\S]*?resetSignal:\s*drawingResetSignal,[\s\S]*?onStateChange:\s*onDrawingViewStateChange,[\s\S]*?onCaptureActiveChange:/,

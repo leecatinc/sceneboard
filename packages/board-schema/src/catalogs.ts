@@ -72,8 +72,13 @@ export const CLIENT_GRANT_CAPABILITIES_V1 = [
 export type ClientGrantCapabilityV1 = (typeof CLIENT_GRANT_CAPABILITIES_V1)[number];
 
 export const ACCOUNT_API_KEY_SCOPES_V1 = [
+  'artifact:control',
+  'artifact:publish',
   'board:archive',
   'board:create',
+  'board:hitl:request',
+  'board:hitl:respond',
+  'board:media:write',
   'board:read',
   'board:write',
   'export:read',
@@ -82,13 +87,22 @@ export const ACCOUNT_API_KEY_SCOPES_V1 = [
 export type AccountApiKeyScopeV1 = (typeof ACCOUNT_API_KEY_SCOPES_V1)[number];
 
 export const ACCOUNT_API_KEY_SCOPE_BITS_V1 = {
+  'artifact:control': 1 << 6,
+  'artifact:publish': 1 << 7,
   'board:archive': 1 << 0,
   'board:create': 1 << 1,
+  'board:hitl:request': 1 << 8,
+  'board:hitl:respond': 1 << 9,
+  'board:media:write': 1 << 10,
   'board:read': 1 << 2,
   'board:write': 1 << 3,
   'export:read': 1 << 4,
   'history:read': 1 << 5,
 } as const satisfies Readonly<Record<AccountApiKeyScopeV1, number>>;
+
+export const ACCOUNT_API_KEY_SCOPE_MASK_MAX_V1 = Object.values(
+  ACCOUNT_API_KEY_SCOPE_BITS_V1,
+).reduce((mask, bit) => mask | bit, 0);
 
 export const CLIENT_GRANT_SCOPE_ORDER_V1 = [
   'board.read',

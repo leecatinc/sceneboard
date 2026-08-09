@@ -16,8 +16,10 @@ test('the root route is a public product landing page while authentication remai
   assert.match(loginPage, /<LoginForm \/>/);
 });
 
-test('the landing page leads with presentations and preserves the product story and auth routes', () => {
+test('the landing page leads with graph engineering then presentation and HITL', () => {
   const landingPage = source('components/landing/LandingPage.tsx');
+  const graphHero = source('components/landing/GraphEngineeringHero.tsx');
+  const graphStyles = source('components/landing/GraphEngineeringHero.module.css');
   const landingStyles = source('components/landing/LandingPage.module.css');
   const languageSelect = source('components/landing/LandingLanguageSelect.tsx');
   const sessionActions = source('components/landing/LandingSessionActions.tsx');
@@ -25,6 +27,7 @@ test('the landing page leads with presentations and preserves the product story 
   const interfaceCatalog = source('lib/i18n/interface-catalog.ts');
 
   assert.match(landingPage, /useI18n/);
+  assert.match(landingPage, /<GraphEngineeringHero \/>/);
   assert.match(landingPage, /presentation\.landingTitleLead/);
   assert.match(landingPage, /presentation\.landingPublicTitle/);
   assert.match(landingPage, /presentation\.landingPresentTitle/);
@@ -51,10 +54,34 @@ test('the landing page leads with presentations and preserves the product story 
     /\.page\s*\{[^}]*height:\s*100dvh;[^}]*grid-template-rows:\s*auto minmax\(0, 1fr\);[^}]*overflow:\s*hidden;/su,
   );
   assert.match(landingStyles, /\.scrollArea\s*\{[^}]*min-height:\s*0;[^}]*overflow-y:\s*auto;/su);
-  assert.ok(
-    landingPage.indexOf('presentation.landingTitleLead') <
-      landingPage.indexOf('landing.heroTitleLead'),
-  );
+  const graphPosition = landingPage.indexOf('<GraphEngineeringHero />');
+  const presentationPosition = landingPage.indexOf('data-landing-capability="presentation"');
+  const hitlPosition = landingPage.indexOf('data-landing-capability="hitl"');
+  assert.ok(graphPosition >= 0 && graphPosition < presentationPosition);
+  assert.ok(presentationPosition < hitlPosition);
+  assert.doesNotMatch(landingPage, /role="tablist"/);
+  assert.match(graphHero, /data-landing-workflow-node=\{node\.id\}/);
+  assert.match(graphHero, /data-landing-workflow-edge=\{edge\.id\}/);
+  assert.match(graphHero, /previewNodes\.map/);
+  assert.match(graphHero, /previewEdges\.map/);
+  assert.match(graphHero, /data-landing-workflow-interaction="details"/);
+  assert.match(graphHero, /data-landing-workflow-prompt-example/);
+  assert.match(graphHero, /graphLanding\.promptExample/);
+  assert.match(graphStyles, /\.promptExample\s*\{/);
+  assert.match(interfaceCatalog, /SceneBoard에 워크플로우 그래프로 그려줘/);
+  assert.match(graphHero, /<button[\s\S]*data-landing-workflow-node=\{node\.id\}/u);
+  assert.match(graphHero, /aria-haspopup="dialog"/);
+  assert.match(graphHero, /<dialog[\s\S]*aria-labelledby="landing-workflow-detail-title"/u);
+  assert.match(graphHero, /openDetail\([\s\S]*event\.currentTarget/u);
+  assert.match(graphHero, /dialog\.showModal\(\)/);
+  assert.match(graphHero, /onClose=\{finishDetailClose\}/);
+  assert.match(graphHero, /event\.key !== 'Tab'/);
+  assert.match(graphHero, /requestAnimationFrame\(\(\) => detailOpenerRef\.current\?\.focus\(\)\)/);
+  assert.match(graphHero, /jsonRef\.current\?\.select\(\)/);
+  assert.match(graphHero, /aria-live="polite"/);
+  assert.doesNotMatch(graphHero, /navigator\.clipboard|artifact\.capability|requestCapability/u);
+  assert.match(graphStyles, /@media \(max-width: 600px\)/);
+  assert.match(graphStyles, /@media \(prefers-reduced-motion: reduce\)/);
   assert.match(landingPage, /landing\.decisionTitle/);
   assert.match(landingPage, /landing\.visualTitle/);
   assert.match(interfaceCatalog, /Apache-2\.0/);

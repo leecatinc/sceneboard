@@ -149,11 +149,18 @@ test('owns the closed operation, scope, and literal MCP tool partitions', () => 
     'document.replace',
     'history.list',
     'history.get',
+    'hitl.request',
+    'hitl.respond',
+    'hitl.read',
+    'artifact.get',
+    'artifact.publish',
+    'artifact.stop',
+    'media.upload',
     'export.render',
   ]);
   assert.deepEqual(accountApiKeyRequiredScopes('connection.get'), []);
   assert.deepEqual(accountApiKeyRequiredScopes('scene.restore'), ['board:write', 'history:read']);
-  assert.equal(accountApiKeyRequiredScopes('media.upload'), null);
+  assert.deepEqual(accountApiKeyRequiredScopes('media.upload'), ['board:media:write']);
 
   assert.deepEqual(Object.keys(ACCOUNT_API_KEY_TOOL_POLICIES_V1), [
     'board_list',
@@ -176,6 +183,14 @@ test('owns the closed operation, scope, and literal MCP tool partitions', () => 
     'board_history_list',
     'board_history_get',
     'board_history_restore',
+    'board_artifact_get',
+    'board_artifact_put',
+    'board_artifact_stop',
+    'board_interaction_request',
+    'board_interaction_status',
+    'board_interaction_respond',
+    'sceneboard_media_upload',
+    'sceneboard_media_place',
     'board_export',
   ]);
   assert.deepEqual(accountApiKeyToolPolicy('board_history_restore'), {
@@ -195,7 +210,14 @@ test('owns the closed operation, scope, and literal MCP tool partitions', () => 
       { operations: ['board.get', 'scene.replace'], scopes: ['board:read', 'board:write'] },
     ],
   });
-  assert.equal(accountApiKeyToolPolicy('sceneboard_media_place'), null);
+  assert.deepEqual(accountApiKeyToolPolicy('sceneboard_media_place'), {
+    operationPlans: [
+      {
+        operations: ['history.get', 'document.replace'],
+        scopes: ['history:read', 'board:write'],
+      },
+    ],
+  });
   assert.equal(accountApiKeyToolPolicy('future_document_replace_alias'), null);
 });
 
@@ -233,6 +255,8 @@ test('appends only the approved API-key authorization surfaces and preserves gra
       'board.list',
       'board.get',
       'capabilities.get',
+      'artifact.get',
+      'hitl.read',
       'history.list',
       'history.get',
       'board.create',
@@ -241,7 +265,12 @@ test('appends only the approved API-key authorization surfaces and preserves gra
       'scene.replace',
       'scene.clear',
       'scene.restore',
+      'hitl.request',
+      'hitl.respond',
+      'artifact.publish',
+      'artifact.stop',
       'board.archive',
+      'media.upload',
       'export.render',
     ],
   );
@@ -276,7 +305,6 @@ test('appends only the approved API-key authorization surfaces and preserves gra
     'share.password.enable',
     'share.password.regenerate',
     'share.password.disable',
-    'media.upload',
     'analytics.report.get',
   ]) {
     assert.equal(membershipPolicyFor(operation, 'account_api_key'), null);

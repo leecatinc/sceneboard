@@ -43,6 +43,7 @@ test('catalog baseline freezes ordered locale values and the AI topic partition'
   const keys = messageKeys().filter(
     (key) =>
       !key.startsWith('presentation.') &&
+      !key.startsWith('graphLanding.') &&
       !key.startsWith('apiKey.') &&
       !key.startsWith('sharing.') &&
       !key.startsWith('analytics.') &&
@@ -91,6 +92,7 @@ test('presentation messages are isolated from the frozen catalog baseline', () =
       'presentation.presentationControls',
       'presentation.showControls',
       'presentation.displayMode',
+      'presentation.fillArea',
       'presentation.fitPage',
       'presentation.fitWidth',
       'presentation.actualSize',
@@ -214,6 +216,34 @@ test('SceneBoard exposes the ten selected locales with a complete non-empty cata
     assert.deepEqual(Object.keys(MESSAGES[locale]), keys);
     for (const key of keys) assert.ok(MESSAGES[locale][key].trim().length > 0, `${locale}:${key}`);
   }
+});
+
+test('graph landing messages are complete for every supported locale', () => {
+  const keys = messageKeys().filter((key) => key.startsWith('graphLanding.'));
+  assert.deepEqual(keys, [
+    'graphLanding.heroAria',
+    'graphLanding.eyebrow',
+    'graphLanding.title',
+    'graphLanding.lead',
+    'graphLanding.promptExample',
+    'graphLanding.previewAria',
+    'graphLanding.specVersion',
+    'graphLanding.graphCounts',
+    'graphLanding.edgeNeedsDecision',
+    'graphLanding.startLabel',
+    'graphLanding.analyzeLabel',
+    'graphLanding.reviewLabel',
+    'graphLanding.completeLabel',
+    'graphLanding.nodeDialogTitle',
+    'graphLanding.edgeDialogTitle',
+    'graphLanding.closeDetail',
+    'graphLanding.exportTitle',
+    'graphLanding.exportBody',
+    'graphLanding.selectJson',
+    'graphLanding.selectionReady',
+  ]);
+  for (const locale of SUPPORTED_LOCALES)
+    for (const key of keys) assert.ok(MESSAGES[locale][key].trim().length > 0, `${locale}:${key}`);
 });
 
 test('browser language matching handles regional Chinese, Portuguese, and quality weights', () => {

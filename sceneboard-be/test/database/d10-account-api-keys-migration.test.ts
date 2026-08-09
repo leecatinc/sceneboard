@@ -205,6 +205,14 @@ test('accepts only the exact account API-key postcondition projection', () => {
   assert.doesNotThrow(() =>
     assessAccountApiKeyPostcondition(columns, indexes, foreignKeys, cosmeticPredicateWrappers),
   );
+  const expandedScopeCapacity = checks.map((check) =>
+    check.constraintName === 'chk_account_api_key_scope_mask'
+      ? { ...check, checkClause: 'scope_mask BETWEEN 1 AND 2047' }
+      : { ...check },
+  );
+  assert.doesNotThrow(() =>
+    assessAccountApiKeyPostcondition(columns, indexes, foreignKeys, expandedScopeCapacity),
+  );
   const drifted = columns.map((column) => ({ ...column }));
   drifted[6] = { ...drifted[6]!, columnType: 'varbinary(32)' };
   assert.throws(

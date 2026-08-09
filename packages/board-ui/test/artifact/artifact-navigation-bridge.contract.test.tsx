@@ -49,9 +49,15 @@ test('actual mode dispatches a navigation message received over a real channel e
   channel.port2.close();
 });
 
-test('fit modes suppress navigation without invoking the callback', () => {
+test('responsive and fit modes suppress navigation without invoking the callback', () => {
   const intent = { type: 'artifact.navigation.pan.cancel', pointerId: 7 } as const;
   let calls = 0;
+  assert.equal(
+    dispatchArtifactNavigationIntentV1('fill', intent, () => {
+      calls += 1;
+    }),
+    false,
+  );
   assert.equal(
     dispatchArtifactNavigationIntentV1('fit-page', intent, () => {
       calls += 1;

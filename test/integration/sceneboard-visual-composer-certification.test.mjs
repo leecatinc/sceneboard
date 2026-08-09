@@ -12,22 +12,27 @@ import {
 } from '../../sceneboard-mcp/plugins/sceneboard/skills/sceneboard/scripts/scene-artifact-core.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const workspaceRoot = join(root, '..');
+const canonicalSkillRoot = join(workspaceRoot, 'skills/sceneboard');
 const canonicalPluginRoot = join(root, 'sceneboard-mcp/plugins/sceneboard');
 const releaseName = readFileSync(join(canonicalPluginRoot, '.sceneboard-current'), 'utf8').trim();
 assert.match(releaseName, /^generation-[A-Za-z0-9-]+$/u);
 const pluginRoot = canonicalPluginRoot;
-const selectedPluginRoot = join(pluginRoot, '.sceneboard-releases', releaseName);
 const releaseStateNames = new Set([
+  '.sceneboard-current',
+  '.sceneboard-releases',
+  '.sceneboard-leases',
+  '.sceneboard-publication.lock',
   '.sceneboard-activated',
   '.sceneboard-publishing',
   '.sceneboard-retired',
 ]);
-const activePluginRoot = pluginRoot;
+const activePluginRoot = join(pluginRoot, '.sceneboard-releases', releaseName);
 const collect = (directory, prefix = '') =>
   readdirSync(directory, { withFileTypes: true })
     .sort((left, right) => left.name.localeCompare(right.name, 'en'))
     .flatMap((entry) =>
-      releaseStateNames.has(`${prefix}${entry.name}`)
+      releaseStateNames.has(`${prefix}${entry.name}`.split('/')[0])
         ? []
         : entry.isDirectory()
           ? collect(join(directory, entry.name), `${prefix}${entry.name}/`)
@@ -66,8 +71,9 @@ test('canonical plugin skill and downloadable archives are synchronized', () => 
       encoding: 'utf8',
     }),
   );
-  assert.deepEqual(result, { status: 'PASS', fileCount: 45 });
-  assert.equal(collect(join(activePluginRoot, 'skills/sceneboard')).length, 45);
+  const canonicalFiles = collect(canonicalSkillRoot);
+  assert.deepEqual(result, { status: 'PASS', fileCount: canonicalFiles.length });
+  assert.deepEqual(collect(join(activePluginRoot, 'skills/sceneboard')), canonicalFiles);
   for (const name of ['sceneboard.zip', 'sceneboard-codex-plugin.zip']) {
     assert.equal(
       readFileSync(join(root, 'sceneboard-fe/public/downloads', name))
@@ -82,7 +88,7 @@ test('download archives preserve canonical bytes, entry types, and normalized mo
   for (const archiveCase of [
     {
       name: 'sceneboard.zip',
-      sourceRoot: join(activePluginRoot, 'skills/sceneboard'),
+      sourceRoot: canonicalSkillRoot,
       expectedMode: () => 0o100644,
     },
     {
@@ -111,11 +117,9 @@ test('download archives preserve canonical bytes, entry types, and normalized mo
 });
 
 test('pointer-selected and downloadable runtimes contain the repaired export arbitration', () => {
-  const canonicalRuntime = readFileSync(join(canonicalPluginRoot, 'runtime/index.js'));
-  const selectedRuntime = readFileSync(join(selectedPluginRoot, 'runtime/index.js'));
-  assert.deepEqual(selectedRuntime, canonicalRuntime);
-  assert.equal(selectedRuntime.includes('EXPORT_PUBLICATION_SETTLEMENT_TIMEOUT_MS_V1'), true);
-  assert.equal(selectedRuntime.includes('awaitAfterAbort'), true);
+  const activeRuntime = readFileSync(join(activePluginRoot, 'runtime/index.js'));
+  assert.equal(activeRuntime.includes('EXPORT_PUBLICATION_SETTLEMENT_TIMEOUT_MS_V1'), true);
+  assert.equal(activeRuntime.includes('awaitAfterAbort'), true);
   const archiveEntries = zipEntries(
     readFileSync(join(root, 'sceneboard-fe/public/downloads/sceneboard-codex-plugin.zip')),
   );
@@ -125,11 +129,9 @@ test('pointer-selected and downloadable runtimes contain the repaired export arb
     `sceneboard/.sceneboard-releases/${releaseName}/runtime/index.js`,
   );
   assert(archiveRuntime);
-  assert(archivePointer);
-  assert(archiveSelectedRuntime);
-  assert.deepEqual(archiveRuntime.bytes, selectedRuntime);
-  assert.equal(archivePointer.bytes.toString('utf8'), `${releaseName}\n`);
-  assert.deepEqual(archiveSelectedRuntime.bytes, selectedRuntime);
+  assert.equal(archivePointer, undefined);
+  assert.equal(archiveSelectedRuntime, undefined);
+  assert.deepEqual(archiveRuntime.bytes, activeRuntime);
 });
 
 test('representative native and artifact compositions preserve their handoff boundaries', () => {

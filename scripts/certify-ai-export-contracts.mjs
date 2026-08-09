@@ -1093,10 +1093,12 @@ const approvedSyntheticSourceSha256 = new Map(
     'test/certification/contract-input-inventory.v1.json': [
       'e7099a6bdd98e4f75eb11dce66462f91ec9b50e4082f3a50c1bba2e6f8ab055c',
       'e20d74f1df29df5cc3d62f0932b262d312503f92f846d58cb43fe7a2534ed08f',
+      '087f3a48b2da212404db58ca0865b65bd0b59ae00e90007451bf3ee775c186a2',
     ],
     'test/certification/contract-manifest.v1.json': [
       'a1bca7679febd33ce76a4a201b7bb2205afa8d1e068e0e036ff9ecff8015663c',
       'c87926dbb78033e15f505dac246989db01a77e5dc309860496d3c7e5a5aa13c9',
+      '5d9656261eefc8c706eb07e0f8500a953044875f9f7e5b283e36741dd88890be',
     ],
     'test/certification/dependency-inventory.v1.json': [
       'cefeb8b1387a980d16da34fdcea1415cff6d07e92cb8bb745285ff97a3b74ced',
@@ -1105,6 +1107,7 @@ const approvedSyntheticSourceSha256 = new Map(
     'test/certification/fixtures/contract-manifest/golden.v1.json': [
       'a1bca7679febd33ce76a4a201b7bb2205afa8d1e068e0e036ff9ecff8015663c',
       'c87926dbb78033e15f505dac246989db01a77e5dc309860496d3c7e5a5aa13c9',
+      '5d9656261eefc8c706eb07e0f8500a953044875f9f7e5b283e36741dd88890be',
     ],
     'test/certification/fixtures/contract-manifest/misplaced-runtime-field.v1.json': [
       'b89f8351ea0f3e07e5fe9564bc44a191153928e5aff96fb7183a18c984249ef5',
@@ -1123,6 +1126,7 @@ const approvedSyntheticSourceSha256 = new Map(
       '945c00e5d5cd2912c6faf90cba9b5e506762366e156f3f3d08e4364cee01cfd6',
       '289b9d4ed852f87c5aa886c42c6869077b94ea8e67fa8f0f7d4068ae6e15e21a',
       '99be5c413762c80fec940dd3491a3da6f1be5090c63e019da9017703c42f4b3f',
+      '845b593794c4d9730a32fa625e86f5c96ff4f767c672540d9c4f65937c8eb282',
     ],
     'test/certification/security-case-catalog.v1.json': [
       '8d1faea273a1f3a63e18051f90f0391cc912dae620d466dfc093a31e32f576ca',
@@ -1131,6 +1135,7 @@ const approvedSyntheticSourceSha256 = new Map(
     'test/integration/contract-certification.test.mjs': [
       '520d1e983ef2eb4df7bb5ff1a27f2294dfa67629e417a288786a28377a6936ad',
       '5b78bcd7ede75fc7ee9ee0602960e948f5e8667edbc1f927435a1f3d984b179d',
+      '281345d3e225fc8b6590c4eb95ffce93590d57038c1f5a6e9ea05c066bc606bc',
     ],
     'test/integration/evidence-writer.test.mjs': [
       '5667b411dbe5be3d04d8790700606135c5d08909fe529290a8d5342a2386a925',

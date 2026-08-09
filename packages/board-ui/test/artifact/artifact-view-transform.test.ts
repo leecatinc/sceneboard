@@ -117,6 +117,20 @@ test('keeps the transform-only fallback for generic, upscaled, and invalid fits'
 test('sizes the layout plane from rendered bounds without scrolling the fitted axis', () => {
   assert.deepEqual(
     sizeArtifactStageV1({
+      mode: 'fill',
+      availableWidth: 1_440,
+      availableHeight: 820,
+      contentWidth: 1_280,
+      contentHeight: 800,
+      scale: 1,
+    }),
+    {
+      width: 1_440,
+      height: 820,
+    },
+  );
+  assert.deepEqual(
+    sizeArtifactStageV1({
       mode: 'fit-page',
       availableWidth: 900,
       availableHeight: 600,

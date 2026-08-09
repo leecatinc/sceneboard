@@ -27,6 +27,7 @@ export function ResponsiveBoardChrome({
   utilityRail,
   desktopBoardIdentity,
   pageNavigation,
+  viewControls,
   revisionControls,
   children,
 }: {
@@ -39,6 +40,7 @@ export function ResponsiveBoardChrome({
   utilityRail: ReactNode;
   desktopBoardIdentity: ReactNode;
   pageNavigation: ReactNode;
+  viewControls: ReactNode;
   revisionControls: ReactNode;
   children: ReactNode;
 }) {
@@ -72,6 +74,7 @@ export function ResponsiveBoardChrome({
           boardIdentity={desktopBoardIdentity}
           mediaAuthoring={slots.mediaAuthoring}
           pageNavigation={pageNavigation}
+          viewControls={viewControls}
           revision={revisionControls}
           connections={slots.connections}
         />

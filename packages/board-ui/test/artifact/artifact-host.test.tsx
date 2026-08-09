@@ -128,6 +128,10 @@ test('ArtifactHost source places identity admission before the bridge-owning chi
   assert.match(source, /frame\.style\.width = `\$\{viewportWidth\}px`/u);
   assert.match(source, /writeTransform\(next, renderScale\.compositorScale\)/u);
   assert.match(source, /frame\.style\.setProperty\('zoom', '1'\)[\s\S]*mode === 'actual'/u);
+  assert.match(
+    source,
+    /mode === 'fill'[\s\S]*frame\.style\.width = `\$\{availableWidth\}px`[\s\S]*frame\.style\.height = `\$\{availableHeight\}px`[\s\S]*writeTransform\(\{ scale: 1, x: 0, y: 0 \}\)/u,
+  );
 });
 
 test('ArtifactHost admits reset epochs only for its exact positive incarnation', () => {

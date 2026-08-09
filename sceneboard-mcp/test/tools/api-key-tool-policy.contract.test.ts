@@ -115,6 +115,35 @@ const expected = {
   board_history_restore: {
     operationPlans: [{ operations: ['scene.restore'], scopes: ['board:write', 'history:read'] }],
   },
+  board_artifact_get: {
+    operationPlans: [{ operations: ['artifact.get'], scopes: ['board:read'] }],
+  },
+  board_artifact_put: {
+    operationPlans: [{ operations: ['artifact.publish'], scopes: ['artifact:publish'] }],
+  },
+  board_artifact_stop: {
+    operationPlans: [{ operations: ['artifact.stop'], scopes: ['artifact:control'] }],
+  },
+  board_interaction_request: {
+    operationPlans: [{ operations: ['hitl.request'], scopes: ['board:hitl:request'] }],
+  },
+  board_interaction_status: {
+    operationPlans: [{ operations: ['hitl.read'], scopes: ['board:read'] }],
+  },
+  board_interaction_respond: {
+    operationPlans: [{ operations: ['hitl.respond'], scopes: ['board:hitl:respond'] }],
+  },
+  sceneboard_media_upload: {
+    operationPlans: [{ operations: ['media.upload'], scopes: ['board:media:write'] }],
+  },
+  sceneboard_media_place: {
+    operationPlans: [
+      {
+        operations: ['history.get', 'document.replace'],
+        scopes: ['history:read', 'board:write'],
+      },
+    ],
+  },
   board_export: {
     operationPlans: [{ operations: ['export.render'], scopes: ['export:read'] }],
   },
@@ -124,7 +153,7 @@ test('MCP API-key policy exactly matches the backend owner-tool contract', () =>
   assert.deepEqual(ACCOUNT_API_KEY_TOOL_POLICIES_V1, expected);
   assert.deepEqual(API_KEY_TOOL_NAMES_V1.slice(1).sort(), Object.keys(expected).sort());
   assert.equal(API_KEY_TOOL_NAMES_V1.includes('board_pair_request' as never), false);
-  assert.equal(API_KEY_TOOL_NAMES_V1.includes('sceneboard_media_place' as never), false);
+  assert.equal(API_KEY_TOOL_NAMES_V1.includes('sceneboard_media_place'), true);
 });
 
 test('every board-scoped handler supplies its exact board and authorization operation', async () => {

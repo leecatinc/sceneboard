@@ -28,7 +28,7 @@ test('presentation migration slots are exact through terminal 027 and later entr
     '027',
   ]);
   assert.equal(new Set(versions).size, versions.length);
-  assert.deepEqual(versions.slice(presentationVersions.length), ['028', '029', '030']);
+  assert.deepEqual(versions.slice(presentationVersions.length), ['028', '029', '030', '031']);
 });
 
 test('public analytics and MCP media sources contain no forbidden persistent path or identity sinks', () => {

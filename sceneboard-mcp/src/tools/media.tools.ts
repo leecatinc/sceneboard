@@ -193,6 +193,9 @@ export class MediaToolHandlersV1 {
           boardId: parsed.data.boardId,
           requestId,
           requiredCapabilities: ['board.media.write'],
+          apiKeyToolName: 'sceneboard_media_upload',
+          apiKeyOperationPlan: 'media.upload',
+          apiKeyAuthorizationOperation: 'media.upload',
           ...(signal === undefined ? {} : { signal }),
         },
         async ({ snapshot, media, signal: operationSignal }) => {
@@ -270,6 +273,9 @@ export class MediaToolHandlersV1 {
           boardId: parsed.data.boardId,
           requestId,
           requiredCapabilities: ['board.history.read', 'board.write'],
+          apiKeyToolName: 'sceneboard_media_place',
+          apiKeyOperationPlan: ['history.get', 'document.replace'],
+          apiKeyAuthorizationOperation: 'document.replace',
           ...(signal === undefined ? {} : { signal }),
         },
         async ({ client, signal: operationSignal }) => {

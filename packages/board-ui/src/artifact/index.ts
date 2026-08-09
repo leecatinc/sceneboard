@@ -26,3 +26,8 @@ export {
 } from './artifact-view-transform.js';
 export type { ArtifactViewTransformV1 } from './artifact-view-transform.js';
 export { dispatchArtifactNavigationIntentV1 } from './navigation-dispatch.js';
+export {
+  ArtifactCapabilityDispatcherV1,
+  type ClipboardCapabilityErrorV1,
+  type ClipboardCapabilityResultV1,
+} from './artifact-capability-dispatch.js';

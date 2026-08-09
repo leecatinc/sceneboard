@@ -22,6 +22,7 @@ export const buildSceneBoardContentSecurityPolicyV1 = (input: {
   runtimeOrigin: string;
   mediaOrigin: string;
   firebaseAuthOrigin?: string | undefined;
+  allowDevelopmentEval?: boolean | undefined;
 }): string => {
   const apiOrigin = canonicalOrigin(input.apiOrigin, 'API origin');
   const runtimeOrigin = canonicalOrigin(input.runtimeOrigin, 'artifact runtime origin');
@@ -37,8 +38,8 @@ export const buildSceneBoardContentSecurityPolicyV1 = (input: {
     "base-uri 'self'",
     "object-src 'none'",
     `script-src 'self' 'unsafe-inline'${
-      firebaseAuthOrigin === undefined ? '' : ' https://apis.google.com'
-    }`,
+      input.allowDevelopmentEval === true ? " 'unsafe-eval'" : ''
+    }${firebaseAuthOrigin === undefined ? '' : ' https://apis.google.com'}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data:",
     `media-src 'self' ${mediaOrigin}`,
@@ -92,6 +93,7 @@ const config: NextConfig = {
               `https://${process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}`,
               'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
             ),
+      allowDevelopmentEval: process.env.NODE_ENV === 'development',
     });
     return [
       {

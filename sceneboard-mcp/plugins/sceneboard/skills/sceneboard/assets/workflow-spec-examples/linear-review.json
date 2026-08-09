@@ -1,0 +1,162 @@
+{
+  "schemaVersion": "1.0",
+  "workflow": {
+    "id": "workflow_review",
+    "title": "Linear review",
+    "summary": "Review a draft and complete it.",
+    "evidence": {
+      "basis": "explicit",
+      "confidence": 1,
+      "sourceRefs": [
+        {
+          "sourceId": "source_review",
+          "startLine": null,
+          "endLine": null,
+          "locator": null
+        }
+      ]
+    }
+  },
+  "sources": [
+    {
+      "id": "source_review",
+      "kind": "prose",
+      "label": "Review request",
+      "digest": null
+    }
+  ],
+  "entryNodeIds": ["node_start"],
+  "exitNodeIds": ["node_end"],
+  "nodes": [
+    {
+      "id": "node_start",
+      "kind": "start",
+      "label": "Start",
+      "purpose": null,
+      "instructions": [],
+      "stateInputs": [],
+      "stateOutputs": [],
+      "tools": [],
+      "skills": [],
+      "retryPolicy": null,
+      "errorPolicy": null,
+      "subflowId": null,
+      "control": null,
+      "evidence": {
+        "basis": "explicit",
+        "confidence": 1,
+        "sourceRefs": [
+          {
+            "sourceId": "source_review",
+            "startLine": null,
+            "endLine": null,
+            "locator": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "node_review",
+      "kind": "action",
+      "label": "Review draft",
+      "purpose": "Check the draft against acceptance criteria.",
+      "instructions": ["Review the draft against the acceptance criteria."],
+      "stateInputs": [],
+      "stateOutputs": [],
+      "tools": [],
+      "skills": [],
+      "retryPolicy": null,
+      "errorPolicy": null,
+      "subflowId": null,
+      "control": null,
+      "evidence": {
+        "basis": "explicit",
+        "confidence": 1,
+        "sourceRefs": [
+          {
+            "sourceId": "source_review",
+            "startLine": null,
+            "endLine": null,
+            "locator": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "node_end",
+      "kind": "end",
+      "label": "Complete",
+      "purpose": null,
+      "instructions": [],
+      "stateInputs": [],
+      "stateOutputs": [],
+      "tools": [],
+      "skills": [],
+      "retryPolicy": null,
+      "errorPolicy": null,
+      "subflowId": null,
+      "control": null,
+      "evidence": {
+        "basis": "explicit",
+        "confidence": 1,
+        "sourceRefs": [
+          {
+            "sourceId": "source_review",
+            "startLine": null,
+            "endLine": null,
+            "locator": null
+          }
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge_start_review",
+      "kind": "normal",
+      "fromNodeId": "node_start",
+      "toNodeId": "node_review",
+      "label": null,
+      "condition": null,
+      "priority": null,
+      "stateKeys": [],
+      "evidence": {
+        "basis": "explicit",
+        "confidence": 1,
+        "sourceRefs": [
+          {
+            "sourceId": "source_review",
+            "startLine": null,
+            "endLine": null,
+            "locator": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "edge_review_end",
+      "kind": "normal",
+      "fromNodeId": "node_review",
+      "toNodeId": "node_end",
+      "label": null,
+      "condition": null,
+      "priority": null,
+      "stateKeys": [],
+      "evidence": {
+        "basis": "explicit",
+        "confidence": 1,
+        "sourceRefs": [
+          {
+            "sourceId": "source_review",
+            "startLine": null,
+            "endLine": null,
+            "locator": null
+          }
+        ]
+      }
+    }
+  ],
+  "subflows": [],
+  "unresolvedQuestions": [],
+  "warnings": []
+}

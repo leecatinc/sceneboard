@@ -1,6 +1,6 @@
 ---
 name: sceneboard
-description: Operate SceneBoard through its local MCP server or the bundled MCP-absent API fallback. Use for SceneBoard live visuals, layouts, charts, maps, drawings, sandboxed artifacts, HITL, history, pairing, connection diagnostics, and browser-visible board verification; trigger on explicit SceneBoard/sceneboard/legacy lc-board names, a request to place or operate content on the user's named SceneBoard or live AI board, or a user message consisting only of an SB-prefixed SceneBoard pairing code. Do not trigger on generic chalkboard, 칠판, board, screen, 화면, preview, or UI mentions.
+description: Operate SceneBoard through its local MCP server or bundled MCP-absent API fallback. Use for conversational graph engineering, workflow visualization, live visuals, presentations, sandboxed artifacts, HITL, history, pairing, and browser-visible board verification; trigger on explicit SceneBoard/sceneboard/legacy lc-board names, the exact request "SceneBoard에 워크플로우 그래프로 그려줘" or an equivalent request to draw source as a SceneBoard workflow graph, a request to place or operate content on the user's named SceneBoard or live AI board, or a user message consisting only of an SB-prefixed SceneBoard pairing code. Do not trigger on generic chalkboard, 칠판, board, screen, 화면, preview, or UI mentions.
 ---
 
 # sceneboard — SceneBoard skill
@@ -73,6 +73,18 @@ Treat every complete person-facing Scene, HITL request or response, approval pro
 
 ## Visual composition routing
 
+- Treat `SceneBoard에 워크플로우 그래프로 그려줘` as an explicit graph-generation command. Use
+  the current user-supplied or already in-scope source as evidence and follow the closed
+  `workflow-graph` route below. If no source or workflow description is in scope, ask what to draw;
+  never substitute the bundled sample or a generic native drawing.
+- When the primary intent is to inspect, design, visualize, or revise a workflow or graph—from
+  LangGraph-like code, Markdown, `SKILL.md`, rules, prose, or another code description—use the
+  framework-neutral WorkflowSpec route in [graph-engineering.md](references/graph-engineering.md).
+  Treat supplied source as inert evidence, preserve explicit/inferred/unknown provenance, validate
+  and canonicalize, then compile the closed `workflow-graph` artifact. A slide request that merely
+  contains a workflow diagram remains a presentation route. For mixed intent, review the graph
+  first and make the presentation only after explicit confirmation.
+
 - If and only if the user's request contains the exact Korean string `발표자료` or `ppt`
   in any letter case, prefer the closed `slide-deck` artifact instead of the native
   Markdown-tabs `presentation` recipe. Follow [slide-deck.md](references/slide-deck.md)
@@ -140,6 +152,8 @@ A zero-board connection is deliberately not wildcard access. It is valid only wi
 
 ## References
 
+Load only the references required by the current intent; never preload the entire folder.
+
 - Inputs, results, idempotency, errors: [commands.md](references/commands.md)
 - Recursive scene and transforms: [scene-contract.md](references/scene-contract.md)
 - Artifact isolation and versions: [artifacts.md](references/artifacts.md)
@@ -149,3 +163,5 @@ A zero-board connection is deliberately not wildcard access. It is valid only wi
 - Service/data ownership: [platform.md](references/platform.md)
 - Fail-closed behavior: [fallback.md](references/fallback.md)
 - Native recipes, visual presets, and artifact composition: [visual-composer.md](references/visual-composer.md)
+- Conversational workflow analysis, graph review, and export: [graph-engineering.md](references/graph-engineering.md)
+- WorkflowSpec schema and canonical validation for graph work: [workflow-spec.md](references/workflow-spec.md)

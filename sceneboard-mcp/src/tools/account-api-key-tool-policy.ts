@@ -48,6 +48,16 @@ export const ACCOUNT_API_KEY_TOOL_POLICIES_V1 = Object.freeze({
   board_history_restore: toolPolicy(
     operationPlan(['scene.restore'], ['board:write', 'history:read']),
   ),
+  board_artifact_get: toolPolicy(operationPlan(['artifact.get'], ['board:read'])),
+  board_artifact_put: toolPolicy(operationPlan(['artifact.publish'], ['artifact:publish'])),
+  board_artifact_stop: toolPolicy(operationPlan(['artifact.stop'], ['artifact:control'])),
+  board_interaction_request: toolPolicy(operationPlan(['hitl.request'], ['board:hitl:request'])),
+  board_interaction_status: toolPolicy(operationPlan(['hitl.read'], ['board:read'])),
+  board_interaction_respond: toolPolicy(operationPlan(['hitl.respond'], ['board:hitl:respond'])),
+  sceneboard_media_upload: toolPolicy(operationPlan(['media.upload'], ['board:media:write'])),
+  sceneboard_media_place: toolPolicy(
+    operationPlan(['history.get', 'document.replace'], ['history:read', 'board:write']),
+  ),
   board_export: toolPolicy(operationPlan(['export.render'], ['export:read'])),
 } as const);
 

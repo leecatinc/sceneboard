@@ -9,12 +9,14 @@ export function BoardTopBar({
   boardIdentity,
   mediaAuthoring,
   pageNavigation,
+  viewControls,
   revision,
   connections,
 }: {
   boardIdentity: ReactNode;
   mediaAuthoring: ReactNode;
   pageNavigation: ReactNode;
+  viewControls: ReactNode;
   revision: ReactNode;
   connections: ReactNode;
 }) {
@@ -79,7 +81,10 @@ export function BoardTopBar({
           </div>
         )}
       </div>
-      <div className="board-topbar-page-navigation">{pageNavigation}</div>
+      <div className={styles.center}>
+        <div className="board-topbar-page-navigation">{pageNavigation}</div>
+        {viewControls !== null && <div className={styles.viewControls}>{viewControls}</div>}
+      </div>
       <div className="board-topbar-actions">
         <div className="board-topbar-revision">{revision}</div>
         <div className="board-topbar-connections">{connections}</div>

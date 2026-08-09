@@ -22,6 +22,9 @@ coverage/
 # Runtime state and logs
 *.log
 logs/
+.cw/
+.hpipe/
+.claude/
 .artifacts/
 .certification-fixtures/
 test-results/
@@ -43,6 +46,7 @@ screenshots/
 .DS_Store
 .idea/
 .vscode/
+.gitconfig-*
 
 # artifact-runtime build staging
 packages/artifact-runtime/.runtime-build/

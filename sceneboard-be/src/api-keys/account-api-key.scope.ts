@@ -1,6 +1,7 @@
 import {
   ACCOUNT_API_KEY_SCOPES_V1,
   ACCOUNT_API_KEY_SCOPE_BITS_V1,
+  ACCOUNT_API_KEY_SCOPE_MASK_MAX_V1,
   type AccountApiKeyScopeV1,
 } from '@sceneboard/board-schema';
 
@@ -30,7 +31,7 @@ export const accountApiKeyScopeMask = (scopes: readonly AccountApiKeyScopeV1[]):
   scopes.reduce((mask, scope) => mask | ACCOUNT_API_KEY_SCOPE_BITS_V1[scope], 0);
 
 export const accountApiKeyScopesFromMask = (mask: number): readonly AccountApiKeyScopeV1[] => {
-  if (!Number.isSafeInteger(mask) || mask < 1 || mask > 63) {
+  if (!Number.isSafeInteger(mask) || mask < 1 || mask > ACCOUNT_API_KEY_SCOPE_MASK_MAX_V1) {
     throw new AppError('SERVICE_UNAVAILABLE');
   }
   const scopes = ACCOUNT_API_KEY_SCOPES_V1.filter(

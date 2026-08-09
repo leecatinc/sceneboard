@@ -349,6 +349,39 @@ test('API-key board probes carry exact ownership context and reject before opera
   assert.equal(publications, 0);
 });
 
+test('API-key authorized operations reject an authorization operation outside the selected plan', async () => {
+  let fetchCalls = 0;
+  let operationCalls = 0;
+  const client = gateway({
+    credentialMode: 'api_key',
+    tokens: {
+      snapshot: async () => snapshot(apiKey),
+      invalidate: async () => undefined,
+    },
+    fetch: async () => {
+      fetchCalls += 1;
+      throw new Error('must not dispatch');
+    },
+  });
+  const result = await client.withAuthorizedBoardOperation(
+    {
+      boardId: 'board_1',
+      requestId: 'request_1',
+      requiredCapabilities: ['board.write'],
+      apiKeyToolName: 'sceneboard_media_place',
+      apiKeyOperationPlan: ['history.get', 'document.replace'],
+      apiKeyAuthorizationOperation: 'artifact.publish',
+    },
+    async () => {
+      operationCalls += 1;
+      return null;
+    },
+  );
+  assert.deepEqual(result, { authorized: false, reason: 'credential_unavailable' });
+  assert.equal(fetchCalls, 0);
+  assert.equal(operationCalls, 0);
+});
+
 test('export bounds terminal settlement after the owned publication deadline', async () => {
   let snapshots = 0;
   let publications = 0;

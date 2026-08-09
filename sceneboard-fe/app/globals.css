@@ -903,6 +903,13 @@ button:disabled {
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
+.board-view-modes.is-compact {
+  flex-wrap: nowrap;
+}
+.board-view-modes.is-compact button {
+  padding-inline: 7px;
+  white-space: nowrap;
+}
 .history-controls button,
 .scene-tab {
   min-height: 34px;

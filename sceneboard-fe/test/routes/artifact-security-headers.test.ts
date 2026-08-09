@@ -21,4 +21,13 @@ test('Next CSP admits exactly the configured API connection and runtime frame or
   assert.match(policy, /frame-src[^;]*https:\/\/example\.firebaseapp\.com/u);
   assert.doesNotMatch(policy, /frame-src[^;]*\*|frame-src[^;]*blob:|connect-src[^;]*\*/u);
   assert.doesNotMatch(policy, /media-src[^;]*\*/u);
+  assert.doesNotMatch(policy, /'unsafe-eval'/u);
+
+  const developmentPolicy = buildSceneBoardContentSecurityPolicyV1({
+    apiOrigin: 'http://127.0.0.1:3411',
+    runtimeOrigin: 'http://127.0.0.2:3412',
+    mediaOrigin: 'https://media.sceneboard.dev',
+    allowDevelopmentEval: true,
+  });
+  assert.match(developmentPolicy, /script-src[^;]*'unsafe-eval'/u);
 });

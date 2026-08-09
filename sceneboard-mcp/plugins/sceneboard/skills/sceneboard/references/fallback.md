@@ -20,3 +20,12 @@
 | Unknown failure                        | Surface the transport-local internal code with safe incident/request correlation only; no stack/header/config/source/credential.                        |
 
 Pairing errors retain their separate closed codes. `CAPABILITY_DENIED` is not a generic authorization fallback and is valid only for artifact put. Principles: explicit scope, immutable history, bounded retry, mutation idempotency, fail closed, and never fabricate visible output.
+
+The graph route has one narrow lower-capability exception. An exact authenticated
+`board_artifact_put` response with `ok:false` and code `CAPABILITY_DENIED` may authorize one fresh
+compilation and publication only after the same transport proves that a requested capability
+changed from allowed to absent, every other capability field is unchanged, and the scene head is
+still the pre-publication head. Downgrade `export` to `clipboard` if clipboard remains allowed, or
+to `manual` when it does not. Use a byte-distinct draft and new key. Any malformed response, other
+error, policy drift, head drift, still-allowed requested capability, or failed retry stops; it never
+authorizes a native substitute, invented IDs, placement, or copy/download-success claim.

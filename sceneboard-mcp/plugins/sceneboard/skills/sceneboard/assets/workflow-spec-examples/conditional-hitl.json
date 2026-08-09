@@ -1,0 +1,164 @@
+{
+  "schemaVersion": "1.0",
+  "workflow": {
+    "id": "workflow_approval",
+    "title": "Conditional approval",
+    "summary": "Request human approval when required.",
+    "evidence": {
+      "basis": "explicit",
+      "confidence": 1,
+      "sourceRefs": [
+        {
+          "sourceId": "source_approval",
+          "startLine": null,
+          "endLine": null,
+          "locator": "approval.md"
+        }
+      ]
+    }
+  },
+  "sources": [
+    {
+      "id": "source_approval",
+      "kind": "markdown",
+      "label": "Approval workflow",
+      "digest": null
+    }
+  ],
+  "entryNodeIds": ["approval_start"],
+  "exitNodeIds": ["approval_end"],
+  "nodes": [
+    {
+      "id": "approval_start",
+      "kind": "start",
+      "label": "Start",
+      "purpose": null,
+      "instructions": [],
+      "stateInputs": [],
+      "stateOutputs": [],
+      "tools": [],
+      "skills": [],
+      "retryPolicy": null,
+      "errorPolicy": null,
+      "subflowId": null,
+      "control": null,
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+    },
+    {
+      "id": "approval_route",
+      "kind": "decision",
+      "label": "Needs approval?",
+      "purpose": null,
+      "instructions": [],
+      "stateInputs": [],
+      "stateOutputs": [],
+      "tools": [],
+      "skills": [],
+      "retryPolicy": null,
+      "errorPolicy": null,
+      "subflowId": null,
+      "control": null,
+      "evidence": { "basis": "inferred", "confidence": 0.7, "sourceRefs": [] }
+    },
+    {
+      "id": "approval_human",
+      "kind": "human",
+      "label": "Human approval",
+      "purpose": "Approve or reject the result.",
+      "instructions": [],
+      "stateInputs": [],
+      "stateOutputs": [],
+      "tools": [],
+      "skills": [],
+      "retryPolicy": null,
+      "errorPolicy": null,
+      "subflowId": null,
+      "control": { "interaction": "confirmation", "blocking": true },
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+    },
+    {
+      "id": "approval_end",
+      "kind": "end",
+      "label": "Complete",
+      "purpose": null,
+      "instructions": [],
+      "stateInputs": [],
+      "stateOutputs": [],
+      "tools": [],
+      "skills": [],
+      "retryPolicy": null,
+      "errorPolicy": null,
+      "subflowId": null,
+      "control": null,
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+    }
+  ],
+  "edges": [
+    {
+      "id": "approval_edge_start",
+      "kind": "normal",
+      "fromNodeId": "approval_start",
+      "toNodeId": "approval_route",
+      "label": null,
+      "condition": null,
+      "priority": null,
+      "stateKeys": [],
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+    },
+    {
+      "id": "approval_edge_human",
+      "kind": "conditional",
+      "fromNodeId": "approval_route",
+      "toNodeId": "approval_human",
+      "label": "yes",
+      "condition": { "text": "approval is required", "language": "natural" },
+      "priority": 1,
+      "stateKeys": [],
+      "evidence": { "basis": "inferred", "confidence": 0.7, "sourceRefs": [] }
+    },
+    {
+      "id": "approval_edge_direct",
+      "kind": "conditional",
+      "fromNodeId": "approval_route",
+      "toNodeId": "approval_end",
+      "label": "no",
+      "condition": {
+        "text": "approval is not required",
+        "language": "natural"
+      },
+      "priority": 2,
+      "stateKeys": [],
+      "evidence": { "basis": "inferred", "confidence": 0.7, "sourceRefs": [] }
+    },
+    {
+      "id": "approval_edge_complete",
+      "kind": "human",
+      "fromNodeId": "approval_human",
+      "toNodeId": "approval_end",
+      "label": null,
+      "condition": null,
+      "priority": null,
+      "stateKeys": [],
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+    }
+  ],
+  "subflows": [],
+  "unresolvedQuestions": [
+    {
+      "id": "question_condition",
+      "prompt": "Which results require approval?",
+      "relatedElements": [{ "kind": "node", "id": "approval_route" }],
+      "evidence": { "basis": "unknown", "confidence": 0, "sourceRefs": [] }
+    }
+  ],
+  "warnings": [
+    {
+      "id": "warning_condition",
+      "code": "UNCERTAIN_ROUTE",
+      "elementType": "node",
+      "elementId": "approval_route",
+      "message": "The approval condition needs confirmation.",
+      "evidence": { "basis": "inferred", "confidence": 0.7, "sourceRefs": [] }
+    }
+  ]
+}

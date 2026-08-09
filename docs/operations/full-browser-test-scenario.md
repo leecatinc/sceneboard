@@ -106,16 +106,20 @@ each run.
 
 ## 6. Phase A — Public pages and localization
 
-| ID     | Action                                                       | Expected result                                                    |
-| ------ | ------------------------------------------------------------ | ------------------------------------------------------------------ |
-| PUB-01 | Open `/` while signed out                                    | Safely redirects to login or the board list                        |
-| PUB-02 | Open `/login`, `/signup`, and `/integrations/codex` directly | Each returns 200 with no broken bundle request                     |
-| PUB-03 | Open a fresh context whose browser language is Korean        | Korean is selected when no preference is stored                    |
-| PUB-04 | Select all ten supported locales                             | Primary navigation and forms change to the selected locale         |
-| PUB-05 | Select Korean, reload, and open a new tab                    | Stored language overrides browser language                         |
-| PUB-06 | Remove stored language and test regional locale tags         | `pt-BR`, `zh-CN`, and `zh-TW` map to the correct supported locale  |
-| PUB-07 | Use the Codex install-page copy button and ZIP link          | Copy state appears; ZIP is HTTP 200 and nonempty                   |
-| PUB-08 | Inspect installation ZIP contents                            | Plugin manifest, MCP launcher, skill, API fallback, and demo exist |
+| ID     | Action                                                       | Expected result                                                      |
+| ------ | ------------------------------------------------------------ | -------------------------------------------------------------------- |
+| PUB-01 | Open `/` while signed out                                    | Public landing renders without authentication or broken requests     |
+| PUB-02 | Open `/login`, `/signup`, and `/integrations/codex` directly | Each returns 200 with no broken bundle request                       |
+| PUB-03 | Open a fresh context whose browser language is Korean        | Korean is selected when no preference is stored                      |
+| PUB-04 | Select all ten supported locales                             | Primary navigation and forms change to the selected locale           |
+| PUB-05 | Select Korean, reload, and open a new tab                    | Stored language overrides browser language                           |
+| PUB-06 | Remove stored language and test regional locale tags         | `pt-BR`, `zh-CN`, and `zh-TW` map to the correct supported locale    |
+| PUB-07 | Use the Codex install-page copy button and ZIP link          | Copy state appears; ZIP is HTTP 200 and nonempty                     |
+| PUB-08 | Inspect installation ZIP contents                            | Plugin manifest, MCP launcher, skill, API fallback, and demo exist   |
+| PUB-09 | Operate every landing workflow node and edge by keyboard     | Details dialog opens, traps focus, closes, and restores the opener   |
+| PUB-10 | Select the landing workflow JSON                             | Full canonical JSON is selected without clipboard authority          |
+| PUB-11 | Repeat landing checks at 320x568 and 568x320                 | Header, graph controls, labels, JSON, and terminal CTA remain usable |
+| PUB-12 | Enable reduced motion on the landing                         | Graph motion is disabled while every control remains operable        |
 
 ## 7. Phase B — Signup, email verification, and login
 
@@ -152,6 +156,25 @@ verified QA account.
 
 When routine regression does not change a password, record `SET-07` and
 `SET-08` explicitly as `NOT RUN — destructive account test`.
+
+### 8.1 Account API-key lifecycle
+
+API keys are separate from paired client credentials. Create only
+attempt-owned keys, never record their raw value in evidence, and revoke them
+during cleanup.
+
+| ID     | Action                                                        | Expected result                                                        |
+| ------ | ------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| KEY-01 | Open API-key management while loading, empty, and failed      | Distinct progress, empty, retryable error, and terminal error states   |
+| KEY-02 | Open Create key at 1440x900 and 320x568                       | All 11 canonical scopes render; only `board:read` is selected          |
+| KEY-03 | Deselect all scopes with pointer and keyboard                 | Submit stays disabled and no empty-scope request is sent               |
+| KEY-04 | Select all scopes                                             | Canonical ordering is preserved in the submitted payload               |
+| KEY-05 | Create a minimally scoped key                                 | Secret dialog opens once, receives focus, and supports safe copy       |
+| KEY-06 | Close the one-time secret dialog and reopen the existing row  | Raw key never reappears in DOM, storage, URL, console, or network logs |
+| KEY-07 | Use a key with one allowed and one omitted neighboring action | Allowed action succeeds; omitted action is forbidden with no mutation  |
+| KEY-08 | Exercise newly added publish, control, HITL, and media scopes | UI selection and server authorization remain exactly aligned           |
+| KEY-09 | Revoke only the attempt-owned key                             | Key becomes unusable; other keys and paired clients remain unchanged   |
+| KEY-10 | Use long names and keyboard-only operation at 320x568         | No horizontal clipping; controls are reachable and at least 44px high  |
 
 ## 9. Phase D — AI connection codes and pairing
 
@@ -292,18 +315,18 @@ inline-card rendering.
 
 ## 16. Phase K — Responsive, accessible, resilient browser behavior
 
-| ID    | Action                                 | Expected result                                              |
-| ----- | -------------------------------------- | ------------------------------------------------------------ |
-| UX-01 | Run at 1440x900, 1180x900, and 760x900 | Core features accessible; modals remain in viewport          |
-| UX-02 | Set browser zoom to 200%               | Reflow or internal scroll without feature loss               |
-| UX-03 | Navigate by keyboard only              | Visible focus, logical order, modal focus trap/restore       |
-| UX-04 | Enable `prefers-reduced-motion`        | Meaning remains while decorative motion decreases            |
-| UX-05 | Enable forced colors                   | Text, controls, and selected state remain distinguishable    |
-| UX-06 | Use long email and board title         | Top bar/card overflow does not break layout                  |
-| UX-07 | Use modal Escape and close controls    | Save/cancel semantics remain distinct from code cancellation |
-| UX-08 | Simulate a slow network                | Loading state visible; no duplicate mutation                 |
-| UX-09 | Go offline, then online                | Safe retry and session/SSE recovery                          |
-| UX-10 | Force reload with a stale Next chunk   | Current assets load without MIME error                       |
+| ID    | Action                                                   | Expected result                                              |
+| ----- | -------------------------------------------------------- | ------------------------------------------------------------ |
+| UX-01 | Run at 1440x900, 1180x900, 760x900, 320x568, and 568x320 | Core features accessible; modals remain in viewport          |
+| UX-02 | Set browser zoom to 200%                                 | Reflow or internal scroll without feature loss               |
+| UX-03 | Navigate by keyboard only                                | Visible focus, logical order, modal focus trap/restore       |
+| UX-04 | Enable `prefers-reduced-motion`                          | Meaning remains while decorative motion decreases            |
+| UX-05 | Enable forced colors                                     | Text, controls, and selected state remain distinguishable    |
+| UX-06 | Use long email and board title                           | Top bar/card overflow does not break layout                  |
+| UX-07 | Use modal Escape and close controls                      | Save/cancel semantics remain distinct from code cancellation |
+| UX-08 | Simulate a slow network                                  | Loading state visible; no duplicate mutation                 |
+| UX-09 | Go offline, then online                                  | Safe retry and session/SSE recovery                          |
+| UX-10 | Force reload with a stale Next chunk                     | Current assets load without MIME error                       |
 
 ## 17. Phase L — Error contracts and security regression
 
@@ -359,6 +382,32 @@ browser-full/
   10-errors-security
   11-cleanup
 ```
+
+The repository owns three distinct evidence classes and must report them
+separately:
+
+| Evidence class                 | Command / location                             | Gate rule                                                         |
+| ------------------------------ | ---------------------------------------------- | ----------------------------------------------------------------- |
+| Self-contained Chromium        | `npm run test:browser:c10` / `e2e/*.test.mjs`  | Runs in `npm run check`; zero skips and zero browser errors       |
+| Live disposable-environment UI | `npm run test:browser:live` / `test/browser/*` | Requires both fixture URLs and fails closed when either is absent |
+| Contract/certification         | `npm run test:certification` / `test/e2e/*`    | May prove API/runtime contracts but is not counted as UI evidence |
+
+Files that only inspect source text remain useful as static contract tests,
+but they must not be counted as browser E2E coverage or used as the sole
+evidence for focus, layout, rendering, or user interaction.
+
+### 19.1 Current browser automation coverage and open gates
+
+| Journey                                        | Current executable evidence                                      | Status / remaining requirement                                       |
+| ---------------------------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Public landing graph and workflow JSON         | `e2e/landing-graph-engineering.test.mjs`                         | Automated at desktop, portrait, landscape, keyboard, CSP, and motion |
+| API-key create-sheet scope selection           | `e2e/api-key-create-sheet-browser.test.mjs`                      | Automated component seam; live create/use/reload/revoke remains      |
+| Artifact host capability and clipboard         | `e2e/artifact-host-behavior.test.mjs`, clipboard/authority tests | Automated host seam; real board hydration/revocation remains         |
+| Workflow artifact rendering                    | `e2e/workflow-graph-artifact.test.mjs`                           | Automated generated runtime; real board composition remains          |
+| Board page/mobile/presentation/public artifact | `test/browser/*.spec.ts`                                         | Live-fixture suite; release environment must supply isolated URLs    |
+| Pairing to exact board plus live update        | API certification and manual scenario only                       | Open P0 browser journey                                              |
+| History, reconnect, HITL, error recovery       | Contract tests and manual scenario only                          | Open P1 integrated browser journey                                   |
+| Shared password viewer and token canary        | Static/API contracts plus live public-artifact spec              | Open P1 wrong-password to pinned-revision browser journey            |
 
 Each suite records the following JSON:
 

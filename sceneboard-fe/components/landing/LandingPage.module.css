@@ -1122,6 +1122,16 @@
   }
 }
 
+@media (max-width: 360px) {
+  .brand span {
+    display: none;
+  }
+
+  .languageControl select {
+    width: 76px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .page *,
   .page *::before,

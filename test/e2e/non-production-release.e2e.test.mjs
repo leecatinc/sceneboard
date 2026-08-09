@@ -5,6 +5,7 @@ import { deflateSync } from 'node:zlib';
 import {
   chmod,
   link,
+  lstat,
   mkdir,
   mkdtemp,
   readFile,
@@ -871,12 +872,19 @@ test('auth topology inputs are bounded canonical closed files bound to the curre
       ARTIFACT_RUNTIME_ORIGIN: 'http://127.0.0.2:3412',
     },
   };
+  const sealInputs = async () => {
+    for (const path of Object.values(paths)) await chmod(path, 0o600);
+    for (const path of Object.values(paths)) {
+      const metadata = await lstat(path);
+      assert.equal(metadata.mode & 0o077, 0, `${path} must remain private before verification`);
+    }
+  };
   await Promise.all(
     Object.entries(paths).map(([key, path]) =>
       writeFile(path, `${canonicalJson(values[key])}\n`, { mode: 0o600 }),
     ),
   );
-  await Promise.all(Object.values(paths).map((path) => chmod(path, 0o600)));
+  await sealInputs();
   const identity = {
     sourceCommit: 'a'.repeat(40),
     manifestSha256: 'b'.repeat(64),
@@ -892,7 +900,7 @@ test('auth topology inputs are bounded canonical closed files bound to the curre
     `${canonicalJson({ ...values.frontendPath, UNKNOWN_INPUT: 'rejected' })}\n`,
     { mode: 0o600 },
   );
-  await Promise.all(Object.values(paths).map((path) => chmod(path, 0o600)));
+  await sealInputs();
   await assert.rejects(
     () => verifyAuthOriginTopology({ ...paths, identity }),
     /exact canonical schema/u,

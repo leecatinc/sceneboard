@@ -249,7 +249,7 @@ const executeMcpProductionBoundary = async (row, fixture) => {
 
 await registerAuthenticatedBoundaryRows({
   producerId: 'sceneboard.security.mcp-registry.v1',
-  expectedCounts: { MCP: 123, MCP_ACCOUNT_API_KEY: 89 },
+  expectedCounts: { MCP: 123, MCP_ACCOUNT_API_KEY: 121 },
   adapter: executeMcpBoundary,
   executeBoundary: executeMcpProductionBoundary,
 });

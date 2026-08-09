@@ -184,6 +184,7 @@ let disposed = false;
 let navigationEnabled = false;
 let presentationSelectionDisabled = false;
 let presentationActive = false;
+let trustedUserActionTurn = 0;
 let activePointer: { id: number; x: number; y: number } | null = null;
 let lastExplicitResize: Readonly<{
   width: number;
@@ -366,10 +367,28 @@ const scheduleResponsiveFixedCanvasRasterScale = (): void => {
   ]) as number;
 };
 
+const admitTrustedUserActionTurn = (event: Event): void => {
+  if (!event.isTrusted) return;
+  trustedUserActionTurn += 1;
+  const admittedTurn = trustedUserActionTurn;
+  nativeReflectApply(nativeSetTimeout, nativeGlobalThis, [
+    () => {
+      if (trustedUserActionTurn === admittedTurn) trustedUserActionTurn = 0;
+    },
+    0,
+  ]);
+};
+
 nativeReflectApply(nativeEventTargetAddEventListener, window, [
   'resize',
   scheduleResponsiveFixedCanvasRasterScale,
 ]);
+for (const eventType of ['click', 'keydown'])
+  nativeReflectApply(nativeEventTargetAddEventListener, window, [
+    eventType,
+    admitTrustedUserActionTurn,
+    { capture: true },
+  ]);
 
 window.addEventListener(
   'selectstart',
@@ -544,6 +563,13 @@ const dispose = (): void => {
     'resize',
     scheduleResponsiveFixedCanvasRasterScale,
   ]);
+  for (const eventType of ['click', 'keydown'])
+    nativeReflectApply(nativeEventTargetRemoveEventListener, window, [
+      eventType,
+      admitTrustedUserActionTurn,
+      { capture: true },
+    ]);
+  trustedUserActionTurn = 0;
   navigation.dispose();
   activePointer = null;
   hostListeners.clear();
@@ -594,6 +620,8 @@ window.SceneBoardArtifact = Object.freeze({
     send({ type: 'artifact.selection.change', value: { nodeIds } });
   },
   userAction(requestId: string, capability: 'clipboard.write' | 'download' | 'fullscreen'): void {
+    if (trustedUserActionTurn === 0) return;
+    trustedUserActionTurn = 0;
     send({ type: 'artifact.user-action', requestId, capability });
   },
   requestCapability(

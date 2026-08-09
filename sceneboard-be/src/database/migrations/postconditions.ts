@@ -548,6 +548,10 @@ export const assessAccountApiKeyPostcondition = (
     chk_account_api_key_terminal:
       '(status = 1 AND revoked_at IS NULL) OR (status = 2 AND revoked_at IS NOT NULL)',
   };
+  const acceptedScopeCapacityChecks = new Set([
+    canonicalCheck('scope_mask BETWEEN 1 AND 63'),
+    canonicalCheck('scope_mask BETWEEN 1 AND 2047'),
+  ]);
   const requiredChecks = Object.keys(expectedChecks);
   if (
     actualChecks.size !== requiredChecks.length ||
@@ -556,6 +560,12 @@ export const assessAccountApiKeyPostcondition = (
     throw new Error('account API-key check projection mismatch');
   }
   for (const [name, expectedClause] of Object.entries(expectedChecks)) {
+    if (
+      name === 'chk_account_api_key_scope_mask' &&
+      acceptedScopeCapacityChecks.has(actualChecks.get(name) ?? '')
+    ) {
+      continue;
+    }
     if (actualChecks.get(name) !== canonicalCheck(expectedClause)) {
       throw new Error(`account API-key check clause mismatch: ${name}`);
     }
@@ -620,6 +630,28 @@ export const verifyAccountApiKeyPostcondition = async (
      ORDER BY tc.constraint_name`,
   );
   assessAccountApiKeyPostcondition(columns, indexes, foreignKeys, checks);
+};
+
+export const verifyAccountApiKeyScopeCapacityPostcondition = async (
+  connection: PoolConnection,
+): Promise<void> => {
+  const [checks] = await connection.query<AccountApiKeyCheckProjection[]>(
+    `SELECT cc.check_clause AS checkClause
+     FROM information_schema.table_constraints tc
+     JOIN information_schema.check_constraints cc
+       ON cc.constraint_schema = tc.constraint_schema
+      AND cc.constraint_name = tc.constraint_name
+     WHERE tc.table_schema = DATABASE()
+       AND tc.table_name = 'account_api_keys'
+       AND tc.constraint_name = 'chk_account_api_key_scope_mask'
+       AND tc.constraint_type = 'CHECK'`,
+  );
+  if (
+    checks.length !== 1 ||
+    canonicalCheck(checks[0]?.checkClause ?? '') !== canonicalCheck('scope_mask BETWEEN 1 AND 2047')
+  ) {
+    throw new Error('account API-key scope capacity mismatch');
+  }
 };
 
 export const assessDocumentV3CheckpointPostcondition = (

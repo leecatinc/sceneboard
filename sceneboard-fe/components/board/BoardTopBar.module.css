@@ -3,6 +3,18 @@
   min-width: 0;
 }
 
+.center {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.viewControls {
+  min-width: 0;
+}
+
 .mediaTrigger {
   min-height: 36px;
   padding: 7px 12px;

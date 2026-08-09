@@ -16,6 +16,13 @@ export const ACCOUNT_API_KEY_BOARD_OPERATIONS_V1 = [
   'document.replace',
   'history.list',
   'history.get',
+  'hitl.request',
+  'hitl.respond',
+  'hitl.read',
+  'artifact.get',
+  'artifact.publish',
+  'artifact.stop',
+  'media.upload',
   'export.render',
 ] as const satisfies readonly (BoardAccessOperationV1 | 'connection.get')[];
 
@@ -35,6 +42,13 @@ const REQUIRED_SCOPES = {
   'document.replace': ['board:write'],
   'history.list': ['history:read'],
   'history.get': ['history:read'],
+  'hitl.request': ['board:hitl:request'],
+  'hitl.respond': ['board:hitl:respond'],
+  'hitl.read': ['board:read'],
+  'artifact.get': ['board:read'],
+  'artifact.publish': ['artifact:publish'],
+  'artifact.stop': ['artifact:control'],
+  'media.upload': ['board:media:write'],
   'export.render': ['export:read'],
 } as const satisfies Readonly<
   Record<AccountApiKeyBoardOperationV1, readonly AccountApiKeyScopeV1[]>
@@ -94,6 +108,16 @@ export const ACCOUNT_API_KEY_TOOL_POLICIES_V1 = Object.freeze({
   board_history_get: toolPolicy(operationPlan(['history.get'], ['history:read'])),
   board_history_restore: toolPolicy(
     operationPlan(['scene.restore'], ['board:write', 'history:read']),
+  ),
+  board_artifact_get: toolPolicy(operationPlan(['artifact.get'], ['board:read'])),
+  board_artifact_put: toolPolicy(operationPlan(['artifact.publish'], ['artifact:publish'])),
+  board_artifact_stop: toolPolicy(operationPlan(['artifact.stop'], ['artifact:control'])),
+  board_interaction_request: toolPolicy(operationPlan(['hitl.request'], ['board:hitl:request'])),
+  board_interaction_status: toolPolicy(operationPlan(['hitl.read'], ['board:read'])),
+  board_interaction_respond: toolPolicy(operationPlan(['hitl.respond'], ['board:hitl:respond'])),
+  sceneboard_media_upload: toolPolicy(operationPlan(['media.upload'], ['board:media:write'])),
+  sceneboard_media_place: toolPolicy(
+    operationPlan(['history.get', 'document.replace'], ['history:read', 'board:write']),
   ),
   board_export: toolPolicy(operationPlan(['export.render'], ['export:read'])),
 } as const);

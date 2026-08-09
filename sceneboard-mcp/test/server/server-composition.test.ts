@@ -547,8 +547,8 @@ test('API-key composition exposes owner tools and normalizes invalid rename time
     }
     const names = (await client.listTools()).tools.map((tool) => tool.name);
     assert.equal(names.includes('board_pair_request'), false);
-    assert.equal(names.includes('sceneboard_media_place'), false);
-    assert.equal(names.includes('board_artifact_put'), false);
+    assert.equal(names.includes('sceneboard_media_place'), true);
+    assert.equal(names.includes('board_artifact_put'), true);
   } finally {
     await client.close();
     await runtime.close();

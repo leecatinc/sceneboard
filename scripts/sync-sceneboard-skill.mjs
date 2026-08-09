@@ -1,3 +1,4 @@
+import { spawn } from 'node:child_process';
 import {
   chmod,
   cp,
@@ -18,7 +19,12 @@ import { fileURLToPath } from 'node:url';
 import { containsSecretLikeMaterial } from './lib/certification/canonical-json.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+const workspaceRoot = resolve(root, '..');
+const canonicalSkillRoot = resolve(workspaceRoot, 'skills/sceneboard');
 const pluginRoot = resolve(root, 'sceneboard-mcp/plugins/sceneboard');
+const pluginReleaseStore = resolve(pluginRoot, '.sceneboard-releases');
+const pluginReleasePointer = resolve(pluginRoot, '.sceneboard-current');
+const pluginReleaseNamePattern = /^generation-[A-Za-z0-9-]+$/u;
 const archivePath = resolve(root, 'sceneboard-fe/public/downloads/sceneboard.zip');
 const pluginArchivePath = resolve(
   root,
@@ -67,19 +73,35 @@ const crcTable = Array.from({ length: 256 }, (_, index) => {
   return value >>> 0;
 });
 
+const setExactMode = async (path, mode) => {
+  const clearAcl = spawn('/usr/bin/setfacl', ['-b', path], { stdio: 'ignore' });
+  await new Promise((resolveExit) => {
+    clearAcl.once('error', () => resolveExit(null));
+    clearAcl.once('exit', resolveExit);
+  });
+  await chmod(path, mode);
+};
+
 const crc32 = (bytes) => {
   let value = 0xffffffff;
   for (const byte of bytes) value = crcTable[(value ^ byte) & 0xff] ^ (value >>> 8);
   return (value ^ 0xffffffff) >>> 0;
 };
 
-const collectFiles = async (directory) => {
+const isReleaseStatePath = (path) => {
+  const topLevelName = path.split('/')[0];
+  return releaseStateNames.has(topLevelName) || topLevelName.startsWith('.sceneboard-current-');
+};
+
+const collectFiles = async (directory, root = directory, skipReleaseState = false) => {
   const entries = await readdir(directory, { withFileTypes: true });
   const files = [];
   for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
     const absolute = join(directory, entry.name);
+    const path = relative(root, absolute).split(sep).join('/');
+    if (skipReleaseState && isReleaseStatePath(path)) continue;
     if (entry.isSymbolicLink()) throw new Error(`skill symlinks are not allowed: ${absolute}`);
-    if (entry.isDirectory()) files.push(...(await collectFiles(absolute)));
+    if (entry.isDirectory()) files.push(...(await collectFiles(absolute, root, skipReleaseState)));
     else if (entry.isFile()) files.push(absolute);
     else throw new Error(`unsupported skill entry: ${absolute}`);
   }
@@ -96,28 +118,15 @@ const archiveMode = (plugin, path) => {
 
 const skillEntries = async (directory, plugin = false) =>
   Promise.all(
-    (await collectFiles(directory))
-      .filter(
-        (absolute) =>
-          !plugin ||
-          !['.sceneboard-activated', '.sceneboard-publishing', '.sceneboard-retired'].includes(
-            relative(directory, absolute),
-          ),
-      )
-      .map(async (absolute) => {
-        const path = relative(directory, absolute).split(sep).join('/');
-        return {
-          path,
-          bytes: await readFile(absolute),
-          mode: archiveMode(plugin, path),
-        };
-      }),
+    (await collectFiles(directory, directory, plugin)).map(async (absolute) => {
+      const path = relative(directory, absolute).split(sep).join('/');
+      return {
+        path,
+        bytes: await readFile(absolute),
+        mode: archiveMode(plugin, path),
+      };
+    }),
   );
-
-const isReleaseStatePath = (path) => {
-  const topLevelName = path.split('/')[0];
-  return releaseStateNames.has(topLevelName) || topLevelName.startsWith('.sceneboard-current-');
-};
 
 const collectInventoryTypes = async (directory) => {
   const inventory = new Map();
@@ -158,8 +167,24 @@ const assertCompletePluginInventory = async (releaseRoot) => {
 };
 
 const pluginArchiveRoot = async () => {
-  await assertCompletePluginInventory(pluginRoot);
-  return { root: pluginRoot, release: async () => undefined };
+  const pointer = await readFile(pluginReleasePointer, 'utf8').catch((error) => {
+    if (error?.code === 'ENOENT') return null;
+    throw error;
+  });
+  const releaseName = pointer?.trim() ?? null;
+  if (
+    releaseName !== null &&
+    (!pluginReleaseNamePattern.test(releaseName) || pointer !== `${releaseName}\n`)
+  ) {
+    throw new Error('plugin release pointer is invalid');
+  }
+  const activeRoot = releaseName === null ? pluginRoot : resolve(pluginReleaseStore, releaseName);
+  const activeStatus = await lstat(activeRoot);
+  if (!activeStatus.isDirectory() || activeStatus.isSymbolicLink()) {
+    throw new Error('active plugin release is invalid');
+  }
+  await assertCompletePluginInventory(activeRoot);
+  return { root: activeRoot, release: async () => undefined };
 };
 
 const pathStatus = (path) =>
@@ -275,8 +300,8 @@ const publishArchivePair = async (archive, pluginArchive) => {
       ]);
       await Promise.all([
         chmod(stagingPath, downloadsStatus === null ? 0o755 : downloadsStatus.mode & 0o777),
-        chmod(stagedArchivePath, 0o644),
-        chmod(stagedPluginArchivePath, 0o644),
+        setExactMode(stagedArchivePath, 0o644),
+        setExactMode(stagedPluginArchivePath, 0o644),
       ]);
       const [stagedArchive, stagedPluginArchive] = await Promise.all([
         readFile(stagedArchivePath),
@@ -296,7 +321,11 @@ const publishArchivePair = async (archive, pluginArchive) => {
         stagedPluginArchiveStatus.isSymbolicLink() ||
         (stagedPluginArchiveStatus.mode & 0o777) !== 0o644
       ) {
-        throw new Error('staged download archive type or mode is invalid');
+        throw new Error(
+          `staged download archive type or mode is invalid: ${(
+            stagedArchiveStatus.mode & 0o777
+          ).toString(8)}/${(stagedPluginArchiveStatus.mode & 0o777).toString(8)}`,
+        );
       }
       if (process.env.SCENEBOARD_ARCHIVE_PUBLISH_TEST_FAULT === 'before-publication')
         throw new Error('download publication interrupted');
@@ -394,7 +423,7 @@ const zipArchive = (entries, prefix) => {
 
 const activePlugin = await pluginArchiveRoot();
 try {
-  const canonicalRoot = resolve(activePlugin.root, 'skills/sceneboard');
+  const canonicalRoot = canonicalSkillRoot;
   const canonical = await skillEntries(canonicalRoot);
   assertSafeFiles(canonical, 'SKILL.md');
   const plugin = await skillEntries(activePlugin.root, true);

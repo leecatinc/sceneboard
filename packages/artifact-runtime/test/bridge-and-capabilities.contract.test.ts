@@ -224,3 +224,100 @@ test('capabilities are the default-denied policy intersection', () => {
     { ok: true, capability: 'fullscreen' },
   );
 });
+
+test('clipboard capability results expose only byte length or a closed error code', () => {
+  const sender = new ArtifactBridgeEndpointV1({ channelId: ID, sessionId: ID, artifact });
+  assert.deepEqual(
+    sender.send({
+      type: 'host.capability.result',
+      requestId: ID,
+      capability: 'clipboard.write',
+      ok: true,
+      result: { byteLength: 11 },
+    }).message,
+    {
+      type: 'host.capability.result',
+      requestId: ID,
+      capability: 'clipboard.write',
+      ok: true,
+      result: { byteLength: 11 },
+    },
+  );
+  for (const message of [
+    {
+      type: 'host.capability.result',
+      requestId: ID,
+      capability: 'clipboard.write',
+      ok: true,
+      result: { byteLength: 11, text: 'must-not-cross' },
+    },
+    {
+      type: 'host.capability.result',
+      requestId: ID,
+      capability: 'clipboard.write',
+      ok: false,
+      error: 'private-browser-error',
+    },
+    {
+      type: 'host.capability.result',
+      requestId: ID,
+      capability: 'clipboard.write',
+      ok: false,
+      error: 'unavailable',
+      result: { byteLength: 0 },
+    },
+  ])
+    assert.throws(() => sender.send(message as never), /capability result/u);
+});
+
+test('capability result byte limits preserve each existing capability contract', () => {
+  const sender = new ArtifactBridgeEndpointV1({ channelId: ID, sessionId: ID, artifact });
+  assert.doesNotThrow(() =>
+    sender.send(
+      {
+        type: 'host.capability.result',
+        requestId: ID,
+        capability: 'network.fetch',
+        ok: true,
+        result: { byteLength: 1_048_576 },
+      },
+      { messagePorts: 0, arrayBufferBytes: [1_048_576] },
+    ),
+  );
+  assert.throws(
+    () =>
+      sender.send(
+        {
+          type: 'host.capability.result',
+          requestId: ID,
+          capability: 'network.fetch',
+          ok: true,
+          result: { byteLength: 1_048_577 },
+        },
+        { messagePorts: 0, arrayBufferBytes: [1_048_577] },
+      ),
+    /capability result byte length/u,
+  );
+  assert.throws(
+    () =>
+      sender.send({
+        type: 'host.capability.result',
+        requestId: ID,
+        capability: 'clipboard.write',
+        ok: true,
+        result: { byteLength: 49_153 },
+      }),
+    /capability result byte length/u,
+  );
+  assert.throws(
+    () =>
+      sender.send({
+        type: 'host.capability.result',
+        requestId: ID,
+        capability: 'fullscreen',
+        ok: true,
+        result: { byteLength: 1 },
+      }),
+    /capability result byte length/u,
+  );
+});

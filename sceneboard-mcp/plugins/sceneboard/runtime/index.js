@@ -25646,21 +25646,34 @@ var CLIENT_GRANT_CAPABILITIES_V1 = [
   "board.write"
 ];
 var ACCOUNT_API_KEY_SCOPES_V1 = [
+  "artifact:control",
+  "artifact:publish",
   "board:archive",
   "board:create",
+  "board:hitl:request",
+  "board:hitl:respond",
+  "board:media:write",
   "board:read",
   "board:write",
   "export:read",
   "history:read"
 ];
 var ACCOUNT_API_KEY_SCOPE_BITS_V1 = {
+  "artifact:control": 1 << 6,
+  "artifact:publish": 1 << 7,
   "board:archive": 1 << 0,
   "board:create": 1 << 1,
+  "board:hitl:request": 1 << 8,
+  "board:hitl:respond": 1 << 9,
+  "board:media:write": 1 << 10,
   "board:read": 1 << 2,
   "board:write": 1 << 3,
   "export:read": 1 << 4,
   "history:read": 1 << 5
 };
+var ACCOUNT_API_KEY_SCOPE_MASK_MAX_V1 = Object.values(
+  ACCOUNT_API_KEY_SCOPE_BITS_V1
+).reduce((mask, bit) => mask | bit, 0);
 var CLIENT_GRANT_SCOPE_ORDER_V1 = [
   "board.read",
   "board.write",
@@ -28039,8 +28052,22 @@ var BOARD_OPERATION_AUTHORIZATION_MATRIX_V1 = Object.freeze([
     "I-27",
     "all"
   ),
-  policy("artifact.get", ["browser", "mcp"], ["board.read"], allRoles, "I-27", "current_head"),
-  policy("hitl.read", ["browser", "mcp"], ["board.read"], allRoles, "I-27", "current_head"),
+  policy(
+    "artifact.get",
+    ["browser", "mcp", "account_api_key"],
+    ["board.read"],
+    allRoles,
+    "I-27",
+    "current_head"
+  ),
+  policy(
+    "hitl.read",
+    ["browser", "mcp", "account_api_key"],
+    ["board.read"],
+    allRoles,
+    "I-27",
+    "current_head"
+  ),
   policy(
     "history.list",
     ["browser", "mcp", "account_api_key"],
@@ -28084,10 +28111,34 @@ var BOARD_OPERATION_AUTHORIZATION_MATRIX_V1 = Object.freeze([
     editors,
     "I-27"
   ),
-  policy("hitl.request", ["browser", "mcp"], ["board.hitl.request"], editors, "I-27"),
-  policy("hitl.respond", ["browser", "mcp"], ["board.hitl.respond"], editors, "I-27"),
-  policy("artifact.publish", ["browser", "mcp"], ["artifact.publish"], editors, "I-27"),
-  policy("artifact.stop", ["browser", "mcp"], ["artifact.control"], editors, "I-27"),
+  policy(
+    "hitl.request",
+    ["browser", "mcp", "account_api_key"],
+    ["board.hitl.request"],
+    editors,
+    "I-27"
+  ),
+  policy(
+    "hitl.respond",
+    ["browser", "mcp", "account_api_key"],
+    ["board.hitl.respond"],
+    editors,
+    "I-27"
+  ),
+  policy(
+    "artifact.publish",
+    ["browser", "mcp", "account_api_key"],
+    ["artifact.publish"],
+    editors,
+    "I-27"
+  ),
+  policy(
+    "artifact.stop",
+    ["browser", "mcp", "account_api_key"],
+    ["artifact.control"],
+    editors,
+    "I-27"
+  ),
   policy("connection.create", ["browser"], ["connection.manage.own"], editors, "existing"),
   policy("connection.update", ["browser"], ["connection.manage.own"], editors, "existing"),
   policy("connection.revoke", ["browser"], ["connection.manage.own"], editors, "existing"),
@@ -28106,7 +28157,13 @@ var BOARD_OPERATION_AUTHORIZATION_MATRIX_V1 = Object.freeze([
   policy("share.password.enable", ["browser"], ["board.share.manage"], owners, "I-30"),
   policy("share.password.regenerate", ["browser"], ["board.share.manage"], owners, "I-30"),
   policy("share.password.disable", ["browser"], ["board.share.manage"], owners, "I-30"),
-  policy("media.upload", ["browser", "mcp"], ["board.media.write"], editors, "I-36/I-40"),
+  policy(
+    "media.upload",
+    ["browser", "mcp", "account_api_key"],
+    ["board.media.write"],
+    editors,
+    "I-36/I-40"
+  ),
   policy("analytics.report.get", ["browser"], ["board.analytics.read"], owners, "I-42"),
   policy("export.render", ["browser", "account_api_key"], ["export.read"], owners, "I-50", "all")
 ]);
@@ -36595,6 +36652,16 @@ var ACCOUNT_API_KEY_TOOL_POLICIES_V1 = Object.freeze({
   board_history_restore: toolPolicy(
     operationPlan(["scene.restore"], ["board:write", "history:read"])
   ),
+  board_artifact_get: toolPolicy(operationPlan(["artifact.get"], ["board:read"])),
+  board_artifact_put: toolPolicy(operationPlan(["artifact.publish"], ["artifact:publish"])),
+  board_artifact_stop: toolPolicy(operationPlan(["artifact.stop"], ["artifact:control"])),
+  board_interaction_request: toolPolicy(operationPlan(["hitl.request"], ["board:hitl:request"])),
+  board_interaction_status: toolPolicy(operationPlan(["hitl.read"], ["board:read"])),
+  board_interaction_respond: toolPolicy(operationPlan(["hitl.respond"], ["board:hitl:respond"])),
+  sceneboard_media_upload: toolPolicy(operationPlan(["media.upload"], ["board:media:write"])),
+  sceneboard_media_place: toolPolicy(
+    operationPlan(["history.get", "document.replace"], ["history:read", "board:write"])
+  ),
   board_export: toolPolicy(operationPlan(["export.render"], ["export:read"]))
 });
 var accountApiKeyToolPolicyV1 = (toolName) => {
@@ -37688,9 +37755,17 @@ var ProtectedBoardGatewayV1 = class {
         return { authorized: false, reason: "credential_unavailable" };
       }
       if (rawSnapshot === null) return { authorized: false, reason: "not_connected" };
-      if (this.options.credentialMode === "api_key" || rawSnapshot.version !== 1 || typeof rawSnapshot.generation !== "string" || !GENERATION_PATTERN_V1.test(rawSnapshot.generation) || typeof rawSnapshot.accessToken !== "string" || !ACCESS_TOKEN_PATTERN_V1.test(rawSnapshot.accessToken))
+      if (rawSnapshot.version !== 1 || typeof rawSnapshot.generation !== "string" || !GENERATION_PATTERN_V1.test(rawSnapshot.generation) || typeof rawSnapshot.accessToken !== "string" || this.options.credentialMode !== "api_key" && !ACCESS_TOKEN_PATTERN_V1.test(rawSnapshot.accessToken))
         return { authorized: false, reason: "credential_unavailable" };
       const snapshot = Object.freeze({ ...rawSnapshot });
+      const credentialMode = this.options.credentialMode ?? "pairing";
+      const requestedOperations = input.apiKeyOperationPlan === void 0 ? null : typeof input.apiKeyOperationPlan === "string" ? [input.apiKeyOperationPlan] : input.apiKeyOperationPlan;
+      const apiKeyPolicy = input.apiKeyToolName === void 0 ? null : accountApiKeyToolPolicyV1(input.apiKeyToolName);
+      const apiKeyPlan = apiKeyPolicy?.operationPlans.find(
+        ({ operations }) => requestedOperations !== null && operations.length === requestedOperations.length && operations.every((operation2, index) => operation2 === requestedOperations[index])
+      );
+      if (credentialMode === "api_key" && (apiKeyPlan === void 0 || input.apiKeyAuthorizationOperation === void 0 || !apiKeyPlan.operations.includes(input.apiKeyAuthorizationOperation)))
+        return { authorized: false, reason: "credential_unavailable" };
       const connection = await waitWithinGatewayDeadlineV1(
         new ConnectionHttpClientV1({
           baseUrl: this.options.baseUrl,
@@ -37698,7 +37773,14 @@ var ProtectedBoardGatewayV1 = class {
           timeoutMs: this.options.timeoutMs,
           logger: this.options.logger,
           ...this.options.now === void 0 ? {} : { now: this.options.now }
-        }).get(input.boardId, input.requestId, snapshot.accessToken, deadline.signal, "pairing"),
+        }).get(
+          input.boardId,
+          input.requestId,
+          snapshot.accessToken,
+          deadline.signal,
+          credentialMode,
+          credentialMode === "api_key" ? input.apiKeyAuthorizationOperation : void 0
+        ),
         deadline.signal
       );
       const connectionCause = deadline.cause();
@@ -37719,27 +37801,46 @@ var ProtectedBoardGatewayV1 = class {
         }
         return { authorized: false, reason: "local", error: connection.error };
       }
-      if (!("grant" in connection.value))
-        return { authorized: false, reason: "credential_unavailable" };
-      const selected = connection.value.selectedBoard;
-      const grant = connection.value.grant;
-      if (selected === null || !input.requiredCapabilities.every(
-        (capability) => grant.scopes.includes(capability) && selected.capabilities.grantedCapabilities.includes(capability)
-      ))
-        return {
-          authorized: false,
-          reason: "board",
-          error: {
-            protocolVersion: 1,
-            type: "board.error",
-            code: "BOARD_NOT_FOUND",
-            message: "Board not found",
-            category: "not_found",
-            retryable: false,
-            httpStatusHint: 404,
-            details: null
-          }
-        };
+      if (credentialMode === "api_key") {
+        const credential = "credential" in connection.value ? connection.value.credential : null;
+        if (credential === null || apiKeyPlan === void 0 || !apiKeyPlan.scopes.every((scope) => credential.scopes.includes(scope)))
+          return {
+            authorized: false,
+            reason: "board",
+            error: {
+              protocolVersion: 1,
+              type: "board.error",
+              code: "FORBIDDEN",
+              message: "Insufficient API key scope",
+              category: "auth",
+              retryable: false,
+              httpStatusHint: 403,
+              details: null
+            }
+          };
+      } else {
+        if (!("grant" in connection.value))
+          return { authorized: false, reason: "credential_unavailable" };
+        const selected = connection.value.selectedBoard;
+        const grant = connection.value.grant;
+        if (selected === null || !input.requiredCapabilities.every(
+          (capability) => grant.scopes.includes(capability) && selected.capabilities.grantedCapabilities.includes(capability)
+        ))
+          return {
+            authorized: false,
+            reason: "board",
+            error: {
+              protocolVersion: 1,
+              type: "board.error",
+              code: "BOARD_NOT_FOUND",
+              message: "Board not found",
+              category: "not_found",
+              retryable: false,
+              httpStatusHint: 404,
+              details: null
+            }
+          };
+      }
       const value = await waitWithinGatewayDeadlineV1(
         operation({
           snapshot,
@@ -38888,6 +38989,9 @@ var ArtifactToolHandlersV1 = class {
     const parsed = ArtifactGetInputSchemaV1.safeParse(raw);
     if (!parsed.success) return validationFailureV1("board_artifact_get", requestId, parsed.error);
     const result = await this.gateway.call(
+      "board_artifact_get",
+      "artifact.get",
+      { signal, authorization: { boardId: parsed.data.boardId, operation: "artifact.get" } },
       (client, _snapshot, operationSignal) => client.getArtifact(
         {
           protocolVersion: 1,
@@ -38900,8 +39004,7 @@ var ArtifactToolHandlersV1 = class {
           }
         },
         operationSignal
-      ),
-      { signal }
+      )
     );
     return result.connected ? sdkToolResultV1("board_artifact_get", requestId, result.value, null) : toolFailureV1(
       "board_artifact_get",
@@ -38915,6 +39018,9 @@ var ArtifactToolHandlersV1 = class {
     const parsed = ArtifactPutInputSchemaV1.safeParse(raw);
     if (!parsed.success) return validationFailureV1("board_artifact_put", requestId, parsed.error);
     const result = await this.gateway.call(
+      "board_artifact_put",
+      "artifact.publish",
+      { signal, authorization: { boardId: parsed.data.boardId, operation: "artifact.publish" } },
       (client, _snapshot, operationSignal) => client.putArtifact(
         requestId,
         {
@@ -38928,8 +39034,7 @@ var ArtifactToolHandlersV1 = class {
           requestedCapabilities: parsed.data.requestedCapabilities
         },
         operationSignal
-      ),
-      { signal }
+      )
     );
     return result.connected ? sdkToolResultV1("board_artifact_put", requestId, result.value, null) : toolFailureV1(
       "board_artifact_put",
@@ -38943,6 +39048,9 @@ var ArtifactToolHandlersV1 = class {
     const parsed = ArtifactStopInputSchemaV1.safeParse(raw);
     if (!parsed.success) return validationFailureV1("board_artifact_stop", requestId, parsed.error);
     const result = await this.gateway.call(
+      "board_artifact_stop",
+      "artifact.stop",
+      { signal, authorization: { boardId: parsed.data.boardId, operation: "artifact.stop" } },
       (client, _snapshot, operationSignal) => client.mutateBoard(
         {
           protocolVersion: 1,
@@ -38960,8 +39068,7 @@ var ArtifactToolHandlersV1 = class {
           }
         },
         operationSignal
-      ),
-      { signal }
+      )
     );
     return result.connected ? sdkToolResultV1("board_artifact_stop", requestId, result.value, null) : toolFailureV1(
       "board_artifact_stop",
@@ -39699,6 +39806,9 @@ var InteractionToolHandlersV1 = class {
         definition.error
       );
     const result = await this.gateway.call(
+      "board_interaction_request",
+      "hitl.request",
+      { signal, authorization: { boardId: parsed.data.boardId, operation: "hitl.request" } },
       (client, _snapshot, operationSignal) => client.mutateBoard(
         {
           protocolVersion: 1,
@@ -39713,8 +39823,7 @@ var InteractionToolHandlersV1 = class {
           }
         },
         operationSignal
-      ),
-      { signal }
+      )
     );
     return result.connected ? sdkToolResultV1("board_interaction_request", requestId, result.value, null) : toolFailureV1(
       "board_interaction_request",
@@ -39729,6 +39838,9 @@ var InteractionToolHandlersV1 = class {
     if (!parsed.success)
       return validationFailureV1("board_interaction_status", requestId, parsed.error);
     const result = await this.gateway.call(
+      "board_interaction_status",
+      "hitl.read",
+      { signal, authorization: { boardId: parsed.data.boardId, operation: "hitl.read" } },
       (client, _snapshot, operationSignal) => client.getInteraction(
         {
           protocolVersion: 1,
@@ -39742,8 +39854,7 @@ var InteractionToolHandlersV1 = class {
           }
         },
         operationSignal
-      ),
-      { signal }
+      )
     );
     return result.connected ? sdkToolResultV1("board_interaction_status", requestId, result.value, null) : toolFailureV1(
       "board_interaction_status",
@@ -39766,6 +39877,9 @@ var InteractionToolHandlersV1 = class {
         response.error
       );
     const result = await this.gateway.call(
+      "board_interaction_respond",
+      "hitl.respond",
+      { signal, authorization: { boardId: parsed.data.boardId, operation: "hitl.respond" } },
       (client, _snapshot, operationSignal) => client.mutateBoard(
         {
           protocolVersion: 1,
@@ -39780,8 +39894,7 @@ var InteractionToolHandlersV1 = class {
           }
         },
         operationSignal
-      ),
-      { signal }
+      )
     );
     return result.connected ? sdkToolResultV1("board_interaction_respond", requestId, result.value, null) : toolFailureV1(
       "board_interaction_respond",
@@ -39977,6 +40090,9 @@ var MediaToolHandlersV1 = class {
           boardId: parsed.data.boardId,
           requestId,
           requiredCapabilities: ["board.media.write"],
+          apiKeyToolName: "sceneboard_media_upload",
+          apiKeyOperationPlan: "media.upload",
+          apiKeyAuthorizationOperation: "media.upload",
           ...signal === void 0 ? {} : { signal }
         },
         async ({ snapshot, media, signal: operationSignal }) => {
@@ -40050,6 +40166,9 @@ var MediaToolHandlersV1 = class {
           boardId: parsed.data.boardId,
           requestId,
           requiredCapabilities: ["board.history.read", "board.write"],
+          apiKeyToolName: "sceneboard_media_place",
+          apiKeyOperationPlan: ["history.get", "document.replace"],
+          apiKeyAuthorizationOperation: "document.replace",
           ...signal === void 0 ? {} : { signal }
         },
         async ({ client, signal: operationSignal }) => {
@@ -40877,6 +40996,14 @@ var API_KEY_TOOL_NAMES_V1 = [
   "board_history_list",
   "board_history_get",
   "board_history_restore",
+  "sceneboard_media_upload",
+  "sceneboard_media_place",
+  "board_artifact_get",
+  "board_artifact_put",
+  "board_artifact_stop",
+  "board_interaction_request",
+  "board_interaction_status",
+  "board_interaction_respond",
   "board_export"
 ];
 var BOARD_TOOL_ERROR_CODES_V1 = {
@@ -41515,7 +41642,7 @@ var registerCoreToolsV1 = (server, options) => {
     (raw, signal) => documents.defaultSet(raw, signal),
     true
   );
-  if (credentialMode === "pairing") {
+  if (credentialMode === "pairing" || credentialMode === "api_key") {
     add(
       "sceneboard_media_upload",
       "Upload one explicitly authorized local PNG, JPEG, or WebP file.",
@@ -41531,7 +41658,7 @@ var registerCoreToolsV1 = (server, options) => {
       true
     );
   }
-  if (credentialMode === "pairing" && options.downstreamReady === true) {
+  if (options.downstreamReady === true) {
     add(
       "board_artifact_get",
       "Read one exact immutable artifact/version manifest and runtime state.",
@@ -41584,7 +41711,7 @@ var registerCoreToolsV1 = (server, options) => {
       true
     );
   }
-  if (credentialMode === "pairing" && options.downstreamReady === true) {
+  if (options.downstreamReady === true) {
     add(
       "board_interaction_request",
       "Create an exact human interaction, then immediately await it with board_interaction_status.",

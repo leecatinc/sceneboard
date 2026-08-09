@@ -12,7 +12,7 @@ test('binds every staged registry asset to non-empty deterministic SQL', async (
     assets.add(entry.upAsset);
     if (entry.downAsset !== null) assets.add(entry.downAsset);
   }
-  assert.equal(assets.size, 36);
+  assert.equal(assets.size, 37);
   for (const asset of assets) {
     const bytes = await readFile(new URL(asset, directory));
     const source = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
@@ -48,10 +48,10 @@ test('interleaves the irreversible D3 board owner before D2 grant bindings', asy
   assert.doesNotMatch(source, /REGEXP_LIKE\s*\(\s*public_id/);
 });
 
-test('materializes the exact terminal thirty-three-entry and thirty-six-asset checkpoint', async () => {
-  assert.equal(MIGRATION_REGISTRY.length, 33);
+test('materializes the exact terminal thirty-four-entry and thirty-seven-asset checkpoint', async () => {
+  assert.equal(MIGRATION_REGISTRY.length, 34);
   assert.equal(MIGRATION_REGISTRY.filter((entry) => entry.reversible).length, 3);
-  assert.equal(MIGRATION_REGISTRY.at(-1)?.version, '030_d10_revision_retention_backfill');
+  assert.equal(MIGRATION_REGISTRY.at(-1)?.version, '031_d10_account_api_key_scope_capacity');
   const directory = new URL('../../src/database/migrations/sql/', import.meta.url);
   const expectedTables = new Map([
     ['002_d3_board_revisions.up.sql', ['board_revisions']],
@@ -147,6 +147,20 @@ test('expands pairing and grant scope masks without changing persisted bit assig
   assert.match(source, /requested_scope_mask BETWEEN 1 AND 255/u);
   assert.match(source, /approved_scope_mask BETWEEN 1 AND 255/u);
   assert.doesNotMatch(source, /UPDATE\s+(?:mcp_grants|pairing_requests)/u);
+});
+
+test('widens account API-key scope capacity without rewriting key rows', async () => {
+  const source = await readFile(
+    new URL(
+      '../../src/database/migrations/sql/031_d10_account_api_key_scope_capacity.up.sql',
+      import.meta.url,
+    ),
+    'utf8',
+  );
+  assert.match(source, /ALTER TABLE account_api_keys/u);
+  assert.match(source, /DROP CHECK chk_account_api_key_scope_mask/u);
+  assert.match(source, /scope_mask BETWEEN 1 AND 2047/u);
+  assert.doesNotMatch(source, /\bUPDATE\b|\bDELETE\b|\bINSERT\b/u);
 });
 
 test('the live runner verifies every terminal D7, D8, and D9 migration postcondition', async () => {

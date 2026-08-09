@@ -195,7 +195,7 @@ test('terminal export authentication failure immediately shrinks API-key discove
   try {
     assert.deepEqual(
       (await client.listTools()).tools.map((tool) => tool.name).sort(),
-      [...API_KEY_TOOL_NAMES_V1].sort(),
+      API_KEY_TOOL_NAMES_V1.filter((name) => !downstreamNames.includes(name)).sort(),
     );
     const result = await client.callTool({
       name: 'board_export',
@@ -417,7 +417,7 @@ test('accepted API-key status survives output validation after expiry while a la
     );
     assert.deepEqual(
       (await client.listTools()).tools.map((tool) => tool.name).sort(),
-      [...API_KEY_TOOL_NAMES_V1].sort(),
+      API_KEY_TOOL_NAMES_V1.filter((name) => !downstreamNames.includes(name)).sort(),
     );
 
     decoderNow = expiryInstant;

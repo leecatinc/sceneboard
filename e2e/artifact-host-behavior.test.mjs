@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import test from 'node:test';
@@ -81,10 +80,6 @@ const makePackage = () => {
   return { bytes: Buffer.concat(parts), manifest };
 };
 
-execFileSync('npm', ['run', 'build:runtime', '--workspace', '@sceneboard/artifact-runtime'], {
-  cwd: new URL('..', import.meta.url).pathname,
-  stdio: 'pipe',
-});
 const artifactPackage = makePackage();
 const buildResult = await build({
   entryPoints: [new URL('./fixtures/artifact-host-entry.tsx', import.meta.url).pathname],
@@ -194,7 +189,8 @@ test(
     assert.equal(initial.mode, 'actual');
     assert.equal(initial.children, 1);
     assert.equal(initial.frameTitle, 'SceneBoard isolated artifact');
-    assert.match(initial.controls, /Fit height/u);
+    for (const label of ['Fill area', 'Fit page', 'Fit width', 'Actual size'])
+      assert.match(initial.controls, new RegExp(label, 'u'));
     assert.equal(initial.viewEvents[0].phase, 'register');
     assert.ok(
       initial.resizeEvents.some(
