@@ -1,12 +1,15 @@
 const MYSQL_MILLISECOND_TIMESTAMP = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}$/;
+const MYSQL_ALIGNED_MICROSECOND_TIMESTAMP = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}000$/;
 const MYSQL_ZERO_MILLISECOND_TIMESTAMP = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
 
 export const parseMysqlTimestampUtc = (value: string): Date => {
   const canonical = MYSQL_MILLISECOND_TIMESTAMP.test(value)
     ? value
-    : MYSQL_ZERO_MILLISECOND_TIMESTAMP.test(value)
-      ? `${value}.000`
-      : null;
+    : MYSQL_ALIGNED_MICROSECOND_TIMESTAMP.test(value)
+      ? value.slice(0, -3)
+      : MYSQL_ZERO_MILLISECOND_TIMESTAMP.test(value)
+        ? `${value}.000`
+        : null;
   if (canonical === null) throw new TypeError('MySQL timestamp must have millisecond precision');
   const parsed = new Date(`${canonical.replace(' ', 'T')}Z`);
   if (!Number.isFinite(parsed.valueOf()) || formatMysqlTimestampUtc(parsed) !== canonical) {
