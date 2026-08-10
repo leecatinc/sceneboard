@@ -7,6 +7,7 @@ import {
   fetchPublicShareServerState,
 } from '../../../lib/api/public-share-server';
 import type { PublicShareClientState } from '../../../lib/api/public-share-contract';
+import { retryUnavailablePasswordAdmission } from './shared-board-password-retry';
 
 export type SharedBoardActionState =
   | PublicShareClientState
@@ -89,12 +90,16 @@ export const submitSharedBoardPassword = async (
 ): Promise<SharedBoardActionState> => {
   try {
     const context = await requestContext();
-    const result = await admitPublicSharePasswordServer({
-      ...context,
-      shareToken,
-      csrfToken,
-      password,
-    });
+    const result = await retryUnavailablePasswordAdmission(
+      () =>
+        admitPublicSharePasswordServer({
+          ...context,
+          shareToken,
+          csrfToken,
+          password,
+        }),
+      () => new Promise((resolve) => setTimeout(resolve, 1_000)),
+    );
     await applySetCookies(result.setCookies);
     if (result.kind === 'rate-limited')
       return { state: 'rate-limited', retryAfterSeconds: result.retryAfterSeconds };

@@ -77,15 +77,21 @@ export class PasswordAttemptService {
     const ipIdentity = encodeBase64Url(this.crypto.hmac('share-password-attempt-ip/v1', ip));
     const link = `${this.keyPrefix}share-password:v1:1:link:${linkIdentity}`;
     const ipKey = `${this.keyPrefix}share-password:v1:1:ip:${ipIdentity}`;
-    let result: unknown;
-    try {
-      result = await this.redis.evaluate(
-        SHARE_PASSWORD_ATTEMPT_LUA,
-        [`${link}:events`, `${link}:lock`, `${ipKey}:events`, `${ipKey}:lock`],
-        [operation, this.crypto.randomBase64Url(12)],
-      );
-    } catch (cause) {
-      throw new ShareContractError('SERVICE_UNAVAILABLE', 1, undefined, cause);
+    const nonce = this.crypto.randomBase64Url(12);
+    let result: unknown = undefined;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        result = await this.redis.evaluate(
+          SHARE_PASSWORD_ATTEMPT_LUA,
+          [`${link}:events`, `${link}:lock`, `${ipKey}:events`, `${ipKey}:lock`],
+          [operation, nonce],
+        );
+        break;
+      } catch (cause) {
+        if (attempt === 1) {
+          throw new ShareContractError('SERVICE_UNAVAILABLE', 1, undefined, cause);
+        }
+      }
     }
     if (
       !Array.isArray(result) ||

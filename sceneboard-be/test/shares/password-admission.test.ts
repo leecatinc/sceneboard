@@ -69,3 +69,26 @@ test('maps an active lock and Redis loss to the exact fail-closed errors', async
       error.retryAfterSeconds === 1,
   );
 });
+
+test('retries one transient Redis failure with the same admission nonce', async () => {
+  const calls: string[][] = [];
+  let attempt = 0;
+  const attempts = new PasswordAttemptService(
+    {
+      evaluate: async (_script, _keys, args) => {
+        calls.push([...args]);
+        attempt += 1;
+        if (attempt === 1) throw new Error('transient');
+        return [0, 0];
+      },
+    },
+    crypto,
+    'sceneboard:',
+  );
+
+  await attempts.recordFailure(Buffer.alloc(32, 4), '203.0.113.10');
+
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0]?.[0], 'failure');
+  assert.equal(calls[0]?.[1], calls[1]?.[1]);
+});
