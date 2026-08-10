@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 
+import { Logger } from '@nestjs/common';
 import {
   ShareFingerprintInputParserV1,
   SharePasswordReplayResultParserV1,
@@ -120,7 +121,20 @@ const tupleEqual = (left: LockedShareCredential, right: LockedShareCredential): 
   timingSafeEqual(left.passwordHash, right.passwordHash) &&
   timingSafeEqual(left.salt, right.salt);
 
+const safeFailureCode = (error: ShareContractError): string => {
+  const cause = error.cause;
+  if (cause !== null && typeof cause === 'object' && 'code' in cause) {
+    const code = cause.code;
+    if (typeof code === 'string' && /^[A-Z0-9_]{1,64}$/u.test(code)) return code;
+  }
+  return cause instanceof Error && /^[A-Za-z][A-Za-z0-9]{0,63}$/u.test(cause.name)
+    ? cause.name
+    : error.code;
+};
+
 export class PasswordShareService {
+  private readonly logger = new Logger(PasswordShareService.name);
+
   constructor(
     private readonly accessPolicy: BoardAccessPolicy,
     private readonly mysql: MysqlService,
@@ -175,91 +189,114 @@ export class PasswordShareService {
     hostname: string;
     familyToken?: string | undefined;
   }): Promise<{ setCookie: string | null }> {
-    let reference: PublicShareReference;
+    let stage = 'token-reference';
     try {
-      reference = this.tokens.publicReference(input.shareToken);
-    } catch {
-      throw new ShareContractError('BOARD_NOT_FOUND');
-    }
-    await this.attempts.assertUnlocked(reference.digest, input.ip);
-    const observed = await this.withPasswordStore((connection) =>
-      reference.kind === 'secret'
-        ? this.shares.readShareByTokenDigest(connection, reference.digest)
-        : this.shares.readShareById(connection, reference.shareId),
-    );
-    const credential = observed?.credential ?? {
-      credentialVersion: 1,
-      passwordHash: Buffer.alloc(32),
-      passwordHashSha256: createHash('sha256').update(Buffer.alloc(32)).digest(),
-      salt: Buffer.alloc(16),
-      hashVersion: SHARE_PASSWORD_HASH_VERSION,
-      pepperVersion: SHARE_PASSWORD_PEPPER_VERSION,
-    };
-    let valid: boolean;
-    try {
-      valid = await this.pool.run(() => this.hasher.verify(input.password, credential));
+      let reference: PublicShareReference;
+      try {
+        reference = this.tokens.publicReference(input.shareToken);
+      } catch {
+        throw new ShareContractError('BOARD_NOT_FOUND');
+      }
+      stage = 'attempt-check';
+      await this.attempts.assertUnlocked(reference.digest, input.ip);
+      stage = 'share-read';
+      const observed = await this.withPasswordStore((connection) =>
+        reference.kind === 'secret'
+          ? this.shares.readShareByTokenDigest(connection, reference.digest)
+          : this.shares.readShareById(connection, reference.shareId),
+      );
+      const credential = observed?.credential ?? {
+        credentialVersion: 1,
+        passwordHash: Buffer.alloc(32),
+        passwordHashSha256: createHash('sha256').update(Buffer.alloc(32)).digest(),
+        salt: Buffer.alloc(16),
+        hashVersion: SHARE_PASSWORD_HASH_VERSION,
+        pepperVersion: SHARE_PASSWORD_PEPPER_VERSION,
+      };
+      let valid: boolean;
+      stage = 'password-verify';
+      try {
+        valid = await this.pool.run(() => this.hasher.verify(input.password, credential));
+      } catch (error) {
+        if (error instanceof PasswordVerificationPoolFullError) {
+          throw new ShareContractError('RATE_LIMITED', 1);
+        }
+        throw error;
+      }
+      if (
+        !valid ||
+        observed === null ||
+        observed.status !== 'active' ||
+        observed.accessPolicy !== 'P' ||
+        observed.credential === null
+      ) {
+        stage = 'attempt-failure';
+        await this.attempts.recordFailure(reference.digest, input.ip);
+        throw new ShareContractError('BOARD_NOT_FOUND');
+      }
+      stage = 'attempt-clear';
+      await this.attempts.clearLink(reference.digest, input.ip);
+      stage = 'grant-transaction';
+      return await this.withPasswordStore((connection) =>
+        withTransaction(connection, 'READ COMMITTED', async () => {
+          stage = 'share-lock';
+          const share =
+            reference.kind === 'secret'
+              ? await this.shares.lockShareByTokenDigest(connection, reference.digest)
+              : await this.shares.lockShareById(connection, reference.shareId);
+          if (
+            share === null ||
+            share.status !== 'active' ||
+            share.accessPolicy !== 'P' ||
+            share.credential === null ||
+            !matchesPublicReference(share, reference) ||
+            !tupleEqual(share.credential, observed.credential!)
+          ) {
+            throw new ShareContractError('BOARD_NOT_FOUND');
+          }
+          stage = 'database-clock';
+          const nowSql = await passwordDatabaseNow(connection);
+          let familyDigest: Buffer | null = null;
+          let familyExpiresAt: string | null = null;
+          if (input.familyToken !== undefined) {
+            try {
+              familyDigest = this.cookies.familyDigest(input.familyToken);
+              stage = 'family-lock';
+              familyExpiresAt = await this.passwords.lockFamily(connection, familyDigest, nowSql);
+            } catch {
+              familyDigest = null;
+              familyExpiresAt = null;
+            }
+          }
+          let setCookie: string | null = null;
+          if (familyDigest === null || familyExpiresAt === null) {
+            stage = 'family-issue';
+            const issued = this.cookies.issueFamily(input.hostname);
+            familyDigest = issued.digest;
+            stage = 'family-create';
+            familyExpiresAt = await this.passwords.createFamily(connection, issued.digest, nowSql);
+            setCookie = issued.setCookie;
+          }
+          stage = 'grant-upsert';
+          await this.passwords.upsertGrant(connection, {
+            familyDigest,
+            share,
+            credential: share.credential,
+            familyExpiresAtSql: familyExpiresAt,
+            nowSql,
+          });
+          stage = 'grant-commit';
+          return { setCookie };
+        }),
+      );
     } catch (error) {
-      if (error instanceof PasswordVerificationPoolFullError) {
-        throw new ShareContractError('RATE_LIMITED', 1);
+      if (error instanceof ShareContractError && error.code === 'SERVICE_UNAVAILABLE') {
+        this.logger.error(
+          `Share password admission failed safely at ${stage} (${safeFailureCode(error)})`,
+        );
       }
       throw error;
     }
-    if (
-      !valid ||
-      observed === null ||
-      observed.status !== 'active' ||
-      observed.accessPolicy !== 'P' ||
-      observed.credential === null
-    ) {
-      await this.attempts.recordFailure(reference.digest, input.ip);
-      throw new ShareContractError('BOARD_NOT_FOUND');
-    }
-    await this.attempts.clearLink(reference.digest, input.ip);
-    return this.withPasswordStore((connection) =>
-      withTransaction(connection, 'READ COMMITTED', async () => {
-        const share =
-          reference.kind === 'secret'
-            ? await this.shares.lockShareByTokenDigest(connection, reference.digest)
-            : await this.shares.lockShareById(connection, reference.shareId);
-        if (
-          share === null ||
-          share.status !== 'active' ||
-          share.accessPolicy !== 'P' ||
-          share.credential === null ||
-          !matchesPublicReference(share, reference) ||
-          !tupleEqual(share.credential, observed.credential!)
-        ) {
-          throw new ShareContractError('BOARD_NOT_FOUND');
-        }
-        const nowSql = await passwordDatabaseNow(connection);
-        let familyDigest: Buffer | null = null;
-        let familyExpiresAt: string | null = null;
-        if (input.familyToken !== undefined) {
-          try {
-            familyDigest = this.cookies.familyDigest(input.familyToken);
-            familyExpiresAt = await this.passwords.lockFamily(connection, familyDigest, nowSql);
-          } catch {
-            familyDigest = null;
-            familyExpiresAt = null;
-          }
-        }
-        let setCookie: string | null = null;
-        if (familyDigest === null || familyExpiresAt === null) {
-          const issued = this.cookies.issueFamily(input.hostname);
-          familyDigest = issued.digest;
-          familyExpiresAt = await this.passwords.createFamily(connection, issued.digest, nowSql);
-          setCookie = issued.setCookie;
-        }
-        await this.passwords.upsertGrant(connection, {
-          familyDigest,
-          share,
-          credential: share.credential,
-          familyExpiresAtSql: familyExpiresAt,
-          nowSql,
-        });
-        return { setCookie };
-      }),
-    );
   }
 
   private async withPasswordStore<Value>(
