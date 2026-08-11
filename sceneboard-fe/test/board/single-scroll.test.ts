@@ -64,6 +64,10 @@ test('root tabs reserve their header inside the PAGE viewport', () => {
   assert.match(stageStyles, /\.root\s*\{[^}]*height:\s*100%;/su);
   assert.match(
     stageStyles,
+    /\.content\s*>\s*:global\(\[data-public-render-epoch\]\)\s*\{[^}]*height:\s*100%;/su,
+  );
+  assert.match(
+    stageStyles,
     /\.content\s*\{[^}]*height:\s*var\(--page-stage-viewport-height[^}]*\}/su,
   );
   assert.match(
