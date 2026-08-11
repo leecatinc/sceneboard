@@ -44,6 +44,8 @@
 
 .content {
   min-width: 0;
+  min-height: 0;
+  height: var(--page-stage-viewport-height, auto);
 }
 
 .root[data-presentation-active='true'] .content {
@@ -69,13 +71,28 @@
 }
 
 .content :global(.scene-root) {
-  height: auto;
+  height: 100%;
   container-type: inline-size;
 }
 
 .content :global(.scene-root > .scene-tabs) {
-  height: auto;
-  display: block;
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.content :global(.scene-root > .scene-tabs > .scene-tab-panel > .artifact-host) {
+  height: 100%;
+  min-height: 0;
+  overflow: clip;
+}
+
+.content
+  :global(
+    .scene-root > .scene-tabs > .scene-tab-panel > .artifact-host > .artifact-frame-container
+  ) {
+  height: 100%;
+  min-height: 0;
 }
 
 .content :global(.scene-canvas) {

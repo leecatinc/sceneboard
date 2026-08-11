@@ -57,3 +57,20 @@ test('nested presentation surfaces do not declare auto or scroll overflow', () =
     /:global\(\.(?:scene|artifact)[^)]+\)[^{]*\{[^}]*overflow(?:-[xy])?:\s*(?:auto|scroll)/su,
   );
 });
+
+test('root tabs reserve their header inside the PAGE viewport', () => {
+  const stageStyles = source('components/board/PresentationStage.module.css');
+
+  assert.match(
+    stageStyles,
+    /\.content\s*\{[^}]*height:\s*var\(--page-stage-viewport-height[^}]*\}/su,
+  );
+  assert.match(
+    stageStyles,
+    /\.content\s+:global\(\.scene-root\s*>\s*\.scene-tabs\)\s*\{[^}]*height:\s*100%;[^}]*display:\s*grid;/su,
+  );
+  assert.match(
+    stageStyles,
+    /:global\(\.scene-root\s*>\s*\.scene-tabs\s*>\s*\.scene-tab-panel\s*>\s*\.artifact-host\)[^{]*\{[^}]*height:\s*100%;/su,
+  );
+});

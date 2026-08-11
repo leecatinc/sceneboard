@@ -3,10 +3,25 @@
 import { useId, useState, type KeyboardEvent } from 'react';
 import type { RendererComponentV1 } from '../renderer-types.js';
 
+export function resolveTabsSelectionV1(
+  tabs: ReadonlyArray<Readonly<{ tabId: string }>>,
+  controlledTabId: string | undefined,
+  localTabId: string,
+  defaultTabId: string,
+): string | undefined {
+  const includes = (tabId: string | undefined) =>
+    tabId !== undefined && tabs.some((tab) => tab.tabId === tabId);
+  if (includes(controlledTabId)) return controlledTabId;
+  if (includes(localTabId)) return localTabId;
+  if (includes(defaultTabId)) return defaultTabId;
+  return tabs[0]?.tabId;
+}
+
 export const TabsLayout: RendererComponentV1<'layout.tabs'> = ({ node, context, renderNode }) => {
-  const seeded = context.selectedTabs[node.id] ?? node.activeTabId;
+  const controlledTab = context.selectedTabs[node.id];
+  const seeded = controlledTab ?? node.activeTabId;
   const [localTab, setLocalTab] = useState(seeded);
-  const selected = node.tabs.some((tab) => tab.tabId === seeded) ? seeded : localTab;
+  const selected = resolveTabsSelectionV1(node.tabs, controlledTab, localTab, node.activeTabId);
   const current = node.tabs.find((tab) => tab.tabId === selected) ?? node.tabs[0];
   const id = useId();
   if (current === undefined) return null;
