@@ -73,7 +73,8 @@ test('public artifact host reuses the isolated read-only runtime without owner a
   const bridge = source('../packages/board-ui/src/artifact/use-artifact-bridge.ts');
   const runtimePolicy = source('../packages/artifact-runtime/src/policy/csp.ts');
   assert.match(host, /showStopControl=\{false\}/u);
-  assert.match(host, /viewMode="fit-page"/u);
+  assert.match(host, /handle\.preferredViewMode\(\)/u);
+  assert.match(host, /viewMode=\{viewMode\}/u);
   assert.match(host, /presentationActive=\{presentationActive\}/u);
   assert.match(host, /onPresentationPageChange === undefined/u);
   assert.match(loader, /credentials: 'include'/u);

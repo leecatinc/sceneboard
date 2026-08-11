@@ -142,18 +142,49 @@ test("workflow graph renders the closed WorkflowSpec v1 contract deterministical
     first.source.html.match(
       /<svg class="sb-graph-label-layer"[\s\S]*?<\/svg>/u,
     )?.[0] ?? "";
-  assert.match(edgeLayer, /class="sb-graph-path"/u);
+  assert.match(edgeLayer, /class="sb-graph-path sb-graph-edge-color-0"/u);
   assert.doesNotMatch(edgeLayer, /class="sb-graph-edge-label"/u);
-  assert.match(labelLayer, /class="sb-graph-edge-label"/u);
+  assert.match(
+    labelLayer,
+    /class="sb-graph-edge-label sb-graph-edge-color-1"[^>]*data-element-id="approval_edge_direct"/u,
+  );
+  assert.match(
+    labelLayer,
+    /class="sb-graph-edge-label sb-graph-edge-color-2"[^>]*data-element-id="approval_edge_human"/u,
+  );
   assert.doesNotMatch(labelLayer, /class="sb-graph-path"/u);
   assert.match(
     edgeLayer,
-    /data-element-id="approval_edge_complete"[^>]* d="M 663 238 Q 663 212 663 186"/u,
+    /class="sb-graph-path sb-graph-edge-color-0" data-element-id="approval_edge_complete"[^>]* d="M 663 238 Q 663 212 663 186"[^>]*marker-end="url\(#workflow-arrow-0-0\)"/u,
   );
   assert.match(
     edgeLayer,
-    /data-element-id="approval_edge_start"[^>]* d="M 298 144 Q 327 144 356 144"/u,
+    /class="sb-graph-path sb-graph-edge-color-3" data-element-id="approval_edge_start"[^>]* d="M 298 144 Q 327 144 356 144"[^>]*marker-end="url\(#workflow-arrow-0-3\)"/u,
   );
+  assert.equal(
+    edgeLayer.match(/class="sb-graph-marker sb-graph-edge-color-\d"/gu)?.length,
+    6,
+  );
+  assert.match(
+    first.source.css,
+    /\.sb-graph-canvas \.sb-graph-path\{stroke:currentColor\}\.sb-graph-canvas \.sb-graph-marker\{fill:currentColor\}/u,
+  );
+  assert.match(
+    first.source.css,
+    /\.sb-graph-canvas \.sb-graph-edge-label rect\{stroke:currentColor\}/u,
+  );
+  for (const [index, color] of [
+    [0, "#5eead4"],
+    [1, "#7dd3fc"],
+    [2, "#fcd34d"],
+    [3, "#c4b5fd"],
+    [4, "#fda4af"],
+    [5, "#bef264"],
+  ])
+    assert.match(
+      first.source.css,
+      new RegExp(`\\.sb-graph-edge-color-${index}\\{color:${color}\\}`, "u"),
+    );
   assert.match(
     first.source.css,
     /\.sb-graph-canvas \.sb-graph-edge-layer\{z-index:1;pointer-events:none\}\.sb-graph-node\{z-index:2\}\.sb-graph-canvas \.sb-graph-label-layer\{z-index:3;pointer-events:none\}\.sb-workflow-graph \.sb-graph-edge\{z-index:4\}/u,

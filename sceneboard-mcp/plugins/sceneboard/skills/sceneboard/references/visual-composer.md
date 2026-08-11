@@ -67,10 +67,12 @@ provenance, validation, capability-aware compilation, publication, and conversat
 and edges are independently inspectable. Every variant exposes canonical JSON through the
 `JSON export` modal immediately after `Selected`; the capability-aware variant adds `Copy JSON`
 inside that modal, while manual mode offers read-only inspection and selection without requesting a
-capability. In the authenticated board, prefer the host's `Fill area` view so the responsive
-graph owns the remaining viewport instead of inheriting the template's intrinsic aspect ratio. The
-graph's `Fit` control automatically contains the measured content, while the host's `Fit page`,
-`Fit width`, and `100%` remain explicit user-selectable iframe sizing fallbacks.
+capability. In authenticated boards, prefer the host's `Fill area` view, and in public-share hosts
+default recognized workflow graphs to the same fill mode, so the responsive graph owns the
+remaining viewport instead of inheriting the template's intrinsic aspect ratio. Keep fixed-ratio
+artifacts such as slide decks on `Fit page`. The graph's `Fit` control automatically contains the
+measured content, while the host's `Fit page`, `Fit width`, and `100%` remain explicit
+user-selectable iframe sizing fallbacks.
 
 `slide-deck` is the closed 1920×1080 PPT-style deck. It is an explicit routing
 exception only for requests containing `발표자료` or case-insensitive `ppt`; ordinary

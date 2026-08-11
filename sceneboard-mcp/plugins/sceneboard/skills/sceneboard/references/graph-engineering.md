@@ -140,9 +140,12 @@ claimed.
   labels as a secondary preference. Keep the full condition in details, and include
   horizontal/vertical safety padding in layout bounds so `Fit` does not clip moved labels or
   terminal content.
-- Use a fully opaque edge-label pill fill and retain its subtle border. Render arrow paths and
-  markers on the bottom layer, nodes above them, edge-label pills above nodes, and transparent edge
-  hit targets on top. Keep paths and labels in separate SVG layers so this order is enforceable.
+- Assign canonically ordered edges a deterministic rotating six-color high-contrast palette. Keep
+  each path, arrowhead, and matching edge-label pill border the same color, and treat color only as
+  visual route differentiation, never as success, failure, confidence, or another semantic state.
+  Keep the edge-label fill fully opaque. Render arrow paths and markers on the bottom layer, nodes
+  above them, edge-label pills above nodes, and transparent edge hit targets on top. Keep paths and
+  labels in separate SVG layers so this order is enforceable.
 - Keep edge detail hit targets transparent. Do not render a midpoint arrow button over the SVG edge
   or label. Override shared button chrome with sufficient selector specificity, keep mouse selection
   invisible, and reveal an outline only for keyboard `focus-visible`.

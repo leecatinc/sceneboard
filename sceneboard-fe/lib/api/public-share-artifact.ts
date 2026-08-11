@@ -13,7 +13,7 @@ import {
   type TimestampV1,
 } from '@sceneboard/board-schema';
 import { BoardSdkHttpClient } from '@sceneboard/board-sdk/http';
-import type { ArtifactLoadPortV1 } from '@sceneboard/board-ui/artifact';
+import type { ArtifactLoadPortV1, ArtifactViewModeV1 } from '@sceneboard/board-ui/artifact';
 
 type ReadyPublicShareV1 = Extract<PublicShareStateV1, { state: 'ready' }>;
 type ReadyPublicArtifactV1 = Extract<PublicArtifactSummaryV1, { status: 'ready' }>;
@@ -40,6 +40,7 @@ type SlotWaiterV1 = {
 
 export type PublicArtifactLoadHandleV1 = Readonly<{
   load: ArtifactLoadPortV1;
+  preferredViewMode(): ArtifactViewModeV1 | null;
   dispose(): void;
 }>;
 
@@ -47,6 +48,16 @@ export const PUBLIC_ARTIFACT_ACTIVE_HANDSHAKES_MAX_V1 = 2;
 export const PUBLIC_ARTIFACT_PACKAGE_MAX_BYTES_V1 = BOARD_LIMITS_V1.maxArtifactTotalBytes + 262_144;
 
 const PUBLIC_ARTIFACT_CONTENT_TYPE_V1 = 'application/vnd.leecat.artifact-package.v1';
+const WORKFLOW_GRAPH_MARKER_V1 = /data-sb-workflow-graph=(?:"v1"|'v1')/iu;
+
+export const preferredPublicArtifactViewModeV1 = (
+  decoded: DecodedArtifactPackageV1,
+): ArtifactViewModeV1 => {
+  const entry = decoded.resources.find((resource) => resource.path === decoded.manifest.entryPath);
+  if (entry === undefined || entry.mediaType !== 'text/html') return 'fit-page';
+  const html = new TextDecoder('utf-8', { fatal: true }).decode(entry.bytes);
+  return WORKFLOW_GRAPH_MARKER_V1.test(html) ? 'fill' : 'fit-page';
+};
 
 const canonicalOriginV1 = (value: string): string => {
   const parsed = new URL(value);
@@ -143,6 +154,7 @@ class PublicArtifactLoadHandle implements PublicArtifactLoadHandleV1 {
   #boundAbort: (() => void) | null = null;
   #holdsSlot = false;
   #disposed = false;
+  #preferredViewMode: ArtifactViewModeV1 | null = null;
 
   constructor(store: PublicArtifactPackageStoreV1, artifact: ArtifactReferenceV1) {
     this.#store = store;
@@ -161,6 +173,10 @@ class PublicArtifactLoadHandle implements PublicArtifactLoadHandleV1 {
         if (bytes === this.#certified?.bytes) this.dispose();
       },
     };
+  }
+
+  preferredViewMode(): ArtifactViewModeV1 | null {
+    return this.#preferredViewMode;
   }
 
   #assertInput(boardId: BoardId, artifact: ArtifactReferenceV1): void {
@@ -235,6 +251,7 @@ class PublicArtifactLoadHandle implements PublicArtifactLoadHandleV1 {
         this.#controller.signal.aborted
       )
         throw new TypeError('public artifact package identity mismatch');
+      this.#preferredViewMode = preferredPublicArtifactViewModeV1(decoded);
       const certified = Object.freeze({ bytes, decoded });
       this.#certified = certified;
       return certified;

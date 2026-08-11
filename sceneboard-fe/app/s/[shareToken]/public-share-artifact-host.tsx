@@ -8,8 +8,12 @@ import type {
   TimestampV1,
 } from '@sceneboard/board-schema';
 import dynamic from 'next/dynamic';
-import { useEffect, useMemo } from 'react';
-import type { ArtifactPresentationPageChangeEventV1 } from '@sceneboard/board-ui/artifact';
+import { useEffect, useMemo, useState } from 'react';
+import type {
+  ArtifactLoadPortV1,
+  ArtifactPresentationPageChangeEventV1,
+  ArtifactViewModeV1,
+} from '@sceneboard/board-ui/artifact';
 
 import { useI18n } from '../../../components/i18n/I18nProvider';
 import type { PublicArtifactPackageStoreV1 } from '../../../lib/api/public-share-artifact';
@@ -64,8 +68,29 @@ export function PublicShareArtifactHost({
   );
   const runtime = useMemo(() => runtimeV1(stableArtifact), [stableArtifact]);
   const handle = useMemo(() => store.open(stableArtifact), [stableArtifact, store]);
+  const artifactKey = `${artifactId}:${versionId}`;
+  const [preferredView, setPreferredView] = useState<{
+    artifactKey: string;
+    mode: ArtifactViewModeV1;
+  } | null>(null);
+  const load = useMemo<ArtifactLoadPortV1>(
+    () => ({
+      readMetadata: async (input) => {
+        const metadata = await handle.load.readMetadata(input);
+        const mode = handle.preferredViewMode();
+        if (mode !== null) setPreferredView({ artifactKey, mode });
+        return metadata;
+      },
+      readPackage: (input) => handle.load.readPackage(input),
+      ...(handle.load.releasePackage === undefined
+        ? {}
+        : { releasePackage: (bytes: Uint8Array) => handle.load.releasePackage?.(bytes) }),
+    }),
+    [artifactKey, handle],
+  );
   useEffect(() => () => handle.dispose(), [handle]);
   const incarnationKey = `${routeEpoch}:${nodeId}:${artifactId}:${versionId}`;
+  const viewMode = preferredView?.artifactKey === artifactKey ? preferredView.mode : 'fit-page';
 
   return (
     <PublicIsolatedArtifactHost
@@ -75,10 +100,10 @@ export function PublicShareArtifactHost({
       runtimeOrigin={runtimeOrigin}
       routeEpoch={routeEpoch}
       snapshotWatermark={snapshotWatermark}
-      load={handle.load}
+      load={load}
       hostInstanceId={nodeId}
       incarnationKey={incarnationKey}
-      viewMode="fit-page"
+      viewMode={viewMode}
       presentationActive={presentationActive}
       {...(onPresentationPageChange === undefined ? {} : { onPresentationPageChange })}
       showStopControl={false}

@@ -67,8 +67,11 @@ const ready = readyParsed.data.value;
 const bytesV1 = (value: string): Uint8Array => new TextEncoder().encode(value);
 const sha256V1 = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex');
 
-const packageFixtureV1 = (identity: ArtifactReferenceV1 = artifact): Uint8Array => {
-  const resource = bytesV1('<main>KitCatHub</main>');
+const packageFixtureV1 = (
+  identity: ArtifactReferenceV1 = artifact,
+  html = '<main>KitCatHub</main>',
+): Uint8Array => {
+  const resource = bytesV1(html);
   const manifest = ArtifactManifestParserV1.parse({
     protocolVersion: 1,
     type: 'artifact.manifest',
@@ -126,6 +129,37 @@ const responseV1 = (body = packageFixtureV1(), headers: Record<string, string> =
       ...headers,
     },
   });
+
+test('public workflow graph packages prefer fill while other artifacts retain fit-page', async () => {
+  for (const fixture of [
+    { html: '<main>KitCatHub</main>', expected: 'fit-page' },
+    {
+      html: '<main class="sb-workflow-graph" data-sb-workflow-graph="v1"></main>',
+      expected: 'fill',
+    },
+  ] as const) {
+    const store = new PublicArtifactPackageStoreV1(ready, {
+      apiOrigin: 'https://sceneboard.example',
+      fetcher: async () => responseV1(packageFixtureV1(artifact, fixture.html)),
+    });
+    const handle = store.open(artifact);
+    const controller = new AbortController();
+    assert.equal(handle.preferredViewMode(), null);
+    await handle.load.readMetadata({
+      boardId: ready.projection.boardId,
+      artifact,
+      signal: controller.signal,
+    });
+    assert.equal(handle.preferredViewMode(), fixture.expected);
+    const bytes = await handle.load.readPackage({
+      boardId: ready.projection.boardId,
+      artifact,
+      signal: controller.signal,
+    });
+    handle.load.releasePackage?.(bytes);
+    store.dispose();
+  }
+});
 
 test('public artifact loader certifies the exact tuple and zeroes released package bytes', async () => {
   const requests: Array<{ url: string; init: RequestInit | undefined }> = [];
