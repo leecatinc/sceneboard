@@ -11,12 +11,13 @@ This is the source of truth for work inside the SceneBoard monorepo.
 
 ## Branches
 
-| Situation                                                            | Load                  |
-| -------------------------------------------------------------------- | --------------------- |
-| Source changes, refactors, API/UI implementation                     | `rules/code/RULES.md` |
-| Test design, regression work, browser/API QA                         | `rules/qa/RULES.md`   |
-| Environment variables, credentials, runtime/deployment configuration | `rules/env/RULES.md`  |
-| Staging, commits, repository initialization, pushes, history changes | `rules/git/RULES.md`  |
+| Situation                                                            | Load                    |
+| -------------------------------------------------------------------- | ----------------------- |
+| Source changes, refactors, API/UI implementation                     | `rules/code/RULES.md`   |
+| Code review, review findings, merge-readiness assessment             | `rules/review/RULES.md` |
+| Test design, regression work, browser/API QA                         | `rules/qa/RULES.md`     |
+| Environment variables, credentials, runtime/deployment configuration | `rules/env/RULES.md`    |
+| Staging, commits, repository initialization, pushes, history changes | `rules/git/RULES.md`    |
 
 ## Repository boundaries
 
