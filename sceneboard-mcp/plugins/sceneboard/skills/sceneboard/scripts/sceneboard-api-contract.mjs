@@ -74,6 +74,24 @@ export const CAPABILITY_SCOPES = [
   "board.read",
   "board.write",
 ];
+export const BOARD_AUTHORIZATION_CAPABILITIES = [
+  "account.board.create",
+  "artifact.control",
+  "artifact.publish",
+  "board.admin",
+  "board.analytics.read",
+  "board.history.read",
+  "board.hitl.request",
+  "board.hitl.respond",
+  "board.media.write",
+  "board.members.manage",
+  "board.read",
+  "board.share.manage",
+  "board.write",
+  "connection.manage.own",
+  "export.read",
+];
+export const SESSION_LIFECYCLE_PERMISSIONS = ["board.archive", "board.create"];
 export const GRANT_SCOPES = [
   "board.read",
   "board.write",

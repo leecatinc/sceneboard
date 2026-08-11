@@ -8,6 +8,7 @@ import {
 import {
   ACCOUNT_API_KEY_SCOPES,
   ARTIFACT_CAPABILITIES,
+  BOARD_AUTHORIZATION_CAPABILITIES,
   BOARD_ERROR_CATEGORIES,
   BOARD_ERROR_STATUS,
   BOARD_LIMITS,
@@ -26,6 +27,7 @@ import {
   PROOF_PATTERN,
   RETRYABLE_BOARD_ERRORS,
   SEMVER_PATTERN,
+  SESSION_LIFECYCLE_PERMISSIONS,
   validTimestamp,
 } from "./sceneboard-api-contract.mjs";
 import { SceneBoardApiError } from "./sceneboard-api-error.mjs";
@@ -539,6 +541,52 @@ export const parseCapabilities = (value) => {
     limits: { ...BOARD_LIMITS },
     grantedCapabilities,
     allowedArtifactRequestCapabilities,
+  };
+};
+
+export const parseSessionAccess = (value) => {
+  if (
+    !hasExactKeys(value, [
+      "protocolVersion",
+      "type",
+      "capabilityEpoch",
+      "authorizationCapabilities",
+      "connectionGrantCeiling",
+    ]) ||
+    value.protocolVersion !== 1 ||
+    value.type !== "board.session.access" ||
+    !Number.isSafeInteger(value.capabilityEpoch) ||
+    value.capabilityEpoch < 0 ||
+    !hasExactKeys(value.connectionGrantCeiling, [
+      "scopes",
+      "lifecyclePermissions",
+    ])
+  )
+    return null;
+  const authorizationCapabilities = exactCatalog(
+    value.authorizationCapabilities,
+    BOARD_AUTHORIZATION_CAPABILITIES,
+  );
+  const scopes = exactCatalog(
+    value.connectionGrantCeiling.scopes,
+    CAPABILITY_SCOPES,
+  );
+  const lifecyclePermissions = exactCatalog(
+    value.connectionGrantCeiling.lifecyclePermissions,
+    SESSION_LIFECYCLE_PERMISSIONS,
+  );
+  if (
+    authorizationCapabilities === null ||
+    scopes === null ||
+    lifecyclePermissions === null
+  )
+    return null;
+  return {
+    protocolVersion: 1,
+    type: "board.session.access",
+    capabilityEpoch: value.capabilityEpoch,
+    authorizationCapabilities,
+    connectionGrantCeiling: { scopes, lifecyclePermissions },
   };
 };
 

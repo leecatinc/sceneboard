@@ -28,10 +28,11 @@ does not rewrite the source.
   `scripts/scene-artifact.mjs`. Treat `scripts/scene-artifact-workflow-graph.mjs` as the sole source
   of truth for its HTML, CSS, JavaScript, node geometry, edge routing, labels, detail overlay, and
   viewport behavior. Do not hand-author, restyle, or replace it with a native drawing.
-- Preserve the current control order: zoom out, zoom level, zoom in, `100%`, `Fit`, `Selected`, and
-  clipboard copy. Artifact-side file download is outside this renderer's authority boundary.
-- Preserve initial Fit, bounded two-axis scrolling, pointer-centered zoom and pan gestures,
-  full-surface grid, minimap, current node and routed-edge styling, `0.6` edge-label pill background,
+- Preserve the current viewport control order: zoom out, zoom level, zoom in, `100%`, `Fit`, and
+  `Selected`. Append clipboard copy only when the board grants `clipboard.write`. Artifact-side file
+  download is outside this renderer's authority boundary.
+- Preserve initial Fit, unbounded two-axis camera panning, pointer-centered zoom and pan gestures,
+  full-surface grid, current node and routed-edge styling, `0.6` edge-label pill background,
   transparent edge hit targets, and the responsive detail inspector. Do not omit these
   behaviors for a new graph.
 - Change graph content only through validated WorkflowSpec fields. Let the closed renderer decide
@@ -64,11 +65,14 @@ WorkflowSpec may still be exported for coding handoff, but must not be claimed a
 
 ## Compile, publish, and place
 
-1. Resolve the exact board and read `board_capabilities_get` plus `board_scene_get`.
+1. Resolve the exact board and read `board_capabilities_get` plus `board_scene_get`. Treat the
+   shared board-schema `capabilities.get` result as authoritative: it contains both exact
+   `board.capabilities` and required `board.session.access` projections. If that response cannot be
+   validated, capability proof is unavailable and the graph must stay in `copyMode:"manual"`.
 2. Compile `workflow-graph` with `copyMode:"export"` when the current allowed artifact request
    capabilities contain `clipboard.write`; this mode shows the copy control and keeps canonical JSON
-   out of the visible layout. `copyMode:"clipboard"` has the same capability boundary. Otherwise use `copyMode:"manual"`;
-   manual mode requests no capability and retains the complete read-only selectable JSON fallback.
+   out of the visible layout. `copyMode:"clipboard"` has the same capability boundary. Otherwise use
+   `copyMode:"manual"`; manual mode requests no capability and renders no copy or JSON export UI.
 3. Validate and inspect the exact artifact draft. Publish once with `board_artifact_put`, the
    observed head, and a fresh idempotency key. Accept immutable IDs only from the selected
    transport's exact successful response path.
@@ -88,25 +92,35 @@ claimed.
 
 ## Graph viewport interaction
 
-- Omit the group overview when the validated WorkflowSpec contains only one workflow/subflow. With
-  two or more flows, retain the overview and breadcrumb drill-down, and ensure `hidden` overview
-  state is not overridden by author CSS.
-- Keep both scroll axes and their native scrollbars operational. The minimap, zoom output, and
-  keyboard-accessible viewport provide additional position indicators.
-- Match the Figma canvas conventions: `Ctrl`/`Command` + mouse wheel zooms around the pointer,
-  middle-button drag pans, and holding `Space` while primary-button dragging temporarily pans.
+- Omit the group overview and redundant entry/exit port labels when the validated WorkflowSpec
+  contains only one workflow/subflow. With two or more flows, retain the overview, breadcrumb
+  drill-down, and entry/exit labels as viewport overlays outside the camera transform; ensure
+  `hidden` overview state is not overridden by author CSS.
+- Hide native scrollbars and keep the camera movable without left, top, right, or bottom bounds.
+  Preserve keyboard access with directional pan keys and explicit viewport controls.
+- Adapt canvas input to the embedded host: `Ctrl`/`Command` + mouse wheel zooms around the pointer,
+  `Shift` + wheel and horizontally dominant touchpad input pan, while ordinary vertical wheel or
+  touchpad input remains available to scroll the host page. Middle-button drag pans, and holding
+  `Space` while primary-button dragging temporarily pans.
 - Support `Shift+1` for fit and `Shift+2` for the selected element. Keep explicit buttons and the
   existing `+`, `-`, and `0` fallbacks so the graph remains operable without a mouse.
-- Do not render a separate artifact title/description hero above the workflow. Place the canonical
-  JSON copy/export controls immediately after the `Selected` viewport control in every visible flow.
+- Do not render a separate artifact title/description hero above the workflow. When clipboard access
+  is available, place its copy control immediately after the `Selected` viewport control.
 - Fill the artifact viewport edge to edge: remove outer main/flow spacing and card chrome, keep only
   header control padding, and let the graph stage consume all remaining viewport height.
-- Render the grid on the entire graph viewport instead of limiting it to the finite layout canvas.
-  Keep its origin and spacing synchronized with pan and zoom so it behaves like an infinite canvas.
-- Model viewport navigation as a bounded native two-axis scroll range so keyboard and assistive
-  technology users retain the same navigation surface as pointer users.
-- Render a minimap with a viewport marker. On the initial single-flow load, apply `Fit` after layout settles; for
-  grouped workflows, apply `Fit` when a flow is opened for the first time.
+- Open node and edge details as a right-side overlay above the graph. Never reserve a permanent
+  inspector column or reduce the graph viewport width while the inspector is closed.
+- Render the grid across the entire artifact viewport, including the control header, instead of
+  limiting it to the finite layout canvas. Keep its origin and spacing synchronized with pan and
+  zoom so it behaves like an infinite canvas.
+- Model viewport navigation as an unbounded camera transform. Never clamp camera translation to the
+  authored layout bounds, and do not create a finite scroll plane as a substitute.
+- On the initial single-flow load, apply `Fit` after layout settles; for grouped workflows, apply
+  `Fit` when a flow is opened for the first time. Measure the actual rendered node, edge, and
+  subflow-control bounds, excluding viewport-overlay ports, the padded layout canvas, and other
+  empty space. Fit with a small safety margin and an automatic contain scale: the tighter of width
+  and height is the limiting axis, so wide graphs naturally width-fit while tall graphs remain
+  fully visible.
 - Initial host sizing is asynchronous. Observe the visible graph viewport and repeat the initial fit
   across host resize and font readiness for a bounded initialization window. Stop immediately when
   the user zooms, pans, resets, fits, or focuses a selection so automatic fitting never fights input.
@@ -118,9 +132,9 @@ claimed.
 - Keep edge detail hit targets transparent. Do not render a midpoint arrow button over the SVG edge
   or label. Override shared button chrome with sufficient selector specificity, keep mouse selection
   invisible, and reveal an outline only for keyboard `focus-visible`.
-- Prefer layout `zoom` for canvas magnification where supported so DOM text is re-rasterized at the
-  target scale. Keep translation separate and use transform scaling only as a compatibility fallback.
-- Do not let canvas gestures steal node, edge, inspector, form, or export-control activation.
+- Keep scale and translation in one camera transform so zoom anchoring and unbounded pan remain
+  deterministic across browsers.
+- Do not let canvas gestures steal node, edge, inspector, form, or viewport-control activation.
 
 ## Conversational edits and semantic review
 

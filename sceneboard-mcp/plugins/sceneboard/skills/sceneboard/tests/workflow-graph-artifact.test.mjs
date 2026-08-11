@@ -42,24 +42,74 @@ test("workflow graph renders the closed WorkflowSpec v1 contract deterministical
   assert.deepEqual(first.source.requestedCapabilities, []);
   assert.match(first.source.html, /data-sb-workflow-graph="v1"/u);
   assert.match(first.source.html, /data-workflow-open=/u);
-  assert.match(first.source.html, /data-minimap/u);
-  assert.match(first.source.html, /data-minimap-viewport/u);
+  assert.doesNotMatch(first.source.html, /data-minimap/u);
+  assert.doesNotMatch(first.source.html, /WorkflowSpec export/u);
+  assert.doesNotMatch(first.source.html, /data-copy-manual/u);
+  assert.doesNotMatch(first.source.html, /data-entry-port/u);
+  assert.doesNotMatch(first.source.html, /data-exit-port/u);
+  assert.match(
+    first.source.html,
+    /readonly hidden class="sb-graph-export-source"/u,
+  );
   assert.match(first.source.html, /role="region"/u);
   assert.doesNotMatch(first.source.html, /aria-modal="true"/u);
-  assert.match(first.source.css, /grid-template-columns:minmax\(0,1fr\)/u);
-  assert.match(first.source.css, /\.sb-graph-scroll\{overflow:auto/u);
+  assert.match(
+    first.source.css,
+    /\.sb-graph-workspace\{position:relative;display:block;gap:0\}/u,
+  );
+  assert.match(first.source.css, /\.sb-workflow-graph\{overflow:hidden\}/u);
+  assert.match(
+    first.source.css,
+    /\.sb-graph-inspector\{position:absolute;z-index:30;top:0;right:0;bottom:0/u,
+  );
+  assert.match(
+    first.source.css,
+    /\.sb-graph-scroll\{position:relative;overflow:hidden;scrollbar-width:none/u,
+  );
+  assert.match(
+    first.source.css,
+    /\.sb-workflow-graph\{background-color:#07151f;background-image:/u,
+  );
   assert.match(
     first.source.css,
     /\.sb-graph-inspector-backdrop\{display:none\}/u,
   );
   assert.match(
     first.source.javascript,
-    /Math\.min\(2,Math\.max\(\.5,next\)\)/u,
+    /Math\.min\(2,Math\.max\(\.1,next\)\)/u,
   );
-  assert.match(first.source.javascript, /scroll\.scrollLeft/u);
-  assert.match(first.source.javascript, /const syncMini=/u);
+  assert.match(first.source.javascript, /const measureGraphBounds=/u);
+  assert.match(
+    first.source.javascript,
+    /querySelectorAll\('\.sb-graph-node,\.sb-graph-edge,\.sb-graph-subflow-link'\)/u,
+  );
+  assert.doesNotMatch(
+    first.source.javascript,
+    /querySelectorAll\([^)]*\.sb-graph-port/u,
+  );
+  assert.match(first.source.javascript, /svg\.getBBox\(\)/u);
+  assert.match(
+    first.source.javascript,
+    /const widthScale=availableWidth\/bounds\.width,heightScale=availableHeight\/bounds\.height/u,
+  );
+  assert.match(first.source.javascript, /Math\.min\(widthScale,heightScale\)/u);
+  assert.match(first.source.javascript, /let scale=1,panX=0,panY=0/u);
+  assert.match(
+    first.source.javascript,
+    /canvas\.style\.transform='translate\('/u,
+  );
+  assert.doesNotMatch(first.source.javascript, /scroll\.scrollLeft/u);
+  assert.doesNotMatch(first.source.javascript, /syncMini/u);
   assert.match(first.source.javascript, /setPointerCapture/u);
   assert.match(first.source.javascript, /event\.pointerType==='touch'/u);
+  assert.match(
+    first.source.javascript,
+    /const shouldCaptureWheel=event=>event\.ctrlKey\|\|event\.metaKey\|\|event\.shiftKey\|\|Math\.abs\(event\.deltaX\)>Math\.abs\(event\.deltaY\)/u,
+  );
+  assert.match(
+    first.source.javascript,
+    /if\(!shouldCaptureWheel\(event\)\)return;\s*event\.preventDefault\(\)/u,
+  );
   assert.match(first.source.javascript, /new ResizeObserver/u);
   assert.doesNotMatch(
     first.source.html + first.source.css + first.source.javascript,
@@ -77,21 +127,15 @@ test("workflow graph rendering is invariant to valid node and edge input order",
   );
 });
 
-test("host-copy failures reveal and select the complete canonical JSON fallback", () => {
+test("host-copy failures stay out of the visible graph layout", () => {
   const compiled = compileSceneArtifactDraft(recipe("clipboard"), descriptor);
   assert.match(
     compiled.source.html,
     /readonly hidden class="sb-graph-export-source"/u,
   );
-  assert.match(compiled.source.javascript, /source\.hidden=false/u);
-  assert.match(
-    compiled.source.javascript,
-    /source\.classList\.add\('sb-graph-export-fallback'\)/u,
-  );
-  assert.match(
-    compiled.source.javascript,
-    /source\.focus\(\);source\.select\(\)/u,
-  );
+  assert.doesNotMatch(compiled.source.javascript, /source\.hidden=false/u);
+  assert.doesNotMatch(compiled.source.javascript, /source\.select\(\)/u);
+  assert.doesNotMatch(compiled.source.html, /WorkflowSpec export/u);
   assert.match(compiled.source.javascript, /No clipboard result arrived\./u);
 });
 
@@ -114,9 +158,15 @@ test("root and subflows render as drill-down groups", async () => {
   assert.match(grouped.source.html, /aria-label="Workflow groups"/u);
   assert.match(grouped.source.html, /aria-label="Breadcrumb"/u);
   assert.match(grouped.source.html, /data-parent-flow=/u);
+  assert.match(grouped.source.html, /data-entry-port/u);
+  assert.match(grouped.source.html, /data-exit-port/u);
+  assert.match(
+    grouped.source.html,
+    /<\/div><\/div><span class="sb-graph-port sb-graph-port-entry"/u,
+  );
 });
 
-test("valid specs beyond the 32-node preview envelope remain copyable", () => {
+test("valid specs beyond the 32-node preview envelope retain canonical source", () => {
   const large = structuredClone(workflowSpec);
   large.unresolvedQuestions = [];
   large.warnings = [];
@@ -157,6 +207,9 @@ test("all host variants request clipboard only and manual mode requests nothing"
   assert.deepEqual(manual.source.requestedCapabilities, []);
   assert.deepEqual(clipboard.source.requestedCapabilities, ["clipboard.write"]);
   assert.deepEqual(exported.source.requestedCapabilities, ["clipboard.write"]);
+  assert.doesNotMatch(manual.source.html, /data-copy-manual/u);
+  assert.match(clipboard.source.html, /data-copy-host/u);
+  assert.match(exported.source.html, /data-copy-host/u);
   assert.doesNotMatch(exported.source.html, /data-download-host/u);
   assert.doesNotMatch(
     exported.source.javascript,

@@ -20,7 +20,7 @@ Prefer tools returned by MCP discovery. Before authentication exactly the three 
 | `board_get`                 | `{boardId}`                                                                                                                             | `board.get`                                                                                                                                                                      |
 | `board_create`              | `{title,idempotencyKey}`                                                                                                                | `board.create`                                                                                                                                                                   |
 | `board_archive`             | `{boardId,confirm:true,idempotencyKey}`                                                                                                 | `board.archive`                                                                                                                                                                  |
-| `board_capabilities_get`    | `{boardId}`                                                                                                                             | `capabilities.get`                                                                                                                                                               |
+| `board_capabilities_get`    | `{boardId}`                                                                                                                             | `capabilities.get` with exact `capabilities` and browser `sessionAccess` projections.                                                                                            |
 | `board_scene_get`           | `{boardId,revisionId:null\|<id>}`                                                                                                       | Live `board.get`, or historical `history.get` with aligned history metadata.                                                                                                     |
 | `board_scene_replace`       | `{boardId,expectedRevisionId,idempotencyKey,scene}`                                                                                     | `scene.replace`                                                                                                                                                                  |
 | `board_scene_patch`         | `{boardId,expectedRevisionId,idempotencyKey,operations}`                                                                                | One `scene.replace`; metadata includes `transformedFromRevisionId`.                                                                                                              |
@@ -135,7 +135,14 @@ Tools generate `requestId`; never include it in caller input. The only local pat
     "alt": "",
     "fit": "cover"
   },
-  "placement": { "kind": "canvas", "x": 40, "y": 40, "width": 640, "height": 360, "zIndex": 1 }
+  "placement": {
+    "kind": "canvas",
+    "x": 40,
+    "y": 40,
+    "width": 640,
+    "height": 360,
+    "zIndex": 1
+  }
 }
 ```
 

@@ -13,6 +13,7 @@ import {
   hasContextualSecret,
   isSecretShaped,
   parseCapabilities,
+  parseSessionAccess,
   safeText,
   SENSITIVE_CONTEXT_PATTERN,
   validArtifactReference,
@@ -893,8 +894,11 @@ const projectResultData = (type, data, correlation) => {
   }
   if (type === "capabilities.get") {
     const capabilities = parseCapabilities(data.capabilities);
-    return hasExactKeys(data, ["type", "capabilities"]) && capabilities !== null
-      ? { type, capabilities }
+    const sessionAccess = parseSessionAccess(data.sessionAccess);
+    return hasExactKeys(data, ["type", "capabilities", "sessionAccess"]) &&
+      capabilities !== null &&
+      sessionAccess !== null
+      ? { type, capabilities, sessionAccess }
       : null;
   }
   if (type === "history.list") {
