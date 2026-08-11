@@ -42,17 +42,35 @@ test("workflow graph renders the closed WorkflowSpec v1 contract deterministical
   assert.deepEqual(first.source.requestedCapabilities, []);
   assert.match(first.source.html, /data-sb-workflow-graph="v1"/u);
   assert.match(first.source.html, /data-workflow-open=/u);
+  assert.match(first.source.html, /<span>start<\/span>/u);
+  assert.doesNotMatch(
+    first.source.html,
+    /<span>(?:start|action|decision|parallel|join|human|subflow|end) · \d+%<\/span>/u,
+  );
+  assert.doesNotMatch(first.source.html, /\d+% confidence/u);
+  assert.match(
+    first.source.html,
+    /<h4>Evidence<\/h4><p><strong>explicit<\/strong><\/p>/u,
+  );
   assert.doesNotMatch(first.source.html, /data-minimap/u);
-  assert.doesNotMatch(first.source.html, /WorkflowSpec export/u);
   assert.doesNotMatch(first.source.html, /data-copy-manual/u);
   assert.doesNotMatch(first.source.html, /data-entry-port/u);
   assert.doesNotMatch(first.source.html, /data-exit-port/u);
   assert.match(
     first.source.html,
-    /readonly hidden class="sb-graph-export-source"/u,
+    /data-focus-selected[^>]*>Selected<\/button><button type="button" data-json-export>JSON export<\/button>/u,
   );
+  assert.match(first.source.html, /data-json-modal hidden role="dialog"/u);
+  assert.match(first.source.html, /aria-modal="true"/u);
+  assert.match(first.source.html, /WorkflowSpec JSON export/u);
+  assert.match(first.source.html, /conversion to LangGraph/u);
+  assert.match(
+    first.source.html,
+    /<textarea readonly class="sb-graph-json-source" data-workflow-json/u,
+  );
+  assert.match(first.source.html, /data-json-select>Select all<\/button>/u);
+  assert.doesNotMatch(first.source.html, /data-copy-host/u);
   assert.match(first.source.html, /role="region"/u);
-  assert.doesNotMatch(first.source.html, /aria-modal="true"/u);
   assert.match(
     first.source.css,
     /\.sb-graph-workspace\{position:relative;display:block;gap:0\}/u,
@@ -87,6 +105,10 @@ test("workflow graph renders the closed WorkflowSpec v1 contract deterministical
     first.source.javascript,
     /querySelectorAll\([^)]*\.sb-graph-port/u,
   );
+  assert.match(
+    first.source.javascript,
+    /querySelectorAll\('\.sb-graph-edge-layer,\.sb-graph-label-layer'\)/u,
+  );
   assert.match(first.source.javascript, /svg\.getBBox\(\)/u);
   assert.match(
     first.source.javascript,
@@ -112,6 +134,31 @@ test("workflow graph renders the closed WorkflowSpec v1 contract deterministical
   );
   assert.match(first.source.javascript, /new ResizeObserver/u);
   assert.match(first.source.html, /data-edge-label data-element-id=/u);
+  const edgeLayer =
+    first.source.html.match(
+      /<svg class="sb-graph-edge-layer"[\s\S]*?<\/svg>/u,
+    )?.[0] ?? "";
+  const labelLayer =
+    first.source.html.match(
+      /<svg class="sb-graph-label-layer"[\s\S]*?<\/svg>/u,
+    )?.[0] ?? "";
+  assert.match(edgeLayer, /class="sb-graph-path"/u);
+  assert.doesNotMatch(edgeLayer, /class="sb-graph-edge-label"/u);
+  assert.match(labelLayer, /class="sb-graph-edge-label"/u);
+  assert.doesNotMatch(labelLayer, /class="sb-graph-path"/u);
+  assert.match(
+    edgeLayer,
+    /data-element-id="approval_edge_complete"[^>]* d="M 663 238 Q 663 212 663 186"/u,
+  );
+  assert.match(
+    edgeLayer,
+    /data-element-id="approval_edge_start"[^>]* d="M 298 144 Q 327 144 356 144"/u,
+  );
+  assert.match(
+    first.source.css,
+    /\.sb-graph-canvas \.sb-graph-edge-layer\{z-index:1;pointer-events:none\}\.sb-graph-node\{z-index:2\}\.sb-graph-canvas \.sb-graph-label-layer\{z-index:3;pointer-events:none\}\.sb-workflow-graph \.sb-graph-edge\{z-index:4\}/u,
+  );
+  assert.doesNotMatch(first.source.css, /\.sb-graph-canvas svg\{z-index:/u);
   assert.match(
     first.source.css,
     /\.sb-graph-edge-label rect\{fill:#07151f;stroke:#2dd4bf66/u,
@@ -132,8 +179,19 @@ test("workflow graph renders the closed WorkflowSpec v1 contract deterministical
   );
   assert.match(
     first.source.javascript,
-    /document\.fonts\?\.ready\?\.then\(\(\)=>\{positionEdgeLabels\(\);scheduleInitialFit\(\)\}\)/u,
+    /document\.fonts\?\.ready\?\.then\(\(\)=>\{positionEdgePaths\(\);positionEdgeLabels\(\);scheduleInitialFit\(\)\}\)/u,
   );
+  assert.match(first.source.javascript, /const positionEdgePaths=/u);
+  assert.match(first.source.javascript, /from\.height\+gap/u);
+  assert.match(first.source.javascript, /to\.height\+gap/u);
+  assert.match(first.source.javascript, /const openJsonModal=/u);
+  assert.match(first.source.javascript, /const closeJsonModal=/u);
+  assert.match(
+    first.source.javascript,
+    /source\.focus\(\);source\.select\(\)/u,
+  );
+  assert.match(first.source.javascript, /event\.key==='Escape'/u);
+  assert.match(first.source.javascript, /event\.key!=='Tab'/u);
   assert.doesNotMatch(
     first.source.html + first.source.css + first.source.javascript,
     /https?:\/\//u,
@@ -150,15 +208,18 @@ test("workflow graph rendering is invariant to valid node and edge input order",
   );
 });
 
-test("host-copy failures stay out of the visible graph layout", () => {
+test("host-copy failures keep the JSON modal open and select the canonical source", () => {
   const compiled = compileSceneArtifactDraft(recipe("clipboard"), descriptor);
   assert.match(
     compiled.source.html,
-    /readonly hidden class="sb-graph-export-source"/u,
+    /<textarea readonly class="sb-graph-json-source" data-workflow-json/u,
   );
-  assert.doesNotMatch(compiled.source.javascript, /source\.hidden=false/u);
-  assert.doesNotMatch(compiled.source.javascript, /source\.select\(\)/u);
-  assert.doesNotMatch(compiled.source.html, /WorkflowSpec export/u);
+  assert.match(compiled.source.html, /data-copy-host>Copy JSON<\/button>/u);
+  assert.match(compiled.source.javascript, /source\.select\(\)/u);
+  assert.match(
+    compiled.source.javascript,
+    /Clipboard copy was denied or unavailable\. Canonical JSON selected\./u,
+  );
   assert.match(compiled.source.javascript, /No clipboard result arrived\./u);
 });
 
@@ -231,6 +292,9 @@ test("all host variants request clipboard only and manual mode requests nothing"
   assert.deepEqual(clipboard.source.requestedCapabilities, ["clipboard.write"]);
   assert.deepEqual(exported.source.requestedCapabilities, ["clipboard.write"]);
   assert.doesNotMatch(manual.source.html, /data-copy-manual/u);
+  assert.match(manual.source.html, /data-json-export>JSON export<\/button>/u);
+  assert.match(manual.source.html, /data-json-select>Select all<\/button>/u);
+  assert.doesNotMatch(manual.source.html, /data-copy-host/u);
   assert.match(clipboard.source.html, /data-copy-host/u);
   assert.match(exported.source.html, /data-copy-host/u);
   assert.doesNotMatch(exported.source.html, /data-download-host/u);

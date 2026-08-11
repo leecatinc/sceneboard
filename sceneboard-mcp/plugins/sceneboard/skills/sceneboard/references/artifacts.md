@@ -25,12 +25,14 @@ Requested capabilities are exactly `clipboard.write`, `download`, `fullscreen`, 
 
 The closed `workflow-graph` template is the only shipped template that can request
 `clipboard.write`. It may use a host-copy variant only when a fresh authenticated
-`board_capabilities_get` result currently allows that capability. Its visible surface contains one
-copy control; canonical JSON remains an internal bounded source even when the host denies or times
-out. The host accepts one same-ID, transiently activated request, validates exact text and returns
-only byte length or a closed error.
-The manual variant requests no capability and exposes no copy or JSON export control; canonical JSON
-remains an internal bounded source. Public-share and export hosts omit the allow-list and stay denied.
+`board_capabilities_get` result currently allows that capability. Every variant places one
+`JSON export` control after `Selected` and opens the complete canonical WorkflowSpec in a read-only
+modal. The host-copy variant adds one `Copy JSON` action inside that modal. The host accepts one
+same-ID, transiently activated request, validates exact text and returns only byte length or a closed
+error; denial or timeout leaves the modal open and selects the canonical source for manual copy.
+The manual variant requests no capability and exposes the same JSON modal with a `Select all` action,
+but no host-copy action. Public-share and export hosts omit the allow-list and stay denied, so they
+remain on this manual path.
 
 Network uses the bounded broker and remains default denied; provider credentials stay server-side. Diagrams use the vendored content-hashed Mermaid asset or authored SVG/Canvas, never external CDN code. Raster `data:` URIs must be consumed by runtime JavaScript through Canvas/dynamic image creation; static `<img src="data:…">` and CSS data URLs are rejected.
 

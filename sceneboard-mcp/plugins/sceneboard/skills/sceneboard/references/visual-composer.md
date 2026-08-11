@@ -64,9 +64,10 @@ Templates are `animated-data-story`, `architecture-map`, `demo-showcase`, `metri
 `workflow-graph` is the closed review surface for a validated WorkflowSpec. It is not the ordinary
 flow-decoration route: follow [graph-engineering.md](graph-engineering.md) for source boundaries,
 provenance, validation, capability-aware compilation, publication, and conversational edits. Nodes
-and edges are independently inspectable. The capability-aware export variant keeps canonical JSON
-out of the visible layout and exposes only the copy control; manual mode exposes neither copy nor
-JSON export UI. In the authenticated board, prefer the host's `Fill area` view so the responsive
+and edges are independently inspectable. Every variant exposes canonical JSON through the
+`JSON export` modal immediately after `Selected`; the capability-aware variant adds `Copy JSON`
+inside that modal, while manual mode offers read-only inspection and selection without requesting a
+capability. In the authenticated board, prefer the host's `Fill area` view so the responsive
 graph owns the remaining viewport instead of inheriting the template's intrinsic aspect ratio. The
 graph's `Fit` control automatically contains the measured content, while the host's `Fit page`,
 `Fit width`, and `100%` remain explicit user-selectable iframe sizing fallbacks.

@@ -28,13 +28,17 @@ does not rewrite the source.
   `scripts/scene-artifact.mjs`. Treat `scripts/scene-artifact-workflow-graph.mjs` as the sole source
   of truth for its HTML, CSS, JavaScript, node geometry, edge routing, labels, detail overlay, and
   viewport behavior. Do not hand-author, restyle, or replace it with a native drawing.
-- Preserve the current viewport control order: zoom out, zoom level, zoom in, `100%`, `Fit`, and
-  `Selected`. Append clipboard copy only when the board grants `clipboard.write`. Artifact-side file
-  download is outside this renderer's authority boundary.
+- Preserve the current viewport control order: zoom out, zoom level, zoom in, `100%`, `Fit`,
+  `Selected`, and `JSON export`. `JSON export` always opens the canonical WorkflowSpec in a read-only
+  modal. Add `Copy JSON` inside that modal only when the board grants `clipboard.write`;
+  artifact-side file download is outside this renderer's authority boundary.
 - Preserve initial Fit, unbounded two-axis camera panning, pointer-centered zoom and pan gestures,
   full-surface grid, current node and routed-edge styling, fully opaque edge-label pill background,
   transparent edge hit targets, and the responsive detail inspector. Do not omit these
   behaviors for a new graph.
+- Show only the node kind in each graph-card footer. Keep evidence basis and source references in
+  the Details inspector, but do not show confidence percentages on cards or in Details. Preserve
+  confidence in the canonical WorkflowSpec and its JSON export for downstream review and conversion.
 - Change graph content only through validated WorkflowSpec fields. Let the closed renderer decide
   layout and presentation so every prompt produces the same final form while allowing different
   workflows, groups, nodes, edges, conditions, and details.
@@ -70,9 +74,10 @@ WorkflowSpec may still be exported for coding handoff, but must not be claimed a
    `board.capabilities` and required `board.session.access` projections. If that response cannot be
    validated, capability proof is unavailable and the graph must stay in `copyMode:"manual"`.
 2. Compile `workflow-graph` with `copyMode:"export"` when the current allowed artifact request
-   capabilities contain `clipboard.write`; this mode shows the copy control and keeps canonical JSON
-   out of the visible layout. `copyMode:"clipboard"` has the same capability boundary. Otherwise use
-   `copyMode:"manual"`; manual mode requests no capability and renders no copy or JSON export UI.
+   capabilities contain `clipboard.write`; this mode adds `Copy JSON` inside the JSON export modal.
+   `copyMode:"clipboard"` has the same capability boundary. Otherwise use `copyMode:"manual"`;
+   manual mode requests no capability, still opens the complete canonical JSON in the read-only
+   modal, and offers deterministic selection for manual copy.
 3. Validate and inspect the exact artifact draft. Publish once with `board_artifact_put`, the
    observed head, and a fresh idempotency key. Accept immutable IDs only from the selected
    transport's exact successful response path.
@@ -104,8 +109,9 @@ claimed.
   `Space` while primary-button dragging temporarily pans.
 - Support `Shift+1` for fit and `Shift+2` for the selected element. Keep explicit buttons and the
   existing `+`, `-`, and `0` fallbacks so the graph remains operable without a mouse.
-- Do not render a separate artifact title/description hero above the workflow. When clipboard access
-  is available, place its copy control immediately after the `Selected` viewport control.
+- Do not render a separate artifact title/description hero above the workflow. Place `JSON export`
+  immediately after the `Selected` viewport control. Keep capability-dependent `Copy JSON` inside
+  the modal so the header layout is identical across hosts.
 - Fill the artifact viewport edge to edge: remove outer main/flow spacing and card chrome, keep only
   header control padding, and let the graph stage consume all remaining viewport height.
 - Open node and edge details as a right-side overlay above the graph. Never reserve a permanent
@@ -124,14 +130,19 @@ claimed.
 - Initial host sizing is asynchronous. Observe the visible graph viewport and repeat the initial fit
   across host resize and font readiness for a bounded initialization window. Stop immediately when
   the user zooms, pans, resets, fits, or focuses a selection so automatic fitting never fights input.
-- Route reciprocal or parallel edges through deterministic curved lanes. Start bounded edge labels
-  as background pills at their routed midpoint, then use the actual rendered node boxes after font
-  readiness to choose the nearest deterministic above/below candidate with the least node overlap;
-  avoid already placed labels as a secondary preference. Keep the full condition in details, and
-  include horizontal/vertical safety padding in layout bounds so `Fit` does not clip moved labels or
+- Route reciprocal or parallel edges through deterministic curved lanes. Select left/right ports
+  for ordinary rank progression, and select top/bottom ports when nodes occupy the same column or
+  vertical movement dominates. Keep path endpoints outside node boxes with a small deterministic
+  gap so arrowheads remain legible while paths render below nodes; no routed path may depend on
+  drawing over a node to communicate its direction. Start bounded edge labels as background pills
+  at their routed midpoint, then use the actual rendered node boxes after font readiness to choose
+  the nearest deterministic above/below candidate with the least node overlap; avoid already placed
+  labels as a secondary preference. Keep the full condition in details, and include
+  horizontal/vertical safety padding in layout bounds so `Fit` does not clip moved labels or
   terminal content.
-- Use a fully opaque edge-label pill fill and retain its subtle border. Keep explicit
-  stacking order as nodes below SVG edges/labels and transparent edge hit targets above both.
+- Use a fully opaque edge-label pill fill and retain its subtle border. Render arrow paths and
+  markers on the bottom layer, nodes above them, edge-label pills above nodes, and transparent edge
+  hit targets on top. Keep paths and labels in separate SVG layers so this order is enforceable.
 - Keep edge detail hit targets transparent. Do not render a midpoint arrow button over the SVG edge
   or label. Override shared button chrome with sufficient selector specificity, keep mouse selection
   invisible, and reveal an outline only for keyboard `focus-visible`.
@@ -167,7 +178,10 @@ new canonical file:
 
 ## Export and coding handoff
 
-Export or select the complete canonical WorkflowSpec JSON and provide it together with the original
-source to the coding request. The coding agent can implement it in LangGraph or another framework
-from those two inputs. Do not generate a special target-specific prompt: WorkflowSpec plus source is
-the handoff contract. Never claim that export executed, deployed, or automatically rewrote a graph.
+Open `JSON export` to inspect and select the complete canonical WorkflowSpec JSON. When
+`clipboard.write` is granted, `Copy JSON` may copy the same bytes through the host bridge; otherwise
+manual selection remains available without a capability request. Provide that JSON together with
+the original source to the coding request. The coding agent can implement it in LangGraph or another
+framework from those two inputs. Do not generate a special target-specific prompt: WorkflowSpec plus
+source is the handoff contract. Never claim that export executed, deployed, converted, or
+automatically rewrote a graph.

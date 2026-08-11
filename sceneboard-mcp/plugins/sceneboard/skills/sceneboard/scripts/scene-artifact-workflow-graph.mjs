@@ -15,6 +15,7 @@ const WORKFLOW_GRAPH_RENDER_LIMITS = Object.freeze({ nodes: 32, edges: 64 });
 const GRAPH_LAYOUT = Object.freeze({
   nodeWidth: 150,
   nodeHeight: 68,
+  edgeGap: 8,
   rankGap: 224,
   rowGap: 136,
   paddingX: 140,
@@ -137,15 +138,39 @@ const layoutEdges = (flow, layout) => {
     edges.forEach((edge, laneIndex) => {
       const from = layout.positions.get(edge.fromNodeId);
       const to = layout.positions.get(edge.toNodeId);
-      const forward = to.x >= from.x;
-      const start = {
-        x: forward ? from.x + GRAPH_LAYOUT.nodeWidth : from.x,
-        y: from.y + GRAPH_LAYOUT.nodeHeight / 2,
-      };
-      const end = {
-        x: forward ? to.x : to.x + GRAPH_LAYOUT.nodeWidth,
-        y: to.y + GRAPH_LAYOUT.nodeHeight / 2,
-      };
+      const centerDx = to.x - from.x;
+      const centerDy = to.y - from.y;
+      const verticalRoute =
+        Math.abs(centerDx) < GRAPH_LAYOUT.nodeWidth &&
+        Math.abs(centerDy) >= GRAPH_LAYOUT.nodeHeight;
+      const horizontalForward = centerDx >= 0;
+      const verticalForward = centerDy >= 0;
+      const start = verticalRoute
+        ? {
+            x: from.x + GRAPH_LAYOUT.nodeWidth / 2,
+            y: verticalForward
+              ? from.y + GRAPH_LAYOUT.nodeHeight + GRAPH_LAYOUT.edgeGap
+              : from.y - GRAPH_LAYOUT.edgeGap,
+          }
+        : {
+            x: horizontalForward
+              ? from.x + GRAPH_LAYOUT.nodeWidth + GRAPH_LAYOUT.edgeGap
+              : from.x - GRAPH_LAYOUT.edgeGap,
+            y: from.y + GRAPH_LAYOUT.nodeHeight / 2,
+          };
+      const end = verticalRoute
+        ? {
+            x: to.x + GRAPH_LAYOUT.nodeWidth / 2,
+            y: verticalForward
+              ? to.y - GRAPH_LAYOUT.edgeGap
+              : to.y + GRAPH_LAYOUT.nodeHeight + GRAPH_LAYOUT.edgeGap,
+          }
+        : {
+            x: horizontalForward
+              ? to.x - GRAPH_LAYOUT.edgeGap
+              : to.x + GRAPH_LAYOUT.nodeWidth + GRAPH_LAYOUT.edgeGap,
+            y: to.y + GRAPH_LAYOUT.nodeHeight / 2,
+          };
       const laneOffset =
         edges.length === 1 ? 0 : (laneIndex - (edges.length - 1) / 2) * 104;
       const control = {
@@ -164,6 +189,7 @@ const layoutEdges = (flow, layout) => {
         labelWidth: edgeLabelWidth(label),
         labelX: midpoint.x,
         labelY: midpoint.y - 15,
+        laneOffset,
         start,
       });
     });
@@ -179,7 +205,7 @@ const evidenceMarkup = (evidence) => {
         `<li>${escapeHtml(item.sourceId)}${item.locator == null ? "" : ` · ${escapeHtml(item.locator)}`}${item.startLine == null ? "" : ` · lines ${item.startLine}–${item.endLine}`}</li>`,
     )
     .join("");
-  return `<p><strong>${escapeHtml(evidence.basis)}</strong> · ${Math.round(evidence.confidence * 100)}% confidence</p>${refs === "" ? "<p>No source references were recorded.</p>" : `<ul>${refs}</ul>`}`;
+  return `<p><strong>${escapeHtml(evidence.basis)}</strong></p>${refs === "" ? "<p>No source references were recorded.</p>" : `<ul>${refs}</ul>`}`;
 };
 
 const detailSection = (kind, element) => {
@@ -197,17 +223,28 @@ const detailSection = (kind, element) => {
   return `<section id="workflow-detail-${escapeHtml(element.id)}" data-workflow-detail hidden><p class="sb-graph-kind">${escapeHtml(kind)}</p><h3>${escapeHtml(element.label ?? element.title ?? element.id)}</h3><dl>${rows}</dl><h4>Evidence</h4>${evidenceMarkup(element.evidence ?? [])}</section>`;
 };
 
-const renderFlow = (flow, index, flows, hasMultipleFlows, exportControls) => {
+const renderFlow = (
+  flow,
+  index,
+  flows,
+  hasMultipleFlows,
+  jsonExportControl,
+) => {
   const layout = layoutFlow(flow);
   const relationship = flowRelationship(flow, flows);
   const edgeGeometries = layoutEdges(flow, layout);
-  const edgeLines = flow.edges
+  const edgePaths = flow.edges
     .map((edge) => {
       const geometry = edgeGeometries.get(edge.id);
-      const label = geometry.label
+      return `<path class="sb-graph-path" data-element-id="${escapeHtml(edge.id)}" data-from-node-id="${escapeHtml(edge.fromNodeId)}" data-to-node-id="${escapeHtml(edge.toNodeId)}" data-lane-offset="${geometry.laneOffset}" d="M ${Math.round(geometry.start.x)} ${Math.round(geometry.start.y)} Q ${Math.round(geometry.control.x)} ${Math.round(geometry.control.y)} ${Math.round(geometry.end.x)} ${Math.round(geometry.end.y)}" marker-end="url(#workflow-arrow)"/>`;
+    })
+    .join("");
+  const edgeLabels = flow.edges
+    .map((edge) => {
+      const geometry = edgeGeometries.get(edge.id);
+      return geometry.label
         ? `<g class="sb-graph-edge-label" data-edge-label data-element-id="${escapeHtml(edge.id)}" data-label-x="${Math.round(geometry.labelX)}" data-label-y="${Math.round(geometry.labelY)}"><rect x="${Math.round(geometry.labelX - geometry.labelWidth / 2)}" y="${Math.round(geometry.labelY - 12)}" width="${geometry.labelWidth}" height="24" rx="7"/><text x="${Math.round(geometry.labelX)}" y="${Math.round(geometry.labelY)}">${escapeHtml(geometry.label)}</text></g>`
         : "";
-      return `<path class="sb-graph-path" d="M ${Math.round(geometry.start.x)} ${Math.round(geometry.start.y)} Q ${Math.round(geometry.control.x)} ${Math.round(geometry.control.y)} ${Math.round(geometry.end.x)} ${Math.round(geometry.end.y)}" marker-end="url(#workflow-arrow)"/>${label}`;
     })
     .join("");
   const edgeButtons = flow.edges
@@ -225,7 +262,7 @@ const renderFlow = (flow, index, flows, hasMultipleFlows, exportControls) => {
       const state = layout.unreachable.has(node.id)
         ? ' data-unreachable="true"'
         : "";
-      return `<button type="button" class="sb-graph-node" style="left:${position.x}px;top:${position.y}px" data-kind="${escapeHtml(node.kind)}" data-element-id="${escapeHtml(node.id)}" data-workflow-open="workflow-detail-${escapeHtml(node.id)}"${state}><strong>${escapeHtml(node.label)}</strong><span>${escapeHtml(node.kind)} · ${Math.round(node.evidence.confidence * 100)}%</span></button>`;
+      return `<button type="button" class="sb-graph-node" style="left:${position.x}px;top:${position.y}px" data-kind="${escapeHtml(node.kind)}" data-element-id="${escapeHtml(node.id)}" data-workflow-open="workflow-detail-${escapeHtml(node.id)}"${state}><strong>${escapeHtml(node.label)}</strong><span>${escapeHtml(node.kind)}</span></button>`;
     })
     .join("");
   const details = [
@@ -257,7 +294,7 @@ const renderFlow = (flow, index, flows, hasMultipleFlows, exportControls) => {
   const flowPorts = hasMultipleFlows
     ? `<span class="sb-graph-port sb-graph-port-entry" data-entry-port>${escapeHtml(entryContext)} · ${escapeHtml(flow.entryNodeIds.join(", "))}</span><span class="sb-graph-port sb-graph-port-exit" data-exit-port>${escapeHtml(exitContext)} · ${escapeHtml(flow.exitNodeIds.join(", "))}</span>`
     : "";
-  return `<section class="sb-graph-flow" data-workflow-flow="${index}" data-flow-id="${escapeHtml(flow.id)}" data-flow-title="${escapeHtml(flow.title)}"${index === 0 ? "" : " hidden"} aria-labelledby="workflow-flow-${index}"><header>${breadcrumb}<div class="sb-graph-title"><div><p>Flow ${index + 1}</p><h2 id="workflow-flow-${index}" tabindex="-1">${escapeHtml(flow.title)}</h2></div><div class="sb-graph-view-actions" aria-label="Graph viewport controls"><button type="button" data-zoom-out aria-label="Zoom out" aria-keyshortcuts="-">−</button><output data-zoom-output>100%</output><button type="button" data-zoom-in aria-label="Zoom in" aria-keyshortcuts="+">+</button><button type="button" data-reset-zoom aria-keyshortcuts="0">100%</button><button type="button" data-fit aria-keyshortcuts="F">Fit</button><button type="button" data-focus-selected aria-keyshortcuts="S">Selected</button>${exportControls}</div></div><p class="sb-graph-shortcuts">Shortcuts: +/− zoom · 0 reset · F fit · S selected</p></header><div class="sb-graph-workspace"><div class="sb-graph-stage-wrap"><div class="sb-graph-scroll" tabindex="0" aria-label="Interactive workflow graph; use viewport controls, touch, middle drag, or Space plus drag"><div class="sb-graph-scale-box" style="width:${layout.width}px;height:${layout.height}px" data-base-width="${layout.width}" data-base-height="${layout.height}"><div class="sb-graph-canvas" style="width:${layout.width}px;height:${layout.height}px"><svg viewBox="0 0 ${layout.width} ${layout.height}" aria-hidden="true"><defs><marker id="workflow-arrow-${index}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"/></marker></defs>${edgeLines.replaceAll("url(#workflow-arrow)", `url(#workflow-arrow-${index})`)}</svg>${edgeButtons}${nodeButtons}${subflowLinks}</div></div>${flowPorts}</div></div><button type="button" class="sb-graph-inspector-backdrop" data-detail-backdrop hidden aria-label="Close details"></button><aside class="sb-graph-inspector" data-detail-panel hidden role="region" aria-labelledby="workflow-inspector-title-${index}"><button type="button" class="sb-graph-sheet-handle" data-sheet-handle aria-label="Drag down or activate to close details"><span></span></button><header><h2 id="workflow-inspector-title-${index}">Details</h2><button type="button" data-detail-close aria-label="Close details">Close</button></header><div data-detail-body></div></aside></div>${details}</section>`;
+  return `<section class="sb-graph-flow" data-workflow-flow="${index}" data-flow-id="${escapeHtml(flow.id)}" data-flow-title="${escapeHtml(flow.title)}"${index === 0 ? "" : " hidden"} aria-labelledby="workflow-flow-${index}"><header>${breadcrumb}<div class="sb-graph-title"><div><p>Flow ${index + 1}</p><h2 id="workflow-flow-${index}" tabindex="-1">${escapeHtml(flow.title)}</h2></div><div class="sb-graph-view-actions" aria-label="Graph viewport controls"><button type="button" data-zoom-out aria-label="Zoom out" aria-keyshortcuts="-">−</button><output data-zoom-output>100%</output><button type="button" data-zoom-in aria-label="Zoom in" aria-keyshortcuts="+">+</button><button type="button" data-reset-zoom aria-keyshortcuts="0">100%</button><button type="button" data-fit aria-keyshortcuts="F">Fit</button><button type="button" data-focus-selected aria-keyshortcuts="S">Selected</button>${jsonExportControl}</div></div><p class="sb-graph-shortcuts">Shortcuts: +/− zoom · 0 reset · F fit · S selected</p></header><div class="sb-graph-workspace"><div class="sb-graph-stage-wrap"><div class="sb-graph-scroll" tabindex="0" aria-label="Interactive workflow graph; use viewport controls, touch, middle drag, or Space plus drag"><div class="sb-graph-scale-box" style="width:${layout.width}px;height:${layout.height}px" data-base-width="${layout.width}" data-base-height="${layout.height}"><div class="sb-graph-canvas" style="width:${layout.width}px;height:${layout.height}px"><svg class="sb-graph-edge-layer" viewBox="0 0 ${layout.width} ${layout.height}" aria-hidden="true"><defs><marker id="workflow-arrow-${index}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z"/></marker></defs>${edgePaths.replaceAll("url(#workflow-arrow)", `url(#workflow-arrow-${index})`)}</svg><svg class="sb-graph-label-layer" viewBox="0 0 ${layout.width} ${layout.height}" aria-hidden="true">${edgeLabels}</svg>${edgeButtons}${nodeButtons}${subflowLinks}</div></div>${flowPorts}</div></div><button type="button" class="sb-graph-inspector-backdrop" data-detail-backdrop hidden aria-label="Close details"></button><aside class="sb-graph-inspector" data-detail-panel hidden role="region" aria-labelledby="workflow-inspector-title-${index}"><button type="button" class="sb-graph-sheet-handle" data-sheet-handle aria-label="Drag down or activate to close details"><span></span></button><header><h2 id="workflow-inspector-title-${index}">Details</h2><button type="button" data-detail-close aria-label="Close details">Close</button></header><div data-detail-body></div></aside></div>${details}</section>`;
 };
 
 export const WORKFLOW_GRAPH_PROGRAM = `(()=>{const root=document.querySelector('[data-sb-workflow-graph="v1"]');if(!root)return;const status=root.querySelector('[data-copy-status]'),source=root.querySelector('[data-workflow-json]'),manual=root.querySelector('[data-copy-manual]'),hostCopy=root.querySelector('[data-copy-host]'),overview=root.querySelector('[data-flow-overview-list]');if(!source||!manual||!overview)return;let opener=null,pending=null,timer=null,unsubscribe=null;const select=message=>{source.focus();source.select();if(status)status.textContent=message};const showFlow=index=>{root.querySelectorAll('[data-workflow-flow]').forEach(flow=>flow.hidden=flow.getAttribute('data-workflow-flow')!==index);const flow=root.querySelector('[data-workflow-flow="'+CSS.escape(index)+'"]');if(flow){flow.querySelector('h2')?.focus?.();flow.scrollIntoView({block:'start'})}};root.querySelectorAll('[data-flow-target]').forEach(button=>button.addEventListener('click',()=>showFlow(button.getAttribute('data-flow-target')||'0')));root.querySelectorAll('[data-flow-overview]').forEach(button=>button.addEventListener('click',()=>{overview.scrollIntoView({block:'start'});overview.querySelector('button')?.focus()}));const closePanel=panel=>{panel.hidden=true;panel.querySelector('[data-detail-body]').replaceChildren();if(opener){opener.focus();opener=null}};root.querySelectorAll('[data-workflow-flow]').forEach(flow=>{const panel=flow.querySelector('[data-detail-panel]'),body=flow.querySelector('[data-detail-body]'),close=flow.querySelector('[data-detail-close]'),scroll=flow.querySelector('.sb-graph-scroll'),box=flow.querySelector('.sb-graph-scale-box'),canvas=flow.querySelector('.sb-graph-canvas'),output=flow.querySelector('[data-zoom-output]'),viewport=flow.querySelector('[data-minimap-viewport]'),minimap=flow.querySelector('[data-minimap]');if(!panel||!body||!close||!scroll||!box||!canvas||!output||!viewport||!minimap)return;let scale=1;const width=Number(box.dataset.baseWidth),height=Number(box.dataset.baseHeight);const syncMini=()=>{const x=scroll.scrollWidth<=scroll.clientWidth?0:scroll.scrollLeft/scroll.scrollWidth*100,y=scroll.scrollHeight<=scroll.clientHeight?0:scroll.scrollTop/scroll.scrollHeight*100,w=Math.min(100,scroll.clientWidth/scroll.scrollWidth*100),h=Math.min(100,scroll.clientHeight/scroll.scrollHeight*100);Object.assign(viewport.style,{left:x+'%',top:y+'%',width:w+'%',height:h+'%'})};const apply=next=>{scale=Math.min(2,Math.max(.5,next));canvas.style.transform='scale('+scale+')';box.style.width=Math.round(width*scale)+'px';box.style.height=Math.round(height*scale)+'px';output.textContent=Math.round(scale*100)+'%';syncMini()};flow.querySelector('[data-zoom-out]').addEventListener('click',()=>apply(scale-.1));flow.querySelector('[data-zoom-in]').addEventListener('click',()=>apply(scale+.1));flow.querySelector('[data-fit]').addEventListener('click',()=>{apply(Math.min(1,scroll.clientWidth/width,scroll.clientHeight/height));scroll.scrollTo({left:0,top:0})});scroll.addEventListener('scroll',syncMini,{passive:true});minimap.addEventListener('click',event=>{const rect=minimap.getBoundingClientRect();scroll.scrollTo({left:Math.max(0,(event.clientX-rect.left)/rect.width*scroll.scrollWidth-scroll.clientWidth/2),top:Math.max(0,(event.clientY-rect.top)/rect.height*scroll.scrollHeight-scroll.clientHeight/2),behavior:'smooth'})});flow.querySelectorAll('[data-workflow-open]').forEach(button=>button.addEventListener('click',()=>{const target=flow.querySelector('#'+CSS.escape(button.getAttribute('data-workflow-open')||''));if(!target)return;opener=button;body.replaceChildren(target.cloneNode(true));body.firstElementChild.hidden=false;panel.hidden=false;close.focus()}));close.addEventListener('click',()=>closePanel(panel));flow.addEventListener('keydown',event=>{if(event.key==='Escape'&&!panel.hidden){event.preventDefault();closePanel(panel)}});apply(1)});manual.addEventListener('click',()=>select('Canonical WorkflowSpec JSON selected.'));if(hostCopy)hostCopy.addEventListener('click',()=>{const api=window.SceneBoardArtifact;if(!api||!api.userAction||!api.requestCapability||!api.onHostMessage){select('Host copy is unavailable. Canonical JSON selected.');return}const bytes=new Uint8Array(16);crypto.getRandomValues(bytes);const id=btoa(String.fromCharCode(...bytes)).replaceAll('+','-').replaceAll('/','_').replaceAll('=','');pending=id;if(unsubscribe)unsubscribe();unsubscribe=api.onHostMessage(message=>{if(message.type!=='host.capability.result'||message.requestId!==pending||message.capability!=='clipboard.write')return;pending=null;if(timer)clearTimeout(timer);if(unsubscribe)unsubscribe();unsubscribe=null;if(message.ok){if(status)status.textContent='Canonical WorkflowSpec JSON copied.'}else select('Copy was denied or unavailable. Canonical JSON selected.')});api.userAction(id,'clipboard.write');api.requestCapability(id,'clipboard.write',{text:source.value});timer=setTimeout(()=>{if(pending===id){pending=null;if(unsubscribe)unsubscribe();unsubscribe=null;select('No copy result arrived. Canonical JSON selected.')}},5500)});if(window.SceneBoardArtifact&&window.SceneBoardArtifact.requestResize)window.SceneBoardArtifact.requestResize(1280,800)})()`;
@@ -268,11 +305,38 @@ export const WORKFLOW_GRAPH_PROGRAM_V2 = `(()=>{
   const status=root.querySelector('[data-copy-status]');
   const source=root.querySelector('[data-workflow-json]');
   const hostCopy=[...root.querySelectorAll('[data-copy-host]')];
+  const jsonModal=root.querySelector('[data-json-modal]');
+  const jsonBackdrop=root.querySelector('[data-json-backdrop]');
+  const jsonClose=root.querySelector('[data-json-close]');
+  const jsonSelect=root.querySelector('[data-json-select]');
+  const jsonOpeners=[...root.querySelectorAll('[data-json-export]')];
   const overview=root.querySelector('[data-flow-overview-list]');
-  if(!source)return;
-  let opener=null,pending=null,timer=null,unsubscribe=null,currentFlow=null;
+  if(!source||!jsonModal||!jsonBackdrop||!jsonClose||!jsonSelect)return;
+  let opener=null,jsonOpener=null,pending=null,timer=null,unsubscribe=null,currentFlow=null;
   const controllers=new Map(),viewState=new Map();
-  const reportCopyFailure=message=>{if(status)status.textContent=message};
+  const reportCopyStatus=message=>{if(status)status.textContent=message};
+  const selectJson=message=>{source.focus();source.select();reportCopyStatus(message)};
+  const openJsonModal=button=>{
+    jsonOpener=button;jsonBackdrop.hidden=false;jsonModal.hidden=false;
+    reportCopyStatus('');requestAnimationFrame(()=>jsonClose.focus())
+  };
+  const closeJsonModal=()=>{
+    jsonModal.hidden=true;jsonBackdrop.hidden=true;
+    if(jsonOpener){jsonOpener.focus();jsonOpener=null}
+  };
+  jsonOpeners.forEach(button=>button.addEventListener('click',()=>openJsonModal(button)));
+  jsonClose.addEventListener('click',closeJsonModal);
+  jsonBackdrop.addEventListener('click',closeJsonModal);
+  jsonSelect.addEventListener('click',()=>selectJson('Canonical WorkflowSpec JSON selected.'));
+  jsonModal.addEventListener('keydown',event=>{
+    if(event.key==='Escape'){event.preventDefault();closeJsonModal();return}
+    if(event.key!=='Tab')return;
+    const focusable=[...jsonModal.querySelectorAll('button,textarea')].filter(element=>!element.disabled&&!element.hidden);
+    if(focusable.length===0)return;
+    const first=focusable[0],last=focusable[focusable.length-1];
+    if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus()}
+    else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()}
+  });
   const snapshotCurrent=()=>{if(currentFlow!==null)controllers.get(currentFlow)?.snapshot()};
   const showFlow=index=>{
     snapshotCurrent();
@@ -320,6 +384,31 @@ export const WORKFLOW_GRAPH_PROGRAM_V2 = `(()=>{
     const width=Number(box.dataset.baseWidth),height=Number(box.dataset.baseHeight);
     const graphPadding=48;
     const overlapArea=(left,right)=>Math.max(0,Math.min(left.right,right.right)-Math.max(left.left,right.left))*Math.max(0,Math.min(left.bottom,right.bottom)-Math.max(left.top,right.top));
+    const positionEdgePaths=()=>{
+      const nodes=new Map([...canvas.querySelectorAll('.sb-graph-node')].map(node=>[node.getAttribute('data-element-id'),{left:node.offsetLeft,top:node.offsetTop,width:node.offsetWidth,height:node.offsetHeight}]));
+      canvas.querySelectorAll('.sb-graph-path[data-from-node-id][data-to-node-id]').forEach(path=>{
+        const fromId=path.getAttribute('data-from-node-id'),toId=path.getAttribute('data-to-node-id');
+        const from=nodes.get(fromId),to=nodes.get(toId);if(!from||!to)return;
+        const fromCenter={x:from.left+from.width/2,y:from.top+from.height/2},toCenter={x:to.left+to.width/2,y:to.top+to.height/2};
+        const centerDx=toCenter.x-fromCenter.x,centerDy=toCenter.y-fromCenter.y;
+        const verticalRoute=Math.abs(centerDx)<Math.min(from.width,to.width)&&Math.abs(centerDy)>=Math.min(from.height,to.height);
+        const horizontalForward=centerDx>=0,verticalForward=centerDy>=0,gap=8;
+        const start=verticalRoute?{x:fromCenter.x,y:verticalForward?from.top+from.height+gap:from.top-gap}:{x:horizontalForward?from.left+from.width+gap:from.left-gap,y:fromCenter.y};
+        const end=verticalRoute?{x:toCenter.x,y:verticalForward?to.top-gap:to.top+to.height+gap}:{x:horizontalForward?to.left-gap:to.left+to.width+gap,y:toCenter.y};
+        const canonicalFirst=fromId<toId?from:to,canonicalSecond=fromId<toId?to:from;
+        const canonicalDx=canonicalSecond.left+canonicalSecond.width/2-(canonicalFirst.left+canonicalFirst.width/2),canonicalDy=canonicalSecond.top+canonicalSecond.height/2-(canonicalFirst.top+canonicalFirst.height/2);
+        const canonicalLength=Math.hypot(canonicalDx,canonicalDy)||1,laneOffset=Number(path.dataset.laneOffset)||0;
+        const control={x:(start.x+end.x)/2-canonicalDy/canonicalLength*laneOffset,y:(start.y+end.y)/2+canonicalDx/canonicalLength*laneOffset};
+        const midpoint={x:(start.x+2*control.x+end.x)/4,y:(start.y+2*control.y+end.y)/4};
+        path.setAttribute('d','M '+Math.round(start.x)+' '+Math.round(start.y)+' Q '+Math.round(control.x)+' '+Math.round(control.y)+' '+Math.round(end.x)+' '+Math.round(end.y));
+        const elementId=path.getAttribute('data-element-id');
+        const label=elementId?canvas.querySelector('[data-edge-label][data-element-id="'+CSS.escape(elementId)+'"]'):null;
+        const labelX=Math.round(midpoint.x),labelY=Math.round(midpoint.y-15),rect=label?.querySelector('rect'),text=label?.querySelector('text');
+        if(label&&rect&&text){const labelWidth=Number(rect.getAttribute('width'));label.dataset.labelX=String(labelX);label.dataset.labelY=String(labelY);rect.setAttribute('x',String(Math.round(labelX-labelWidth/2)));rect.setAttribute('y',String(labelY-12));text.setAttribute('x',String(labelX));text.setAttribute('y',String(labelY))}
+        const hitTarget=elementId?canvas.querySelector('.sb-graph-edge[data-element-id="'+CSS.escape(elementId)+'"]'):null;
+        if(hitTarget){hitTarget.style.left=Math.round(labelX-hitTarget.offsetWidth/2)+'px';hitTarget.style.top=Math.round(labelY-hitTarget.offsetHeight/2)+'px'}
+      })
+    };
     const positionEdgeLabels=()=>{
       const nodeGap=8,labelGap=6;
       const nodes=[...canvas.querySelectorAll('.sb-graph-node')].map(node=>({left:node.offsetLeft,top:node.offsetTop,right:node.offsetLeft+node.offsetWidth,bottom:node.offsetTop+node.offsetHeight}));
@@ -356,8 +445,7 @@ export const WORKFLOW_GRAPH_PROGRAM_V2 = `(()=>{
         left=Math.min(left,nextLeft);top=Math.min(top,nextTop);right=Math.max(right,nextRight);bottom=Math.max(bottom,nextBottom)
       };
       canvas.querySelectorAll('.sb-graph-node,.sb-graph-edge,.sb-graph-subflow-link').forEach(element=>include(element.offsetLeft,element.offsetTop,element.offsetLeft+element.offsetWidth,element.offsetTop+element.offsetHeight));
-      const svg=canvas.querySelector('svg');
-      if(svg)try{const bounds=svg.getBBox();include(bounds.x,bounds.y,bounds.x+bounds.width,bounds.y+bounds.height)}catch{}
+      canvas.querySelectorAll('.sb-graph-edge-layer,.sb-graph-label-layer').forEach(svg=>{try{const bounds=svg.getBBox();include(bounds.x,bounds.y,bounds.x+bounds.width,bounds.y+bounds.height)}catch{}});
       return left===Infinity?{left:0,top:0,width,height}:{left,top,width:Math.max(1,right-left),height:Math.max(1,bottom-top)}
     };
     const syncGrid=()=>{
@@ -382,7 +470,7 @@ export const WORKFLOW_GRAPH_PROGRAM_V2 = `(()=>{
     };
     const focusSelected=()=>{if(!selected)return;panX=scroll.clientWidth/2-(selected.offsetLeft+selected.offsetWidth/2)*scale;panY=scroll.clientHeight/2-(selected.offsetTop+selected.offsetHeight/2)*scale;renderTransform()};
     const fit=()=>{
-      positionEdgeLabels();
+      positionEdgePaths();positionEdgeLabels();
       const bounds=measureGraphBounds();
       const availableWidth=Math.max(1,scroll.clientWidth-graphPadding*2),availableHeight=Math.max(1,scroll.clientHeight-graphPadding*2);
       const widthScale=availableWidth/bounds.width,heightScale=availableHeight/bounds.height;
@@ -410,7 +498,7 @@ export const WORKFLOW_GRAPH_PROGRAM_V2 = `(()=>{
       initialFitActive=true;
       if(typeof ResizeObserver!=='undefined'){initialFitObserver=new ResizeObserver(scheduleInitialFit);initialFitObserver.observe(scroll)}
       window.addEventListener('resize',scheduleInitialFit);
-      document.fonts?.ready?.then(()=>{positionEdgeLabels();scheduleInitialFit()});
+      document.fonts?.ready?.then(()=>{positionEdgePaths();positionEdgeLabels();scheduleInitialFit()});
       scheduleInitialFit();initialFitTimeout=setTimeout(stopInitialFit,5000)
     };
     flow.querySelector('[data-zoom-out]').addEventListener('click',()=>{stopInitialFit();apply(scale-.1)});
@@ -488,25 +576,25 @@ export const WORKFLOW_GRAPH_PROGRAM_V2 = `(()=>{
       fit,
       startInitialFit,
       snapshot(){viewState.set(key,{scale,panX,panY,selectedId:selected?.getAttribute('data-element-id')??null,panelOpen:!panel.hidden})},
-      restore(){positionEdgeLabels();const saved=viewState.get(key);if(!saved){startInitialFit();return}stopInitialFit();scale=saved.scale;panX=saved.panX;panY=saved.panY;renderTransform();requestAnimationFrame(()=>{if(saved.selectedId){selected=flow.querySelector('[data-element-id="'+CSS.escape(saved.selectedId)+'"]');if(saved.panelOpen&&selected)openDetail(selected)}})}
+      restore(){positionEdgePaths();positionEdgeLabels();const saved=viewState.get(key);if(!saved){startInitialFit();return}stopInitialFit();scale=saved.scale;panX=saved.panX;panY=saved.panY;renderTransform();requestAnimationFrame(()=>{if(saved.selectedId){selected=flow.querySelector('[data-element-id="'+CSS.escape(saved.selectedId)+'"]');if(saved.panelOpen&&selected)openDetail(selected)}})}
     });
-    positionEdgeLabels();apply(1)
+    positionEdgePaths();positionEdgeLabels();apply(1)
   });
   if(overview)showOverview();
   else controllers.get('0')?.startInitialFit();
   hostCopy.forEach(button=>button.addEventListener('click',()=>{
     const api=window.SceneBoardArtifact;
-    if(!api||!api.userAction||!api.requestCapability||!api.onHostMessage){reportCopyFailure('Clipboard copy is unavailable.');return}
+    if(!api||!api.userAction||!api.requestCapability||!api.onHostMessage){selectJson('Clipboard copy is unavailable. Canonical JSON selected.');return}
     const bytes=new Uint8Array(16);crypto.getRandomValues(bytes);
     const id=btoa(String.fromCharCode(...bytes)).replaceAll('+','-').replaceAll('/','_').replaceAll('=','');pending=id;
     if(unsubscribe)unsubscribe();
     unsubscribe=api.onHostMessage(message=>{
       if(message.type!=='host.capability.result'||message.requestId!==pending||message.capability!=='clipboard.write')return;
       pending=null;if(timer)clearTimeout(timer);if(unsubscribe)unsubscribe();unsubscribe=null;
-      if(message.ok){if(status)status.textContent='Canonical WorkflowSpec JSON copied.'}else reportCopyFailure('Clipboard copy was denied or unavailable.')
+      if(message.ok){reportCopyStatus('Canonical WorkflowSpec JSON copied.')}else selectJson('Clipboard copy was denied or unavailable. Canonical JSON selected.')
     });
     api.userAction(id,'clipboard.write');api.requestCapability(id,'clipboard.write',{text:source.value});
-    timer=setTimeout(()=>{if(pending===id){pending=null;if(unsubscribe)unsubscribe();unsubscribe=null;reportCopyFailure('No clipboard result arrived.')}},5500)
+    timer=setTimeout(()=>{if(pending===id){pending=null;if(unsubscribe)unsubscribe();unsubscribe=null;selectJson('No clipboard result arrived. Canonical JSON selected.')}},5500)
   }));
   if(window.SceneBoardArtifact&&window.SceneBoardArtifact.requestResize)window.SceneBoardArtifact.requestResize(1280,800)
 })()`;
@@ -535,13 +623,15 @@ const WORKFLOW_GRAPH_CSS_V11 = `${WORKFLOW_GRAPH_CSS_V10}.sb-workflow-graph .sb-
 
 const WORKFLOW_GRAPH_CSS_V12 = `${WORKFLOW_GRAPH_CSS_V11}.sb-graph-canvas .sb-graph-path{fill:none;stroke:#5eead4;stroke-width:2}.sb-graph-edge-label{pointer-events:none}.sb-graph-edge-label rect{fill:#07151f;stroke:#2dd4bf66;stroke-width:1}.sb-graph-edge-label text{fill:#ccfbf1;font-size:11px;dominant-baseline:middle}`;
 
-const WORKFLOW_GRAPH_CSS_V13 = `${WORKFLOW_GRAPH_CSS_V12}.sb-graph-canvas svg{z-index:4;pointer-events:none}.sb-graph-node{z-index:2}.sb-workflow-graph .sb-graph-edge{z-index:5}.sb-graph-edge-label rect{fill:#07151f;stroke:#2dd4bf66}`;
+const WORKFLOW_GRAPH_CSS_V13 = `${WORKFLOW_GRAPH_CSS_V12}.sb-graph-canvas .sb-graph-edge-layer{z-index:1;pointer-events:none}.sb-graph-node{z-index:2}.sb-graph-canvas .sb-graph-label-layer{z-index:3;pointer-events:none}.sb-workflow-graph .sb-graph-edge{z-index:4}.sb-graph-edge-label rect{fill:#07151f;stroke:#2dd4bf66}`;
 
 const WORKFLOW_GRAPH_CSS_V14 = `${WORKFLOW_GRAPH_CSS_V13}.sb-workflow-graph{height:100vh;overflow:auto}.sb-graph-workspace{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,34%);gap:14px}.sb-graph-scroll{overflow:auto;scrollbar-width:auto}.sb-graph-scroll::-webkit-scrollbar{display:block;width:auto;height:auto}.sb-graph-scale-box{width:auto;height:auto}.sb-graph-inspector{position:sticky;z-index:10;top:12px;right:auto;bottom:auto;left:auto;width:auto;max-height:calc(100vh - 24px);border-radius:16px}.sb-graph-inspector-backdrop{display:none}.sb-graph-subflow-link{right:14px}.sb-graph-minimap{z-index:8}.sb-graph-export-fallback{display:block;width:min(1220px,calc(100% - 28px));min-height:170px;margin:20px auto;border:1px solid #2dd4bf42;border-radius:14px;background:#041017;color:#c7f9f0;padding:14px;font:12px/1.5 ui-monospace,monospace;resize:vertical}@media(max-width:760px){.sb-graph-workspace{display:block}.sb-graph-inspector-backdrop:not([hidden]){display:block}.sb-graph-inspector{position:fixed;z-index:30;top:auto;right:8px;bottom:8px;left:8px;width:auto;max-height:70vh;border-radius:20px 20px 12px 12px}}`;
 
 const WORKFLOW_GRAPH_CSS_V15 = `${WORKFLOW_GRAPH_CSS_V14}.sb-workflow-graph{overflow:hidden}.sb-graph-workspace{position:relative;display:block;gap:0}.sb-graph-stage-wrap{width:100%}.sb-graph-inspector{position:absolute;z-index:30;top:0;right:0;bottom:0;left:auto;width:min(440px,92vw);max-height:none;border-radius:20px 0 0 20px}.sb-graph-inspector-backdrop{display:none}@media(max-width:760px){.sb-graph-inspector-backdrop:not([hidden]){position:absolute;display:block}.sb-graph-inspector{position:absolute;top:auto;right:8px;bottom:8px;left:8px;width:auto;max-height:70%;border-radius:20px 20px 12px 12px}}`;
 
 const WORKFLOW_GRAPH_CSS_V16 = `${WORKFLOW_GRAPH_CSS_V15}.sb-workflow-graph{background-color:#07151f;background-image:linear-gradient(#ffffff08 1px,transparent 1px),linear-gradient(90deg,#ffffff08 1px,transparent 1px);background-size:24px 24px}.sb-graph-flow,.sb-graph-scroll{background:transparent}.sb-graph-scroll{position:relative;overflow:hidden;scrollbar-width:none;-ms-overflow-style:none}.sb-graph-scroll::-webkit-scrollbar{display:none;width:0;height:0}.sb-graph-scale-box{position:absolute;inset:0;width:100%!important;height:100%!important}.sb-graph-canvas{transform-origin:0 0;will-change:transform}`;
+
+const WORKFLOW_GRAPH_CSS_V17 = `${WORKFLOW_GRAPH_CSS_V16}.sb-workflow-graph .sb-graph-json-backdrop{position:fixed;z-index:39;inset:0;border:0;border-radius:0;background:#020617b8;padding:0}.sb-graph-json-modal{position:fixed;z-index:40;top:50%;left:50%;display:flex;flex-direction:column;width:min(760px,calc(100vw - 32px));max-height:min(720px,calc(100vh - 32px));transform:translate(-50%,-50%);border:1px solid #5eead4;border-radius:18px;background:#07151f;padding:20px;box-shadow:0 24px 80px #000c}.sb-graph-json-modal[hidden],.sb-graph-json-backdrop[hidden]{display:none}.sb-graph-json-modal>header{display:flex;align-items:start;justify-content:space-between;gap:20px}.sb-graph-json-modal h2{margin:2px 0 0}.sb-graph-json-modal>p{margin:12px 0;color:#ccfbf1}.sb-graph-json-source{display:block;width:100%;min-height:280px;flex:1;border:1px solid #2dd4bf66;border-radius:12px;background:#041017;color:#c7f9f0;padding:14px;font:12px/1.5 ui-monospace,monospace;resize:none}.sb-graph-json-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:14px}.sb-graph-json-modal .sb-graph-action-status{position:static;width:auto;height:auto;min-height:1.5em;margin:8px 0 0;overflow:visible;clip:auto;clip-path:none;white-space:normal}@media(max-width:760px){.sb-graph-json-modal{width:calc(100vw - 16px);max-height:calc(100vh - 16px);padding:14px}.sb-graph-json-source{min-height:220px}.sb-graph-json-actions{flex-wrap:wrap}}`;
 
 export const renderWorkflowGraph = (content, title, fallbackText) => {
   const workflowSpec = validateWorkflowSpec(content.workflowSpec);
@@ -574,13 +664,14 @@ export const renderWorkflowGraph = (content, title, fallbackText) => {
   const copyButton =
     content.copyMode === "manual"
       ? ""
-      : '<button type="button" data-copy-host>클립보드 복사</button>';
-  const exportControls = copyButton;
-  const exportSource = `<textarea readonly hidden class="sb-graph-export-source" data-workflow-json aria-label="Canonical WorkflowSpec JSON">${escapeHtml(canonical)}</textarea>`;
+      : '<button type="button" data-copy-host>Copy JSON</button>';
+  const jsonExportControl =
+    '<button type="button" data-json-export>JSON export</button>';
+  const exportModal = `<button type="button" class="sb-graph-json-backdrop" data-json-backdrop hidden aria-label="Close JSON export"></button><section class="sb-graph-json-modal" data-json-modal hidden role="dialog" aria-modal="true" aria-labelledby="workflow-json-export-title"><header><div><p class="sb-graph-kind">Workflow handoff</p><h2 id="workflow-json-export-title">WorkflowSpec JSON export</h2></div><button type="button" data-json-close aria-label="Close JSON export">Close</button></header><p>This canonical, framework-neutral WorkflowSpec can be provided with the original source for conversion to LangGraph or another workflow framework.</p><textarea readonly class="sb-graph-json-source" data-workflow-json aria-label="Canonical WorkflowSpec JSON">${escapeHtml(canonical)}</textarea><div class="sb-graph-json-actions"><button type="button" data-json-select>Select all</button>${copyButton}</div><p class="sb-graph-action-status" data-copy-status role="status" aria-live="polite"></p></section>`;
   const renderLimitGuidance =
     content.copyMode === "manual"
-      ? "The graph is not reported as fully rendered. Retry from a clipboard-enabled board to copy the complete JSON."
-      : "Use the copy control to retrieve the complete JSON; the graph is not reported as fully rendered.";
+      ? "The graph is not reported as fully rendered. Open JSON export to select the complete canonical JSON."
+      : "Open JSON export to retrieve the complete canonical JSON; the graph is not reported as fully rendered.";
   return {
     artifactId: null,
     html: `<main class="sb-workflow-graph" data-sb-workflow-graph="v1" aria-label="${escapeHtml(title ?? workflowSpec.workflow.title)}">${
@@ -594,10 +685,10 @@ export const renderWorkflowGraph = (content, title, fallbackText) => {
                   })
                   .join("")}</nav>`
               : ""
-          }${flows.map((flow, index) => renderFlow(flow, index, flows, hasMultipleFlows, exportControls)).join("")}`
-        : `<section class="sb-graph-render-limit" data-render-limit-exceeded role="status"><div class="sb-graph-actions">${exportControls}</div><h2>Graph preview limit exceeded</h2><p>${escapeHtml(fallbackText ?? "The workflow is valid but too large for the interactive preview.")}</p><p>This valid WorkflowSpec contains ${totals.nodes} nodes and ${totals.edges} edges. ${renderLimitGuidance} The preview limit is ${WORKFLOW_GRAPH_RENDER_LIMITS.nodes} nodes and ${WORKFLOW_GRAPH_RENDER_LIMITS.edges} edges.</p></section>`
-    }${exportSource}<p class="sb-graph-action-status" data-copy-status role="status" aria-live="polite"></p></main>`,
-    css: WORKFLOW_GRAPH_CSS_V16,
+          }${flows.map((flow, index) => renderFlow(flow, index, flows, hasMultipleFlows, jsonExportControl)).join("")}`
+        : `<section class="sb-graph-render-limit" data-render-limit-exceeded role="status"><div class="sb-graph-actions">${jsonExportControl}</div><h2>Graph preview limit exceeded</h2><p>${escapeHtml(fallbackText ?? "The workflow is valid but too large for the interactive preview.")}</p><p>This valid WorkflowSpec contains ${totals.nodes} nodes and ${totals.edges} edges. ${renderLimitGuidance} The preview limit is ${WORKFLOW_GRAPH_RENDER_LIMITS.nodes} nodes and ${WORKFLOW_GRAPH_RENDER_LIMITS.edges} edges.</p></section>`
+    }${exportModal}</main>`,
+    css: WORKFLOW_GRAPH_CSS_V17,
     javascript: WORKFLOW_GRAPH_PROGRAM_V2,
     requestedCapabilities: capability,
   };
