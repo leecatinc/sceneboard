@@ -112,6 +112,14 @@ test("workflow graph renders the closed WorkflowSpec v1 contract deterministical
   );
   assert.match(first.source.javascript, /new ResizeObserver/u);
   assert.match(first.source.html, /data-edge-label data-element-id=/u);
+  assert.match(
+    first.source.css,
+    /\.sb-graph-edge-label rect\{fill:#07151f;stroke:#2dd4bf66/u,
+  );
+  assert.doesNotMatch(
+    first.source.css,
+    /\.sb-graph-edge-label rect\{fill:(?:rgba\([^}]+|#[0-9a-f]{8})/u,
+  );
   assert.match(first.source.javascript, /const positionEdgeLabels=/u);
   assert.match(first.source.javascript, /node\.offsetTop\+node\.offsetHeight/u);
   assert.match(

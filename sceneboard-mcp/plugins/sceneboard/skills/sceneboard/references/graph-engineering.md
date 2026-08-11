@@ -32,7 +32,7 @@ does not rewrite the source.
   `Selected`. Append clipboard copy only when the board grants `clipboard.write`. Artifact-side file
   download is outside this renderer's authority boundary.
 - Preserve initial Fit, unbounded two-axis camera panning, pointer-centered zoom and pan gestures,
-  full-surface grid, current node and routed-edge styling, `0.6` edge-label pill background,
+  full-surface grid, current node and routed-edge styling, fully opaque edge-label pill background,
   transparent edge hit targets, and the responsive detail inspector. Do not omit these
   behaviors for a new graph.
 - Change graph content only through validated WorkflowSpec fields. Let the closed renderer decide
@@ -130,7 +130,7 @@ claimed.
   avoid already placed labels as a secondary preference. Keep the full condition in details, and
   include horizontal/vertical safety padding in layout bounds so `Fit` does not clip moved labels or
   terminal content.
-- Use an edge-label pill fill with `0.6` alpha and retain its subtle border. Keep explicit
+- Use a fully opaque edge-label pill fill and retain its subtle border. Keep explicit
   stacking order as nodes below SVG edges/labels and transparent edge hit targets above both.
 - Keep edge detail hit targets transparent. Do not render a midpoint arrow button over the SVG edge
   or label. Override shared button chrome with sufficient selector specificity, keep mouse selection
