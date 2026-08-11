@@ -124,9 +124,12 @@ claimed.
 - Initial host sizing is asynchronous. Observe the visible graph viewport and repeat the initial fit
   across host resize and font readiness for a bounded initialization window. Stop immediately when
   the user zooms, pans, resets, fits, or focuses a selection so automatic fitting never fights input.
-- Route reciprocal or parallel edges through deterministic curved lanes. Render bounded edge labels
-  as background pills at their routed midpoint, keep the full condition in details, and include
-  horizontal/vertical safety padding in layout bounds so `Fit` does not clip terminal content.
+- Route reciprocal or parallel edges through deterministic curved lanes. Start bounded edge labels
+  as background pills at their routed midpoint, then use the actual rendered node boxes after font
+  readiness to choose the nearest deterministic above/below candidate with the least node overlap;
+  avoid already placed labels as a secondary preference. Keep the full condition in details, and
+  include horizontal/vertical safety padding in layout bounds so `Fit` does not clip moved labels or
+  terminal content.
 - Use an edge-label pill fill with `0.6` alpha and retain its subtle border. Keep explicit
   stacking order as nodes below SVG edges/labels and transparent edge hit targets above both.
 - Keep edge detail hit targets transparent. Do not render a midpoint arrow button over the SVG edge

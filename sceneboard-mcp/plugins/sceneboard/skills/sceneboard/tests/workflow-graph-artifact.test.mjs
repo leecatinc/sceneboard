@@ -111,6 +111,21 @@ test("workflow graph renders the closed WorkflowSpec v1 contract deterministical
     /if\(!shouldCaptureWheel\(event\)\)return;\s*event\.preventDefault\(\)/u,
   );
   assert.match(first.source.javascript, /new ResizeObserver/u);
+  assert.match(first.source.html, /data-edge-label data-element-id=/u);
+  assert.match(first.source.javascript, /const positionEdgeLabels=/u);
+  assert.match(first.source.javascript, /node\.offsetTop\+node\.offsetHeight/u);
+  assert.match(
+    first.source.javascript,
+    /nodeCollision\*1000\+labelCollision\*100/u,
+  );
+  assert.match(
+    first.source.javascript,
+    /hitTarget\.style\.top=Math\.round\(bestY-hitTarget\.offsetHeight\/2\)/u,
+  );
+  assert.match(
+    first.source.javascript,
+    /document\.fonts\?\.ready\?\.then\(\(\)=>\{positionEdgeLabels\(\);scheduleInitialFit\(\)\}\)/u,
+  );
   assert.doesNotMatch(
     first.source.html + first.source.css + first.source.javascript,
     /https?:\/\//u,

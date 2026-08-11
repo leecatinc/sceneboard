@@ -205,7 +205,7 @@ const renderFlow = (flow, index, flows, hasMultipleFlows, exportControls) => {
     .map((edge) => {
       const geometry = edgeGeometries.get(edge.id);
       const label = geometry.label
-        ? `<g class="sb-graph-edge-label"><rect x="${Math.round(geometry.labelX - geometry.labelWidth / 2)}" y="${Math.round(geometry.labelY - 12)}" width="${geometry.labelWidth}" height="24" rx="7"/><text x="${Math.round(geometry.labelX)}" y="${Math.round(geometry.labelY)}">${escapeHtml(geometry.label)}</text></g>`
+        ? `<g class="sb-graph-edge-label" data-edge-label data-element-id="${escapeHtml(edge.id)}" data-label-x="${Math.round(geometry.labelX)}" data-label-y="${Math.round(geometry.labelY)}"><rect x="${Math.round(geometry.labelX - geometry.labelWidth / 2)}" y="${Math.round(geometry.labelY - 12)}" width="${geometry.labelWidth}" height="24" rx="7"/><text x="${Math.round(geometry.labelX)}" y="${Math.round(geometry.labelY)}">${escapeHtml(geometry.label)}</text></g>`
         : "";
       return `<path class="sb-graph-path" d="M ${Math.round(geometry.start.x)} ${Math.round(geometry.start.y)} Q ${Math.round(geometry.control.x)} ${Math.round(geometry.control.y)} ${Math.round(geometry.end.x)} ${Math.round(geometry.end.y)}" marker-end="url(#workflow-arrow)"/>${label}`;
     })
@@ -319,6 +319,36 @@ export const WORKFLOW_GRAPH_PROGRAM_V2 = `(()=>{
     let scale=1,panX=0,panY=0,selected=null,spacePan=false;
     const width=Number(box.dataset.baseWidth),height=Number(box.dataset.baseHeight);
     const graphPadding=48;
+    const overlapArea=(left,right)=>Math.max(0,Math.min(left.right,right.right)-Math.max(left.left,right.left))*Math.max(0,Math.min(left.bottom,right.bottom)-Math.max(left.top,right.top));
+    const positionEdgeLabels=()=>{
+      const nodeGap=8,labelGap=6;
+      const nodes=[...canvas.querySelectorAll('.sb-graph-node')].map(node=>({left:node.offsetLeft,top:node.offsetTop,right:node.offsetLeft+node.offsetWidth,bottom:node.offsetTop+node.offsetHeight}));
+      const placed=[];
+      canvas.querySelectorAll('[data-edge-label]').forEach(label=>{
+        const rect=label.querySelector('rect');
+        const anchorX=Number(label.dataset.labelX),anchorY=Number(label.dataset.labelY);
+        const labelWidth=Number(rect?.getAttribute('width')),labelHeight=Number(rect?.getAttribute('height'));
+        if(![anchorX,anchorY,labelWidth,labelHeight].every(Number.isFinite))return;
+        const halfWidth=labelWidth/2,halfHeight=labelHeight/2;
+        const horizontallyRelevant=nodes.filter(node=>anchorX+halfWidth>node.left-nodeGap&&anchorX-halfWidth<node.right+nodeGap);
+        const candidates=[anchorY,anchorY-36,anchorY+36,anchorY-72,anchorY+72];
+        horizontallyRelevant.forEach(node=>candidates.push(node.top-nodeGap-halfHeight,node.bottom+nodeGap+halfHeight));
+        placed.filter(other=>anchorX+halfWidth>other.left-labelGap&&anchorX-halfWidth<other.right+labelGap).forEach(other=>candidates.push(other.top-labelGap-halfHeight,other.bottom+labelGap+halfHeight));
+        let bestY=anchorY,bestScore=Infinity;
+        [...new Set(candidates.map(value=>Math.round(value)))].forEach(candidateY=>{
+          const bounds={left:anchorX-halfWidth,top:candidateY-halfHeight,right:anchorX+halfWidth,bottom:candidateY+halfHeight};
+          const nodeCollision=nodes.reduce((sum,node)=>sum+overlapArea(bounds,{left:node.left-nodeGap,top:node.top-nodeGap,right:node.right+nodeGap,bottom:node.bottom+nodeGap}),0);
+          const labelCollision=placed.reduce((sum,other)=>sum+overlapArea(bounds,{left:other.left-labelGap,top:other.top-labelGap,right:other.right+labelGap,bottom:other.bottom+labelGap}),0);
+          const score=nodeCollision*1000+labelCollision*100+Math.abs(candidateY-anchorY);
+          if(score<bestScore){bestScore=score;bestY=candidateY}
+        });
+        label.setAttribute('transform','translate(0 '+(bestY-anchorY)+')');
+        const elementId=label.getAttribute('data-element-id');
+        const hitTarget=elementId?canvas.querySelector('.sb-graph-edge[data-element-id="'+CSS.escape(elementId)+'"]'):null;
+        if(hitTarget)hitTarget.style.top=Math.round(bestY-hitTarget.offsetHeight/2)+'px';
+        placed.push({left:anchorX-halfWidth,top:bestY-halfHeight,right:anchorX+halfWidth,bottom:bestY+halfHeight})
+      })
+    };
     const measureGraphBounds=()=>{
       let left=Infinity,top=Infinity,right=-Infinity,bottom=-Infinity;
       const include=(nextLeft,nextTop,nextRight,nextBottom)=>{
@@ -352,6 +382,7 @@ export const WORKFLOW_GRAPH_PROGRAM_V2 = `(()=>{
     };
     const focusSelected=()=>{if(!selected)return;panX=scroll.clientWidth/2-(selected.offsetLeft+selected.offsetWidth/2)*scale;panY=scroll.clientHeight/2-(selected.offsetTop+selected.offsetHeight/2)*scale;renderTransform()};
     const fit=()=>{
+      positionEdgeLabels();
       const bounds=measureGraphBounds();
       const availableWidth=Math.max(1,scroll.clientWidth-graphPadding*2),availableHeight=Math.max(1,scroll.clientHeight-graphPadding*2);
       const widthScale=availableWidth/bounds.width,heightScale=availableHeight/bounds.height;
@@ -379,7 +410,7 @@ export const WORKFLOW_GRAPH_PROGRAM_V2 = `(()=>{
       initialFitActive=true;
       if(typeof ResizeObserver!=='undefined'){initialFitObserver=new ResizeObserver(scheduleInitialFit);initialFitObserver.observe(scroll)}
       window.addEventListener('resize',scheduleInitialFit);
-      document.fonts?.ready?.then(scheduleInitialFit);
+      document.fonts?.ready?.then(()=>{positionEdgeLabels();scheduleInitialFit()});
       scheduleInitialFit();initialFitTimeout=setTimeout(stopInitialFit,5000)
     };
     flow.querySelector('[data-zoom-out]').addEventListener('click',()=>{stopInitialFit();apply(scale-.1)});
@@ -457,9 +488,9 @@ export const WORKFLOW_GRAPH_PROGRAM_V2 = `(()=>{
       fit,
       startInitialFit,
       snapshot(){viewState.set(key,{scale,panX,panY,selectedId:selected?.getAttribute('data-element-id')??null,panelOpen:!panel.hidden})},
-      restore(){const saved=viewState.get(key);if(!saved){startInitialFit();return}stopInitialFit();scale=saved.scale;panX=saved.panX;panY=saved.panY;renderTransform();requestAnimationFrame(()=>{if(saved.selectedId){selected=flow.querySelector('[data-element-id="'+CSS.escape(saved.selectedId)+'"]');if(saved.panelOpen&&selected)openDetail(selected)}})}
+      restore(){positionEdgeLabels();const saved=viewState.get(key);if(!saved){startInitialFit();return}stopInitialFit();scale=saved.scale;panX=saved.panX;panY=saved.panY;renderTransform();requestAnimationFrame(()=>{if(saved.selectedId){selected=flow.querySelector('[data-element-id="'+CSS.escape(saved.selectedId)+'"]');if(saved.panelOpen&&selected)openDetail(selected)}})}
     });
-    apply(1)
+    positionEdgeLabels();apply(1)
   });
   if(overview)showOverview();
   else controllers.get('0')?.startInitialFit();
