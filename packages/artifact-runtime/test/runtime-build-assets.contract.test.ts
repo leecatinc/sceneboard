@@ -33,6 +33,8 @@ test('runner sources do not use app-origin execution shortcuts', async () => {
   }
   assert.match(outer, /setAttribute\('sandbox', INNER_SANDBOX_TOKENS_V1\)/u);
   assert.match(outer, /usesOpaqueSrcdoc/u);
+  assert.match(outer, /new URL\(outerScript\.src\)\.origin/u);
+  assert.doesNotMatch(outer, /document\.baseURI/u);
   assert.match(outer, /frame\.srcdoc =/u);
   assert.match(outer, /data:application\/javascript;base64/u);
   assert.match(outer, /<template id="__sceneboard_artifact_resources_v1__">/u);
@@ -49,6 +51,7 @@ test('runner sources do not use app-origin execution shortcuts', async () => {
   assert.match(inner, /usesOpaqueSrcdoc/u);
   assert.match(inner, /script\.textContent = resources\.javascript/u);
   assert.match(inner, /script\.nonce = inheritedDocumentNonce/u);
+  assert.match(inner, /style\.nonce = inheritedDocumentNonce/u);
   assert.doesNotMatch(inner, /\.bind\(/u);
   assert.match(inner, /assertActive\(\)/u);
   assert.match(inner, /event\.isTrusted/u);

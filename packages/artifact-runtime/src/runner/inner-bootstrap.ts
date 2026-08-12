@@ -313,6 +313,8 @@ const applyMobilePresentationSafety = (): void => {
   if (!(presentationRoot instanceof nativeHtmlElement)) return;
   nativeDocumentElement.dataset.sbMobilePresentationSafety = 'true';
   mobilePresentationSafetyStyleElement = document.createElement('style');
+  if (typeof inheritedDocumentNonce === 'string')
+    mobilePresentationSafetyStyleElement.nonce = inheritedDocumentNonce;
   mobilePresentationSafetyStyleElement.textContent =
     '[data-sb-slide-deck="v1"]{contain:layout paint style;isolation:isolate}' +
     '[data-sb-slide-deck="v1"] *{' +
@@ -338,6 +340,8 @@ const applyResponsiveFixedCanvasRasterScale = (): void => {
   if (!(root instanceof nativeHtmlElement) || !(stage instanceof nativeHtmlElement)) return;
   if (responsiveFixedCanvasStyleElement === null) {
     responsiveFixedCanvasStyleElement = document.createElement('style');
+    if (typeof inheritedDocumentNonce === 'string')
+      responsiveFixedCanvasStyleElement.nonce = inheritedDocumentNonce;
     responsiveFixedCanvasStyleElement.textContent =
       '[data-sb-slide-deck="v1"] [data-deck-stage]{transform:none!important}';
     document.head.append(responsiveFixedCanvasStyleElement);
@@ -644,6 +648,7 @@ const runArtifact = async (): Promise<void> => {
   };
   if (resources.css !== null) {
     const style = document.createElement('style');
+    if (typeof inheritedDocumentNonce === 'string') style.nonce = inheritedDocumentNonce;
     style.textContent = resources.css;
     document.head.append(style);
   }

@@ -15,7 +15,8 @@ test('opaque runner document pins the runtime, nonce, CORS, and restrictive poli
     'https://artifact.sceneboard.dev',
     'AAAAAAAAAAAAAAAAAAAAAAAA',
   );
-  assert.match(document, /base href="https:\/\/artifact\.sceneboard\.dev\/"/u);
+  assert.doesNotMatch(document, /<base\b/u);
+  assert.match(document, /base-uri 'none'/u);
   assert.match(document, /script-src https:\/\/artifact\.sceneboard\.dev 'nonce-/u);
   assert.match(
     document,
@@ -23,6 +24,7 @@ test('opaque runner document pins the runtime, nonce, CORS, and restrictive poli
   );
   assert.match(document, /connect-src 'none'/u);
   assert.match(document, /frame-src about: blob:/u);
+  assert.match(document, /<style nonce="AAAAAAAAAAAAAAAAAAAAAAAA">/u);
   assert.match(document, /referrer" content="no-referrer/u);
   assert.doesNotMatch(document, /allow-same-origin|allow-forms|allow-popups/u);
 });

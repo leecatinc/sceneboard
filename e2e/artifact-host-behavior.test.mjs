@@ -58,6 +58,11 @@ const makePackage = () => {
         "globalThis.__productionAuthoredScript = true; globalThis.__productionTrustedWheels = 0; window.addEventListener('wheel', (event) => { if (event.isTrusted) globalThis.__productionTrustedWheels += 1; }); window.SceneBoardArtifact.requestResize(1600, 900);",
       ),
     },
+    {
+      path: 'styles.css',
+      mediaType: 'text/css',
+      bytes: Buffer.from('#production-artifact{color:rgb(1,2,3)}'),
+    },
   ].map((resource) => ({
     ...resource,
     sha256: sha256(resource.bytes),
@@ -195,6 +200,7 @@ for (const [browserName, browserType] of [
       const runtimeRequests = [];
       const nonce = 'AAAAAAAAAAAAAAAAAAAAAAAA';
       const opaqueDocument = document
+        .replaceAll('<style>', `<style nonce="${nonce}">`)
         .replace(
           '<script>\nwindow.__artifactFixture',
           `<script nonce="${nonce}">\nwindow.__artifactFixture`,
@@ -211,7 +217,7 @@ for (const [browserName, browserType] of [
             status: 200,
             headers: {
               'Content-Type': 'text/html; charset=utf-8',
-              'Content-Security-Policy': `default-src 'none'; script-src 'nonce-${nonce}' 'strict-dynamic'; style-src 'unsafe-inline'; frame-src ${RUNTIME_ORIGIN} about: blob:`,
+              'Content-Security-Policy': `default-src 'self'; base-uri 'none'; object-src 'none'; script-src 'self' 'nonce-${nonce}' 'strict-dynamic'; style-src-elem 'self' 'nonce-${nonce}'; style-src-attr 'unsafe-inline'; img-src 'self' data:; media-src 'self'; font-src 'self'; connect-src 'self' ${APP_ORIGIN}; frame-src ${RUNTIME_ORIGIN} about: blob:; frame-ancestors 'none'; form-action 'self'; worker-src 'none'`,
               'Referrer-Policy': 'no-referrer',
             },
             body: opaqueDocument,
@@ -303,7 +309,7 @@ for (const [browserName, browserType] of [
         }),
         {
           origin: 'null',
-          baseURI: `${RUNTIME_ORIGIN}/`,
+          baseURI: `${APP_ORIGIN}/`,
           cookieUnavailable: true,
           storageBlocked: true,
           parentDomBlocked: true,
@@ -312,6 +318,13 @@ for (const [browserName, browserType] of [
       const innerFrame = page.frames().find((frame) => frame.parentFrame() === outerFrame);
       assert.ok(innerFrame);
       await innerFrame.waitForFunction(() => globalThis.__productionAuthoredScript === true);
+      assert.deepEqual(
+        await innerFrame.locator('#production-artifact').evaluate((element) => ({
+          color: getComputedStyle(element).color,
+          width: getComputedStyle(element).width,
+        })),
+        { color: 'rgb(1, 2, 3)', width: '1200px' },
+      );
       assert.equal(
         (await page.evaluate(() => window.__artifactHostHarness.snapshot())).children,
         1,

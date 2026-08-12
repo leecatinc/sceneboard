@@ -7,6 +7,7 @@ import { buildInnerPolicyV1 } from '../src/policy/index.js';
 test('trusted bootstrap precedes every authored HTML byte', () => {
   const document = composeArtifactInnerDocumentV1({
     policy: "default-src 'none'",
+    nonce: 'AAAAAAAAAAAAAAAAAAAAAAAA',
     mermaidTag: '<script id="mermaid"></script>',
     threeTag: '<script id="three"></script>',
     resourcesTag: '<template id="resources"></template>',
@@ -18,6 +19,7 @@ test('trusted bootstrap precedes every authored HTML byte', () => {
   assert.ok(document.indexOf('trusted-bootstrap') < document.indexOf('id="three"'));
   assert.ok(document.indexOf('trusted-bootstrap') < document.indexOf('<body>'));
   assert.ok(document.indexOf('trusted-bootstrap') < document.indexOf('id="authored"'));
+  assert.match(document, /<style nonce="AAAAAAAAAAAAAAAAAAAAAAAA">/u);
 });
 
 test('inner policy admits only nonce-authorized bootstrap and post-init blob scripts', () => {

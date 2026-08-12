@@ -64,8 +64,8 @@ export const buildOpaqueArtifactRunnerDocumentV1 = (
     'frame-src about: blob:',
     "worker-src 'none'",
     "manifest-src 'none'",
-    `base-uri ${canonicalOrigin}`,
+    "base-uri 'none'",
     "form-action 'none'",
   ].join('; ');
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="${escapeAttribute(policy)}"><base href="${escapedOrigin}/"><title>SceneBoard isolated artifact runner</title><style>html,body{width:100%;height:100%;margin:0;overflow:hidden}body>iframe{display:block;width:100%;height:100%;border:0}</style></head><body><script src="${escapedOrigin}/runner.js" crossorigin="anonymous"${nonceAttribute}></script></body></html>`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><meta http-equiv="Content-Security-Policy" content="${escapeAttribute(policy)}"><title>SceneBoard isolated artifact runner</title><style${nonceAttribute}>html,body{width:100%;height:100%;margin:0;overflow:hidden}body>iframe{display:block;width:100%;height:100%;border:0}</style></head><body><script src="${escapedOrigin}/runner.js" crossorigin="anonymous"${nonceAttribute}></script></body></html>`;
 };

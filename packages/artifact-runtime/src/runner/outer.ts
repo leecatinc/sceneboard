@@ -19,9 +19,12 @@ declare const __THREE_ASSET_PATH__: string;
 
 type BinaryCarrier = { envelope: ArtifactBridgeEnvelopeV1; binary: ArrayBuffer };
 
+const outerScript = document.currentScript;
+if (!(outerScript instanceof HTMLScriptElement))
+  throw new TypeError('artifact runner script is unavailable');
+const artifactRuntimeOrigin = new URL(outerScript.src).origin;
 const inheritedDocumentNonce = (() => {
-  const nonce =
-    document.currentScript instanceof HTMLScriptElement ? document.currentScript.nonce : undefined;
+  const nonce = outerScript.nonce;
   return typeof nonce === 'string' && /^[A-Za-z0-9+/_-]{16,128}={0,2}$/u.test(nonce) ? nonce : null;
 })();
 const usesOpaqueSrcdoc = window.location.href === 'about:srcdoc';
@@ -149,16 +152,17 @@ const createInner = async (
   for (const byte of bootstrapBytes) bootstrapBinary += String.fromCharCode(byte);
   const bootstrapDataUrl = `data:application/javascript;base64,${btoa(bootstrapBinary)}`;
   const mermaidTag = diagram
-    ? `<script nonce="${nonce}" crossorigin="anonymous" src="${escapeAttribute(new URL(__MERMAID_ASSET_PATH__, document.baseURI).href)}"></script>`
+    ? `<script nonce="${nonce}" crossorigin="anonymous" src="${escapeAttribute(new URL(__MERMAID_ASSET_PATH__, artifactRuntimeOrigin).href)}"></script>`
     : '';
   const threeTag = three
-    ? `<script nonce="${nonce}" crossorigin="anonymous" src="${escapeAttribute(new URL(__THREE_ASSET_PATH__, document.baseURI).href)}"></script>`
+    ? `<script nonce="${nonce}" crossorigin="anonymous" src="${escapeAttribute(new URL(__THREE_ASSET_PATH__, artifactRuntimeOrigin).href)}"></script>`
     : '';
   const resourcesTag = `<template id="__sceneboard_artifact_resources_v1__">${resources}</template>`;
   const bootstrapTag = `<script nonce="${nonce}" src="${escapeAttribute(bootstrapDataUrl)}"></script>`;
   const documentBytes = new TextEncoder().encode(
     composeArtifactInnerDocumentV1({
       policy: escapeAttribute(policy),
+      nonce,
       mermaidTag,
       threeTag,
       resourcesTag,
@@ -410,7 +414,7 @@ window.addEventListener(
     if (
       parsed.envelope.message.type !== 'host.bootstrap' ||
       event.origin !== parsed.envelope.message.appOrigin ||
-      new URL(document.baseURI).origin !== parsed.envelope.message.runtimeOrigin
+      artifactRuntimeOrigin !== parsed.envelope.message.runtimeOrigin
     )
       return;
     parentEndpoint = new ArtifactBridgeEndpointV1({

@@ -1,6 +1,7 @@
 export const composeArtifactInnerDocumentV1 = (
   input: Readonly<{
     policy: string;
+    nonce: string;
     mermaidTag: string;
     threeTag: string;
     resourcesTag: string;
@@ -8,4 +9,4 @@ export const composeArtifactInnerDocumentV1 = (
     html: string;
   }>,
 ): string =>
-  `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="${input.policy}"><style>html,body{width:100%;height:100%;margin:0;overflow:hidden}</style>${input.resourcesTag}${input.bootstrapTag}${input.threeTag}${input.mermaidTag}</head><body>${input.html}</body></html>`;
+  `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="${input.policy}"><style nonce="${input.nonce}">html,body{width:100%;height:100%;margin:0;overflow:hidden}</style>${input.resourcesTag}${input.bootstrapTag}${input.threeTag}${input.mermaidTag}</head><body>${input.html}</body></html>`;
