@@ -19,6 +19,13 @@ declare const __THREE_ASSET_PATH__: string;
 
 type BinaryCarrier = { envelope: ArtifactBridgeEnvelopeV1; binary: ArrayBuffer };
 
+const inheritedDocumentNonce = (() => {
+  const nonce =
+    document.currentScript instanceof HTMLScriptElement ? document.currentScript.nonce : undefined;
+  return typeof nonce === 'string' && /^[A-Za-z0-9+/_-]{16,128}={0,2}$/u.test(nonce) ? nonce : null;
+})();
+const usesOpaqueSrcdoc = window.location.href === 'about:srcdoc';
+
 const randomId = (): string => {
   const bytes = crypto.getRandomValues(new Uint8Array(16));
   let binary = '';
@@ -134,7 +141,7 @@ const createInner = async (
   const diagram =
     /<pre\s+[^>]*class=(?:"[^"]*\bmermaid\b[^"]*"|'[^']*\bmermaid\b[^']*')[^>]*>/iu.test(htmlText);
   const three = /data-sb-threejs-showcase=(?:"v1"|'v1')/iu.test(htmlText);
-  const nonce = randomId();
+  const nonce = inheritedDocumentNonce ?? randomId();
   const policy = buildInnerPolicyV1(nonce);
   const resources = safeScriptString({ css: cssText, javascript: javascriptText, diagram });
   const bootstrapBytes = new TextEncoder().encode(__INNER_BOOTSTRAP_SOURCE__);
@@ -142,10 +149,10 @@ const createInner = async (
   for (const byte of bootstrapBytes) bootstrapBinary += String.fromCharCode(byte);
   const bootstrapDataUrl = `data:application/javascript;base64,${btoa(bootstrapBinary)}`;
   const mermaidTag = diagram
-    ? `<script nonce="${nonce}" src="${escapeAttribute(new URL(__MERMAID_ASSET_PATH__, window.location.href).href)}"></script>`
+    ? `<script nonce="${nonce}" crossorigin="anonymous" src="${escapeAttribute(new URL(__MERMAID_ASSET_PATH__, document.baseURI).href)}"></script>`
     : '';
   const threeTag = three
-    ? `<script nonce="${nonce}" src="${escapeAttribute(new URL(__THREE_ASSET_PATH__, window.location.href).href)}"></script>`
+    ? `<script nonce="${nonce}" crossorigin="anonymous" src="${escapeAttribute(new URL(__THREE_ASSET_PATH__, document.baseURI).href)}"></script>`
     : '';
   const resourcesTag = `<template id="__sceneboard_artifact_resources_v1__">${resources}</template>`;
   const bootstrapTag = `<script nonce="${nonce}" src="${escapeAttribute(bootstrapDataUrl)}"></script>`;
@@ -159,13 +166,14 @@ const createInner = async (
       html: htmlText,
     }),
   );
-  innerDocumentUrl = URL.createObjectURL(new Blob([documentBytes], { type: 'text/html' }));
   const frame = document.createElement('iframe');
   frame.title = 'Isolated artifact content';
   frame.referrerPolicy = 'no-referrer';
   frame.setAttribute('sandbox', INNER_SANDBOX_TOKENS_V1);
+  const innerDocument = usesOpaqueSrcdoc ? decoder.decode(documentBytes) : null;
+  if (innerDocument === null)
+    innerDocumentUrl = URL.createObjectURL(new Blob([documentBytes], { type: 'text/html' }));
   innerFrame = frame;
-  document.body.replaceChildren(frame);
   const channel = new MessageChannel();
   innerPort = channel.port1;
   innerEndpoint = new ArtifactBridgeEndpointV1({
@@ -245,7 +253,11 @@ const createInner = async (
     },
     { once: true },
   );
-  frame.src = innerDocumentUrl;
+  if (innerDocument === null) {
+    if (innerDocumentUrl === null) throw new TypeError('inner document URL is unavailable');
+    frame.src = innerDocumentUrl;
+  } else frame.srcdoc = innerDocument;
+  document.body.replaceChildren(frame);
 };
 
 const handleParentMessage = async (event: MessageEvent<unknown>): Promise<void> => {
@@ -398,7 +410,7 @@ window.addEventListener(
     if (
       parsed.envelope.message.type !== 'host.bootstrap' ||
       event.origin !== parsed.envelope.message.appOrigin ||
-      new URL(window.location.href).origin !== parsed.envelope.message.runtimeOrigin
+      new URL(document.baseURI).origin !== parsed.envelope.message.runtimeOrigin
     )
       return;
     parentEndpoint = new ArtifactBridgeEndpointV1({

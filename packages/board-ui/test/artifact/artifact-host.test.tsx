@@ -74,15 +74,17 @@ test('ArtifactHost server shell is trusted, frame-free, and keeps local stop vis
   assert.doesNotMatch(html, /<iframe|srcdoc|dangerouslySetInnerHTML/u);
 });
 
-test('artifact host sources use one credentialless allow-scripts outer frame', () => {
+test('artifact host sources use adaptive credentialless or opaque allow-scripts outer frames', () => {
   const source = readFileSync(
     new URL('../../src/artifact/use-artifact-bridge.ts', import.meta.url),
     'utf8',
   );
   assert.match(source, /credentialless = true/u);
+  assert.match(source, /frame\.srcdoc = buildOpaqueArtifactRunnerDocumentV1/u);
+  assert.match(source, /artifactIsolationModeV1\(\)/u);
   assert.match(source, /setAttribute\('sandbox', OUTER_SANDBOX_TOKENS_V1\)/u);
   assert.match(source, /postMessage\(bootstrap, '\*', \[channel\.port2\]\)/u);
-  assert.doesNotMatch(source, /srcdoc|dangerouslySetInnerHTML|eval\(|new Function/u);
+  assert.doesNotMatch(source, /dangerouslySetInnerHTML|eval\(|new Function/u);
 });
 
 test('ArtifactHost rejects an invalid incarnation before mounting the admitted bridge host', () => {

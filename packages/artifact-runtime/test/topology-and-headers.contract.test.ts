@@ -129,7 +129,10 @@ test('runtime routes enforce Host, GET, and the fixed allowlist', () => {
     routeArtifactRuntimeRequestV1({ method, path, host, topology: topology(), assets });
   assert.equal(request('GET', '/healthz').status, 200);
   assert.equal(request('GET', '/runner').status, 200);
+  assert.equal(request('GET', '/runner.js').status, 200);
+  assert.equal(request('GET', '/runner.js').headers['Access-Control-Allow-Origin'], '*');
   assert.equal(request('GET', outerPath).status, 200);
+  assert.equal(request('GET', outerPath).headers['Access-Control-Allow-Origin'], '*');
   assert.equal(Object.hasOwn(request('GET', '/healthz').headers, 'Origin-Agent-Cluster'), false);
   assert.equal(Object.hasOwn(request('GET', outerPath).headers, 'Origin-Agent-Cluster'), false);
   assert.equal(request('GET', '/assets/unknown.js').status, 404);

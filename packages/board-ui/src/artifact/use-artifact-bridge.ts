@@ -13,6 +13,11 @@ import { OUTER_SANDBOX_TOKENS_V1 } from '@sceneboard/artifact-runtime/policy';
 
 import type { ArtifactHostInputV1 } from './ports.js';
 import { ArtifactCapabilityDispatcherV1 } from './artifact-capability-dispatch.js';
+import {
+  artifactIsolationModeV1,
+  buildOpaqueArtifactRunnerDocumentV1,
+  readArtifactDocumentNonceV1,
+} from './browser-support.js';
 import { dispatchArtifactNavigationIntentV1 } from './navigation-dispatch.js';
 
 export type ArtifactHostPhaseV1 =
@@ -117,7 +122,8 @@ export const useArtifactBridgeV1 = (input: ArtifactHostInputV1): ArtifactBridgeV
     }
     const container = containerRef.current;
     if (container === null) return;
-    if (!('credentialless' in HTMLIFrameElement.prototype)) {
+    const isolationMode = artifactIsolationModeV1();
+    if (isolationMode === 'unsupported') {
       setPhase('unsupported');
       return;
     }
@@ -258,9 +264,20 @@ export const useArtifactBridgeV1 = (input: ArtifactHostInputV1): ArtifactBridgeV
       frame.title = 'SceneBoard isolated artifact';
       frame.referrerPolicy = 'no-referrer';
       frame.setAttribute('sandbox', OUTER_SANDBOX_TOKENS_V1);
-      (frame as HTMLIFrameElement & { credentialless: boolean }).credentialless = true;
+      frame.setAttribute(
+        'allow',
+        "accelerometer 'none'; autoplay 'none'; camera 'none'; clipboard-read 'none'; clipboard-write 'none'; display-capture 'none'; fullscreen 'none'; geolocation 'none'; gyroscope 'none'; microphone 'none'; payment 'none'; publickey-credentials-get 'none'; storage-access 'none'; usb 'none'; web-share 'none'",
+      );
       frame.className = 'artifact-runtime-frame';
-      frame.src = `${runtimeOrigin}/runner`;
+      if (isolationMode === 'credentialless') {
+        (frame as HTMLIFrameElement & { credentialless: boolean }).credentialless = true;
+        frame.src = `${runtimeOrigin}/runner`;
+      } else {
+        frame.srcdoc = buildOpaqueArtifactRunnerDocumentV1(
+          runtimeOrigin,
+          readArtifactDocumentNonceV1(),
+        );
+      }
       const loaded = new Promise<void>((resolve, reject) => {
         navigationTimer = setTimeout(() => {
           navigationTimer = null;

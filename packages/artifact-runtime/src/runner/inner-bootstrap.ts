@@ -37,6 +37,8 @@ declare global {
 }
 
 const resourcesElement = document.getElementById('__sceneboard_artifact_resources_v1__');
+const inheritedDocumentNonce =
+  document.currentScript instanceof HTMLScriptElement ? document.currentScript.nonce : undefined;
 if (!(resourcesElement instanceof HTMLTemplateElement))
   throw new TypeError('artifact resources are unavailable');
 const resources = JSON.parse(resourcesElement.content.textContent ?? '') as {
@@ -651,19 +653,27 @@ const runArtifact = async (): Promise<void> => {
     assertActive();
   }
   if (resources.javascript !== null) {
-    scriptUrl = nativeReflectApply(nativeCreateObjectUrl, nativeUrl, [
-      new Blob([resources.javascript], { type: 'text/javascript' }),
-    ]);
+    const usesOpaqueSrcdoc = window.location.href === 'about:srcdoc';
+    if (!usesOpaqueSrcdoc)
+      scriptUrl = nativeReflectApply(nativeCreateObjectUrl, nativeUrl, [
+        new Blob([resources.javascript], { type: 'text/javascript' }),
+      ]);
     assertActive();
     await new Promise<void>((resolve, reject) => {
       const script = document.createElement('script');
       scriptElement = script;
-      script.src = scriptUrl as string;
+      if (usesOpaqueSrcdoc) {
+        if (typeof inheritedDocumentNonce !== 'string' || inheritedDocumentNonce.length === 0)
+          return reject(new TypeError('artifact script nonce is unavailable'));
+        script.nonce = inheritedDocumentNonce;
+        script.textContent = resources.javascript;
+      } else script.src = scriptUrl as string;
       script.addEventListener('load', () => resolve(), { once: true });
       script.addEventListener('error', () => reject(new TypeError('artifact script failed')), {
         once: true,
       });
       document.body.append(script);
+      if (usesOpaqueSrcdoc) resolve();
     });
     assertActive();
     scriptElement = null;

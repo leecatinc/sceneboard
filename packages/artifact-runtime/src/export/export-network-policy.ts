@@ -79,7 +79,9 @@ export const createExportNetworkPolicyV1 = (input: ExportNetworkPolicyV1) => {
       if (url.origin === runtime)
         return (
           (resourceType === 'document' || resourceType === 'script') &&
-          (url.pathname === '/runner' || RUNTIME_ASSET_V1.test(url.pathname))
+          (url.pathname === '/runner' ||
+            url.pathname === '/runner.js' ||
+            RUNTIME_ASSET_V1.test(url.pathname))
         );
       return false;
     },

@@ -31,6 +31,17 @@ export const buildFixedAssetHeadersV1 = (): RuntimeHeadersV1 =>
     'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'no-referrer',
     'Cross-Origin-Resource-Policy': 'cross-origin',
+    'Access-Control-Allow-Origin': '*',
+  });
+
+export const buildOpaqueRunnerScriptHeadersV1 = (): RuntimeHeadersV1 =>
+  Object.freeze({
+    'Content-Type': 'application/javascript; charset=utf-8',
+    'Cache-Control': 'no-store, max-age=0',
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'no-referrer',
+    'Cross-Origin-Resource-Policy': 'cross-origin',
+    'Access-Control-Allow-Origin': '*',
   });
 
 export const buildHealthHeadersV1 = (): RuntimeHeadersV1 =>
@@ -41,7 +52,6 @@ export const buildHealthHeadersV1 = (): RuntimeHeadersV1 =>
   });
 
 const FORBIDDEN = new Set([
-  'access-control-allow-origin',
   'access-control-allow-credentials',
   'set-cookie',
   'x-frame-options',
@@ -53,7 +63,13 @@ export const assertRuntimeHeadersV1 = (headers: RuntimeHeadersV1): void => {
   const seen = new Set<string>();
   for (const [name, value] of Object.entries(headers)) {
     const lower = name.toLowerCase();
-    if (seen.has(lower) || FORBIDDEN.has(lower) || value.includes('\r') || value.includes('\n')) {
+    if (
+      seen.has(lower) ||
+      FORBIDDEN.has(lower) ||
+      (lower === 'access-control-allow-origin' && value !== '*') ||
+      value.includes('\r') ||
+      value.includes('\n')
+    ) {
       throw new TypeError('runtime response headers are unsafe');
     }
     seen.add(lower);

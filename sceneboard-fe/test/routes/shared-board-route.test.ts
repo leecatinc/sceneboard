@@ -25,16 +25,18 @@ test('public route keeps the raw route secret inside the server entry and bound 
 test('public route composes the shared renderer and finalized read-only controls', () => {
   const client = source('app/s/[shareToken]/shared-board-client.tsx');
   const styles = source('app/s/[shareToken]/shared-board.module.css');
+  const host = source('app/s/[shareToken]/public-share-artifact-host.tsx');
   assert.match(client, /PublicBoardRenderer/u);
   assert.match(client, /PublicArtifactPackageStoreV1/u);
   assert.match(client, /PublicShareArtifactHost/u);
+  assert.match(host, /artifactIsolationSupportedV1/u);
+  assert.match(host, /sharing\.artifactBrowserUnsupported/u);
   assert.match(client, /publicShareArtifactRouteKeyV1\(ready\)/u);
   assert.match(client, /current\.store\.renew\(ready\)/u);
   assert.match(
     client,
     /moveIdentity=\{`\$\{artifactRouteEpoch \?\? 'unavailable'\}:\$\{resolved\.pageId\}`\}/u,
   );
-  const host = source('app/s/[shareToken]/public-share-artifact-host.tsx');
   assert.match(host, /const artifactId = artifact\.artifactId/u);
   assert.match(host, /const versionId = artifact\.versionId/u);
   assert.match(host, /\[artifactId, versionId\]/u);
@@ -60,7 +62,7 @@ test('public route composes the shared renderer and finalized read-only controls
   assert.match(client, /page\s*\.requestFullscreen\(\)/u);
   assert.match(client, /document\.exitFullscreen/u);
   assert.match(client, /surface: 'public-share'/u);
-  assert.match(styles, /height:\s*100dvh/u);
+  assert.match(styles, /height:\s*100vh;\s*height:\s*100dvh/u);
   assert.match(styles, /overflow:\s*hidden/u);
   assert.doesNotMatch(styles, /\.reader\s+:global\(\.scene-chart\)/u);
   assert.match(styles, /\.page\s+:global\(\.board-topbar-leading\)\s*\{[^}]*gap:\s*20px/su);

@@ -55,7 +55,7 @@ export const buildPublicShareDocumentPolicyV1 = (
     "media-src 'self'",
     "font-src 'self'",
     `connect-src 'self' ${canonicalOrigin(apiOrigin)}`,
-    `frame-src ${canonicalOrigin(runtimeOrigin)}`,
+    `frame-src ${canonicalOrigin(runtimeOrigin)} about: blob:`,
     "frame-ancestors 'none'",
     "form-action 'self'",
     "worker-src 'none'",

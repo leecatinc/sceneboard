@@ -37,7 +37,7 @@ export const buildSceneBoardContentSecurityPolicyV1 = (input: {
     "default-src 'self'",
     "base-uri 'self'",
     "object-src 'none'",
-    `script-src 'self' 'unsafe-inline'${
+    `script-src 'self' 'unsafe-inline' ${runtimeOrigin}${
       input.allowDevelopmentEval === true ? " 'unsafe-eval'" : ''
     }${firebaseAuthOrigin === undefined ? '' : ' https://apis.google.com'}`,
     "style-src 'self' 'unsafe-inline'",
@@ -49,7 +49,9 @@ export const buildSceneBoardContentSecurityPolicyV1 = (input: {
         ? ''
         : ' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com'
     }`,
-    `frame-src ${runtimeOrigin}${firebaseAuthOrigin === undefined ? '' : ` ${firebaseAuthOrigin}`}`,
+    `frame-src ${runtimeOrigin} about: blob:${
+      firebaseAuthOrigin === undefined ? '' : ` ${firebaseAuthOrigin}`
+    }`,
     "frame-ancestors 'self'",
     "form-action 'self'",
     "worker-src 'none'",

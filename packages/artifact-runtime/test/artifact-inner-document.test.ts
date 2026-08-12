@@ -24,4 +24,9 @@ test('inner policy admits only nonce-authorized bootstrap and post-init blob scr
   const policy = buildInnerPolicyV1('AAAAAAAAAAAAAAAAAAAAAA');
   assert.match(policy, /script-src 'nonce-AAAAAAAAAAAAAAAAAAAAAA' blob:/u);
   assert.doesNotMatch(policy, /script-src[^;]*data:/u);
+  assert.match(
+    buildInnerPolicyV1('AAAAAAAAAAAAAAAAAAAAAAAA'),
+    /script-src 'nonce-AAAAAAAAAAAAAAAAAAAAAAAA' blob:/u,
+  );
+  assert.throws(() => buildInnerPolicyV1('too-short'), /nonce is invalid/u);
 });

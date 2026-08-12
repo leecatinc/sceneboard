@@ -7,6 +7,7 @@ import {
   assertRuntimeHeadersV1,
   buildFixedAssetHeadersV1,
   buildHealthHeadersV1,
+  buildOpaqueRunnerScriptHeadersV1,
   buildRunnerHeadersV1,
   type RuntimeHeadersV1,
 } from './headers.js';
@@ -144,6 +145,12 @@ export const routeArtifactRuntimeRequestV1 = (input: {
       }),
       input.assets.runnerHtml,
     );
+  }
+  if (input.path === '/runner.js') {
+    const outer = [...input.assets.entries.values()].find((entry) => entry.logicalName === 'outer');
+    if (outer === undefined)
+      return safeResponse(503, buildHealthHeadersV1(), text('runtime unavailable\n'));
+    return safeResponse(200, buildOpaqueRunnerScriptHeadersV1(), outer.bytes);
   }
   const asset = input.assets.entries.get(input.path);
   if (asset !== undefined) return safeResponse(200, buildFixedAssetHeadersV1(), asset.bytes);

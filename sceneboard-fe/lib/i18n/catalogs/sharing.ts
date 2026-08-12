@@ -20,6 +20,11 @@ export const SHARING_CATALOG = [
     'This shared board is unavailable.',
     '이 공유 보드를 사용할 수 없습니다.',
   ),
+  sharingMessage(
+    'sharing.artifactBrowserUnsupported',
+    'This browser cannot provide the isolation required by this board. Update the browser and try again.',
+    '현재 브라우저는 이 보드에 필요한 격리 기능을 제공하지 않습니다. 브라우저를 업데이트한 뒤 다시 시도해 주세요.',
+  ),
   sharingMessage('sharing.readerLabel', 'Shared board reader', '공유 보드 리더'),
   sharingMessage('sharing.manageShares', 'Manage sharing', '공유 관리'),
   sharingMessage('sharing.manageMembers', 'Manage members', '멤버 관리'),

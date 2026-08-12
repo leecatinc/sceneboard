@@ -1,5 +1,12 @@
 export { ArtifactFallback } from './ArtifactFallback.js';
 export { ArtifactHost } from './ArtifactHost.js';
+export {
+  artifactIsolationModeV1,
+  artifactIsolationSupportedV1,
+  buildOpaqueArtifactRunnerDocumentV1,
+  readArtifactDocumentNonceV1,
+} from './browser-support.js';
+export type { ArtifactIsolationModeV1 } from './browser-support.js';
 export { useArtifactBridgeV1 } from './use-artifact-bridge.js';
 export type { ArtifactBridgeViewV1, ArtifactHostPhaseV1 } from './use-artifact-bridge.js';
 export type {

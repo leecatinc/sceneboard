@@ -48,6 +48,7 @@ test('export network policy admits only the fixed loopback document, broker, and
     true,
   );
   assert.equal(policy.allows('http://127.0.0.1:3420/runner', 'document'), true);
+  assert.equal(policy.allows('http://127.0.0.1:3420/runner.js', 'script'), true);
   assert.equal(
     policy.allows(`http://127.0.0.1:3420/assets/outer.${'b'.repeat(64)}.js`, 'script'),
     true,

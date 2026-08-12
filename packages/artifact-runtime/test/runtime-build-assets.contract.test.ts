@@ -29,9 +29,11 @@ test('runner sources do not use app-origin execution shortcuts', async () => {
     readFile(new URL('../src/runner/inner-document.ts', import.meta.url), 'utf8'),
   ]);
   for (const source of [outer, inner]) {
-    assert.doesNotMatch(source, /dangerouslySetInnerHTML|srcdoc|eval\(|new Function/u);
+    assert.doesNotMatch(source, /dangerouslySetInnerHTML|eval\(|new Function/u);
   }
   assert.match(outer, /setAttribute\('sandbox', INNER_SANDBOX_TOKENS_V1\)/u);
+  assert.match(outer, /usesOpaqueSrcdoc/u);
+  assert.match(outer, /frame\.srcdoc =/u);
   assert.match(outer, /data:application\/javascript;base64/u);
   assert.match(outer, /<template id="__sceneboard_artifact_resources_v1__">/u);
   assert.match(innerDocument, /html,body\{width:100%;height:100%;margin:0;overflow:hidden\}/u);
@@ -44,6 +46,9 @@ test('runner sources do not use app-origin execution shortcuts', async () => {
   assert.match(inner, /nativeStopImmediatePropagation/u);
   assert.match(inner, /nativePerformanceNow/u);
   assert.match(inner, /nativeSetTimeout/u);
+  assert.match(inner, /usesOpaqueSrcdoc/u);
+  assert.match(inner, /script\.textContent = resources\.javascript/u);
+  assert.match(inner, /script\.nonce = inheritedDocumentNonce/u);
   assert.doesNotMatch(inner, /\.bind\(/u);
   assert.match(inner, /assertActive\(\)/u);
   assert.match(inner, /event\.isTrusted/u);

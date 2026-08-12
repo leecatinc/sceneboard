@@ -13,9 +13,9 @@ test('public share document policy is nonce-bound and excludes broad application
   assert.match(policy, /script-src 'self' 'nonce-AAAAAAAAAAAAAAAAAAAAAAAA' 'strict-dynamic'/u);
   assert.match(policy, /style-src 'self' 'nonce-AAAAAAAAAAAAAAAAAAAAAAAA'/u);
   assert.match(policy, /connect-src 'self' http:\/\/127\.0\.0\.1:3411/u);
-  assert.match(policy, /frame-src http:\/\/127\.0\.0\.2:3412/u);
+  assert.match(policy, /frame-src http:\/\/127\.0\.0\.2:3412 about: blob:/u);
   assert.match(policy, /frame-ancestors 'none'/u);
-  assert.doesNotMatch(policy, /frame-src[^;]*'self'/u);
+  assert.doesNotMatch(policy, /frame-src[^;]*'self'|frame-src[^;]*\*/u);
   assert.doesNotMatch(policy, /unsafe-inline|\*/u);
 });
 

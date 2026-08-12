@@ -5,12 +5,22 @@ import { extname, join } from 'node:path';
 import test from 'node:test';
 
 import { build } from 'esbuild';
-import { chromium } from 'playwright';
+import { chromium, firefox, webkit } from 'playwright';
 
 const APP_ORIGIN = 'http://127.0.0.1:3430';
 const RUNTIME_ORIGIN = 'http://127.0.0.2:3431';
 const runtimePublic = new URL('../packages/artifact-runtime/dist/public/', import.meta.url)
   .pathname;
+const runnerHtml = readFileSync(join(runtimePublic, 'runner.html'), 'utf8');
+const outerAssetPath = /<script src="(\/assets\/outer\.[a-f0-9]{64}\.js)"><\/script>/u.exec(
+  runnerHtml,
+)?.[1];
+assert.ok(outerAssetPath);
+const outerRunnerSource = readFileSync(join(runtimePublic, outerAssetPath.slice(1)));
+const applicationStyles = readFileSync(
+  new URL('../sceneboard-fe/app/globals.css', import.meta.url),
+  'utf8',
+);
 const artifact = { artifactId: 'artifact_one', versionId: 'version_one' };
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const canonicalJson = (value) => {
@@ -106,7 +116,7 @@ const fixtureConfig = JSON.stringify({
   packageBase64: artifactPackage.bytes.toString('base64'),
   manifest: artifactPackage.manifest,
 }).replaceAll('<', '\\u003c');
-const document = `<!doctype html><html><head><style>
+const document = `<!doctype html><html><head><style>${applicationStyles}</style><style>
 html,body,#root{width:100%;height:100%;margin:0}.artifact-host,.artifact-frame-container{width:800px;height:600px}
 .artifact-frame-container{position:relative;overflow:hidden}.artifact-runtime-stage{position:relative;overflow:hidden;width:100%;height:100%}
 .artifact-runtime-transform{position:absolute;width:1200px;height:675px;transform-origin:0 0}.artifact-runtime-frame{display:block;width:1200px;height:675px;border:0}
@@ -142,6 +152,189 @@ const parseTransform = (value) => {
   return { x: Number(match[1]), y: Number(match[2]), scale: Number(match[3]) };
 };
 
+const fulfillRuntimeRoute = async (route) => {
+  const url = new URL(route.request().url());
+  if (url.pathname === '/runner.js') {
+    await route.fulfill({
+      status: 200,
+      headers: {
+        'Content-Type': 'application/javascript; charset=utf-8',
+        'Access-Control-Allow-Origin': '*',
+        'Cross-Origin-Resource-Policy': 'cross-origin',
+        'Referrer-Policy': 'no-referrer',
+      },
+      body: outerRunnerSource,
+    });
+    return;
+  }
+  const relative = url.pathname === '/runner' ? 'runner.html' : url.pathname.replace(/^\//u, '');
+  await route.fulfill({
+    status: 200,
+    headers: url.pathname.startsWith('/assets/')
+      ? {
+          'Content-Type': contentType(relative),
+          'Access-Control-Allow-Origin': '*',
+          'Cross-Origin-Resource-Policy': 'cross-origin',
+        }
+      : { 'Content-Type': contentType(relative) },
+    body: readFileSync(join(runtimePublic, relative)),
+  });
+};
+
+for (const [browserName, browserType] of [
+  ['WebKit', webkit],
+  ['Firefox', firefox],
+])
+  test(
+    `${browserName} runs the production artifact through the opaque srcdoc fallback without credentials`,
+    { timeout: 30_000 },
+    async (context) => {
+      const browser = await browserType.launch({ headless: true });
+      context.after(() => browser.close());
+      const browserContext = await browser.newContext({ viewport: { width: 1_024, height: 768 } });
+      const runtimeRequests = [];
+      const nonce = 'AAAAAAAAAAAAAAAAAAAAAAAA';
+      const opaqueDocument = document
+        .replace(
+          '<script>\nwindow.__artifactFixture',
+          `<script nonce="${nonce}">\nwindow.__artifactFixture`,
+        )
+        .replace('<script src="/fixture.js">', `<script nonce="${nonce}" src="/fixture.js">`);
+      await browserContext.addCookies([
+        { name: 'runtime_canary', value: 'must-not-leave', url: RUNTIME_ORIGIN, sameSite: 'Lax' },
+      ]);
+      await browserContext.route('**/*', async (route) => {
+        const request = route.request();
+        const url = new URL(route.request().url());
+        if (url.origin === APP_ORIGIN && url.pathname === '/')
+          return route.fulfill({
+            status: 200,
+            headers: {
+              'Content-Type': 'text/html; charset=utf-8',
+              'Content-Security-Policy': `default-src 'none'; script-src 'nonce-${nonce}' 'strict-dynamic'; style-src 'unsafe-inline'; frame-src ${RUNTIME_ORIGIN} about: blob:`,
+              'Referrer-Policy': 'no-referrer',
+            },
+            body: opaqueDocument,
+          });
+        if (url.origin === APP_ORIGIN && url.pathname === '/fixture.js')
+          return route.fulfill({ contentType: 'application/javascript', body: fixtureSource });
+        if (url.origin === RUNTIME_ORIGIN) {
+          runtimeRequests.push({
+            path: url.pathname,
+            cookie: request.headers().cookie ?? null,
+            referer: request.headers().referer ?? null,
+            origin: request.headers().origin ?? null,
+          });
+          await fulfillRuntimeRoute(route);
+          return;
+        }
+        return route.abort('blockedbyclient');
+      });
+      const page = await browserContext.newPage();
+      const consoleErrors = [];
+      const pageErrors = [];
+      page.on('console', (message) => {
+        if (message.type() === 'error') consoleErrors.push(message.text());
+      });
+      page.on('pageerror', (error) => pageErrors.push(error.message));
+      await page.goto(`${APP_ORIGIN}/`, { waitUntil: 'load' });
+      await page
+        .waitForFunction(
+          () => document.querySelector('.artifact-host')?.classList.contains('artifact-active'),
+          undefined,
+          { timeout: 10_000 },
+        )
+        .catch(async () =>
+          assert.fail(
+            JSON.stringify({
+              runtimeRequests,
+              consoleErrors,
+              pageErrors,
+              host: await page.locator('.artifact-host').getAttribute('class'),
+              frameAttribute: await page.locator('.artifact-runtime-frame').count(),
+              frames: await Promise.all(
+                page.frames().map(async (frame) => ({
+                  url: frame.url(),
+                  body: await frame
+                    .locator('body')
+                    .evaluate((element) => element.outerHTML)
+                    .catch(() => null),
+                })),
+              ),
+            }),
+          ),
+        );
+
+      assert.equal(
+        await page.evaluate(() => 'credentialless' in HTMLIFrameElement.prototype),
+        false,
+      );
+      assert.equal(await page.locator('.artifact-runtime-frame').getAttribute('src'), null);
+      assert.match(
+        (await page.locator('.artifact-runtime-frame').getAttribute('srcdoc')) ?? '',
+        /runner\.js/u,
+      );
+      const outerFrame = page.frames().find((frame) => frame.url() === 'about:srcdoc');
+      assert.ok(outerFrame);
+      assert.deepEqual(
+        await outerFrame.evaluate(() => {
+          const blocked = (read) => {
+            try {
+              read();
+              return false;
+            } catch {
+              return true;
+            }
+          };
+          return {
+            origin: self.origin,
+            baseURI: document.baseURI,
+            cookieUnavailable: (() => {
+              try {
+                document.cookie = 'artifact_canary=must-not-persist';
+                return document.cookie === '';
+              } catch {
+                return true;
+              }
+            })(),
+            storageBlocked: blocked(() => localStorage.length),
+            parentDomBlocked: blocked(() => window.parent.document.body),
+          };
+        }),
+        {
+          origin: 'null',
+          baseURI: `${RUNTIME_ORIGIN}/`,
+          cookieUnavailable: true,
+          storageBlocked: true,
+          parentDomBlocked: true,
+        },
+      );
+      const innerFrame = page.frames().find((frame) => frame.parentFrame() === outerFrame);
+      assert.ok(innerFrame);
+      await innerFrame.waitForFunction(() => globalThis.__productionAuthoredScript === true);
+      assert.equal(
+        (await page.evaluate(() => window.__artifactHostHarness.snapshot())).children,
+        1,
+      );
+      assert.deepEqual(runtimeRequests, [
+        { path: '/runner.js', cookie: null, referer: null, origin: 'null' },
+      ]);
+      assert.deepEqual(
+        consoleErrors.filter(
+          (message) =>
+            !message.includes('FaviconLoader.sys.mjs') || !message.includes('favicon.ico'),
+        ),
+        [],
+      );
+      assert.deepEqual(pageErrors, []);
+      await page.evaluate(() => window.__artifactHostHarness.stop());
+      await page.waitForFunction(() =>
+        document.querySelector('.artifact-host')?.classList.contains('artifact-stopped'),
+      );
+      assert.equal(page.frames().filter((frame) => frame !== page.mainFrame()).length, 0);
+    },
+  );
+
 test(
   'production ArtifactHost owns runtime, registry, controls, transitions, and terminal cleanup',
   { timeout: 30_000 },
@@ -158,10 +351,8 @@ test(
       if (url.origin === APP_ORIGIN && url.pathname === '/bridge-fixture.js')
         return route.fulfill({ contentType: 'application/javascript', body: bridgeFixtureSource });
       if (url.origin === RUNTIME_ORIGIN) {
-        const relative =
-          url.pathname === '/runner' ? 'runner.html' : url.pathname.replace(/^\//u, '');
-        const body = readFileSync(join(runtimePublic, relative));
-        return route.fulfill({ contentType: contentType(relative), body });
+        await fulfillRuntimeRoute(route);
+        return;
       }
       return route.abort('blockedbyclient');
     });
@@ -392,12 +583,8 @@ test(
       if (url.origin === APP_ORIGIN && url.pathname === '/fixture.js')
         return route.fulfill({ contentType: 'application/javascript', body: fixtureSource });
       if (url.origin === RUNTIME_ORIGIN) {
-        const relative =
-          url.pathname === '/runner' ? 'runner.html' : url.pathname.replace(/^\//u, '');
-        return route.fulfill({
-          contentType: contentType(relative),
-          body: readFileSync(join(runtimePublic, relative)),
-        });
+        await fulfillRuntimeRoute(route);
+        return;
       }
       return route.abort('blockedbyclient');
     });
@@ -444,12 +631,8 @@ test(
       if (url.origin === APP_ORIGIN && url.pathname === '/bridge-fixture.js')
         return route.fulfill({ contentType: 'application/javascript', body: bridgeFixtureSource });
       if (url.origin === RUNTIME_ORIGIN) {
-        const relative =
-          url.pathname === '/runner' ? 'runner.html' : url.pathname.replace(/^\//u, '');
-        return route.fulfill({
-          contentType: contentType(relative),
-          body: readFileSync(join(runtimePublic, relative)),
-        });
+        await fulfillRuntimeRoute(route);
+        return;
       }
       return route.abort('blockedbyclient');
     });

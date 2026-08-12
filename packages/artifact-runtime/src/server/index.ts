@@ -10,6 +10,7 @@ export {
   assertRuntimeHeadersV1,
   buildFixedAssetHeadersV1,
   buildHealthHeadersV1,
+  buildOpaqueRunnerScriptHeadersV1,
   buildRunnerHeadersV1,
 } from './headers.js';
 export { main } from './main.js';

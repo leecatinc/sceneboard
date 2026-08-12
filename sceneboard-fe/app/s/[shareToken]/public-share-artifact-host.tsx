@@ -14,6 +14,7 @@ import type {
   ArtifactPresentationPageChangeEventV1,
   ArtifactViewModeV1,
 } from '@sceneboard/board-ui/artifact';
+import { artifactIsolationSupportedV1 } from '@sceneboard/board-ui/artifact';
 
 import { useI18n } from '../../../components/i18n/I18nProvider';
 import type { PublicArtifactPackageStoreV1 } from '../../../lib/api/public-share-artifact';
@@ -40,6 +41,36 @@ const runtimeV1 = (artifact: ArtifactReferenceV1): ArtifactRuntimeSummaryV1 => (
 });
 
 export function PublicShareArtifactHost({
+  ...input
+}: Readonly<{
+  store: PublicArtifactPackageStoreV1;
+  boardId: BoardId;
+  artifact: ArtifactReferenceV1;
+  nodeId: NodeId;
+  runtimeOrigin: string;
+  routeEpoch: string;
+  snapshotWatermark: number;
+  presentationActive: boolean;
+  onPresentationPageChange?(event: ArtifactPresentationPageChangeEventV1): void;
+}>) {
+  const { t } = useI18n();
+  const [browserSupport, setBrowserSupport] = useState<'checking' | 'supported' | 'unsupported'>(
+    'checking',
+  );
+  useEffect(() => {
+    setBrowserSupport(artifactIsolationSupportedV1() ? 'supported' : 'unsupported');
+  }, []);
+  if (browserSupport === 'checking') return <ArtifactLoading />;
+  if (browserSupport === 'unsupported')
+    return (
+      <div className="artifact-fallback" role="alert">
+        <p>{t('sharing.artifactBrowserUnsupported')}</p>
+      </div>
+    );
+  return <SupportedPublicShareArtifactHost {...input} />;
+}
+
+function SupportedPublicShareArtifactHost({
   store,
   boardId,
   artifact,
