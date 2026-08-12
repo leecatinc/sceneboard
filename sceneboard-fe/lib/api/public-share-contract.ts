@@ -21,6 +21,10 @@ export type PublicShareRevalidationState = Exclude<
   { state: 'password-required' }
 >;
 
+export type PublicShareRevalidationResult =
+  | Readonly<{ kind: 'state'; state: PublicShareRevalidationState }>
+  | Readonly<{ kind: 'retryable'; retryAfterSeconds: number }>;
+
 export const decodePublicShareRevalidationResponse = (
   input: unknown,
 ): PublicShareRevalidationState => {
@@ -104,7 +108,7 @@ export const fetchPublicShareRevalidation = async (input: {
   contextId: string;
   signal?: AbortSignal;
   fetcher?: typeof fetch;
-}): Promise<PublicShareRevalidationState> => {
+}): Promise<PublicShareRevalidationResult> => {
   const contextId = PublicContextIdParserV1.parse(input.contextId);
   if (!contextId.ok) throw new TypeError('public share context is invalid');
   const response = await (input.fetcher ?? fetch)(
@@ -130,5 +134,6 @@ export const fetchPublicShareRevalidation = async (input: {
     (response.status === 503 && retryAfter !== '1')
   )
     throw new TypeError('public share revalidation retry mismatch');
-  return state;
+  if (response.status === 503) return { kind: 'retryable', retryAfterSeconds: 1 };
+  return { kind: 'state', state };
 };

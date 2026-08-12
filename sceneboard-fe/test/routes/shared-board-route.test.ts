@@ -89,7 +89,7 @@ test('public artifact host reuses the isolated read-only runtime without owner a
   assert.match(runtimePolicy, /connect-src 'none'/u);
 });
 
-test('capability loss and hard expiry share one clear-before-focus invalidation path', () => {
+test('capability loss and hard expiry clear authority before bootstrap recovery', () => {
   const client = source('app/s/[shareToken]/shared-board-client.tsx');
   const clearIndex = client.indexOf("setAccepted({ state: { state: 'unavailable' }");
   const focusIndex = client.indexOf("focusState('[data-shared-unavailable-heading]')");
@@ -99,4 +99,7 @@ test('capability loss and hard expiry share one clear-before-focus invalidation 
   assert.match(client, /requestAbortRef\.current\?\.abort\(\)/u);
   assert.match(client, /document\.exitFullscreen/u);
   assert.match(client, /document\.visibilityState === 'visible'/u);
+  assert.match(client, /const recover = useCallback\([\s\S]*?invalidate\(\);[\s\S]*?reboot\(\)/u);
+  assert.match(client, /state\.state === 'unavailable'[\s\S]*?recover\(\)/u);
+  assert.match(client, /const hardTimer = setTimeout\(recover,/u);
 });

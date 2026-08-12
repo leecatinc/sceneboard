@@ -73,6 +73,7 @@ export class PublicShareController {
       cookieHeader: header(request, 'cookie'),
     });
     applyPublicProjectionHeaders(response, 200);
+    if (result.setCookies.length > 0) response.setHeader('Set-Cookie', result.setCookies);
     response.status(200).json(result.state);
   }
 

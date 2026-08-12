@@ -120,14 +120,13 @@ export class PublicShareProjectionService {
             accessGeneration: resolved.share.accessGeneration,
           },
         });
-        if (persisted.setCookie !== null) throw new PublicShareHttpError(503);
         return {
           state: this.parseState({
             state: 'ready',
             projection,
             context: { contextId, validUntil: validUntil.toISOString() },
           }),
-          setCookies: [],
+          setCookies: persisted.setCookie === null ? [] : [persisted.setCookie],
         };
       },
     });

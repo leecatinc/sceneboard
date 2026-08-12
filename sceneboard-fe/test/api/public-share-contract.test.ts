@@ -6,6 +6,7 @@ import {
   decodePublicShareBootstrapResponse,
   decodePublicShareClientState,
   decodePublicShareRevalidationResponse,
+  fetchPublicShareRevalidation,
 } from '../../lib/api/public-share-contract.js';
 
 test('client decoder accepts only token-free strict public states', () => {
@@ -37,6 +38,31 @@ test('bootstrap and token-free revalidation use separate closed state unions', (
   assert.throws(() =>
     decodePublicShareBootstrapResponse({ state: 'unavailable', expiresAt: null }),
   );
+});
+
+test('revalidation keeps 503 retryable while returning terminal authorization loss as state', async () => {
+  const contextId = 'A'.repeat(43);
+  const retryable = await fetchPublicShareRevalidation({
+    apiOrigin: 'https://sceneboard.dev',
+    contextId,
+    fetcher: async () =>
+      new Response(JSON.stringify({ state: 'unavailable' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json', 'Retry-After': '1' },
+      }),
+  });
+  assert.deepEqual(retryable, { kind: 'retryable', retryAfterSeconds: 1 });
+
+  const terminal = await fetchPublicShareRevalidation({
+    apiOrigin: 'https://sceneboard.dev',
+    contextId,
+    fetcher: async () =>
+      new Response(JSON.stringify({ state: 'unavailable' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+  });
+  assert.deepEqual(terminal, { kind: 'state', state: { state: 'unavailable' } });
 });
 
 test('server-only transport owns the token and state-dependent cookie allowlist', async () => {

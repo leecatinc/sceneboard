@@ -20,7 +20,8 @@ if not familyExpiry or familyExpiry <= now then
   redis.call('DEL', KEYS[1])
   return 0
 end
-if contextExpiry <= now or contextExpiry > familyExpiry then return -1 end
+if contextExpiry <= now then return -1 end
+if contextExpiry > familyExpiry then return 2 end
 if not redis.call('SET', KEYS[2], ARGV[3], 'PXAT', contextExpiry, 'NX') then return -1 end
 return 1`;
 
@@ -149,7 +150,8 @@ export class PublicContextStore {
           ],
           [String(input.now.valueOf()), String(input.validUntil.valueOf()), contextJson],
         );
-        if (Number(reused) === 1) {
+        const reuseResult = Number(reused);
+        if (reuseResult === 1) {
           const family = await this.readFamily(input.cookie.digest);
           return {
             familyDigest: input.cookie.digest,
@@ -157,7 +159,7 @@ export class PublicContextStore {
             familyExpiresAt: family,
           };
         }
-        if (Number(reused) === -1) throw new PublicShareHttpError(503);
+        if (reuseResult !== 0 && reuseResult !== 2) throw new PublicShareHttpError(503);
       }
       for (let attempt = 0; attempt < 3; attempt += 1) {
         const issued = this.cookies.issue(input.hostname);

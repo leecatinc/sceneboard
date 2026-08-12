@@ -207,12 +207,21 @@ export function SharedBoardClient({
     void bootstrapAction()
       .then((state) => {
         if (requestEpochRef.current !== epoch) return;
+        setInitializing(false);
         acceptBootstrap(state, requestStartedAt);
       })
       .catch(() => {
-        if (requestEpochRef.current === epoch) invalidate();
+        if (requestEpochRef.current !== epoch) return;
+        setInitializing(false);
+        invalidate();
       });
   }, [acceptBootstrap, bootstrapAction, invalidate]);
+
+  const recover = useCallback(() => {
+    invalidate();
+    setInitializing(true);
+    reboot();
+  }, [invalidate, reboot]);
 
   useEffect(() => {
     if (initialBootstrapStartedRef.current) return;
@@ -247,40 +256,56 @@ export function SharedBoardClient({
       invalidate();
       return;
     }
+    const matchesCurrentRequest = (): boolean => {
+      if (controller.signal.aborted || stateRef.current.state.state !== 'ready') return false;
+      const currentIdentity = publicShareViewerIdentityV1(
+        routeEpochRef.current,
+        stateRef.current.state,
+        requestEpochRef.current,
+      );
+      return samePublicShareViewerIdentityV1(identity, currentIdentity);
+    };
+    const retryBeforeHardDeadline = (retryAfterSeconds: number): void => {
+      if (!matchesCurrentRequest()) return;
+      const delayMs = retryAfterSeconds * 1_000;
+      const { hardExpiryAt } = publicShareViewerDeadlinesV1(current.requestStartedAt);
+      if (performance.now() + delayMs >= hardExpiryAt) {
+        recover();
+        return;
+      }
+      if (retryTimerRef.current !== null) clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = setTimeout(revalidate, delayMs);
+    };
     void fetchPublicShareRevalidation({
       apiOrigin,
       contextId: displayed.context.contextId,
       signal: controller.signal,
     })
-      .then((state) => {
-        if (controller.signal.aborted || stateRef.current.state.state !== 'ready') return;
-        const currentIdentity = publicShareViewerIdentityV1(
-          routeEpochRef.current,
-          stateRef.current.state,
-          requestEpochRef.current,
-        );
-        if (!samePublicShareViewerIdentityV1(identity, currentIdentity)) return;
+      .then((result) => {
+        if (!matchesCurrentRequest()) return;
+        if (result.kind === 'retryable') {
+          retryBeforeHardDeadline(result.retryAfterSeconds);
+          return;
+        }
+        const state = result.state;
         if (state.state === 'unavailable') {
-          invalidate();
+          recover();
           return;
         }
         if (state.state === 'rate-limited') {
-          const { hardExpiryAt } = publicShareViewerDeadlinesV1(current.requestStartedAt);
-          const retryAt = performance.now() + state.retryAfterSeconds * 1_000;
-          if (retryAt < hardExpiryAt)
-            retryTimerRef.current = setTimeout(revalidate, state.retryAfterSeconds * 1_000);
+          retryBeforeHardDeadline(state.retryAfterSeconds);
           return;
         }
         if (!publicShareProjectionTupleMatchesV1(displayed, state)) {
-          invalidate();
+          recover();
           return;
         }
         setAccepted({ state, requestStartedAt });
       })
       .catch(() => {
-        // Network failure may retain the accepted projection only until the hard deadline.
+        retryBeforeHardDeadline(1);
       });
-  }, [invalidate]);
+  }, [invalidate, recover]);
 
   useEffect(() => {
     const current = accepted;
@@ -292,22 +317,19 @@ export function SharedBoardClient({
       },
       Math.max(0, deadlines.earlyRefreshAt - performance.now()),
     );
-    const hardTimer = setTimeout(
-      invalidate,
-      Math.max(0, deadlines.hardExpiryAt - performance.now()),
-    );
+    const hardTimer = setTimeout(recover, Math.max(0, deadlines.hardExpiryAt - performance.now()));
     return () => {
       clearTimeout(earlyTimer);
       clearTimeout(hardTimer);
     };
-  }, [accepted, invalidate, revalidate]);
+  }, [accepted, recover, revalidate]);
 
   useEffect(() => {
     const resume = () => {
       const current = stateRef.current;
       if (current.state.state !== 'ready') return;
       const { hardExpiryAt } = publicShareViewerDeadlinesV1(current.requestStartedAt);
-      if (performance.now() >= hardExpiryAt) reboot();
+      if (performance.now() >= hardExpiryAt) recover();
       else if (document.visibilityState === 'visible') revalidate();
     };
     document.addEventListener('visibilitychange', resume);
@@ -318,7 +340,7 @@ export function SharedBoardClient({
       requestAbortRef.current?.abort();
       if (retryTimerRef.current !== null) clearTimeout(retryTimerRef.current);
     };
-  }, [reboot, revalidate]);
+  }, [recover, revalidate]);
 
   useEffect(() => {
     const changed = () => {
