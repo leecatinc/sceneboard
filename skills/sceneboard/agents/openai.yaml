@@ -1,0 +1,4 @@
+interface:
+  display_name: "SceneBoard"
+  short_description: "대화로 워크플로우를 설계·검토하고 실시간 보드에 시각화합니다"
+  default_prompt: "Use $sceneboard to analyze this workflow as evidence, show its graph, and preserve a canonical WorkflowSpec."

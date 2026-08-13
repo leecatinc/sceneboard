@@ -1,0 +1,13 @@
+{
+  "recipeVersion": 1,
+  "root": {
+    "kind": "presentation",
+    "title": "Presentation",
+    "activePageKey": "overview",
+    "pages": [
+      {"key":"overview","label":"Overview","content":{"kind":"markdown","title":"Overview","markdown":"# Overview\n\nReplace this slide with an introduction and the key message."}},
+      {"key":"details","label":"Details","content":{"kind":"markdown","title":"Details","markdown":"# Details\n\nAdd concise supporting details and evidence here."}},
+      {"key":"summary","label":"Summary","content":{"kind":"markdown","title":"Summary","markdown":"# Summary\n\nClose with the main takeaway and next steps."}}
+    ]
+  }
+}
