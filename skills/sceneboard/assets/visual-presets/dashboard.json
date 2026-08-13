@@ -1,0 +1,13 @@
+{
+  "recipeVersion": 1,
+  "root": {
+    "kind":"dashboard","title":"Dashboard","columns":3,"rows":3,"gap":8,
+    "items":[
+      {"content":{"kind":"status","key":"primary_status","title":"Primary status","status":"success","label":"Operating normally"},"column":1,"row":1,"columnSpan":1,"rowSpan":1},
+      {"content":{"kind":"progress","key":"overall_progress","title":"Overall progress","state":"active","value":0.5,"label":"Current progress"},"column":2,"row":1,"columnSpan":1,"rowSpan":1},
+      {"content":{"kind":"chart","key":"trend_chart","title":"Trend","chartType":"line","xAxis":{"valueType":"category","label":"Period"},"yAxis":{"label":"Value"},"series":[{"id":"seriesA","label":"Series A","points":[{"x":"First","y":1},{"x":"Second","y":2}]}]},"column":3,"row":1,"columnSpan":1,"rowSpan":2},
+      {"content":{"kind":"markdown","key":"notes","title":"Notes","markdown":"## Notes\n\nSummarize the current state and items that need attention."},"column":1,"row":2,"columnSpan":2,"rowSpan":2},
+      {"content":{"kind":"status","key":"secondary_status","title":"Secondary status","status":"info","label":"Review queued"},"column":3,"row":3,"columnSpan":1,"rowSpan":1}
+    ]
+  }
+}

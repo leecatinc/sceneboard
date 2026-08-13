@@ -1,0 +1,156 @@
+# SceneBoard command contract and test surface
+
+Prefer tools returned by MCP discovery. Before authentication exactly the three connection/pairing tools are visible; terminal authenticated discovery contains exactly the 30 tools below and no aliases. If SceneBoard descriptors are absent, the bundled adapter accepts the supported protected operation names and exact inputs over JSON stdin. Pairing is the sole transport-shaped exception: the fallback keeps the proof private inside one `pair` process instead of exposing separate request/status invocations.
+
+## Shared rules
+
+- Every board-scoped call requires an explicit `boardId`. `board_list`, `board_connection_status` with a null target, and `board_create` are the only pre-board operations. After creation, use the exact returned `boardId`.
+- Every mutation requires `expectedRevisionId` and an explicit 16-128 character `idempotencyKey`, except board create/archive use their frozen lifecycle shapes. Identical semantic retry reuses the entire request; a conscious rebase uses a new key.
+- Mutation outputs are exact D1 `MutationResultV1` envelopes. Reads are exact `BoardOperationResultV1` envelopes. The MCP tool wrapper or fallback JSON wrapper `requestId` equals the nested result request ID. MCP non-history metadata is `null`; the API HTTP/fallback envelope uses `{history:null}`, while local patch wrapper metadata records the scene transform.
+- There is no `historyMode`, `commitLabel`, clear message, implicit board selection, or auto-generated mutation key.
+
+## Exact inputs and result branches
+
+| Tool                        | Exact important input                                                                                                                   | Exact success                                                                                                                                                                    |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `board_connection_status`   | `{boardId:null\|<id>}`                                                                                                                  | Redacted connection state; null authenticates without selecting a board.                                                                                                         |
+| `board_pair_request`        | `{code,clientName,requestedScopes,requestedLifecyclePermissions}`                                                                       | Secret-free claimed pairing projection. New human codes use the `SB-` prefix before the two code groups; an already-issued legacy unprefixed body remains accepted until expiry. |
+| `board_pair_status`         | `{pairingId,waitTimeoutMs}`                                                                                                             | Secret-free pending/approved/denied/cancelled/expired/redeemed projection.                                                                                                       |
+| `board_list`                | `{cursor,limit,includeArchived}`                                                                                                        | `board.list`                                                                                                                                                                     |
+| `board_get`                 | `{boardId}`                                                                                                                             | `board.get`                                                                                                                                                                      |
+| `board_create`              | `{title,idempotencyKey}`                                                                                                                | `board.create`                                                                                                                                                                   |
+| `board_archive`             | `{boardId,confirm:true,idempotencyKey}`                                                                                                 | `board.archive`                                                                                                                                                                  |
+| `board_capabilities_get`    | `{boardId}`                                                                                                                             | `capabilities.get` with exact `capabilities` and browser `sessionAccess` projections.                                                                                            |
+| `board_scene_get`           | `{boardId,revisionId:null\|<id>}`                                                                                                       | Live `board.get`, or historical `history.get` with aligned history metadata.                                                                                                     |
+| `board_scene_replace`       | `{boardId,expectedRevisionId,idempotencyKey,scene}`                                                                                     | `scene.replace`                                                                                                                                                                  |
+| `board_scene_patch`         | `{boardId,expectedRevisionId,idempotencyKey,operations}`                                                                                | One `scene.replace`; metadata includes `transformedFromRevisionId`.                                                                                                              |
+| `board_scene_clear`         | `{boardId,expectedRevisionId,idempotencyKey}`                                                                                           | `scene.clear`                                                                                                                                                                    |
+| `board_document_get`        | `{boardId,revisionId:null\|<id>}`                                                                                                       | Exact live `board.get` or historical `history.get`; a V1 branch fails `DOCUMENT_VERSION_MISMATCH`.                                                                               |
+| `board_document_replace`    | `{boardId,expectedRevisionId,idempotencyKey,document}`                                                                                  | Exact nested `document.replace`.                                                                                                                                                 |
+| `board_page_add`            | `{boardId,expectedRevisionId,idempotencyKey,page,index}`                                                                                | Whole-document `document.replace`; caller supplies `page.pageId`.                                                                                                                |
+| `board_page_remove`         | `{boardId,expectedRevisionId,idempotencyKey,pageId}`                                                                                    | Whole-document `document.replace`; last/default removal is invalid.                                                                                                              |
+| `board_page_reorder`        | `{boardId,expectedRevisionId,idempotencyKey,pageId,toIndex}`                                                                            | Whole-document `document.replace`; `toIndex` is in the resulting order.                                                                                                          |
+| `board_page_update`         | `{boardId,expectedRevisionId,idempotencyKey,pageId,title?,displayMode?,scene?}`                                                         | Whole-document `document.replace`; at least one update field is required.                                                                                                        |
+| `board_page_default_set`    | `{boardId,expectedRevisionId,idempotencyKey,pageId}`                                                                                    | Whole-document `document.replace`; the page must exist.                                                                                                                          |
+| `sceneboard_media_upload`   | `{boardId,path,idempotencyKey}`                                                                                                         | Immutable `media.ingest.result`; no path is returned and upload does not place it.                                                                                               |
+| `sceneboard_media_place`    | `{boardId,pageId,expectedRevisionId,idempotencyKey,image,placement}`                                                                    | Whole-document `document.replace` using the shared SDK placement transform.                                                                                                      |
+| `board_artifact_get`        | `{boardId,artifactId,versionId}`                                                                                                        | `artifact.get` manifest/runtime for the exact immutable pair.                                                                                                                    |
+| `board_artifact_put`        | `{boardId,expectedRevisionId,idempotencyKey,artifactId:null\|<id>,html,css:null\|string,javascript:null\|string,requestedCapabilities}` | `artifact.publish`                                                                                                                                                               |
+| `board_artifact_stop`       | `{boardId,expectedRevisionId,idempotencyKey,artifactId,versionId,reason}`                                                               | `artifact.stop`; does not remove scene placement.                                                                                                                                |
+| `board_history_list`        | `{boardId,cursor,limit}`                                                                                                                | `history.list` newest first with aligned metadata.                                                                                                                               |
+| `board_history_get`         | `{boardId,revisionId}`                                                                                                                  | `history.get` immutable scene/current-cut summaries with navigation metadata.                                                                                                    |
+| `board_history_restore`     | `{boardId,revisionId,expectedRevisionId,confirm:true,idempotencyKey}`                                                                   | `scene.restore` copy-forward.                                                                                                                                                    |
+| `board_export`              | API-key mode only: `{boardId,revisionId,format:"pdf"\|"pptx",outputFile}`                                                               | `{format,bytes,fileName}` after secure no-clobber local publication.                                                                                                             |
+| `board_interaction_request` | `{boardId,expectedRevisionId,idempotencyKey,hitlRequestId,definition}`                                                                  | `hitl.request` in `open`.                                                                                                                                                        |
+| `board_interaction_status`  | `{boardId,hitlRequestId,wait:null\|{afterStateUpdatedAt,timeoutMs}}`                                                                    | `hitl.read` with exact `changed` and interaction state.                                                                                                                          |
+| `board_interaction_respond` | `{boardId,expectedRevisionId,idempotencyKey,hitlRequestId,response}`                                                                    | `hitl.respond` in `answered`.                                                                                                                                                    |
+
+`definition.kind` is exactly `info|choice|form|confirmation`; `response.kind` must match. Do not request authentication secrets through HITL. Bounded-wait status is the default response delivery path described in the skill.
+
+Every successful open request is included in the current board snapshot. If the Scene has no matching `content.hitl` node, the browser presents it in the board-level decision tray. An explicit node may be added only after creation with the exact returned `hitlRequestId`; a waiting message is not a substitute for a real interaction.
+
+Artifact capabilities are sorted unique values from `clipboard.write|download|fullscreen|network.fetch`. Capability request input never self-approves.
+
+## Closed errors
+
+Protected tools share `INVALID_PAYLOAD`, `PROTOCOL_VERSION_MISMATCH`, `UNAUTHENTICATED`, `FORBIDDEN`, `RATE_LIMITED`, `SERVICE_UNAVAILABLE`, and `INTERNAL_ERROR`; board-scoped tools add `BOARD_NOT_FOUND`. Mutations add `REVISION_CONFLICT` and `IDEMPOTENCY_KEY_REUSED` where applicable.
+
+- Scene replace/patch: `UNKNOWN_NODE_TYPE`, `INVALID_LAYOUT`, `DUPLICATE_NODE_ID`, `LIMIT_EXCEEDED`, `PAYLOAD_TOO_LARGE`.
+- Document/page mutations: `DOCUMENT_VERSION_MISMATCH`, `INVALID_DOCUMENT`, `UNKNOWN_NODE_TYPE`, `INVALID_LAYOUT`, `DUPLICATE_NODE_ID`, `LIMIT_EXCEEDED`, `PAYLOAD_TOO_LARGE`.
+- Scene/history exact revision reads or restore: `REVISION_NOT_FOUND` where applicable.
+- Archive: `BOARD_ALREADY_ARCHIVED`.
+- Artifact get: `ARTIFACT_NOT_FOUND`; stop adds it to mutation errors.
+- Artifact put: `LIMIT_EXCEEDED`, `PAYLOAD_TOO_LARGE`, and the only reachable `CAPABILITY_DENIED` branch.
+- HITL request: `HITL_REQUEST_ID_CONFLICT`, `LIMIT_EXCEEDED`, `PAYLOAD_TOO_LARGE`.
+- HITL status: `HITL_REQUEST_NOT_FOUND`.
+- HITL respond: `HITL_REQUEST_NOT_FOUND`, `HITL_RESPONSE_CONFLICT`, `HITL_REQUEST_EXPIRED`, `PAYLOAD_TOO_LARGE`.
+- Export: the eleven closed `EXPORT_*` server reasons retain their exact retryability. Local
+  publication adds permanent `LOCAL_EXPORT_UNAVAILABLE`, `LOCAL_EXPORT_INVALID_PATH`,
+  `LOCAL_EXPORT_EXISTS`, `LOCAL_EXPORT_IO`, `LOCAL_EXPORT_SHORT`, `LOCAL_EXPORT_CORRUPT`, and
+  `LOCAL_EXPORT_CANCELLED`; response-stream transport failure remains retryable
+  `BOARD_MCP_TRANSPORT_ERROR`.
+
+`CAPABILITY_DENIED` is invalid for every tool except `board_artifact_put`. MCP-local errors retain the `BOARD_MCP_*` namespace. The official fallback uses the closed `BOARD_API_*` local namespace for config, credential, profile, not-connected, transport, timeout, response-invalid, and internal failures while returning server D1 and pairing error codes unchanged.
+
+On `REVISION_CONFLICT`, re-read and consciously reapply with a new key. On `IDEMPOTENCY_KEY_REUSED`, stop unless replaying the byte-identical semantic request. Do not translate these into legacy `BOARD_REVISION_CONFLICT`, `IDEMPOTENCY_CONFLICT`, or open-ended skill-only codes.
+
+`board_export` is not a board mutation and has no idempotency key. It always pins the caller's
+explicit retained `revisionId`; it never substitutes the live head. `outputFile` must be an
+absolute NFC path with the exact selected extension and no glob syntax. The verified
+`linux-x64-gnu` helper walks parents without following links, writes one private same-directory
+temporary and publishes with no-replace semantics. Existing targets, symlink/hardlink ambiguity,
+unsupported platforms, partial downloads and aborts never produce or replace a final file. Tool
+success returns only the format, byte count and basename—never the parent path.
+
+## Exact media upload then placement
+
+Tools generate `requestId`; never include it in caller input. The only local path example is:
+
+<!-- SCENEBOARD_EXAMPLE media-upload-input -->
+
+```json
+{
+  "boardId": "board_1",
+  "path": "/absolute/path/to/image.png",
+  "idempotencyKey": "media-upload-key-0001"
+}
+```
+
+<!-- /SCENEBOARD_EXAMPLE -->
+
+<!-- SCENEBOARD_EXAMPLE media-place-meaningful-page-end-input -->
+
+```json
+{
+  "boardId": "board_1",
+  "pageId": "page_1",
+  "expectedRevisionId": "revision_1",
+  "idempotencyKey": "media-place-key-0001",
+  "image": {
+    "nodeId": "image_1",
+    "mediaId": "media_1",
+    "decorative": false,
+    "alt": "A concise description",
+    "caption": "Optional caption",
+    "fit": "contain"
+  },
+  "placement": { "kind": "page-end", "wrapperNodeId": "image_wrapper_1" }
+}
+```
+
+<!-- /SCENEBOARD_EXAMPLE -->
+
+<!-- SCENEBOARD_EXAMPLE media-place-decorative-canvas-input -->
+
+```json
+{
+  "boardId": "board_1",
+  "pageId": "page_1",
+  "expectedRevisionId": "revision_1",
+  "idempotencyKey": "media-place-key-0002",
+  "image": {
+    "nodeId": "image_2",
+    "mediaId": "media_1",
+    "decorative": true,
+    "alt": "",
+    "fit": "cover"
+  },
+  "placement": {
+    "kind": "canvas",
+    "x": 40,
+    "y": 40,
+    "width": 640,
+    "height": 360,
+    "zIndex": 1
+  }
+}
+```
+
+<!-- /SCENEBOARD_EXAMPLE -->
+
+Upload never implies placement. No result, log, error, or state may contain a path, basename,
+credential, password, or share secret. A response-loss retry is a fresh tool invocation with a
+fresh tool-generated request ID, the same caller idempotency key, and a byte-identical recapture.
+Changed bytes or input stop on `BOARD_MCP_LOCAL_FILE_CHANGED` or `IDEMPOTENCY_KEY_REUSED`.
+Permission denial stays non-enumerating; unsupported magic returns
+`BOARD_MCP_LOCAL_MEDIA_UNSUPPORTED`; a placement head change returns `REVISION_CONFLICT`.
