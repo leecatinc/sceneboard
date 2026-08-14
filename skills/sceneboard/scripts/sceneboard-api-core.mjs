@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes } from 'node:crypto';
 
 import {
   acquirePairingLock,
@@ -8,7 +8,7 @@ import {
   resolveApiConfig,
   TOKEN_PATTERN,
   writeCredential,
-} from "./sceneboard-api-config.mjs";
+} from './sceneboard-api-config.mjs';
 import {
   ERROR_BODY_LIMIT,
   GLOBAL_ID_PATTERN,
@@ -19,13 +19,9 @@ import {
   PAIRING_STATES,
   SUCCESS_BODY_LIMIT,
   validTimestamp,
-} from "./sceneboard-api-contract.mjs";
-import { SceneBoardApiError } from "./sceneboard-api-error.mjs";
-import {
-  hasExactKeys,
-  isRecord,
-  parseJsonBytes,
-} from "./sceneboard-api-json.mjs";
+} from './sceneboard-api-contract.mjs';
+import { SceneBoardApiError } from './sceneboard-api-error.mjs';
+import { hasExactKeys, isRecord, parseJsonBytes } from './sceneboard-api-json.mjs';
 import {
   assertExactInput,
   assertSortedCatalog,
@@ -35,7 +31,7 @@ import {
   invalidInput,
   mutationSpec,
   protectedSpec,
-} from "./sceneboard-api-request.mjs";
+} from './sceneboard-api-request.mjs';
 import {
   containsSecretValue,
   errorFromResponse,
@@ -45,12 +41,9 @@ import {
   safeText,
   sanitizePublicValue,
   validClientName,
-} from "./sceneboard-api-public.mjs";
-import {
-  projectBoardEnvelope,
-  publicJsonTree,
-} from "./sceneboard-api-response.mjs";
-import { applyScenePatch } from "./sceneboard-scene-patch.mjs";
+} from './sceneboard-api-public.mjs';
+import { projectBoardEnvelope, publicJsonTree } from './sceneboard-api-response.mjs';
+import { applyScenePatch } from './sceneboard-scene-patch.mjs';
 
 export {
   acquirePairingLock,
@@ -66,11 +59,11 @@ export {
 
 export const parseApiInputBytes = (bytes) => {
   try {
-    return parseJsonBytes(bytes, "SceneBoard API fallback input", 1_048_576);
+    return parseJsonBytes(bytes, 'SceneBoard API fallback input', 1_048_576);
   } catch {
     throw new SceneBoardApiError(
-      "INVALID_PAYLOAD",
-      "SceneBoard API fallback input is invalid JSON",
+      'INVALID_PAYLOAD',
+      'SceneBoard API fallback input is invalid JSON',
       { exitCode: 2 },
     );
   }
@@ -90,10 +83,10 @@ const readBoundedBody = async (response, maximum, signal) => {
       if (total > maximum) {
         await reader.cancel().catch(() => undefined);
         throw new SceneBoardApiError(
-          "BOARD_API_RESPONSE_INVALID",
-          "SceneBoard response is invalid",
+          'BOARD_API_RESPONSE_INVALID',
+          'SceneBoard response is invalid',
           {
-            details: { reason: "body_too_large" },
+            details: { reason: 'body_too_large' },
           },
         );
       }
@@ -118,63 +111,48 @@ const sleep = (milliseconds, signal) =>
       if (finished) return;
       finished = true;
       clearTimeout(timer);
-      signal?.removeEventListener("abort", onAbort);
+      signal?.removeEventListener('abort', onAbort);
       resolve(completed);
     };
     const onAbort = () => done(false);
     const timer = setTimeout(() => done(true), milliseconds);
     if (signal?.aborted) done(false);
-    else signal?.addEventListener("abort", onAbort, { once: true });
+    else signal?.addEventListener('abort', onAbort, { once: true });
   });
 
 export const requestJson = async ({
   config,
   path,
-  method = "GET",
+  method = 'GET',
   body = null,
   authorization = null,
   requestId = null,
   expectedStatus,
   expectedType = null,
   allowedErrorCodes = null,
-  retryKind = "none",
+  retryKind = 'none',
   requirePairingHeaders = null,
   correlation = null,
   connectionBoardId = undefined,
-  connectionCredentialMode = "pairing",
+  connectionCredentialMode = 'pairing',
   timeoutMs = config.timeoutMs,
   operationDeadline = null,
   fetchImpl = fetch,
 }) => {
-  const maximumAttempts =
-    retryKind === "read" ? 3 : retryKind === "mutation" ? 2 : 1;
+  const maximumAttempts = retryKind === 'read' ? 3 : retryKind === 'mutation' ? 2 : 1;
   const timeoutFailure = (phase) =>
-    new SceneBoardApiError(
-      "BOARD_API_TIMEOUT",
-      "SceneBoard request timed out",
-      {
-        retryable: true,
-        details: { phase },
-      },
-    );
-  const deadline =
-    operationDeadline === null
-      ? performance.now() + timeoutMs
-      : operationDeadline;
+    new SceneBoardApiError('BOARD_API_TIMEOUT', 'SceneBoard request timed out', {
+      retryable: true,
+      details: { phase },
+    });
+  const deadline = operationDeadline === null ? performance.now() + timeoutMs : operationDeadline;
   const remainingAtStart = deadline - performance.now();
-  if (!Number.isFinite(deadline) || remainingAtStart <= 0)
-    throw timeoutFailure("request");
-  const timeoutSignal = AbortSignal.timeout(
-    Math.max(1, Math.ceil(remainingAtStart)),
-  );
+  if (!Number.isFinite(deadline) || remainingAtStart <= 0) throw timeoutFailure('request');
+  const timeoutSignal = AbortSignal.timeout(Math.max(1, Math.ceil(remainingAtStart)));
   const sleepBeforeRetry = async (delay) => {
-    if (
-      !Number.isFinite(delay) ||
-      delay < 0 ||
-      delay >= Math.max(0, deadline - performance.now())
-    )
-      throw timeoutFailure("retry");
-    if (!(await sleep(delay, timeoutSignal))) throw timeoutFailure("retry");
+    if (!Number.isFinite(delay) || delay < 0 || delay >= Math.max(0, deadline - performance.now()))
+      throw timeoutFailure('retry');
+    if (!(await sleep(delay, timeoutSignal))) throw timeoutFailure('retry');
   };
   for (let attempt = 1; attempt <= maximumAttempts; attempt += 1) {
     if (timeoutSignal.aborted) break;
@@ -182,90 +160,65 @@ export const requestJson = async ({
     try {
       response = await fetchImpl(new URL(path, config.baseUrl), {
         method,
-        redirect: "manual",
+        redirect: 'manual',
         headers: {
-          Accept: "application/json",
+          Accept: 'application/json',
           ...(authorization === null ? {} : { Authorization: authorization }),
-          ...(requestId === null ? {} : { "X-Request-Id": requestId }),
-          ...(body === null ? {} : { "Content-Type": "application/json" }),
+          ...(requestId === null ? {} : { 'X-Request-Id': requestId }),
+          ...(body === null ? {} : { 'Content-Type': 'application/json' }),
         },
         ...(body === null ? {} : { body: JSON.stringify(body) }),
         signal: timeoutSignal,
       });
     } catch {
       if (attempt < maximumAttempts && !timeoutSignal.aborted) {
-        await sleepBeforeRetry(
-          100 * 2 ** (attempt - 1) + Math.floor(Math.random() * 100),
-        );
+        await sleepBeforeRetry(100 * 2 ** (attempt - 1) + Math.floor(Math.random() * 100));
         continue;
       }
       throw new SceneBoardApiError(
+        timeoutSignal.aborted ? 'BOARD_API_TIMEOUT' : 'BOARD_API_TRANSPORT_ERROR',
         timeoutSignal.aborted
-          ? "BOARD_API_TIMEOUT"
-          : "BOARD_API_TRANSPORT_ERROR",
-        timeoutSignal.aborted
-          ? "SceneBoard request timed out"
-          : "SceneBoard transport is unavailable",
-        { retryable: true, details: { phase: "request" } },
+          ? 'SceneBoard request timed out'
+          : 'SceneBoard transport is unavailable',
+        { retryable: true, details: { phase: 'request' } },
       );
     }
-    if (
-      response.redirected ||
-      (response.status >= 300 && response.status < 400)
-    ) {
+    if (response.redirected || (response.status >= 300 && response.status < 400)) {
       await response.body?.cancel().catch(() => undefined);
-      throw new SceneBoardApiError(
-        "BOARD_API_RESPONSE_INVALID",
-        "SceneBoard response is invalid",
-        {
-          details: { reason: "redirect" },
-        },
-      );
+      throw new SceneBoardApiError('BOARD_API_RESPONSE_INVALID', 'SceneBoard response is invalid', {
+        details: { reason: 'redirect' },
+      });
     }
-    if (
-      response.headers.get("content-type")?.toLowerCase() !==
-      "application/json; charset=utf-8"
-    ) {
+    if (response.headers.get('content-type')?.toLowerCase() !== 'application/json; charset=utf-8') {
       await response.body?.cancel().catch(() => undefined);
-      throw new SceneBoardApiError(
-        "BOARD_API_RESPONSE_INVALID",
-        "SceneBoard response is invalid",
-        {
-          details: { reason: "content_type" },
-        },
-      );
+      throw new SceneBoardApiError('BOARD_API_RESPONSE_INVALID', 'SceneBoard response is invalid', {
+        details: { reason: 'content_type' },
+      });
     }
-    if (
-      requestId !== null &&
-      response.headers.get("x-request-id") !== requestId
-    ) {
+    if (requestId !== null && response.headers.get('x-request-id') !== requestId) {
       await response.body?.cancel().catch(() => undefined);
-      throw new SceneBoardApiError(
-        "BOARD_API_RESPONSE_INVALID",
-        "SceneBoard response is invalid",
-        {
-          details: { reason: "correlation" },
-        },
-      );
+      throw new SceneBoardApiError('BOARD_API_RESPONSE_INVALID', 'SceneBoard response is invalid', {
+        details: { reason: 'correlation' },
+      });
     }
     if (requirePairingHeaders !== null) {
       const vary =
-        requirePairingHeaders === "claim"
+        requirePairingHeaders === 'claim'
           ? null
-          : requirePairingHeaders === "connection"
-            ? "Origin, Cookie, Authorization"
-            : "Authorization";
+          : requirePairingHeaders === 'connection'
+            ? 'Origin, Cookie, Authorization'
+            : 'Authorization';
       if (
-        response.headers.get("cache-control") !== "no-store, private" ||
-        response.headers.get("pragma") !== "no-cache" ||
-        response.headers.get("vary") !== vary
+        response.headers.get('cache-control') !== 'no-store, private' ||
+        response.headers.get('pragma') !== 'no-cache' ||
+        response.headers.get('vary') !== vary
       ) {
         await response.body?.cancel().catch(() => undefined);
         throw new SceneBoardApiError(
-          "BOARD_API_RESPONSE_INVALID",
-          "SceneBoard pairing response is invalid",
+          'BOARD_API_RESPONSE_INVALID',
+          'SceneBoard pairing response is invalid',
           {
-            details: { reason: "headers" },
+            details: { reason: 'headers' },
           },
         );
       }
@@ -274,52 +227,45 @@ export const requestJson = async ({
     try {
       bytes = await readBoundedBody(
         response,
-        response.status >= 200 && response.status < 300
-          ? SUCCESS_BODY_LIMIT
-          : ERROR_BODY_LIMIT,
+        response.status >= 200 && response.status < 300 ? SUCCESS_BODY_LIMIT : ERROR_BODY_LIMIT,
         timeoutSignal,
       );
     } catch (error) {
       if (error instanceof SceneBoardApiError) throw error;
       throw new SceneBoardApiError(
+        timeoutSignal.aborted ? 'BOARD_API_TIMEOUT' : 'BOARD_API_TRANSPORT_ERROR',
         timeoutSignal.aborted
-          ? "BOARD_API_TIMEOUT"
-          : "BOARD_API_TRANSPORT_ERROR",
-        timeoutSignal.aborted
-          ? "SceneBoard response timed out"
-          : "SceneBoard response is unavailable",
-        { retryable: true, details: { phase: "response" } },
+          ? 'SceneBoard response timed out'
+          : 'SceneBoard response is unavailable',
+        { retryable: true, details: { phase: 'response' } },
       );
     }
-    const parsed = parseJsonBytes(bytes, "SceneBoard response");
+    const parsed = parseJsonBytes(bytes, 'SceneBoard response');
     if (!expectedStatus.includes(response.status)) {
       const responseError = errorFromResponse(
         parsed,
         response,
-        ["claim", "status", "redeem"].includes(requirePairingHeaders),
+        ['claim', 'status', 'redeem'].includes(requirePairingHeaders),
         allowedErrorCodes,
       );
       const canRetry =
         attempt < maximumAttempts &&
         responseError.retryable &&
-        ["RATE_LIMITED", "SERVICE_UNAVAILABLE"].includes(responseError.code);
+        ['RATE_LIMITED', 'SERVICE_UNAVAILABLE'].includes(responseError.code);
       if (canRetry) {
         const retryAfterHeader = parseRetryAfter(response);
-        if (retryAfterHeader === "invalid") {
+        if (retryAfterHeader === 'invalid') {
           throw new SceneBoardApiError(
-            "BOARD_API_RESPONSE_INVALID",
-            "SceneBoard response is invalid",
+            'BOARD_API_RESPONSE_INVALID',
+            'SceneBoard response is invalid',
             {
-              details: { reason: "headers" },
+              details: { reason: 'headers' },
             },
           );
         }
-        const retryAfter =
-          retryAfterHeader ?? Number(responseError.details?.retryAfterSeconds);
+        const retryAfter = retryAfterHeader ?? Number(responseError.details?.retryAfterSeconds);
         const delay =
-          Number.isSafeInteger(retryAfter) &&
-          retryAfter >= 1 &&
-          retryAfter <= 120
+          Number.isSafeInteger(retryAfter) && retryAfter >= 1 && retryAfter <= 120
             ? retryAfter * 1_000
             : 100 * 2 ** (attempt - 1) + Math.floor(Math.random() * 100);
         await sleepBeforeRetry(delay);
@@ -328,17 +274,13 @@ export const requestJson = async ({
       throw responseError;
     }
     if (connectionBoardId !== undefined) {
-      const connection = parseConnection(
-        parsed,
-        connectionBoardId,
-        connectionCredentialMode,
-      );
+      const connection = parseConnection(parsed, connectionBoardId, connectionCredentialMode);
       if (connection === null) {
         throw new SceneBoardApiError(
-          "BOARD_API_RESPONSE_INVALID",
-          "SceneBoard connection response is invalid",
+          'BOARD_API_RESPONSE_INVALID',
+          'SceneBoard connection response is invalid',
           {
-            details: { reason: "schema" },
+            details: { reason: 'schema' },
           },
         );
       }
@@ -353,55 +295,44 @@ export const requestJson = async ({
       });
       if (projected === null) {
         throw new SceneBoardApiError(
-          "BOARD_API_RESPONSE_INVALID",
-          "SceneBoard response is invalid",
+          'BOARD_API_RESPONSE_INVALID',
+          'SceneBoard response is invalid',
           {
-            details: { reason: "schema" },
+            details: { reason: 'schema' },
           },
         );
       }
       return projected;
     }
-    if (
-      !["claim", "status", "redeem"].includes(requirePairingHeaders) &&
-      !publicJsonTree(parsed)
-    ) {
-      throw new SceneBoardApiError(
-        "BOARD_API_RESPONSE_INVALID",
-        "SceneBoard response is invalid",
-        {
-          details: { reason: "secret_material" },
-        },
-      );
+    if (!['claim', 'status', 'redeem'].includes(requirePairingHeaders) && !publicJsonTree(parsed)) {
+      throw new SceneBoardApiError('BOARD_API_RESPONSE_INVALID', 'SceneBoard response is invalid', {
+        details: { reason: 'secret_material' },
+      });
     }
     return parsed;
   }
   throw timeoutSignal.aborted
-    ? timeoutFailure("request")
-    : new SceneBoardApiError(
-        "BOARD_API_TRANSPORT_ERROR",
-        "SceneBoard transport is unavailable",
-        {
-          retryable: true,
-        },
-      );
+    ? timeoutFailure('request')
+    : new SceneBoardApiError('BOARD_API_TRANSPORT_ERROR', 'SceneBoard transport is unavailable', {
+        retryable: true,
+      });
 };
 
 export const validatePairInput = (input) => {
   assertExactInput(input, [
-    "code",
-    "clientName",
-    "requestedScopes",
-    "requestedLifecyclePermissions",
+    'code',
+    'clientName',
+    'requestedScopes',
+    'requestedLifecyclePermissions',
   ]);
-  if (typeof input.code !== "string" || !PAIRING_CODE_PATTERN.test(input.code))
-    invalidInput("code");
-  if (!validClientName(input.clientName)) invalidInput("clientName");
-  assertSortedCatalog(input.requestedScopes, GRANT_SCOPES, "requestedScopes");
+  if (typeof input.code !== 'string' || !PAIRING_CODE_PATTERN.test(input.code))
+    invalidInput('code');
+  if (!validClientName(input.clientName)) invalidInput('clientName');
+  assertSortedCatalog(input.requestedScopes, GRANT_SCOPES, 'requestedScopes');
   assertSortedCatalog(
     input.requestedLifecyclePermissions,
     LIFECYCLE_PERMISSIONS,
-    "requestedLifecyclePermissions",
+    'requestedLifecyclePermissions',
     true,
   );
   return { ...input, code: input.code.toUpperCase() };
@@ -409,22 +340,17 @@ export const validatePairInput = (input) => {
 
 const invalidPairingResponse = () => {
   throw new SceneBoardApiError(
-    "BOARD_API_RESPONSE_INVALID",
-    "SceneBoard pairing response is invalid",
+    'BOARD_API_RESPONSE_INVALID',
+    'SceneBoard pairing response is invalid',
   );
 };
 
 export const parsePairingClaim = (value) => {
   if (
-    !hasExactKeys(value, [
-      "pairingId",
-      "state",
-      "decisionExpiresAt",
-      "pollAfterSeconds",
-    ]) ||
-    typeof value.pairingId !== "string" ||
+    !hasExactKeys(value, ['pairingId', 'state', 'decisionExpiresAt', 'pollAfterSeconds']) ||
+    typeof value.pairingId !== 'string' ||
     !GLOBAL_ID_PATTERN.test(value.pairingId) ||
-    value.state !== "pending" ||
+    value.state !== 'pending' ||
     !validTimestamp(value.decisionExpiresAt) ||
     value.pollAfterSeconds !== 2
   ) {
@@ -436,11 +362,11 @@ export const parsePairingClaim = (value) => {
 export const parsePairingStatus = (value, pairingId) => {
   if (
     !hasExactKeys(value, [
-      "pairingId",
-      "state",
-      "retryAfterSeconds",
-      "decisionExpiresAt",
-      "redeemExpiresAt",
+      'pairingId',
+      'state',
+      'retryAfterSeconds',
+      'decisionExpiresAt',
+      'redeemExpiresAt',
     ]) ||
     value.pairingId !== pairingId ||
     !PAIRING_STATES.includes(value.state) ||
@@ -448,69 +374,52 @@ export const parsePairingStatus = (value, pairingId) => {
     (value.redeemExpiresAt !== null && !validTimestamp(value.redeemExpiresAt))
   )
     invalidPairingResponse();
-  if (value.state === "pending") {
-    if (
-      ![2, 5, 10].includes(value.retryAfterSeconds) ||
-      value.redeemExpiresAt !== null
-    )
+  if (value.state === 'pending') {
+    if (![2, 5, 10].includes(value.retryAfterSeconds) || value.redeemExpiresAt !== null)
       invalidPairingResponse();
   } else if (value.retryAfterSeconds !== null) invalidPairingResponse();
-  if (
-    ["approved", "redeemed"].includes(value.state) &&
-    value.redeemExpiresAt === null
-  )
+  if (['approved', 'redeemed'].includes(value.state) && value.redeemExpiresAt === null)
     invalidPairingResponse();
-  if (value.state === "denied" && value.redeemExpiresAt !== null)
-    invalidPairingResponse();
+  if (value.state === 'denied' && value.redeemExpiresAt !== null) invalidPairingResponse();
   return value;
 };
 
 const parseRedeemedGrant = (grant) => {
   const scopes = exactCatalog(grant?.scopes, GRANT_SCOPES, 1);
-  const lifecyclePermissions = exactCatalog(
-    grant?.lifecyclePermissions,
-    LIFECYCLE_PERMISSIONS,
-  );
+  const lifecyclePermissions = exactCatalog(grant?.lifecyclePermissions, LIFECYCLE_PERMISSIONS);
   if (
     !hasExactKeys(grant, [
-      "grantId",
-      "client",
-      "scopes",
-      "lifecyclePermissions",
-      "boardIds",
-      "lifetime",
-      "status",
-      "createdAt",
-      "activatedAt",
-      "lastUsedAt",
-      "expiresAt",
-      "revokedAt",
+      'grantId',
+      'client',
+      'scopes',
+      'lifecyclePermissions',
+      'boardIds',
+      'lifetime',
+      'status',
+      'createdAt',
+      'activatedAt',
+      'lastUsedAt',
+      'expiresAt',
+      'revokedAt',
     ]) ||
-    !hasExactKeys(grant.client, [
-      "clientId",
-      "clientName",
-      "installationFingerprint",
-    ]) ||
-    typeof grant.grantId !== "string" ||
+    !hasExactKeys(grant.client, ['clientId', 'clientName', 'installationFingerprint']) ||
+    typeof grant.grantId !== 'string' ||
     !GLOBAL_ID_PATTERN.test(grant.grantId) ||
-    typeof grant.client.clientId !== "string" ||
+    typeof grant.client.clientId !== 'string' ||
     !GLOBAL_ID_PATTERN.test(grant.client.clientId) ||
     !validClientName(grant.client.clientName) ||
-    typeof grant.client.installationFingerprint !== "string" ||
+    typeof grant.client.installationFingerprint !== 'string' ||
     !/^[A-Za-z0-9_-]{16}$/u.test(grant.client.installationFingerprint) ||
     scopes === null ||
     lifecyclePermissions === null ||
     !Array.isArray(grant.boardIds) ||
     grant.boardIds.length > 50 ||
     (grant.boardIds.length === 0 &&
-      (!scopes.includes("board.write") ||
-        !lifecyclePermissions.includes("board.create"))) ||
-    grant.boardIds.some(
-      (id) => typeof id !== "string" || !GLOBAL_ID_PATTERN.test(id),
-    ) ||
+      (!scopes.includes('board.write') || !lifecyclePermissions.includes('board.create'))) ||
+    grant.boardIds.some((id) => typeof id !== 'string' || !GLOBAL_ID_PATTERN.test(id)) ||
     new Set(grant.boardIds).size !== grant.boardIds.length ||
-    !["session", "persistent"].includes(grant.lifetime) ||
-    grant.status !== "active" ||
+    !['session', 'persistent'].includes(grant.lifetime) ||
+    grant.status !== 'active' ||
     !validTimestamp(grant.createdAt) ||
     !validTimestamp(grant.activatedAt) ||
     (grant.lastUsedAt !== null && !validTimestamp(grant.lastUsedAt)) ||
@@ -523,9 +432,9 @@ const parseRedeemedGrant = (grant) => {
 
 export const parsePairingRedeem = (value) => {
   if (
-    !hasExactKeys(value, ["tokenType", "accessToken", "grant"]) ||
-    value.tokenType !== "Bearer" ||
-    typeof value.accessToken !== "string" ||
+    !hasExactKeys(value, ['tokenType', 'accessToken', 'grant']) ||
+    value.tokenType !== 'Bearer' ||
+    typeof value.accessToken !== 'string' ||
     !TOKEN_PATTERN.test(value.accessToken)
   )
     invalidPairingResponse();
@@ -539,11 +448,7 @@ const sameOrderedValues = (left, right) =>
   left.length === right.length &&
   left.every((value, index) => value === right[index]);
 
-export const validatePairingAuthorization = (
-  redeemed,
-  connection,
-  requested,
-) => {
+export const validatePairingAuthorization = (redeemed, connection, requested) => {
   const grant = redeemed?.grant;
   const authorized = connection?.grant;
   const principal = connection?.principal;
@@ -553,20 +458,16 @@ export const validatePairingAuthorization = (
     !isRecord(principal) ||
     !isRecord(grant.client) ||
     !isRecord(authorized.client) ||
-    principal.principalKind !== "mcp_client" ||
+    principal.principalKind !== 'mcp_client' ||
     principal.principalId !== grant.client.clientId ||
     principal.grantId !== grant.grantId ||
     authorized.grantId !== grant.grantId ||
     authorized.client.clientId !== grant.client.clientId ||
     authorized.client.clientName !== grant.client.clientName ||
-    authorized.client.installationFingerprint !==
-      grant.client.installationFingerprint ||
+    authorized.client.installationFingerprint !== grant.client.installationFingerprint ||
     requested.clientName !== grant.client.clientName ||
     !sameOrderedValues(authorized.scopes, grant.scopes) ||
-    !sameOrderedValues(
-      authorized.lifecyclePermissions,
-      grant.lifecyclePermissions,
-    ) ||
+    !sameOrderedValues(authorized.lifecyclePermissions, grant.lifecyclePermissions) ||
     !sameOrderedValues(authorized.boardIds, grant.boardIds) ||
     !grant.scopes.every((scope) => requested.requestedScopes.includes(scope)) ||
     !grant.lifecyclePermissions.every((permission) =>
@@ -585,8 +486,8 @@ export const createPairingProof = () => {
   const bytes = randomBytes(32);
   return {
     bytes,
-    value: bytes.toString("base64url"),
-    challenge: createHash("sha256").update(bytes).digest("base64url"),
+    value: bytes.toString('base64url'),
+    challenge: createHash('sha256').update(bytes).digest('base64url'),
   };
 };
 
@@ -599,9 +500,9 @@ const authorizedRequest = async (config, credential, options) => {
     });
   } catch (error) {
     if (
-      credential.credentialMode === "pairing" &&
+      credential.credentialMode === 'pairing' &&
       error instanceof SceneBoardApiError &&
-      error.code === "UNAUTHENTICATED"
+      error.code === 'UNAUTHENTICATED'
     ) {
       try {
         await deleteCredentialIfGeneration(config, credential.generation);
@@ -614,36 +515,31 @@ const authorizedRequest = async (config, credential, options) => {
 };
 
 const CREATED_SUCCESS_TYPES = new Set([
-  "board.create",
-  "scene.replace",
-  "scene.clear",
-  "hitl.request",
-  "hitl.respond",
-  "artifact.stop",
+  'board.create',
+  'scene.replace',
+  'scene.clear',
+  'hitl.request',
+  'hitl.respond',
+  'artifact.stop',
 ]);
 
-export const invokeProtected = async (
-  operation,
-  input,
-  { cwd, env, fetchImpl } = {},
-) => {
+export const invokeProtected = async (operation, input, { cwd, env, fetchImpl } = {}) => {
   const config = await resolveApiConfig({ cwd, env });
-  const requestId = randomBytes(16).toString("base64url");
-  if (operation === "board_connection_status")
+  const requestId = randomBytes(16).toString('base64url');
+  if (operation === 'board_connection_status')
     return connectionStatus(input, { config, requestId, fetchImpl });
-  if (operation === "board_scene_patch")
+  if (operation === 'board_scene_patch')
     return invokeScenePatch(input, { config, requestId, fetchImpl });
   const credential = await readCredential(config);
   if (credential === null) {
     throw new SceneBoardApiError(
-      "BOARD_API_NOT_CONNECTED",
-      config.credentialMode === "api_key"
-        ? "SceneBoard API fallback has no configured API key"
-        : "SceneBoard API fallback is not paired",
+      'BOARD_API_NOT_CONNECTED',
+      config.credentialMode === 'api_key'
+        ? 'SceneBoard API fallback has no configured API key'
+        : 'SceneBoard API fallback is not paired',
       {
         details: {
-          recovery:
-            config.credentialMode === "api_key" ? "set_api_key" : "run_pair",
+          recovery: config.credentialMode === 'api_key' ? 'set_api_key' : 'run_pair',
         },
       },
     );
@@ -653,9 +549,7 @@ export const invokeProtected = async (
     ...spec,
     requestId,
     allowedErrorCodes: OPERATION_ERROR_CODES[operation],
-    expectedStatus: CREATED_SUCCESS_TYPES.has(spec.expectedType)
-      ? [200, 201]
-      : [200],
+    expectedStatus: CREATED_SUCCESS_TYPES.has(spec.expectedType) ? [200, 201] : [200],
     timeoutMs:
       spec.minimumTimeoutMs === undefined
         ? undefined
@@ -666,8 +560,8 @@ export const invokeProtected = async (
 };
 
 const connectionStatus = async (input, { config, requestId, fetchImpl }) => {
-  assertExactInput(input, ["boardId"]);
-  if (input.boardId !== null) globalId(input.boardId, "boardId");
+  assertExactInput(input, ['boardId']);
+  if (input.boardId !== null) globalId(input.boardId, 'boardId');
   const credential = await readCredential(config);
   const safeConfig = {
     source: config.source,
@@ -681,7 +575,7 @@ const connectionStatus = async (input, { config, requestId, fetchImpl }) => {
     return {
       requestId,
       result: {
-        state: "credential_missing",
+        state: 'credential_missing',
         config: safeConfig,
         connection: null,
         lastErrorCode: null,
@@ -690,9 +584,8 @@ const connectionStatus = async (input, { config, requestId, fetchImpl }) => {
     };
   const query = new URLSearchParams({ requestId });
   if (input.boardId !== null) {
-    query.set("boardId", input.boardId);
-    if (config.credentialMode === "api_key")
-      query.set("authorizationOperation", "board.get");
+    query.set('boardId', input.boardId);
+    if (config.credentialMode === 'api_key') query.set('authorizationOperation', 'board.get');
   }
   try {
     const result = await requestJson({
@@ -702,7 +595,7 @@ const connectionStatus = async (input, { config, requestId, fetchImpl }) => {
       requestId,
       expectedStatus: [200],
       allowedErrorCodes: OPERATION_ERROR_CODES.board_connection_status,
-      requirePairingHeaders: "connection",
+      requirePairingHeaders: 'connection',
       connectionBoardId: input.boardId,
       connectionCredentialMode: config.credentialMode,
       fetchImpl,
@@ -710,7 +603,7 @@ const connectionStatus = async (input, { config, requestId, fetchImpl }) => {
     return {
       requestId,
       result: {
-        state: "connected",
+        state: 'connected',
         config: safeConfig,
         connection: result,
         lastErrorCode: null,
@@ -718,17 +611,11 @@ const connectionStatus = async (input, { config, requestId, fetchImpl }) => {
       metadata: null,
     };
   } catch (error) {
-    if (
-      error instanceof SceneBoardApiError &&
-      error.code === "UNAUTHENTICATED"
-    ) {
+    if (error instanceof SceneBoardApiError && error.code === 'UNAUTHENTICATED') {
       let deleted = false;
-      if (credential.credentialMode === "pairing") {
+      if (credential.credentialMode === 'pairing') {
         try {
-          deleted = await deleteCredentialIfGeneration(
-            config,
-            credential.generation,
-          );
+          deleted = await deleteCredentialIfGeneration(config, credential.generation);
         } catch {
           // Credential cleanup is best-effort while reporting invalid state.
         }
@@ -744,10 +631,10 @@ const connectionStatus = async (input, { config, requestId, fetchImpl }) => {
       return {
         requestId,
         result: {
-          state: "credential_invalid",
+          state: 'credential_invalid',
           config: { ...safeConfig, hasToken },
           connection: null,
-          lastErrorCode: "UNAUTHENTICATED",
+          lastErrorCode: 'UNAUTHENTICATED',
         },
         metadata: null,
       };
@@ -756,7 +643,7 @@ const connectionStatus = async (input, { config, requestId, fetchImpl }) => {
       return {
         requestId,
         result: {
-          state: "backend_unavailable",
+          state: 'backend_unavailable',
           config: safeConfig,
           connection: null,
           lastErrorCode: error.code,
@@ -769,33 +656,27 @@ const connectionStatus = async (input, { config, requestId, fetchImpl }) => {
 };
 
 const invokeScenePatch = async (input, { config, requestId, fetchImpl }) => {
-  assertExactInput(input, [
-    "boardId",
-    "expectedRevisionId",
-    "idempotencyKey",
-    "operations",
-  ]);
-  globalId(input.boardId, "boardId");
-  globalId(input.expectedRevisionId, "expectedRevisionId");
+  assertExactInput(input, ['boardId', 'expectedRevisionId', 'idempotencyKey', 'operations']);
+  globalId(input.boardId, 'boardId');
+  globalId(input.expectedRevisionId, 'expectedRevisionId');
   idempotencyKey(input.idempotencyKey);
   if (
     !Array.isArray(input.operations) ||
     input.operations.length < 1 ||
     input.operations.length > 1_000
   )
-    invalidInput("operations");
+    invalidInput('operations');
   const operationDeadline = performance.now() + config.timeoutMs;
   const credential = await readCredential(config);
   if (credential === null)
     throw new SceneBoardApiError(
-      "BOARD_API_NOT_CONNECTED",
-      config.credentialMode === "api_key"
-        ? "SceneBoard API fallback has no configured API key"
-        : "SceneBoard API fallback is not paired",
+      'BOARD_API_NOT_CONNECTED',
+      config.credentialMode === 'api_key'
+        ? 'SceneBoard API fallback has no configured API key'
+        : 'SceneBoard API fallback is not paired',
       {
         details: {
-          recovery:
-            config.credentialMode === "api_key" ? "set_api_key" : "run_pair",
+          recovery: config.credentialMode === 'api_key' ? 'set_api_key' : 'run_pair',
         },
       },
     );
@@ -803,14 +684,14 @@ const invokeScenePatch = async (input, { config, requestId, fetchImpl }) => {
   // public request ID for the mutation/result, but give the prerequisite head
   // read its own correlation ID so strict servers never see an ID reused for a
   // different request.
-  const headRequestId = randomBytes(16).toString("base64url");
+  const headRequestId = randomBytes(16).toString('base64url');
   const head = await authorizedRequest(config, credential, {
     path: `/api/v1/boards/${input.boardId}?requestId=${headRequestId}`,
     requestId: headRequestId,
     expectedStatus: [200],
-    expectedType: "board.get",
+    expectedType: 'board.get',
     allowedErrorCodes: OPERATION_ERROR_CODES.board_get,
-    retryKind: "read",
+    retryKind: 'read',
     correlation: { boardId: input.boardId },
     operationDeadline,
     fetchImpl,
@@ -820,35 +701,31 @@ const invokeScenePatch = async (input, { config, requestId, fetchImpl }) => {
     !isRecord(snapshot) ||
     !isRecord(snapshot.scene) ||
     !isRecord(snapshot.revision) ||
-    typeof snapshot.revision.revisionId !== "string"
+    typeof snapshot.revision.revisionId !== 'string'
   ) {
-    throw new SceneBoardApiError(
-      "BOARD_API_RESPONSE_INVALID",
-      "SceneBoard response is invalid",
-      {
-        details: { reason: "schema" },
-      },
-    );
+    throw new SceneBoardApiError('BOARD_API_RESPONSE_INVALID', 'SceneBoard response is invalid', {
+      details: { reason: 'schema' },
+    });
   }
   if (snapshot.revision.revisionId !== input.expectedRevisionId) {
     throw new SceneBoardApiError(
-      "REVISION_CONFLICT",
-      "SceneBoard request failed: REVISION_CONFLICT",
+      'REVISION_CONFLICT',
+      'SceneBoard request failed: REVISION_CONFLICT',
       {
         details: {
           boardId: input.boardId,
           expectedRevisionId: input.expectedRevisionId,
           actualRevisionId: snapshot.revision.revisionId,
           actualRevisionNumber: snapshot.revision.revisionNumber,
-          recovery: "fetch_latest_then_retry",
+          recovery: 'fetch_latest_then_retry',
         },
       },
     );
   }
   const scene = applyScenePatch(snapshot.scene, input.operations);
   const spec = mutationSpec(
-    baseMutation(input, requestId, { type: "scene.replace", scene }),
-    "scene.replace",
+    baseMutation(input, requestId, { type: 'scene.replace', scene }),
+    'scene.replace',
   );
   const envelope = await authorizedRequest(config, credential, {
     ...spec,
@@ -862,7 +739,7 @@ const invokeScenePatch = async (input, { config, requestId, fetchImpl }) => {
     requestId,
     result: envelope.result,
     metadata: {
-      type: "scene-transform",
+      type: 'scene-transform',
       transformedFromRevisionId: snapshot.revision.revisionId,
     },
   };
@@ -872,23 +749,19 @@ export const safeFailure = (error, operation = null) => {
   const failure =
     error instanceof SceneBoardApiError
       ? error
-      : new SceneBoardApiError(
-          "BOARD_API_INTERNAL_ERROR",
-          "SceneBoard API fallback failed",
-          {
-            details: { incidentId: randomBytes(16).toString("base64url") },
-          },
-        );
+      : new SceneBoardApiError('BOARD_API_INTERNAL_ERROR', 'SceneBoard API fallback failed', {
+          details: { incidentId: randomBytes(16).toString('base64url') },
+        });
   return {
     ok: false,
-    transport: "api",
+    transport: 'api',
     operation,
     error: {
       code: failure.code,
       message:
         safeText(failure.message) && !containsSecretValue(failure.message)
           ? failure.message
-          : "SceneBoard API fallback failed",
+          : 'SceneBoard API fallback failed',
       retryable: failure.retryable,
       details: sanitizePublicValue(failure.details),
     },

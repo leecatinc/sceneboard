@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes } from 'node:crypto';
 
 import {
   SceneBoardApiError,
@@ -19,38 +19,38 @@ import {
   validatePairingAuthorization,
   validatePairInput,
   writeCredential,
-} from "./sceneboard-api-core.mjs";
+} from './sceneboard-api-core.mjs';
 
 const OPERATIONS = [
-  "board_connection_status",
-  "board_list",
-  "board_get",
-  "board_create",
-  "board_archive",
-  "board_capabilities_get",
-  "board_scene_get",
-  "board_scene_replace",
-  "board_scene_patch",
-  "board_scene_clear",
-  "board_artifact_get",
-  "board_artifact_put",
-  "board_artifact_stop",
-  "board_history_list",
-  "board_history_get",
-  "board_history_restore",
-  "board_interaction_request",
-  "board_interaction_status",
-  "board_interaction_respond",
+  'board_connection_status',
+  'board_list',
+  'board_get',
+  'board_create',
+  'board_archive',
+  'board_capabilities_get',
+  'board_scene_get',
+  'board_scene_replace',
+  'board_scene_patch',
+  'board_scene_clear',
+  'board_artifact_get',
+  'board_artifact_put',
+  'board_artifact_stop',
+  'board_history_list',
+  'board_history_get',
+  'board_history_restore',
+  'board_interaction_request',
+  'board_interaction_status',
+  'board_interaction_respond',
 ];
 
 const WINDOWS_CREDENTIAL_FAILURE_REASONS = new Set([
-  "windows_system_root_unavailable",
-  "windows_dpapi_process_unavailable",
-  "windows_dpapi_timeout",
-  "windows_dpapi_output_too_large",
-  "windows_dpapi_failed",
-  "windows_dpapi_empty_output",
-  "windows_dpapi_input_failed",
+  'windows_system_root_unavailable',
+  'windows_dpapi_process_unavailable',
+  'windows_dpapi_timeout',
+  'windows_dpapi_output_too_large',
+  'windows_dpapi_failed',
+  'windows_dpapi_empty_output',
+  'windows_dpapi_input_failed',
 ]);
 
 const pairingCredentialFailure = (phase, error) => {
@@ -60,13 +60,13 @@ const pairingCredentialFailure = (phase, error) => {
       ? error.details.reason
       : undefined;
   return new SceneBoardApiError(
-    "BOARD_API_PAIRING_CREDENTIAL_UNRECOVERABLE",
-    "SceneBoard paired credential could not be proven",
+    'BOARD_API_PAIRING_CREDENTIAL_UNRECOVERABLE',
+    'SceneBoard paired credential could not be proven',
     {
       details: {
         phase,
         ...(reason === undefined ? {} : { reason }),
-        recovery: "owner_rotate_or_revoke_and_repair",
+        recovery: 'owner_rotate_or_revoke_and_repair',
       },
     },
   );
@@ -81,8 +81,8 @@ const readStdinJson = async () => {
     total += chunk.length;
     if (total > 1_048_576) {
       throw new SceneBoardApiError(
-        "INVALID_PAYLOAD",
-        "SceneBoard API fallback input is too large",
+        'INVALID_PAYLOAD',
+        'SceneBoard API fallback input is too large',
         { exitCode: 2 },
       );
     }
@@ -91,8 +91,8 @@ const readStdinJson = async () => {
   const bytes = Buffer.concat(chunks);
   if (bytes.length === 0)
     throw new SceneBoardApiError(
-      "INVALID_PAYLOAD",
-      "SceneBoard API fallback requires JSON on stdin",
+      'INVALID_PAYLOAD',
+      'SceneBoard API fallback requires JSON on stdin',
       { exitCode: 2 },
     );
   return parseApiInputBytes(bytes);
@@ -101,11 +101,11 @@ const readStdinJson = async () => {
 const pair = async () => {
   const input = validatePairInput(await readStdinJson());
   const config = await resolveApiConfig();
-  if (config.credentialMode === "api_key") {
+  if (config.credentialMode === 'api_key') {
     throw new SceneBoardApiError(
-      "BOARD_API_CONFIG_INVALID",
-      "SceneBoard pairing is unavailable in API-key mode",
-      { details: { recovery: "use_api_key_set_command" } },
+      'BOARD_API_CONFIG_INVALID',
+      'SceneBoard pairing is unavailable in API-key mode',
+      { details: { recovery: 'use_api_key_set_command' } },
     );
   }
   const release = await acquirePairingLock(config);
@@ -117,8 +117,8 @@ const pair = async () => {
       claim = parsePairingClaim(
         await requestJson({
           config,
-          path: "/api/v1/pairings/claim",
-          method: "POST",
+          path: '/api/v1/pairings/claim',
+          method: 'POST',
           body: {
             code: input.code,
             installationId,
@@ -128,21 +128,21 @@ const pair = async () => {
             clientProofChallenge: proof.challenge,
           },
           expectedStatus: [202],
-          requirePairingHeaders: "claim",
+          requirePairingHeaders: 'claim',
         }),
       );
     } catch (error) {
       if (
         error instanceof SceneBoardApiError &&
-        ["BOARD_API_TIMEOUT", "BOARD_API_TRANSPORT_ERROR"].includes(error.code)
+        ['BOARD_API_TIMEOUT', 'BOARD_API_TRANSPORT_ERROR'].includes(error.code)
       ) {
         throw new SceneBoardApiError(
-          "BOARD_API_PAIRING_OUTCOME_UNKNOWN",
-          "SceneBoard pairing claim outcome is unknown",
+          'BOARD_API_PAIRING_OUTCOME_UNKNOWN',
+          'SceneBoard pairing claim outcome is unknown',
           {
             details: {
-              phase: "claim",
-              recovery: "owner_cancel_or_wait_then_create_new_code",
+              phase: 'claim',
+              recovery: 'owner_cancel_or_wait_then_create_new_code',
             },
           },
         );
@@ -151,9 +151,9 @@ const pair = async () => {
     }
     write({
       ok: true,
-      transport: "api",
-      operation: "pair",
-      event: "claimed",
+      transport: 'api',
+      operation: 'pair',
+      event: 'claimed',
       pairingId: claim.pairingId,
       state: claim.state,
       decisionExpiresAt: claim.decisionExpiresAt,
@@ -161,17 +161,15 @@ const pair = async () => {
     let status = claim;
     const decisionDeadline = Date.parse(claim.decisionExpiresAt);
     let deadlinePollAttempted = false;
-    while (status.state === "pending") {
+    while (status.state === 'pending') {
       const delaySeconds =
-        status.retryAfterSeconds === undefined
-          ? claim.pollAfterSeconds
-          : status.retryAfterSeconds;
+        status.retryAfterSeconds === undefined ? claim.pollAfterSeconds : status.retryAfterSeconds;
       const remaining = Math.max(0, decisionDeadline - Date.now());
       if (remaining === 0) {
         if (deadlinePollAttempted) {
           throw new SceneBoardApiError(
-            "BOARD_API_TIMEOUT",
-            "SceneBoard pairing status did not reach a terminal state",
+            'BOARD_API_TIMEOUT',
+            'SceneBoard pairing status did not reach a terminal state',
             {
               retryable: true,
             },
@@ -188,28 +186,28 @@ const pair = async () => {
           path: `/api/v1/pairings/${encodeURIComponent(claim.pairingId)}/client-status`,
           authorization: `PairingProof ${proof.value}`,
           expectedStatus: [200],
-          requirePairingHeaders: "status",
-          retryKind: "read",
+          requirePairingHeaders: 'status',
+          retryKind: 'read',
         }),
         claim.pairingId,
       );
       write({
         ok: true,
-        transport: "api",
-        operation: "pair",
-        event: "status",
+        transport: 'api',
+        operation: 'pair',
+        event: 'status',
         pairingId: status.pairingId,
         state: status.state,
         decisionExpiresAt: status.decisionExpiresAt,
         redeemExpiresAt: status.redeemExpiresAt,
       });
     }
-    if (status.state !== "approved") {
+    if (status.state !== 'approved') {
       write({
         ok: true,
-        transport: "api",
-        operation: "pair",
-        event: "terminal",
+        transport: 'api',
+        operation: 'pair',
+        event: 'terminal',
         pairingId: status.pairingId,
         state: status.state,
         hasToken: false,
@@ -220,25 +218,25 @@ const pair = async () => {
       requestJson({
         config,
         path: `/api/v1/pairings/${encodeURIComponent(claim.pairingId)}/redeem`,
-        method: "POST",
+        method: 'POST',
         body: {},
         authorization: `PairingProof ${proof.value}`,
         expectedStatus: [200],
-        requirePairingHeaders: "redeem",
+        requirePairingHeaders: 'redeem',
       });
     let redeemed;
     const ambiguousTransport = (error) =>
       error instanceof SceneBoardApiError &&
-      ["BOARD_API_TIMEOUT", "BOARD_API_TRANSPORT_ERROR"].includes(error.code);
+      ['BOARD_API_TIMEOUT', 'BOARD_API_TRANSPORT_ERROR'].includes(error.code);
     const unknownRedeemOutcome = (state = null) =>
       new SceneBoardApiError(
-        "BOARD_API_PAIRING_OUTCOME_UNKNOWN",
-        "SceneBoard pairing redeem outcome is unknown",
+        'BOARD_API_PAIRING_OUTCOME_UNKNOWN',
+        'SceneBoard pairing redeem outcome is unknown',
         {
           details: {
-            phase: "redeem",
+            phase: 'redeem',
             state,
-            recovery: "owner_rotate_or_revoke_and_repair",
+            recovery: 'owner_rotate_or_revoke_and_repair',
           },
         },
       );
@@ -254,8 +252,8 @@ const pair = async () => {
               path: `/api/v1/pairings/${encodeURIComponent(claim.pairingId)}/client-status`,
               authorization: `PairingProof ${proof.value}`,
               expectedStatus: [200],
-              requirePairingHeaders: "status",
-              retryKind: "read",
+              requirePairingHeaders: 'status',
+              retryKind: 'read',
             }),
             claim.pairingId,
           );
@@ -263,13 +261,11 @@ const pair = async () => {
           if (ambiguousTransport(resolutionError)) throw unknownRedeemOutcome();
           throw resolutionError;
         }
-        if (resolved.state !== "approved")
-          throw unknownRedeemOutcome(resolved.state);
+        if (resolved.state !== 'approved') throw unknownRedeemOutcome(resolved.state);
         try {
           redeemed = await redeem();
         } catch (retryError) {
-          if (ambiguousTransport(retryError))
-            throw unknownRedeemOutcome(resolved.state);
+          if (ambiguousTransport(retryError)) throw unknownRedeemOutcome(resolved.state);
           throw retryError;
         }
       } else {
@@ -278,9 +274,9 @@ const pair = async () => {
     }
     redeemed = parsePairingRedeem(redeemed);
     let storedGeneration = null;
-    let credentialPhase = "connection_request";
+    let credentialPhase = 'connection_request';
     try {
-      const requestId = randomBytes(16).toString("base64url");
+      const requestId = randomBytes(16).toString('base64url');
       const connection = await requestJson({
         config,
         path: `/api/v1/mcp/connection?requestId=${requestId}`,
@@ -288,30 +284,30 @@ const pair = async () => {
         requestId,
         expectedStatus: [200],
         allowedErrorCodes: [
-          "INVALID_PAYLOAD",
-          "UNAUTHENTICATED",
-          "FORBIDDEN",
-          "BOARD_NOT_FOUND",
-          "RATE_LIMITED",
-          "SERVICE_UNAVAILABLE",
-          "INTERNAL_ERROR",
+          'INVALID_PAYLOAD',
+          'UNAUTHENTICATED',
+          'FORBIDDEN',
+          'BOARD_NOT_FOUND',
+          'RATE_LIMITED',
+          'SERVICE_UNAVAILABLE',
+          'INTERNAL_ERROR',
         ],
-        requirePairingHeaders: "connection",
+        requirePairingHeaders: 'connection',
         connectionBoardId: null,
       });
-      credentialPhase = "authorization_validation";
+      credentialPhase = 'authorization_validation';
       validatePairingAuthorization(redeemed, connection, input);
-      credentialPhase = "credential_write";
+      credentialPhase = 'credential_write';
       storedGeneration = await writeCredential(config, redeemed.accessToken);
-      redeemed.accessToken = "";
-      credentialPhase = "credential_reload";
+      redeemed.accessToken = '';
+      credentialPhase = 'credential_reload';
       const stored = await readCredential(config);
       if (stored === null || stored.generation !== storedGeneration) {
-        credentialPhase = "credential_reload_mismatch";
-        throw new Error("credential reload mismatch");
+        credentialPhase = 'credential_reload_mismatch';
+        throw new Error('credential reload mismatch');
       }
     } catch (error) {
-      redeemed.accessToken = "";
+      redeemed.accessToken = '';
       if (storedGeneration !== null) {
         try {
           await deleteCredentialIfGeneration(config, storedGeneration);
@@ -323,66 +319,59 @@ const pair = async () => {
     }
     write({
       ok: true,
-      transport: "api",
-      operation: "pair",
-      event: "redeemed",
+      transport: 'api',
+      operation: 'pair',
+      event: 'redeemed',
       pairingId: claim.pairingId,
-      state: "redeemed",
+      state: 'redeemed',
       hasToken: true,
       config: publicConfig(config),
     });
   } finally {
     proof.bytes.fill(0);
-    proof.value = "";
-    proof.challenge = "";
+    proof.value = '';
+    proof.challenge = '';
     await release();
   }
 };
 
 const main = async () => {
   const [command, operation, ...extra] = process.argv.slice(2);
-  if (command === "describe" && operation === undefined) {
+  if (command === 'describe' && operation === undefined) {
     const config = await resolveApiConfig();
     write({
       ok: true,
-      transport: "api",
-      mode: "mcp-absent-only",
-      input: "stdin-json",
+      transport: 'api',
+      mode: 'mcp-absent-only',
+      input: 'stdin-json',
       operations: OPERATIONS,
-      pairingCommand: "pair",
+      pairingCommand: 'pair',
       config: publicConfig(config),
     });
     return;
   }
-  if (command === "pair" && operation === undefined) {
+  if (command === 'pair' && operation === undefined) {
     await pair();
     return;
   }
-  if (
-    command !== "invoke" ||
-    !OPERATIONS.includes(operation) ||
-    extra.length > 0
-  ) {
+  if (command !== 'invoke' || !OPERATIONS.includes(operation) || extra.length > 0) {
     throw new SceneBoardApiError(
-      "INVALID_PAYLOAD",
-      "Usage: describe | pair | invoke <board_operation>",
+      'INVALID_PAYLOAD',
+      'Usage: describe | pair | invoke <board_operation>',
       { exitCode: 2 },
     );
   }
   const input = await readStdinJson();
   const result = await invokeProtected(operation, input);
-  write({ ok: true, transport: "api", operation, ...result });
+  write({ ok: true, transport: 'api', operation, ...result });
 };
 
 try {
   await main();
 } catch (error) {
-  const candidate =
-    process.argv[2] === "invoke" ? process.argv[3] : process.argv[2];
+  const candidate = process.argv[2] === 'invoke' ? process.argv[3] : process.argv[2];
   const operation =
-    OPERATIONS.includes(candidate) ||
-    candidate === "pair" ||
-    candidate === "describe"
+    OPERATIONS.includes(candidate) || candidate === 'pair' || candidate === 'describe'
       ? candidate
       : null;
   write(safeFailure(error, operation));

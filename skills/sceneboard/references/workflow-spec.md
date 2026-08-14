@@ -44,7 +44,7 @@ artifact source caps without adding a second runtime format.
 | `HumanControl`     | `interaction:"info"                                                                                                                                                                                                                                                       | "choice"                                                                                                                                                                      | "form"                                                                     | "confirmation"`; `blocking:boolean`                                                                                           |
 | `Edge`             | `id:Id`; `kind:EdgeKind`; `fromNodeId:Id`; `toNodeId:Id`; `label:Label                                                                                                                                                                                                    | null`; `condition:Condition                                                                                                                                                   | null`; `priority:integer 0..1000                                           | null`; `stateKeys:StateKey[0..32]`unique set;`evidence:Evidence`                                                              |
 | `Condition`        | `text:LongText`; `language:"natural"                                                                                                                                                                                                                                      | "cel"                                                                                                                                                                         | "javascript"                                                               | "python"                                                                                                                      | "other"                                                          | "unknown"`; inert text only |
-| `Evidence`         | `basis:"explicit"                                                                                                                                                                                                                                                         | "inferred"                                                                                                                                                                    | "unknown"`; `confidence:finite number 0..1`; `sourceRefs:SourceRef[0..16]`; explicit basis requires at least one source ref |
+| `Evidence`         | `basis:"explicit"                                                                                                                                                                                                                                                         | "inferred"                                                                                                                                                                    | "unknown"`; `confidence:finite number 0..1`; `sourceRefs:SourceRef[0..16]` |
 | `SourceRef`        | `sourceId:Id`; `startLine:integer 1..10000000                                                                                                                                                                                                                             | null`; `endLine:integer 1..10000000                                                                                                                                           | null`; `locator:LongText                                                   | null`; line values are both null or both integers with `endLine>=startLine`                                                   |
 | `ElementRef`       | `kind:"node"                                                                                                                                                                                                                                                              | "edge"                                                                                                                                                                        | "subflow"`; `id:Id`                                                        |
 | `Question`         | `id:Id`; `prompt:LongText`; `relatedElements:ElementRef[1..32]` unique by `(kind,id)`; `evidence:Evidence`                                                                                                                                                                |
@@ -52,6 +52,10 @@ artifact source caps without adding a second runtime format.
 
 `NodeKind` is exactly `start|action|decision|parallel|join|human|subflow|end` and `EdgeKind` exactly
 `normal|conditional|parallel|join|retry|fallback|human`.
+
+Version `1.0` retains the original `[0..16]` source-reference cardinality for every evidence basis,
+including `basis:"explicit"`. Producers should attach concrete references whenever available, but
+validators must not retroactively reject an already valid immutable `1.0` artifact.
 
 ## Namespaces, references and kind matrix
 
@@ -106,31 +110,36 @@ errors exit 2, use path `"/input"`, `"/output"`, or `""`, and use exactly:
 
 `USAGE_ERROR|INPUT_NOT_FOUND|INPUT_SYMLINK|INPUT_NOT_REGULAR|INPUT_READ_FAILED|OUTPUT_ALIAS_INPUT|
 OUTPUT_PARENT_INVALID|OUTPUT_SYMLINK|OUTPUT_NOT_REGULAR|OUTPUT_CHANGED|OUTPUT_TEMP_CREATE_FAILED|
-OUTPUT_WRITE_FAILED|OUTPUT_SYNC_FAILED|OUTPUT_RENAME_FAILED`.
+OUTPUT_ACL_UNSAFE|OUTPUT_WRITE_FAILED|OUTPUT_SYNC_FAILED|OUTPUT_RENAME_FAILED`.
 
-| exit-2 code                 | exact path  | exact trigger                                                 |
-| --------------------------- | ----------- | ------------------------------------------------------------- |
-| `USAGE_ERROR`               | `""`        | command/arity is not one of the two exact forms               |
-| `INPUT_NOT_FOUND`           | `"/input"`  | input path does not exist                                     |
-| `INPUT_SYMLINK`             | `"/input"`  | input final entry is a symlink/no-follow rejection            |
-| `INPUT_NOT_REGULAR`         | `"/input"`  | opened input is not a regular file                            |
-| `INPUT_READ_FAILED`         | `"/input"`  | safe open/stat/read fails for any other OS reason             |
-| `OUTPUT_ALIAS_INPUT`        | `"/output"` | output lexical identity or existing device/inode equals input |
-| `OUTPUT_PARENT_INVALID`     | `"/output"` | resolved parent is absent, symlinked, or not a directory      |
-| `OUTPUT_SYMLINK`            | `"/output"` | output final entry is a symlink                               |
-| `OUTPUT_NOT_REGULAR`        | `"/output"` | existing output is not a regular file                         |
-| `OUTPUT_CHANGED`            | `"/output"` | pre-rename existence/device/inode differs from recorded state |
-| `OUTPUT_TEMP_CREATE_FAILED` | `"/output"` | adjacent exclusive no-follow temp creation fails              |
-| `OUTPUT_WRITE_FAILED`       | `"/output"` | temp write or close fails before commit                       |
-| `OUTPUT_SYNC_FAILED`        | `"/output"` | temp fsync fails pre-commit or parent fsync fails post-commit |
-| `OUTPUT_RENAME_FAILED`      | `"/output"` | atomic temp-to-output rename fails                            |
+| exit-2 code                 | exact path  | exact trigger                                                                       |
+| --------------------------- | ----------- | ----------------------------------------------------------------------------------- |
+| `USAGE_ERROR`               | `""`        | command/arity is not one of the two exact forms                                     |
+| `INPUT_NOT_FOUND`           | `"/input"`  | input path does not exist                                                           |
+| `INPUT_SYMLINK`             | `"/input"`  | input final entry is a symlink/no-follow rejection                                  |
+| `INPUT_NOT_REGULAR`         | `"/input"`  | opened input is not a regular file                                                  |
+| `INPUT_READ_FAILED`         | `"/input"`  | safe open/stat/read fails for any other OS reason                                   |
+| `OUTPUT_ALIAS_INPUT`        | `"/output"` | output lexical identity or existing device/inode equals input                       |
+| `OUTPUT_PARENT_INVALID`     | `"/output"` | resolved parent is absent, symlinked, or not a directory                            |
+| `OUTPUT_SYMLINK`            | `"/output"` | output final entry is a symlink                                                     |
+| `OUTPUT_NOT_REGULAR`        | `"/output"` | existing output is not a regular file                                               |
+| `OUTPUT_CHANGED`            | `"/output"` | pre-rename existence/device/inode differs from recorded state                       |
+| `OUTPUT_TEMP_CREATE_FAILED` | `"/output"` | adjacent exclusive no-follow temp creation fails                                    |
+| `OUTPUT_ACL_UNSAFE`         | `"/output"` | existing group/other mode may represent ACL readers that cannot be preserved safely |
+| `OUTPUT_WRITE_FAILED`       | `"/output"` | temp write or close fails before commit                                             |
+| `OUTPUT_SYNC_FAILED`        | `"/output"` | temp fsync/metadata preservation fails pre-commit or parent fsync fails post-commit |
+| `OUTPUT_RENAME_FAILED`      | `"/output"` | atomic temp-to-output rename fails                                                  |
 
 The record never includes input values, source text, absolute paths, OS messages or stack traces.
 Input is opened no-follow, stat-verified regular, bounded before parse, decoded fatally and scanned
 for duplicate members. Canonicalize resolves/stats the parent directory, rejects an input/output
 lexical or device/inode alias, lstat-checks the output as absent or regular non-symlink, records its
-device/inode, creates an adjacent mode-0600 `O_EXCL|O_NOFOLLOW` temp, writes/fsyncs/closes it, and
-rechecks the output is still absent or the same device/inode before atomic rename. Rename is the
+device/inode, creates an adjacent cryptographically randomized mode-0600 `O_EXCL|O_NOFOLLOW` temp,
+writes/fsyncs it, and for an existing owner-only target restores its recorded uid, gid and ordinary
+permission bits before rechecking that the output is still absent or the same device/inode and
+atomically renaming. Existing targets with any group/other permission bits fail closed because those
+bits may be the effective mask for named ACL readers, which this dependency-free file-only CLI cannot
+inspect or preserve. Setuid, setgid and sticky bits are never restored. Rename is the
 commit point and never follows the final entry. Every pre-commit failure unlinks temp and preserves
 the prior target; a post-rename parent-fsync failure returns `OUTPUT_SYNC_FAILED` with the committed
 new file intact. Each table row fixture asserts the exact code/path pair; every alias/race case and

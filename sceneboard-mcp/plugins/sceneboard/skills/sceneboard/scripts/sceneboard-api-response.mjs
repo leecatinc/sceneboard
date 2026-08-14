@@ -5,8 +5,8 @@ import {
   CURSOR_PATTERN,
   HITL_KINDS,
   validTimestamp,
-} from "./sceneboard-api-contract.mjs";
-import { hasExactKeys, isRecord } from "./sceneboard-api-json.mjs";
+} from './sceneboard-api-contract.mjs';
+import { hasExactKeys, isRecord } from './sceneboard-api-json.mjs';
 import {
   containsSecretValue,
   exactCatalog,
@@ -19,7 +19,7 @@ import {
   validArtifactReference,
   validGlobalId,
   validLocalId,
-} from "./sceneboard-api-public.mjs";
+} from './sceneboard-api-public.mjs';
 
 export const publicJsonTree = (
   value,
@@ -29,9 +29,9 @@ export const publicJsonTree = (
 ) => {
   budget.count += 1;
   if (budget.count > 10_000 || depth > 64) return false;
-  if (value === null || typeof value === "boolean") return true;
-  if (typeof value === "number") return Number.isFinite(value);
-  if (typeof value === "string")
+  if (value === null || typeof value === 'boolean') return true;
+  if (typeof value === 'number') return Number.isFinite(value);
+  if (typeof value === 'string')
     return (
       !(inheritedSensitiveContext && isSecretShaped(value)) &&
       !containsSecretValue(value) &&
@@ -45,8 +45,7 @@ export const publicJsonTree = (
   return (
     isRecord(value) &&
     Object.entries(value).every(([key, item]) => {
-      const sensitiveContext =
-        inheritedSensitiveContext || SENSITIVE_CONTEXT_PATTERN.test(key);
+      const sensitiveContext = inheritedSensitiveContext || SENSITIVE_CONTEXT_PATTERN.test(key);
       return (
         !(sensitiveContext && isSecretShaped(item)) &&
         publicJsonTree(item, depth + 1, budget, sensitiveContext)
@@ -56,7 +55,7 @@ export const publicJsonTree = (
 };
 
 const projectRevisionSummary = (value) =>
-  hasExactKeys(value, ["revisionId", "revisionNumber", "createdAt"]) &&
+  hasExactKeys(value, ['revisionId', 'revisionNumber', 'createdAt']) &&
   validGlobalId(value.revisionId) &&
   Number.isSafeInteger(value.revisionNumber) &&
   value.revisionNumber > 0 &&
@@ -72,12 +71,12 @@ const projectBoardSummary = (value) => {
   const headRevision = projectRevisionSummary(value?.headRevision);
   if (
     !hasExactKeys(value, [
-      "boardId",
-      "title",
-      "createdAt",
-      "updatedAt",
-      "archivedAt",
-      "headRevision",
+      'boardId',
+      'title',
+      'createdAt',
+      'updatedAt',
+      'archivedAt',
+      'headRevision',
     ]) ||
     !validGlobalId(value.boardId) ||
     !safeText(value.title) ||
@@ -99,8 +98,8 @@ const projectBoardSummary = (value) => {
 };
 
 const projectActor = (value) =>
-  hasExactKeys(value, ["principalKind", "principalId"]) &&
-  ["user", "mcp_client", "service"].includes(value.principalKind) &&
+  hasExactKeys(value, ['principalKind', 'principalId']) &&
+  ['user', 'mcp_client', 'service'].includes(value.principalKind) &&
   validGlobalId(value.principalId)
     ? { principalKind: value.principalKind, principalId: value.principalId }
     : null;
@@ -110,23 +109,20 @@ const projectSnapshotRevision = (value) => {
   if (
     actor === null ||
     !hasExactKeys(value, [
-      "revisionId",
-      "revisionNumber",
-      "createdAt",
-      "previousRevisionId",
-      "originType",
-      "sourceRevisionId",
-      "actor",
+      'revisionId',
+      'revisionNumber',
+      'createdAt',
+      'previousRevisionId',
+      'originType',
+      'sourceRevisionId',
+      'actor',
     ]) ||
     !validGlobalId(value.revisionId) ||
     !Number.isSafeInteger(value.revisionNumber) ||
     value.revisionNumber < 1 ||
     !validTimestamp(value.createdAt) ||
-    (value.previousRevisionId !== null &&
-      !validGlobalId(value.previousRevisionId)) ||
-    !["board.create", "scene.replace", "scene.clear", "scene.restore"].includes(
-      value.originType,
-    ) ||
+    (value.previousRevisionId !== null && !validGlobalId(value.previousRevisionId)) ||
+    !['board.create', 'scene.replace', 'scene.clear', 'scene.restore'].includes(value.originType) ||
     (value.sourceRevisionId !== null && !validGlobalId(value.sourceRevisionId))
   )
     return null;
@@ -149,19 +145,17 @@ const projectArtifactReference = (value) =>
 const projectArtifactRuntime = (value) => {
   const artifact = projectArtifactReference(value?.artifact);
   if (
-    !hasExactKeys(value, ["artifact", "status", "updatedAt", "failure"]) ||
+    !hasExactKeys(value, ['artifact', 'status', 'updatedAt', 'failure']) ||
     artifact === null ||
-    !["ready", "running", "stopped", "failed", "blocked"].includes(
-      value.status,
-    ) ||
+    !['ready', 'running', 'stopped', 'failed', 'blocked'].includes(value.status) ||
     !validTimestamp(value.updatedAt)
   )
     return null;
-  const requiresFailure = ["failed", "blocked"].includes(value.status);
+  const requiresFailure = ['failed', 'blocked'].includes(value.status);
   let failure = null;
   if (value.failure !== null) {
     if (
-      !hasExactKeys(value.failure, ["code", "message"]) ||
+      !hasExactKeys(value.failure, ['code', 'message']) ||
       !Object.hasOwn(BOARD_ERROR_STATUS, value.failure.code) ||
       !safeText(value.failure.message) ||
       containsSecretValue(value.failure.message)
@@ -182,27 +176,24 @@ const projectArtifactManifest = (value) => {
   const artifact = projectArtifactReference(value?.artifact);
   if (
     !hasExactKeys(value, [
-      "protocolVersion",
-      "type",
-      "artifact",
-      "entryPath",
-      "resources",
-      "requestedCapabilities",
+      'protocolVersion',
+      'type',
+      'artifact',
+      'entryPath',
+      'resources',
+      'requestedCapabilities',
     ]) ||
     value.protocolVersion !== 1 ||
-    value.type !== "artifact.manifest" ||
+    value.type !== 'artifact.manifest' ||
     artifact === null ||
-    typeof value.entryPath !== "string" ||
+    typeof value.entryPath !== 'string' ||
     value.entryPath.length < 1 ||
-    value.entryPath.startsWith("/") ||
-    value.entryPath.includes("\\") ||
-    value.entryPath.includes("\0") ||
+    value.entryPath.startsWith('/') ||
+    value.entryPath.includes('\\') ||
+    value.entryPath.includes('\0') ||
     value.entryPath
-      .split("/")
-      .some(
-        (segment) =>
-          segment.length === 0 || segment === "." || segment === "..",
-      ) ||
+      .split('/')
+      .some((segment) => segment.length === 0 || segment === '.' || segment === '..') ||
     !Array.isArray(value.resources) ||
     value.resources.length < 1 ||
     value.resources.length > BOARD_LIMITS.maxArtifactResources ||
@@ -214,24 +205,19 @@ const projectArtifactManifest = (value) => {
   let totalBytes = 0;
   for (const resource of value.resources) {
     if (
-      !hasExactKeys(resource, ["path", "mediaType", "sha256", "byteLength"]) ||
-      typeof resource.path !== "string" ||
+      !hasExactKeys(resource, ['path', 'mediaType', 'sha256', 'byteLength']) ||
+      typeof resource.path !== 'string' ||
       resource.path.length < 1 ||
-      resource.path.startsWith("/") ||
-      resource.path.includes("\\") ||
-      resource.path.includes("\0") ||
+      resource.path.startsWith('/') ||
+      resource.path.includes('\\') ||
+      resource.path.includes('\0') ||
       resource.path
-        .split("/")
-        .some(
-          (segment) =>
-            segment.length === 0 || segment === "." || segment === "..",
-        ) ||
+        .split('/')
+        .some((segment) => segment.length === 0 || segment === '.' || segment === '..') ||
       paths.has(resource.path) ||
-      typeof resource.mediaType !== "string" ||
-      !/^[A-Za-z0-9!#$&^_.+-]+\/[A-Za-z0-9!#$&^_.+-]{1,127}$/u.test(
-        resource.mediaType,
-      ) ||
-      typeof resource.sha256 !== "string" ||
+      typeof resource.mediaType !== 'string' ||
+      !/^[A-Za-z0-9!#$&^_.+-]+\/[A-Za-z0-9!#$&^_.+-]{1,127}$/u.test(resource.mediaType) ||
+      typeof resource.sha256 !== 'string' ||
       !/^[0-9a-f]{64}$/u.test(resource.sha256) ||
       !Number.isSafeInteger(resource.byteLength) ||
       resource.byteLength < 0 ||
@@ -247,14 +233,10 @@ const projectArtifactManifest = (value) => {
       byteLength: resource.byteLength,
     });
   }
-  if (
-    !paths.has(value.entryPath) ||
-    totalBytes > BOARD_LIMITS.maxArtifactTotalBytes
-  )
-    return null;
+  if (!paths.has(value.entryPath) || totalBytes > BOARD_LIMITS.maxArtifactTotalBytes) return null;
   return {
     protocolVersion: 1,
-    type: "artifact.manifest",
+    type: 'artifact.manifest',
     artifact,
     entryPath: value.entryPath,
     resources,
@@ -263,52 +245,39 @@ const projectArtifactManifest = (value) => {
 };
 
 const hasOptionalExactKeys = (value, required, optional = []) => {
-  if (!isRecord(value) || required.some((key) => !Object.hasOwn(value, key)))
-    return false;
+  if (!isRecord(value) || required.some((key) => !Object.hasOwn(value, key))) return false;
   const allowed = new Set([...required, ...optional]);
   return Object.keys(value).every((key) => allowed.has(key));
 };
 
 const validContentText = (value, maximum) =>
-  typeof value === "string" &&
+  typeof value === 'string' &&
   [...value].length <= maximum &&
   !/[\uD800-\uDFFF]/u.test(value) &&
   !containsSecretValue(value);
 
 const projectHitlOption = (value, parentContext) => {
   if (
-    !hasOptionalExactKeys(value, ["id", "label"], ["description"]) ||
+    !hasOptionalExactKeys(value, ['id', 'label'], ['description']) ||
     !validLocalId(value.id) ||
     !safeText(value.label) ||
     containsSecretValue(value.label) ||
     (value.description !== undefined &&
-      (!safeText(value.description) ||
-        containsSecretValue(value.description))) ||
-    hasContextualSecret(
-      [parentContext, value.id],
-      [value.id, value.label, value.description],
-    )
+      (!safeText(value.description) || containsSecretValue(value.description))) ||
+    hasContextualSecret([parentContext, value.id], [value.id, value.label, value.description])
   )
     return null;
   return {
     id: value.id,
     label: value.label,
-    ...(value.description === undefined
-      ? {}
-      : { description: value.description }),
+    ...(value.description === undefined ? {} : { description: value.description }),
   };
 };
 
 const projectHitlOptions = (value, parentContext) => {
-  if (
-    !Array.isArray(value) ||
-    value.length < 1 ||
-    value.length > BOARD_LIMITS.maxHitlOptions
-  )
+  if (!Array.isArray(value) || value.length < 1 || value.length > BOARD_LIMITS.maxHitlOptions)
     return null;
-  const options = value.map((option) =>
-    projectHitlOption(option, parentContext),
-  );
+  const options = value.map((option) => projectHitlOption(option, parentContext));
   return options.some((option) => option === null) ||
     new Set(options.map((option) => option.id)).size !== options.length
     ? null
@@ -322,19 +291,19 @@ const projectHitlField = (value) => {
     !safeText(value.label) ||
     containsSecretValue(value.label) ||
     hasContextualSecret([value.id], [value.label]) ||
-    typeof value.required !== "boolean"
+    typeof value.required !== 'boolean'
   )
     return null;
-  if (value.type === "text") {
+  if (value.type === 'text') {
     if (
       !hasExactKeys(value, [
-        "id",
-        "type",
-        "label",
-        "required",
-        "defaultValue",
-        "minLength",
-        "maxLength",
+        'id',
+        'type',
+        'label',
+        'required',
+        'defaultValue',
+        'minLength',
+        'maxLength',
       ]) ||
       !Number.isSafeInteger(value.minLength) ||
       value.minLength < 0 ||
@@ -352,7 +321,7 @@ const projectHitlField = (value) => {
       return null;
     return {
       id: value.id,
-      type: "text",
+      type: 'text',
       label: value.label,
       required: value.required,
       defaultValue: value.defaultValue,
@@ -360,24 +329,13 @@ const projectHitlField = (value) => {
       maxLength: value.maxLength,
     };
   }
-  if (value.type === "number") {
+  if (value.type === 'number') {
     if (
-      !hasExactKeys(value, [
-        "id",
-        "type",
-        "label",
-        "required",
-        "defaultValue",
-        "min",
-        "max",
-      ]) ||
+      !hasExactKeys(value, ['id', 'type', 'label', 'required', 'defaultValue', 'min', 'max']) ||
       (value.defaultValue !== null &&
-        (typeof value.defaultValue !== "number" ||
-          !Number.isFinite(value.defaultValue))) ||
-      (value.min !== null &&
-        (typeof value.min !== "number" || !Number.isFinite(value.min))) ||
-      (value.max !== null &&
-        (typeof value.max !== "number" || !Number.isFinite(value.max))) ||
+        (typeof value.defaultValue !== 'number' || !Number.isFinite(value.defaultValue))) ||
+      (value.min !== null && (typeof value.min !== 'number' || !Number.isFinite(value.min))) ||
+      (value.max !== null && (typeof value.max !== 'number' || !Number.isFinite(value.max))) ||
       (value.min !== null && value.max !== null && value.min > value.max) ||
       (value.defaultValue !== null &&
         ((value.min !== null && value.defaultValue < value.min) ||
@@ -386,7 +344,7 @@ const projectHitlField = (value) => {
       return null;
     return {
       id: value.id,
-      type: "number",
+      type: 'number',
       label: value.label,
       required: value.required,
       defaultValue: value.defaultValue,
@@ -394,37 +352,24 @@ const projectHitlField = (value) => {
       max: value.max,
     };
   }
-  if (value.type === "boolean") {
+  if (value.type === 'boolean') {
     if (
-      !hasExactKeys(value, [
-        "id",
-        "type",
-        "label",
-        "required",
-        "defaultValue",
-      ]) ||
-      (value.defaultValue !== null && typeof value.defaultValue !== "boolean")
+      !hasExactKeys(value, ['id', 'type', 'label', 'required', 'defaultValue']) ||
+      (value.defaultValue !== null && typeof value.defaultValue !== 'boolean')
     )
       return null;
     return {
       id: value.id,
-      type: "boolean",
+      type: 'boolean',
       label: value.label,
       required: value.required,
       defaultValue: value.defaultValue,
     };
   }
-  if (value.type === "select") {
+  if (value.type === 'select') {
     const options = projectHitlOptions(value.options, value.id);
     if (
-      !hasExactKeys(value, [
-        "id",
-        "type",
-        "label",
-        "required",
-        "defaultValue",
-        "options",
-      ]) ||
+      !hasExactKeys(value, ['id', 'type', 'label', 'required', 'defaultValue', 'options']) ||
       options === null ||
       (value.defaultValue !== null &&
         (!validLocalId(value.defaultValue) ||
@@ -434,7 +379,7 @@ const projectHitlField = (value) => {
       return null;
     return {
       id: value.id,
-      type: "select",
+      type: 'select',
       label: value.label,
       required: value.required,
       defaultValue: value.defaultValue,
@@ -453,38 +398,30 @@ const projectHitlDefinition = (value) => {
   )
     return null;
   let definition = null;
-  if (value.kind === "info") {
+  if (value.kind === 'info') {
     if (
-      hasExactKeys(value, ["kind", "title", "body", "acknowledgeLabel"]) &&
+      hasExactKeys(value, ['kind', 'title', 'body', 'acknowledgeLabel']) &&
       validContentText(value.body, BOARD_LIMITS.maxMarkdownChars) &&
       safeText(value.acknowledgeLabel) &&
       !containsSecretValue(value.acknowledgeLabel)
     ) {
       definition = {
-        kind: "info",
+        kind: 'info',
         title: value.title,
         body: value.body,
         acknowledgeLabel: value.acknowledgeLabel,
       };
     }
-  } else if (value.kind === "choice") {
+  } else if (value.kind === 'choice') {
     const options = projectHitlOptions(value.options);
     if (
       hasOptionalExactKeys(
         value,
-        [
-          "kind",
-          "title",
-          "multiple",
-          "minSelections",
-          "maxSelections",
-          "options",
-        ],
-        ["body"],
+        ['kind', 'title', 'multiple', 'minSelections', 'maxSelections', 'options'],
+        ['body'],
       ) &&
-      (value.body === undefined ||
-        validContentText(value.body, BOARD_LIMITS.maxMarkdownChars)) &&
-      typeof value.multiple === "boolean" &&
+      (value.body === undefined || validContentText(value.body, BOARD_LIMITS.maxMarkdownChars)) &&
+      typeof value.multiple === 'boolean' &&
       Number.isSafeInteger(value.minSelections) &&
       value.minSelections >= 1 &&
       Number.isSafeInteger(value.maxSelections) &&
@@ -492,11 +429,10 @@ const projectHitlDefinition = (value) => {
       options !== null &&
       value.minSelections <= value.maxSelections &&
       value.maxSelections <= options.length &&
-      (value.multiple ||
-        (value.minSelections === 1 && value.maxSelections === 1))
+      (value.multiple || (value.minSelections === 1 && value.maxSelections === 1))
     ) {
       definition = {
-        kind: "choice",
+        kind: 'choice',
         title: value.title,
         ...(value.body === undefined ? {} : { body: value.body }),
         multiple: value.multiple,
@@ -505,18 +441,11 @@ const projectHitlDefinition = (value) => {
         options,
       };
     }
-  } else if (value.kind === "form") {
-    const fields = Array.isArray(value.fields)
-      ? value.fields.map(projectHitlField)
-      : [];
+  } else if (value.kind === 'form') {
+    const fields = Array.isArray(value.fields) ? value.fields.map(projectHitlField) : [];
     if (
-      hasOptionalExactKeys(
-        value,
-        ["kind", "title", "fields", "submitLabel"],
-        ["body"],
-      ) &&
-      (value.body === undefined ||
-        validContentText(value.body, BOARD_LIMITS.maxMarkdownChars)) &&
+      hasOptionalExactKeys(value, ['kind', 'title', 'fields', 'submitLabel'], ['body']) &&
+      (value.body === undefined || validContentText(value.body, BOARD_LIMITS.maxMarkdownChars)) &&
       Array.isArray(value.fields) &&
       fields.length >= 1 &&
       fields.length <= BOARD_LIMITS.maxHitlFields &&
@@ -526,7 +455,7 @@ const projectHitlDefinition = (value) => {
       !containsSecretValue(value.submitLabel)
     ) {
       definition = {
-        kind: "form",
+        kind: 'form',
         title: value.title,
         ...(value.body === undefined ? {} : { body: value.body }),
         fields,
@@ -534,23 +463,16 @@ const projectHitlDefinition = (value) => {
       };
     }
   } else if (
-    hasExactKeys(value, [
-      "kind",
-      "title",
-      "body",
-      "impact",
-      "confirmLabel",
-      "cancelLabel",
-    ]) &&
+    hasExactKeys(value, ['kind', 'title', 'body', 'impact', 'confirmLabel', 'cancelLabel']) &&
     validContentText(value.body, BOARD_LIMITS.maxMarkdownChars) &&
-    ["standard", "destructive"].includes(value.impact) &&
+    ['standard', 'destructive'].includes(value.impact) &&
     safeText(value.confirmLabel) &&
     !containsSecretValue(value.confirmLabel) &&
     safeText(value.cancelLabel) &&
     !containsSecretValue(value.cancelLabel)
   ) {
     definition = {
-      kind: "confirmation",
+      kind: 'confirmation',
       title: value.title,
       body: value.body,
       impact: value.impact,
@@ -564,17 +486,14 @@ const projectHitlDefinition = (value) => {
 const projectHitlResponse = (value, definition) => {
   if (!isRecord(value) || value.kind !== definition.kind) return null;
   let response = null;
-  if (value.kind === "info") {
-    if (
-      hasExactKeys(value, ["kind", "acknowledged"]) &&
-      value.acknowledged === true
-    )
-      response = { kind: "info", acknowledged: true };
-  } else if (value.kind === "choice") {
+  if (value.kind === 'info') {
+    if (hasExactKeys(value, ['kind', 'acknowledged']) && value.acknowledged === true)
+      response = { kind: 'info', acknowledged: true };
+  } else if (value.kind === 'choice') {
     const selected = value.selectedOptionIds;
     const known = new Set(definition.options.map((option) => option.id));
     if (
-      hasExactKeys(value, ["kind", "selectedOptionIds"]) &&
+      hasExactKeys(value, ['kind', 'selectedOptionIds']) &&
       Array.isArray(selected) &&
       selected.length >= definition.minSelections &&
       selected.length <= definition.maxSelections &&
@@ -583,13 +502,13 @@ const projectHitlResponse = (value, definition) => {
       new Set(selected).size === selected.length &&
       selected.every((id) => known.has(id))
     ) {
-      response = { kind: "choice", selectedOptionIds: [...selected] };
+      response = { kind: 'choice', selectedOptionIds: [...selected] };
     }
-  } else if (value.kind === "form") {
+  } else if (value.kind === 'form') {
     const values = value.values;
     const fields = new Map(definition.fields.map((field) => [field.id, field]));
     if (
-      hasExactKeys(value, ["kind", "values"]) &&
+      hasExactKeys(value, ['kind', 'values']) &&
       isRecord(values) &&
       Object.keys(values).length === fields.size &&
       Object.keys(values).every((key) => validLocalId(key) && fields.has(key))
@@ -599,32 +518,26 @@ const projectHitlResponse = (value, definition) => {
       for (const [id, field] of fields) {
         const item = values[id];
         if (item === null) valid = !field.required;
-        else if (field.type === "text")
+        else if (field.type === 'text')
           valid =
             validContentText(item, BOARD_LIMITS.maxHitlTextChars) &&
             [...item].length >= field.minLength &&
             [...item].length <= field.maxLength;
-        else if (field.type === "number")
+        else if (field.type === 'number')
           valid =
-            typeof item === "number" &&
+            typeof item === 'number' &&
             Number.isFinite(item) &&
             (field.min === null || item >= field.min) &&
             (field.max === null || item <= field.max);
-        else if (field.type === "boolean") valid = typeof item === "boolean";
-        else
-          valid =
-            validLocalId(item) &&
-            field.options.some((option) => option.id === item);
+        else if (field.type === 'boolean') valid = typeof item === 'boolean';
+        else valid = validLocalId(item) && field.options.some((option) => option.id === item);
         if (!valid) break;
         projected[id] = item;
       }
-      if (valid) response = { kind: "form", values: projected };
+      if (valid) response = { kind: 'form', values: projected };
     }
-  } else if (
-    hasExactKeys(value, ["kind", "confirmed"]) &&
-    typeof value.confirmed === "boolean"
-  ) {
-    response = { kind: "confirmation", confirmed: value.confirmed };
+  } else if (hasExactKeys(value, ['kind', 'confirmed']) && typeof value.confirmed === 'boolean') {
+    response = { kind: 'confirmation', confirmed: value.confirmed };
   }
   return response !== null && publicJsonTree(response) ? response : null;
 };
@@ -633,41 +546,34 @@ const projectHitl = (value) => {
   const definition = projectHitlDefinition(value?.definition);
   if (
     !hasExactKeys(value, [
-      "hitlRequestId",
-      "definition",
-      "state",
-      "createdAt",
-      "expiresAt",
-      "stateUpdatedAt",
-      "response",
-      "answeredAt",
+      'hitlRequestId',
+      'definition',
+      'state',
+      'createdAt',
+      'expiresAt',
+      'stateUpdatedAt',
+      'response',
+      'answeredAt',
     ]) ||
     !validGlobalId(value.hitlRequestId) ||
     definition === null ||
-    !["open", "answered", "superseded", "expired", "cancelled"].includes(
-      value.state,
-    ) ||
+    !['open', 'answered', 'superseded', 'expired', 'cancelled'].includes(value.state) ||
     !validTimestamp(value.createdAt) ||
     (value.expiresAt !== null && !validTimestamp(value.expiresAt)) ||
     !validTimestamp(value.stateUpdatedAt) ||
     (value.answeredAt !== null && !validTimestamp(value.answeredAt))
   )
     return null;
-  const response =
-    value.response === null
-      ? null
-      : projectHitlResponse(value.response, definition);
+  const response = value.response === null ? null : projectHitlResponse(value.response, definition);
   if (value.response !== null && response === null) return null;
   const created = Date.parse(value.createdAt);
   const updated = Date.parse(value.stateUpdatedAt);
   const expires = value.expiresAt === null ? null : Date.parse(value.expiresAt);
-  const answered =
-    value.answeredAt === null ? null : Date.parse(value.answeredAt);
+  const answered = value.answeredAt === null ? null : Date.parse(value.answeredAt);
   if (expires !== null && expires <= created) return null;
-  if (value.state === "open") {
-    if (response !== null || answered !== null || updated !== created)
-      return null;
-  } else if (value.state === "answered") {
+  if (value.state === 'open') {
+    if (response !== null || answered !== null || updated !== created) return null;
+  } else if (value.state === 'answered') {
     if (
       response === null ||
       answered === null ||
@@ -676,13 +582,8 @@ const projectHitl = (value) => {
       (expires !== null && answered >= expires)
     )
       return null;
-  } else if (value.state === "expired") {
-    if (
-      response !== null ||
-      answered !== null ||
-      expires === null ||
-      updated < expires
-    )
+  } else if (value.state === 'expired') {
+    if (response !== null || answered !== null || expires === null || updated < expires)
       return null;
   } else if (
     response !== null ||
@@ -708,23 +609,23 @@ const projectBoardSnapshot = (value) => {
   const capabilities = parseCapabilities(value?.capabilities);
   if (
     !hasExactKeys(value, [
-      "protocolVersion",
-      "type",
-      "boardId",
-      "revision",
-      "scene",
-      "hitl",
-      "artifacts",
-      "capabilities",
-      "lastEventSequence",
+      'protocolVersion',
+      'type',
+      'boardId',
+      'revision',
+      'scene',
+      'hitl',
+      'artifacts',
+      'capabilities',
+      'lastEventSequence',
     ]) ||
     value.protocolVersion !== 1 ||
-    value.type !== "board.snapshot" ||
+    value.type !== 'board.snapshot' ||
     !validGlobalId(value.boardId) ||
     revision === null ||
-    !hasExactKeys(value.scene, ["protocolVersion", "type", "root"]) ||
+    !hasExactKeys(value.scene, ['protocolVersion', 'type', 'root']) ||
     value.scene.protocolVersion !== 1 ||
-    value.scene.type !== "scene" ||
+    value.scene.type !== 'scene' ||
     !publicJsonTree(value.scene.root) ||
     !Array.isArray(value.hitl) ||
     !Array.isArray(value.artifacts) ||
@@ -739,21 +640,18 @@ const projectBoardSnapshot = (value) => {
     hitl.some((item) => item === null) ||
     artifacts.some((item) => item === null) ||
     new Set(hitl.map((item) => item.hitlRequestId)).size !== hitl.length ||
-    new Set(
-      artifacts.map(
-        (item) => `${item.artifact.artifactId}\0${item.artifact.versionId}`,
-      ),
-    ).size !== artifacts.length
+    new Set(artifacts.map((item) => `${item.artifact.artifactId}\0${item.artifact.versionId}`))
+      .size !== artifacts.length
   )
     return null;
   return {
     protocolVersion: 1,
-    type: "board.snapshot",
+    type: 'board.snapshot',
     boardId: value.boardId,
     revision,
     scene: {
       protocolVersion: 1,
-      type: "scene",
+      type: 'scene',
       root: structuredClone(value.scene.root),
     },
     hitl,
@@ -768,19 +666,16 @@ const projectHistoryEntry = (value) => {
   const actor = projectActor(value?.actor);
   if (
     !hasExactKeys(value, [
-      "revision",
-      "previousRevisionId",
-      "originType",
-      "sourceRevisionId",
-      "actor",
+      'revision',
+      'previousRevisionId',
+      'originType',
+      'sourceRevisionId',
+      'actor',
     ]) ||
     revision === null ||
     actor === null ||
-    (value.previousRevisionId !== null &&
-      !validGlobalId(value.previousRevisionId)) ||
-    !["board.create", "scene.replace", "scene.clear", "scene.restore"].includes(
-      value.originType,
-    ) ||
+    (value.previousRevisionId !== null && !validGlobalId(value.previousRevisionId)) ||
+    !['board.create', 'scene.replace', 'scene.clear', 'scene.restore'].includes(value.originType) ||
     (value.sourceRevisionId !== null && !validGlobalId(value.sourceRevisionId))
   )
     return null;
@@ -795,14 +690,9 @@ const projectHistoryEntry = (value) => {
 
 const projectHistoryMetadata = (value) => {
   if (
-    !hasExactKeys(value, [
-      "protocolVersion",
-      "type",
-      "entries",
-      "navigation",
-    ]) ||
+    !hasExactKeys(value, ['protocolVersion', 'type', 'entries', 'navigation']) ||
     value.protocolVersion !== 1 ||
-    value.type !== "history.adapter-metadata" ||
+    value.type !== 'history.adapter-metadata' ||
     !Array.isArray(value.entries) ||
     value.entries.length > 100
   )
@@ -810,7 +700,7 @@ const projectHistoryMetadata = (value) => {
   const entries = [];
   for (const entry of value.entries) {
     if (
-      !hasExactKeys(entry, ["revisionId", "label"]) ||
+      !hasExactKeys(entry, ['revisionId', 'label']) ||
       !validGlobalId(entry.revisionId) ||
       !safeText(entry.label) ||
       containsSecretValue(entry.label)
@@ -822,40 +712,37 @@ const projectHistoryMetadata = (value) => {
   if (value.navigation !== null) {
     if (
       !hasExactKeys(value.navigation, [
-        "revisionId",
-        "previousRevisionId",
-        "nextRevisionId",
-        "latestRevisionId",
+        'revisionId',
+        'previousRevisionId',
+        'nextRevisionId',
+        'latestRevisionId',
       ]) ||
       !validGlobalId(value.navigation.revisionId) ||
       !validGlobalId(value.navigation.latestRevisionId) ||
       (value.navigation.previousRevisionId !== null &&
         !validGlobalId(value.navigation.previousRevisionId)) ||
-      (value.navigation.nextRevisionId !== null &&
-        !validGlobalId(value.navigation.nextRevisionId))
+      (value.navigation.nextRevisionId !== null && !validGlobalId(value.navigation.nextRevisionId))
     )
       return null;
     navigation = { ...value.navigation };
   }
   return {
     protocolVersion: 1,
-    type: "history.adapter-metadata",
+    type: 'history.adapter-metadata',
     entries,
     navigation,
   };
 };
 
 const projectResultData = (type, data, correlation) => {
-  if (!isRecord(data) || data.type !== type || !publicJsonTree(data))
-    return null;
-  if (type === "board.list") {
+  if (!isRecord(data) || data.type !== type || !publicJsonTree(data)) return null;
+  if (type === 'board.list') {
     if (
-      !hasExactKeys(data, ["type", "boards", "nextCursor"]) ||
+      !hasExactKeys(data, ['type', 'boards', 'nextCursor']) ||
       !Array.isArray(data.boards) ||
       data.boards.length > 100 ||
       (data.nextCursor !== null &&
-        (typeof data.nextCursor !== "string" ||
-          !CURSOR_PATTERN.test(data.nextCursor)))
+        (typeof data.nextCursor !== 'string' || !CURSOR_PATTERN.test(data.nextCursor)))
     )
       return null;
     const boards = data.boards.map(projectBoardSummary);
@@ -863,52 +750,49 @@ const projectResultData = (type, data, correlation) => {
       ? null
       : { type, boards, nextCursor: data.nextCursor };
   }
-  if (type === "board.get" || type === "board.create") {
+  if (type === 'board.get' || type === 'board.create') {
     const board = projectBoardSummary(data.board);
     const snapshot = projectBoardSnapshot(data.snapshot);
     if (
-      !hasExactKeys(data, ["type", "board", "snapshot"]) ||
+      !hasExactKeys(data, ['type', 'board', 'snapshot']) ||
       board === null ||
       snapshot === null ||
       board.boardId !== snapshot.boardId ||
       board.headRevision.revisionId !== snapshot.revision.revisionId ||
-      (correlation?.boardId !== undefined &&
-        board.boardId !== correlation.boardId)
+      (correlation?.boardId !== undefined && board.boardId !== correlation.boardId)
     )
       return null;
     if (
-      type === "board.create" &&
+      type === 'board.create' &&
       (snapshot.revision.revisionNumber !== 1 || snapshot.scene.root !== null)
     )
       return null;
     return { type, board, snapshot };
   }
-  if (type === "board.archive") {
+  if (type === 'board.archive') {
     const board = projectBoardSummary(data.board);
-    return hasExactKeys(data, ["type", "board"]) &&
+    return hasExactKeys(data, ['type', 'board']) &&
       board !== null &&
-      (correlation?.boardId === undefined ||
-        board.boardId === correlation.boardId)
+      (correlation?.boardId === undefined || board.boardId === correlation.boardId)
       ? { type, board }
       : null;
   }
-  if (type === "capabilities.get") {
+  if (type === 'capabilities.get') {
     const capabilities = parseCapabilities(data.capabilities);
     const sessionAccess = parseSessionAccess(data.sessionAccess);
-    return hasExactKeys(data, ["type", "capabilities", "sessionAccess"]) &&
+    return hasExactKeys(data, ['type', 'capabilities', 'sessionAccess']) &&
       capabilities !== null &&
       sessionAccess !== null
       ? { type, capabilities, sessionAccess }
       : null;
   }
-  if (type === "history.list") {
+  if (type === 'history.list') {
     if (
-      !hasExactKeys(data, ["type", "entries", "nextCursor"]) ||
+      !hasExactKeys(data, ['type', 'entries', 'nextCursor']) ||
       !Array.isArray(data.entries) ||
       data.entries.length > 100 ||
       (data.nextCursor !== null &&
-        (typeof data.nextCursor !== "string" ||
-          !CURSOR_PATTERN.test(data.nextCursor)))
+        (typeof data.nextCursor !== 'string' || !CURSOR_PATTERN.test(data.nextCursor)))
     )
       return null;
     const entries = data.entries.map(projectHistoryEntry);
@@ -916,24 +800,23 @@ const projectResultData = (type, data, correlation) => {
       ? null
       : { type, entries, nextCursor: data.nextCursor };
   }
-  if (type === "history.get") {
+  if (type === 'history.get') {
     const entry = projectHistoryEntry(data.entry);
     const snapshot = projectBoardSnapshot(data.snapshot);
-    return hasExactKeys(data, ["type", "entry", "snapshot"]) &&
+    return hasExactKeys(data, ['type', 'entry', 'snapshot']) &&
       entry !== null &&
       snapshot !== null &&
       entry.revision.revisionId === snapshot.revision.revisionId &&
-      (correlation?.boardId === undefined ||
-        snapshot.boardId === correlation.boardId) &&
+      (correlation?.boardId === undefined || snapshot.boardId === correlation.boardId) &&
       (correlation?.revisionId === undefined ||
         entry.revision.revisionId === correlation.revisionId)
       ? { type, entry, snapshot }
       : null;
   }
-  if (type === "artifact.get") {
+  if (type === 'artifact.get') {
     const manifest = projectArtifactManifest(data.manifest);
     const runtime = projectArtifactRuntime(data.runtime);
-    return hasExactKeys(data, ["type", "manifest", "runtime"]) &&
+    return hasExactKeys(data, ['type', 'manifest', 'runtime']) &&
       manifest !== null &&
       runtime !== null &&
       manifest.artifact.artifactId === runtime.artifact.artifactId &&
@@ -944,45 +827,42 @@ const projectResultData = (type, data, correlation) => {
       ? { type, manifest, runtime }
       : null;
   }
-  if (type === "hitl.read") {
+  if (type === 'hitl.read') {
     const hitl = projectHitl(data.hitl);
-    return hasExactKeys(data, ["type", "changed", "hitl"]) &&
-      typeof data.changed === "boolean" &&
+    return hasExactKeys(data, ['type', 'changed', 'hitl']) &&
+      typeof data.changed === 'boolean' &&
       hitl !== null &&
-      (correlation?.hitlRequestId === undefined ||
-        hitl.hitlRequestId === correlation.hitlRequestId)
+      (correlation?.hitlRequestId === undefined || hitl.hitlRequestId === correlation.hitlRequestId)
       ? { type, changed: data.changed, hitl }
       : null;
   }
-  if (type === "scene.replace" || type === "scene.clear") {
+  if (type === 'scene.replace' || type === 'scene.clear') {
     const revision = projectRevisionSummary(data.revision);
-    return hasExactKeys(data, ["type", "revision"]) && revision !== null
+    return hasExactKeys(data, ['type', 'revision']) && revision !== null
       ? { type, revision }
       : null;
   }
-  if (type === "scene.restore") {
+  if (type === 'scene.restore') {
     const revision = projectRevisionSummary(data.revision);
-    return hasExactKeys(data, ["type", "sourceRevisionId", "revision"]) &&
+    return hasExactKeys(data, ['type', 'sourceRevisionId', 'revision']) &&
       validGlobalId(data.sourceRevisionId) &&
       revision !== null &&
-      (correlation?.revisionId === undefined ||
-        data.sourceRevisionId === correlation.revisionId)
+      (correlation?.revisionId === undefined || data.sourceRevisionId === correlation.revisionId)
       ? { type, sourceRevisionId: data.sourceRevisionId, revision }
       : null;
   }
-  if (type === "hitl.request" || type === "hitl.respond") {
+  if (type === 'hitl.request' || type === 'hitl.respond') {
     const hitl = projectHitl(data.hitl);
-    return hasExactKeys(data, ["type", "hitl"]) &&
+    return hasExactKeys(data, ['type', 'hitl']) &&
       hitl !== null &&
-      hitl.state === (type === "hitl.request" ? "open" : "answered") &&
-      (correlation?.hitlRequestId === undefined ||
-        hitl.hitlRequestId === correlation.hitlRequestId)
+      hitl.state === (type === 'hitl.request' ? 'open' : 'answered') &&
+      (correlation?.hitlRequestId === undefined || hitl.hitlRequestId === correlation.hitlRequestId)
       ? { type, hitl }
       : null;
   }
-  if (type === "artifact.publish" || type === "artifact.stop") {
+  if (type === 'artifact.publish' || type === 'artifact.stop') {
     const artifact = projectArtifactRuntime(data.artifact);
-    return hasExactKeys(data, ["type", "artifact"]) &&
+    return hasExactKeys(data, ['type', 'artifact']) &&
       artifact !== null &&
       (correlation?.artifactId === undefined ||
         (artifact.artifact.artifactId === correlation.artifactId &&
@@ -994,40 +874,31 @@ const projectResultData = (type, data, correlation) => {
   return null;
 };
 
-export const projectBoardEnvelope = (
-  parsed,
-  { requestId, expectedType, status, correlation },
-) => {
+export const projectBoardEnvelope = (parsed, { requestId, expectedType, status, correlation }) => {
   if (
-    !hasExactKeys(parsed, [
-      "protocolVersion",
-      "type",
-      "requestId",
-      "result",
-      "metadata",
-    ]) ||
+    !hasExactKeys(parsed, ['protocolVersion', 'type', 'requestId', 'result', 'metadata']) ||
     parsed.protocolVersion !== 1 ||
-    parsed.type !== "board.http.success" ||
+    parsed.type !== 'board.http.success' ||
     parsed.requestId !== requestId ||
-    !hasExactKeys(parsed.metadata, ["history"]) ||
+    !hasExactKeys(parsed.metadata, ['history']) ||
     !isRecord(parsed.result) ||
     parsed.result.protocolVersion !== 1 ||
     parsed.result.requestId !== requestId ||
-    typeof parsed.result.replayed !== "boolean"
+    typeof parsed.result.replayed !== 'boolean'
   )
     return null;
   const source = parsed.result;
   let result;
-  if (source.type === "mutation.result") {
+  if (source.type === 'mutation.result') {
     if (
       !hasExactKeys(source, [
-        "protocolVersion",
-        "type",
-        "requestId",
-        "boardId",
-        "replayed",
-        "eventIds",
-        "result",
+        'protocolVersion',
+        'type',
+        'requestId',
+        'boardId',
+        'replayed',
+        'eventIds',
+        'result',
       ]) ||
       correlation?.boardId === undefined ||
       source.boardId !== correlation.boardId ||
@@ -1040,67 +911,53 @@ export const projectBoardEnvelope = (
     if (data === null) return null;
     result = {
       protocolVersion: 1,
-      type: "mutation.result",
+      type: 'mutation.result',
       requestId,
       boardId: source.boardId,
       replayed: source.replayed,
       eventIds: [...source.eventIds],
       result: data,
     };
-  } else if (source.type === "board.operation.result") {
-    if (
-      !hasExactKeys(source, [
-        "protocolVersion",
-        "type",
-        "requestId",
-        "replayed",
-        "result",
-      ])
-    )
+  } else if (source.type === 'board.operation.result') {
+    if (!hasExactKeys(source, ['protocolVersion', 'type', 'requestId', 'replayed', 'result']))
       return null;
     const data = projectResultData(expectedType, source.result, correlation);
     if (
       data === null ||
-      (!["board.create", "board.archive"].includes(expectedType) &&
-        source.replayed)
+      (!['board.create', 'board.archive'].includes(expectedType) && source.replayed)
     )
       return null;
     result = {
       protocolVersion: 1,
-      type: "board.operation.result",
+      type: 'board.operation.result',
       requestId,
       replayed: source.replayed,
       result: data,
     };
   } else return null;
   const createdSuccess = [
-    "board.create",
-    "scene.replace",
-    "scene.clear",
-    "hitl.request",
-    "hitl.respond",
-    "artifact.stop",
+    'board.create',
+    'scene.replace',
+    'scene.clear',
+    'hitl.request',
+    'hitl.respond',
+    'artifact.stop',
   ].includes(expectedType);
-  if (
-    createdSuccess ? status !== (result.replayed ? 200 : 201) : status !== 200
-  )
-    return null;
+  if (createdSuccess ? status !== (result.replayed ? 200 : 201) : status !== 200) return null;
   const historyValue = parsed.metadata.history;
-  const history =
-    historyValue === null ? null : projectHistoryMetadata(historyValue);
+  const history = historyValue === null ? null : projectHistoryMetadata(historyValue);
   if (historyValue !== null && history === null) return null;
-  if (expectedType === "history.list") {
+  if (expectedType === 'history.list') {
     if (
       history === null ||
       history.navigation !== null ||
       history.entries.length !== result.result.entries.length ||
       result.result.entries.some(
-        (entry, index) =>
-          entry.revision.revisionId !== history.entries[index]?.revisionId,
+        (entry, index) => entry.revision.revisionId !== history.entries[index]?.revisionId,
       )
     )
       return null;
-  } else if (expectedType === "history.get") {
+  } else if (expectedType === 'history.get') {
     const revisionId = result.result.entry.revision.revisionId;
     if (
       history === null ||
@@ -1112,7 +969,7 @@ export const projectBoardEnvelope = (
   } else if (history !== null) return null;
   return {
     protocolVersion: 1,
-    type: "board.http.success",
+    type: 'board.http.success',
     requestId,
     result,
     metadata: { history },

@@ -1,10 +1,10 @@
 const escapeHtml = (value) =>
   value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 
 export const SLIDE_DECK_PROGRAM = `(()=>{const root=document.querySelector('[data-sb-slide-deck="v1"]');if(!root)return;const stage=root.querySelector('[data-deck-stage]'),slides=[...root.querySelectorAll('[data-deck-slide]')],previous=root.querySelector('[data-deck-previous]'),next=root.querySelector('[data-deck-next]'),current=root.querySelector('[data-deck-current]'),bar=root.querySelector('[data-deck-progress]');if(!stage||slides.length===0||!previous||!next||!current||!bar)return;let index=0;const show=value=>{index=Math.max(0,Math.min(slides.length-1,value));slides.forEach((slide,slideIndex)=>{const active=slideIndex===index;slide.hidden=!active;slide.setAttribute('aria-hidden',String(!active));if(active)slide.removeAttribute('inert');else slide.setAttribute('inert','')});previous.disabled=index===0;next.disabled=index===slides.length-1;current.textContent=(index+1)+' / '+slides.length;bar.setAttribute('aria-valuenow',String(index+1));bar.style.setProperty('--sb-deck-progress',((index+1)/slides.length*100)+'%');const activeSlide=slides[index],pageId=activeSlide&&activeSlide.getAttribute('data-deck-slide');if(pageId&&window.SceneBoardArtifact&&window.SceneBoardArtifact.changePresentationPage)window.SceneBoardArtifact.changePresentationPage({pageId,pageIndex:index,pageCount:slides.length})};previous.addEventListener('click',()=>show(index-1));next.addEventListener('click',()=>show(index+1));root.addEventListener('keydown',event=>{if(event.key==='ArrowLeft'||event.key==='PageUp'){event.preventDefault();show(index-1)}else if(event.key==='ArrowRight'||event.key==='PageDown'||event.key===' '){event.preventDefault();show(index+1)}else if(event.key==='Home'){event.preventDefault();show(0)}else if(event.key==='End'){event.preventDefault();show(slides.length-1)}});const resize=()=>{const scale=Math.min(Math.max(1,root.clientWidth)/1920,Math.max(1,root.clientHeight)/1080);stage.style.transform='scale('+scale+')'};resize();show(0);root.focus({preventScroll:true});if(window.SceneBoardArtifact&&window.SceneBoardArtifact.requestResize)window.SceneBoardArtifact.requestResize(1920,1080);if(typeof ResizeObserver==='function')new ResizeObserver(resize).observe(root);else if(typeof requestAnimationFrame==='function')requestAnimationFrame(resize)})()`;
 
@@ -12,30 +12,30 @@ const SLIDE_DECK_CSS = `.sb-deck-shell{position:relative;box-sizing:border-box;w
 
 export const renderSlideDeck = (recipe) => {
   const h = escapeHtml;
-  const card = (label, detail, extra = "") =>
+  const card = (label, detail, extra = '') =>
     `<article class="sb-deck-card">${extra}<h2>${h(label)}</h2><p>${h(detail)}</p></article>`;
   const renderSlide = (slide, index) => {
     const titleId = `sb-slide-title-${index + 1}`;
     let body;
-    if (slide.type === "cover")
-      body = `<div class="sb-deck-badges">${slide.badges.map((badge) => `<span class="sb-deck-badge">${h(badge)}</span>`).join("")}</div><div class="sb-deck-grid">${slide.highlights.map((item) => card(item.label, item.detail)).join("")}</div>`;
-    else if (slide.type === "problem")
-      body = `<div class="sb-deck-grid">${slide.items.map((item) => card(item.label, item.detail)).join("")}</div>`;
-    else if (slide.type === "process")
-      body = `<div class="sb-deck-grid">${slide.steps.map((item) => card(item.label, item.detail)).join("")}</div>`;
-    else if (slide.type === "business-model")
-      body = `<div class="sb-deck-grid">${slide.offers.map((offer) => `<article class="sb-deck-card"><h2>${h(offer.label)}</h2><strong class="sb-offer-price">${h(offer.price)}</strong><p>${h(offer.detail)}</p>${offer.features.map((feature) => `<div class="sb-offer-feature">${h(feature)}</div>`).join("")}</article>`).join("")}</div>`;
-    else if (slide.type === "metrics" || slide.type === "evidence")
-      body = `<div class="sb-deck-grid">${slide.metrics.map((metric) => card(metric.label, metric.detail, `<strong class="sb-metric-value">${h(metric.value)}</strong>`)).join("")}</div>`;
-    else if (slide.type === "timeline")
-      body = `<div class="sb-deck-grid">${slide.events.map((event) => card(event.label, event.detail, `<time>${h(event.date)}</time>`)).join("")}</div>`;
+    if (slide.type === 'cover')
+      body = `<div class="sb-deck-badges">${slide.badges.map((badge) => `<span class="sb-deck-badge">${h(badge)}</span>`).join('')}</div><div class="sb-deck-grid">${slide.highlights.map((item) => card(item.label, item.detail)).join('')}</div>`;
+    else if (slide.type === 'problem')
+      body = `<div class="sb-deck-grid">${slide.items.map((item) => card(item.label, item.detail)).join('')}</div>`;
+    else if (slide.type === 'process')
+      body = `<div class="sb-deck-grid">${slide.steps.map((item) => card(item.label, item.detail)).join('')}</div>`;
+    else if (slide.type === 'business-model')
+      body = `<div class="sb-deck-grid">${slide.offers.map((offer) => `<article class="sb-deck-card"><h2>${h(offer.label)}</h2><strong class="sb-offer-price">${h(offer.price)}</strong><p>${h(offer.detail)}</p>${offer.features.map((feature) => `<div class="sb-offer-feature">${h(feature)}</div>`).join('')}</article>`).join('')}</div>`;
+    else if (slide.type === 'metrics' || slide.type === 'evidence')
+      body = `<div class="sb-deck-grid">${slide.metrics.map((metric) => card(metric.label, metric.detail, `<strong class="sb-metric-value">${h(metric.value)}</strong>`)).join('')}</div>`;
+    else if (slide.type === 'timeline')
+      body = `<div class="sb-deck-grid">${slide.events.map((event) => card(event.label, event.detail, `<time>${h(event.date)}</time>`)).join('')}</div>`;
     else
-      body = `<div class="sb-deck-grid">${slide.actions.map((item) => card(item.label, item.detail)).join("")}</div><p class="sb-closing-line">${h(slide.closingLine)}</p>`;
-    return `<article class="sb-slide sb-${h(slide.type)}" data-deck-slide="${h(slide.key)}" role="group" aria-roledescription="slide" aria-labelledby="${titleId}"${index === 0 ? ' aria-hidden="false"' : ' hidden aria-hidden="true" inert'}>${slide.eyebrow === null ? "" : `<p class="sb-slide-eyebrow">${h(slide.eyebrow)}</p>`}<h1 id="${titleId}">${h(slide.title)}</h1>${slide.subtitle === null ? "" : `<p class="sb-slide-subtitle">${h(slide.subtitle)}</p>`}${body}</article>`;
+      body = `<div class="sb-deck-grid">${slide.actions.map((item) => card(item.label, item.detail)).join('')}</div><p class="sb-closing-line">${h(slide.closingLine)}</p>`;
+    return `<article class="sb-slide sb-${h(slide.type)}" data-deck-slide="${h(slide.key)}" role="group" aria-roledescription="slide" aria-labelledby="${titleId}"${index === 0 ? ' aria-hidden="false"' : ' hidden aria-hidden="true" inert'}>${slide.eyebrow === null ? '' : `<p class="sb-slide-eyebrow">${h(slide.eyebrow)}</p>`}<h1 id="${titleId}">${h(slide.title)}</h1>${slide.subtitle === null ? '' : `<p class="sb-slide-subtitle">${h(slide.subtitle)}</p>`}${body}</article>`;
   };
   return {
     artifactId: null,
-    html: `<main class="sb-deck-shell" data-sb-slide-deck="v1" data-motion="${h(recipe.motion)}" aria-label="${h(recipe.content.deckLabel)}" tabindex="0"><div class="sb-deck-stage" data-deck-stage><header class="sb-deck-top"><span>${h(recipe.content.deckLabel)}</span><span class="sb-deck-page" data-deck-current aria-live="polite">1 / ${recipe.content.slides.length}</span></header><section class="sb-deck-slides" aria-label="${h(recipe.content.deckLabel)} slides">${recipe.content.slides.map(renderSlide).join("")}</section><div class="sb-deck-progress" data-deck-progress role="progressbar" aria-label="Slide progress" aria-valuemin="1" aria-valuemax="${recipe.content.slides.length}" aria-valuenow="1"></div><p class="sb-deck-help">← → 키 또는 버튼으로 이동</p><nav class="sb-deck-controls" aria-label="Slide navigation"><button class="sb-deck-button" type="button" data-deck-previous aria-label="Previous slide" disabled>←</button><button class="sb-deck-button" type="button" data-deck-next aria-label="Next slide">→</button></nav></div></main>`,
+    html: `<main class="sb-deck-shell" data-sb-slide-deck="v1" data-motion="${h(recipe.motion)}" aria-label="${h(recipe.content.deckLabel)}" tabindex="0"><div class="sb-deck-stage" data-deck-stage><header class="sb-deck-top"><span>${h(recipe.content.deckLabel)}</span><span class="sb-deck-page" data-deck-current aria-live="polite">1 / ${recipe.content.slides.length}</span></header><section class="sb-deck-slides" aria-label="${h(recipe.content.deckLabel)} slides">${recipe.content.slides.map(renderSlide).join('')}</section><div class="sb-deck-progress" data-deck-progress role="progressbar" aria-label="Slide progress" aria-valuemin="1" aria-valuemax="${recipe.content.slides.length}" aria-valuenow="1"></div><p class="sb-deck-help">← → 키 또는 버튼으로 이동</p><nav class="sb-deck-controls" aria-label="Slide navigation"><button class="sb-deck-button" type="button" data-deck-previous aria-label="Previous slide" disabled>←</button><button class="sb-deck-button" type="button" data-deck-next aria-label="Next slide">→</button></nav></div></main>`,
     css: SLIDE_DECK_CSS,
     javascript: SLIDE_DECK_PROGRAM,
     requestedCapabilities: [],

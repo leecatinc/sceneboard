@@ -1,15 +1,12 @@
-import {
-  canonicalizeWorkflowSpec,
-  validateWorkflowSpec,
-} from "./workflow-spec-core.mjs";
+import { canonicalizeWorkflowSpec, validateWorkflowSpec } from './workflow-spec-core.mjs';
 
 const escapeHtml = (value) =>
   String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 
 const WORKFLOW_GRAPH_RENDER_LIMITS = Object.freeze({
   nodes: 32,
@@ -30,13 +27,11 @@ const compareIds = (left, right) => (left < right ? -1 : left > right ? 1 : 0);
 
 const flowRelationship = (flow, flows) => {
   const outgoing = flow.nodes
-    .filter((node) => node.kind === "subflow")
+    .filter((node) => node.kind === 'subflow')
     .map((node) => flows.find((candidate) => candidate.id === node.subflowId))
     .filter(Boolean);
   const parents = flows.filter((candidate) =>
-    candidate.nodes.some(
-      (node) => node.kind === "subflow" && node.subflowId === flow.id,
-    ),
+    candidate.nodes.some((node) => node.kind === 'subflow' && node.subflowId === flow.id),
   );
   return { outgoing, parents };
 };
@@ -45,8 +40,7 @@ const layoutFlow = (flow) => {
   const nodes = new Map(flow.nodes.map((node) => [node.id, node]));
   const outgoing = new Map(flow.nodes.map((node) => [node.id, []]));
   for (const edge of flow.edges) outgoing.get(edge.fromNodeId).push(edge);
-  for (const edges of outgoing.values())
-    edges.sort((left, right) => compareIds(left.id, right.id));
+  for (const edges of outgoing.values()) edges.sort((left, right) => compareIds(left.id, right.id));
   const ranks = new Map(flow.entryNodeIds.map((nodeId) => [nodeId, 0]));
   const queue = [...flow.entryNodeIds];
   while (queue.length > 0) {
@@ -57,26 +51,18 @@ const layoutFlow = (flow) => {
       queue.push(edge.toNodeId);
     }
   }
-  const unreachable = [...nodes.keys()]
-    .filter((nodeId) => !ranks.has(nodeId))
-    .sort();
+  const unreachable = [...nodes.keys()].filter((nodeId) => !ranks.has(nodeId)).sort();
   const finalRank = Math.max(0, ...ranks.values()) + 1;
-  unreachable.forEach((nodeId, index) =>
-    ranks.set(nodeId, finalRank + Math.floor(index / 3)),
-  );
+  unreachable.forEach((nodeId, index) => ranks.set(nodeId, finalRank + Math.floor(index / 3)));
   const groups = new Map();
-  for (const node of [...flow.nodes].sort((left, right) =>
-    compareIds(left.id, right.id),
-  )) {
+  for (const node of [...flow.nodes].sort((left, right) => compareIds(left.id, right.id))) {
     const rank = ranks.get(node.id);
     const group = groups.get(rank) ?? [];
     group.push(node);
     groups.set(rank, group);
   }
   const positions = new Map();
-  for (const [rank, group] of [...groups].sort(
-    ([left], [right]) => left - right,
-  ))
+  for (const [rank, group] of [...groups].sort(([left], [right]) => left - right))
     group.forEach((node, index) =>
       positions.set(node.id, {
         x: GRAPH_LAYOUT.paddingX + rank * GRAPH_LAYOUT.rankGap,
@@ -102,9 +88,9 @@ const layoutFlow = (flow) => {
 };
 
 const edgeLabelText = (edge) => {
-  const raw = String(edge.label ?? edge.condition?.text ?? "");
+  const raw = String(edge.label ?? edge.condition?.text ?? '');
   const characters = Array.from(raw);
-  return characters.length > 24 ? `${characters.slice(0, 23).join("")}…` : raw;
+  return characters.length > 24 ? `${characters.slice(0, 23).join('')}…` : raw;
 };
 
 const edgeLabelWidth = (label) =>
@@ -123,7 +109,7 @@ const layoutEdges = (flow, layout) => {
   const pairGroups = new Map();
   for (const edge of flow.edges) {
     const pair = [edge.fromNodeId, edge.toNodeId].sort(compareIds);
-    const key = pair.join("\u0000");
+    const key = pair.join('\u0000');
     const group = pairGroups.get(key) ?? { pair, edges: [] };
     group.edges.push(edge);
     pairGroups.set(key, group);
@@ -207,8 +193,7 @@ const layoutEdges = (flow, layout) => {
               : to.x + GRAPH_LAYOUT.nodeWidth + GRAPH_LAYOUT.edgeGap,
             y: to.y + GRAPH_LAYOUT.nodeHeight / 2,
           };
-      const laneOffset =
-        edges.length === 1 ? 0 : (laneIndex - (edges.length - 1) / 2) * 104;
+      const laneOffset = edges.length === 1 ? 0 : (laneIndex - (edges.length - 1) / 2) * 104;
       const control = {
         x: (start.x + end.x) / 2 + normal.x * laneOffset,
         y: (start.y + end.y) / 2 + normal.y * laneOffset,
@@ -234,38 +219,32 @@ const layoutEdges = (flow, layout) => {
 };
 
 const evidenceMarkup = (evidence) => {
-  if (!evidence) return "<p>No source evidence was recorded.</p>";
+  if (!evidence) return '<p>No source evidence was recorded.</p>';
   const refs = evidence.sourceRefs
     .map(
       (item) =>
-        `<li>${escapeHtml(item.sourceId)}${item.locator == null ? "" : ` · ${escapeHtml(item.locator)}`}${item.startLine == null ? "" : ` · lines ${item.startLine}–${item.endLine}`}</li>`,
+        `<li>${escapeHtml(item.sourceId)}${item.locator == null ? '' : ` · ${escapeHtml(item.locator)}`}${item.startLine == null ? '' : ` · lines ${item.startLine}–${item.endLine}`}</li>`,
     )
-    .join("");
-  return `<p><strong>${escapeHtml(evidence.basis)}</strong></p>${refs === "" ? "<p>No source references were recorded.</p>" : `<ul>${refs}</ul>`}`;
+    .join('');
+  return `<p><strong>${escapeHtml(evidence.basis)}</strong></p>${refs === '' ? '<p>No source references were recorded.</p>' : `<ul>${refs}</ul>`}`;
 };
 
 const detailSection = (kind, element) => {
   const rows = Object.entries(element)
-    .filter(([key]) => !["id", "evidence"].includes(key))
+    .filter(([key]) => !['id', 'evidence'].includes(key))
     .map(([key, value]) => {
       const rendered = Array.isArray(value)
-        ? value.join("\n")
-        : typeof value === "object"
+        ? value.join('\n')
+        : typeof value === 'object'
           ? JSON.stringify(value)
           : value;
-      return `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(rendered ?? "—")}</dd>`;
+      return `<dt>${escapeHtml(key)}</dt><dd>${escapeHtml(rendered ?? '—')}</dd>`;
     })
-    .join("");
+    .join('');
   return `<section id="workflow-detail-${escapeHtml(element.id)}" data-workflow-detail hidden><p class="sb-graph-kind">${escapeHtml(kind)}</p><h3>${escapeHtml(element.label ?? element.title ?? element.id)}</h3><dl>${rows}</dl><h4>Evidence</h4>${evidenceMarkup(element.evidence ?? [])}</section>`;
 };
 
-const renderFlow = (
-  flow,
-  index,
-  flows,
-  hasMultipleFlows,
-  jsonExportControl,
-) => {
+const renderFlow = (flow, index, flows, hasMultipleFlows, jsonExportControl) => {
   const layout = layoutFlow(flow);
   const relationship = flowRelationship(flow, flows);
   const edgeGeometries = layoutEdges(flow, layout);
@@ -275,21 +254,21 @@ const renderFlow = (
       const colorIndex = edgeIndex % WORKFLOW_GRAPH_EDGE_COLOR_COUNT;
       return `<path class="sb-graph-path sb-graph-edge-color-${colorIndex}" data-element-id="${escapeHtml(edge.id)}" data-from-node-id="${escapeHtml(edge.fromNodeId)}" data-to-node-id="${escapeHtml(edge.toNodeId)}" data-lane-offset="${geometry.laneOffset}" d="M ${Math.round(geometry.start.x)} ${Math.round(geometry.start.y)} Q ${Math.round(geometry.control.x)} ${Math.round(geometry.control.y)} ${Math.round(geometry.end.x)} ${Math.round(geometry.end.y)}" marker-end="url(#workflow-arrow-${index}-${colorIndex})"/>`;
     })
-    .join("");
+    .join('');
   const edgeMarkers = Array.from(
     { length: WORKFLOW_GRAPH_EDGE_COLOR_COUNT },
     (_, colorIndex) =>
       `<marker id="workflow-arrow-${index}-${colorIndex}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="sb-graph-marker sb-graph-edge-color-${colorIndex}" d="M 0 0 L 10 5 L 0 10 z"/></marker>`,
-  ).join("");
+  ).join('');
   const edgeLabels = flow.edges
     .map((edge, edgeIndex) => {
       const geometry = edgeGeometries.get(edge.id);
       const colorIndex = edgeIndex % WORKFLOW_GRAPH_EDGE_COLOR_COUNT;
       return geometry.label
         ? `<g class="sb-graph-edge-label sb-graph-edge-color-${colorIndex}" data-edge-label data-element-id="${escapeHtml(edge.id)}" data-label-x="${Math.round(geometry.labelX)}" data-label-y="${Math.round(geometry.labelY)}"><rect x="${Math.round(geometry.labelX - geometry.labelWidth / 2)}" y="${Math.round(geometry.labelY - 12)}" width="${geometry.labelWidth}" height="24" rx="7"/><text x="${Math.round(geometry.labelX)}" y="${Math.round(geometry.labelY)}">${escapeHtml(geometry.label)}</text></g>`
-        : "";
+        : '';
     })
-    .join("");
+    .join('');
   const edgeButtons = flow.edges
     .map((edge) => {
       const geometry = edgeGeometries.get(edge.id);
@@ -298,46 +277,42 @@ const renderFlow = (
       const top = Math.round(geometry.labelY) - 15;
       return `<button type="button" class="sb-graph-edge" style="left:${left}px;top:${top}px;width:${hitWidth}px" data-element-id="${escapeHtml(edge.id)}" data-workflow-open="workflow-detail-${escapeHtml(edge.id)}" aria-label="Open edge details: ${escapeHtml(edge.label ?? edge.id)}"></button>`;
     })
-    .join("");
+    .join('');
   const nodeButtons = flow.nodes
     .map((node) => {
       const position = layout.positions.get(node.id);
-      const state = layout.unreachable.has(node.id)
-        ? ' data-unreachable="true"'
-        : "";
+      const state = layout.unreachable.has(node.id) ? ' data-unreachable="true"' : '';
       return `<button type="button" class="sb-graph-node" style="left:${position.x}px;top:${position.y}px" data-kind="${escapeHtml(node.kind)}" data-element-id="${escapeHtml(node.id)}" data-workflow-open="workflow-detail-${escapeHtml(node.id)}"${state}><strong>${escapeHtml(node.label)}</strong><span>${escapeHtml(node.kind)}</span></button>`;
     })
-    .join("");
+    .join('');
   const details = [
-    ...flow.nodes.map((node) => detailSection("Node", node)),
-    ...flow.edges.map((edge) => detailSection("Edge", edge)),
-  ].join("");
+    ...flow.nodes.map((node) => detailSection('Node', node)),
+    ...flow.edges.map((edge) => detailSection('Edge', edge)),
+  ].join('');
   const entryContext =
     relationship.parents.length === 0
-      ? "Workflow start"
-      : `From ${relationship.parents.map((parent) => parent.title).join(", ")}`;
+      ? 'Workflow start'
+      : `From ${relationship.parents.map((parent) => parent.title).join(', ')}`;
   const exitContext =
     relationship.parents.length === 0
-      ? "Workflow completion"
-      : `Return to ${relationship.parents.map((parent) => parent.title).join(", ")}`;
+      ? 'Workflow completion'
+      : `Return to ${relationship.parents.map((parent) => parent.title).join(', ')}`;
   const subflowLinks = flow.nodes
-    .filter((node) => node.kind === "subflow")
+    .filter((node) => node.kind === 'subflow')
     .map((node, linkIndex) => {
-      const targetIndex = flows.findIndex(
-        (candidate) => candidate.id === node.subflowId,
-      );
+      const targetIndex = flows.findIndex((candidate) => candidate.id === node.subflowId);
       return targetIndex < 0
-        ? ""
+        ? ''
         : `<button type="button" class="sb-graph-subflow-link" style="top:${14 + linkIndex * 42}px" data-flow-target="${targetIndex}" data-parent-flow="${index}">Open ${escapeHtml(node.label)}</button>`;
     })
-    .join("");
+    .join('');
   const breadcrumb = hasMultipleFlows
     ? `<nav aria-label="Breadcrumb"><button type="button" data-flow-overview>Entire flow</button><span aria-hidden="true">/</span><span>${escapeHtml(flow.title)}</span></nav>`
-    : "";
+    : '';
   const flowPorts = hasMultipleFlows
-    ? `<span class="sb-graph-port sb-graph-port-entry" data-entry-port>${escapeHtml(entryContext)} · ${escapeHtml(flow.entryNodeIds.join(", "))}</span><span class="sb-graph-port sb-graph-port-exit" data-exit-port>${escapeHtml(exitContext)} · ${escapeHtml(flow.exitNodeIds.join(", "))}</span>`
-    : "";
-  return `<section class="sb-graph-flow" data-workflow-flow="${index}" data-flow-id="${escapeHtml(flow.id)}" data-flow-title="${escapeHtml(flow.title)}"${index === 0 ? "" : " hidden"} aria-labelledby="workflow-flow-${index}"><header>${breadcrumb}<div class="sb-graph-title"><div><p>Flow ${index + 1}</p><h2 id="workflow-flow-${index}" tabindex="-1">${escapeHtml(flow.title)}</h2></div><div class="sb-graph-view-actions" aria-label="Graph viewport controls"><button type="button" data-zoom-out aria-label="Zoom out" aria-keyshortcuts="-">−</button><output data-zoom-output>100%</output><button type="button" data-zoom-in aria-label="Zoom in" aria-keyshortcuts="+">+</button><button type="button" data-reset-zoom aria-keyshortcuts="0">100%</button><button type="button" data-fit aria-keyshortcuts="F">Fit</button><button type="button" data-focus-selected aria-keyshortcuts="S">Selected</button>${jsonExportControl}</div></div><p class="sb-graph-shortcuts">Shortcuts: +/− zoom · 0 reset · F fit · S selected</p></header><div class="sb-graph-workspace"><div class="sb-graph-stage-wrap"><div class="sb-graph-scroll" tabindex="0" aria-label="Interactive workflow graph; use viewport controls, touch, middle drag, or Space plus drag"><div class="sb-graph-scale-box" style="width:${layout.width}px;height:${layout.height}px" data-base-width="${layout.width}" data-base-height="${layout.height}"><div class="sb-graph-canvas" style="width:${layout.width}px;height:${layout.height}px"><svg class="sb-graph-edge-layer" viewBox="0 0 ${layout.width} ${layout.height}" aria-hidden="true"><defs>${edgeMarkers}</defs>${edgePaths}</svg><svg class="sb-graph-label-layer" viewBox="0 0 ${layout.width} ${layout.height}" aria-hidden="true">${edgeLabels}</svg>${edgeButtons}${nodeButtons}${subflowLinks}</div></div>${flowPorts}</div></div><button type="button" class="sb-graph-inspector-backdrop" data-detail-backdrop hidden aria-label="Close details"></button><aside class="sb-graph-inspector" data-detail-panel hidden role="region" aria-labelledby="workflow-inspector-title-${index}"><button type="button" class="sb-graph-sheet-handle" data-sheet-handle aria-label="Drag down or activate to close details"><span></span></button><header><h2 id="workflow-inspector-title-${index}">Details</h2><button type="button" data-detail-close aria-label="Close details">Close</button></header><div data-detail-body></div></aside></div>${details}</section>`;
+    ? `<span class="sb-graph-port sb-graph-port-entry" data-entry-port>${escapeHtml(entryContext)} · ${escapeHtml(flow.entryNodeIds.join(', '))}</span><span class="sb-graph-port sb-graph-port-exit" data-exit-port>${escapeHtml(exitContext)} · ${escapeHtml(flow.exitNodeIds.join(', '))}</span>`
+    : '';
+  return `<section class="sb-graph-flow" data-workflow-flow="${index}" data-flow-id="${escapeHtml(flow.id)}" data-flow-title="${escapeHtml(flow.title)}"${index === 0 ? '' : ' hidden'} aria-labelledby="workflow-flow-${index}"><header>${breadcrumb}<div class="sb-graph-title"><div><p>Flow ${index + 1}</p><h2 id="workflow-flow-${index}" tabindex="-1">${escapeHtml(flow.title)}</h2></div><div class="sb-graph-view-actions" aria-label="Graph viewport controls"><button type="button" data-zoom-out aria-label="Zoom out" aria-keyshortcuts="-">−</button><output data-zoom-output>100%</output><button type="button" data-zoom-in aria-label="Zoom in" aria-keyshortcuts="+">+</button><button type="button" data-reset-zoom aria-keyshortcuts="0">100%</button><button type="button" data-fit aria-keyshortcuts="F">Fit</button><button type="button" data-focus-selected aria-keyshortcuts="S">Selected</button>${jsonExportControl}</div></div><p class="sb-graph-shortcuts">Shortcuts: +/− zoom · 0 reset · F fit · S selected</p></header><div class="sb-graph-workspace"><div class="sb-graph-stage-wrap"><div class="sb-graph-scroll" tabindex="0" aria-label="Interactive workflow graph; use viewport controls, touch, middle drag, or Space plus drag"><div class="sb-graph-scale-box" style="width:${layout.width}px;height:${layout.height}px" data-base-width="${layout.width}" data-base-height="${layout.height}"><div class="sb-graph-canvas" style="width:${layout.width}px;height:${layout.height}px"><svg class="sb-graph-edge-layer" viewBox="0 0 ${layout.width} ${layout.height}" aria-hidden="true"><defs>${edgeMarkers}</defs>${edgePaths}</svg><svg class="sb-graph-label-layer" viewBox="0 0 ${layout.width} ${layout.height}" aria-hidden="true">${edgeLabels}</svg>${edgeButtons}${nodeButtons}${subflowLinks}</div></div>${flowPorts}</div></div><button type="button" class="sb-graph-inspector-backdrop" data-detail-backdrop hidden aria-label="Close details"></button><aside class="sb-graph-inspector" data-detail-panel hidden role="region" aria-labelledby="workflow-inspector-title-${index}"><button type="button" class="sb-graph-sheet-handle" data-sheet-handle aria-label="Drag down or activate to close details"><span></span></button><header><h2 id="workflow-inspector-title-${index}">Details</h2><button type="button" data-detail-close aria-label="Close details">Close</button></header><div data-detail-body></div></aside></div>${details}</section>`;
 };
 
 export const WORKFLOW_GRAPH_PROGRAM = `(()=>{const root=document.querySelector('[data-sb-workflow-graph="v1"]');if(!root)return;const status=root.querySelector('[data-copy-status]'),source=root.querySelector('[data-workflow-json]'),manual=root.querySelector('[data-copy-manual]'),hostCopy=root.querySelector('[data-copy-host]'),overview=root.querySelector('[data-flow-overview-list]');if(!source||!manual||!overview)return;let opener=null,pending=null,timer=null,unsubscribe=null;const select=message=>{source.focus();source.select();if(status)status.textContent=message};const showFlow=index=>{root.querySelectorAll('[data-workflow-flow]').forEach(flow=>flow.hidden=flow.getAttribute('data-workflow-flow')!==index);const flow=root.querySelector('[data-workflow-flow="'+CSS.escape(index)+'"]');if(flow){flow.querySelector('h2')?.focus?.();flow.scrollIntoView({block:'start'})}};root.querySelectorAll('[data-flow-target]').forEach(button=>button.addEventListener('click',()=>showFlow(button.getAttribute('data-flow-target')||'0')));root.querySelectorAll('[data-flow-overview]').forEach(button=>button.addEventListener('click',()=>{overview.scrollIntoView({block:'start'});overview.querySelector('button')?.focus()}));const closePanel=panel=>{panel.hidden=true;panel.querySelector('[data-detail-body]').replaceChildren();if(opener){opener.focus();opener=null}};root.querySelectorAll('[data-workflow-flow]').forEach(flow=>{const panel=flow.querySelector('[data-detail-panel]'),body=flow.querySelector('[data-detail-body]'),close=flow.querySelector('[data-detail-close]'),scroll=flow.querySelector('.sb-graph-scroll'),box=flow.querySelector('.sb-graph-scale-box'),canvas=flow.querySelector('.sb-graph-canvas'),output=flow.querySelector('[data-zoom-output]'),viewport=flow.querySelector('[data-minimap-viewport]'),minimap=flow.querySelector('[data-minimap]');if(!panel||!body||!close||!scroll||!box||!canvas||!output||!viewport||!minimap)return;let scale=1;const width=Number(box.dataset.baseWidth),height=Number(box.dataset.baseHeight);const syncMini=()=>{const x=scroll.scrollWidth<=scroll.clientWidth?0:scroll.scrollLeft/scroll.scrollWidth*100,y=scroll.scrollHeight<=scroll.clientHeight?0:scroll.scrollTop/scroll.scrollHeight*100,w=Math.min(100,scroll.clientWidth/scroll.scrollWidth*100),h=Math.min(100,scroll.clientHeight/scroll.scrollHeight*100);Object.assign(viewport.style,{left:x+'%',top:y+'%',width:w+'%',height:h+'%'})};const apply=next=>{scale=Math.min(2,Math.max(.5,next));canvas.style.transform='scale('+scale+')';box.style.width=Math.round(width*scale)+'px';box.style.height=Math.round(height*scale)+'px';output.textContent=Math.round(scale*100)+'%';syncMini()};flow.querySelector('[data-zoom-out]').addEventListener('click',()=>apply(scale-.1));flow.querySelector('[data-zoom-in]').addEventListener('click',()=>apply(scale+.1));flow.querySelector('[data-fit]').addEventListener('click',()=>{apply(Math.min(1,scroll.clientWidth/width,scroll.clientHeight/height));scroll.scrollTo({left:0,top:0})});scroll.addEventListener('scroll',syncMini,{passive:true});minimap.addEventListener('click',event=>{const rect=minimap.getBoundingClientRect();scroll.scrollTo({left:Math.max(0,(event.clientX-rect.left)/rect.width*scroll.scrollWidth-scroll.clientWidth/2),top:Math.max(0,(event.clientY-rect.top)/rect.height*scroll.scrollHeight-scroll.clientHeight/2),behavior:'smooth'})});flow.querySelectorAll('[data-workflow-open]').forEach(button=>button.addEventListener('click',()=>{const target=flow.querySelector('#'+CSS.escape(button.getAttribute('data-workflow-open')||''));if(!target)return;opener=button;body.replaceChildren(target.cloneNode(true));body.firstElementChild.hidden=false;panel.hidden=false;close.focus()}));close.addEventListener('click',()=>closePanel(panel));flow.addEventListener('keydown',event=>{if(event.key==='Escape'&&!panel.hidden){event.preventDefault();closePanel(panel)}});apply(1)});manual.addEventListener('click',()=>select('Canonical WorkflowSpec JSON selected.'));if(hostCopy)hostCopy.addEventListener('click',()=>{const api=window.SceneBoardArtifact;if(!api||!api.userAction||!api.requestCapability||!api.onHostMessage){select('Host copy is unavailable. Canonical JSON selected.');return}const bytes=new Uint8Array(16);crypto.getRandomValues(bytes);const id=btoa(String.fromCharCode(...bytes)).replaceAll('+','-').replaceAll('/','_').replaceAll('=','');pending=id;if(unsubscribe)unsubscribe();unsubscribe=api.onHostMessage(message=>{if(message.type!=='host.capability.result'||message.requestId!==pending||message.capability!=='clipboard.write')return;pending=null;if(timer)clearTimeout(timer);if(unsubscribe)unsubscribe();unsubscribe=null;if(message.ok){if(status)status.textContent='Canonical WorkflowSpec JSON copied.'}else select('Copy was denied or unavailable. Canonical JSON selected.')});api.userAction(id,'clipboard.write');api.requestCapability(id,'clipboard.write',{text:source.value});timer=setTimeout(()=>{if(pending===id){pending=null;if(unsubscribe)unsubscribe();unsubscribe=null;select('No copy result arrived. Canonical JSON selected.')}},5500)});if(window.SceneBoardArtifact&&window.SceneBoardArtifact.requestResize)window.SceneBoardArtifact.requestResize(1280,800)})()`;
@@ -695,7 +670,7 @@ const WORKFLOW_GRAPH_CSS_V19 = `${WORKFLOW_GRAPH_CSS_V18}.sb-graph-canvas .sb-gr
 export const renderWorkflowGraph = (content, title, fallbackText) => {
   const workflowSpec = validateWorkflowSpec(content.workflowSpec);
   const canonical = canonicalizeWorkflowSpec(workflowSpec);
-  const canonicalBytes = Buffer.byteLength(canonical, "utf8");
+  const canonicalBytes = Buffer.byteLength(canonical, 'utf8');
   const canonicalWorkflowSpec = JSON.parse(canonical);
   const flows = [
     {
@@ -721,18 +696,15 @@ export const renderWorkflowGraph = (content, title, fallbackText) => {
     totals.nodes <= WORKFLOW_GRAPH_RENDER_LIMITS.nodes &&
     totals.edges <= WORKFLOW_GRAPH_RENDER_LIMITS.edges &&
     canonicalBytes <= WORKFLOW_GRAPH_RENDER_LIMITS.canonicalBytes;
-  const capability = content.copyMode === "manual" ? [] : ["clipboard.write"];
+  const capability = content.copyMode === 'manual' ? [] : ['clipboard.write'];
   const copyButton =
-    content.copyMode === "manual"
-      ? ""
-      : '<button type="button" data-copy-host>Copy JSON</button>';
-  const jsonExportControl =
-    '<button type="button" data-json-export>JSON export</button>';
+    content.copyMode === 'manual' ? '' : '<button type="button" data-copy-host>Copy JSON</button>';
+  const jsonExportControl = '<button type="button" data-json-export>JSON export</button>';
   const exportModal = `<button type="button" class="sb-graph-json-backdrop" data-json-backdrop hidden aria-label="Close JSON export"></button><section class="sb-graph-json-modal" data-json-modal hidden role="dialog" aria-modal="true" aria-labelledby="workflow-json-export-title"><header><div><p class="sb-graph-kind">Workflow handoff</p><h2 id="workflow-json-export-title">WorkflowSpec JSON export</h2></div><button type="button" data-json-close aria-label="Close JSON export">Close</button></header><p>This canonical, framework-neutral WorkflowSpec can be provided with the original source for conversion to LangGraph or another workflow framework.</p><textarea readonly class="sb-graph-json-source" data-workflow-json aria-label="Canonical WorkflowSpec JSON">${escapeHtml(canonical)}</textarea><div class="sb-graph-json-actions"><button type="button" data-json-select>Select all</button>${copyButton}</div><p class="sb-graph-action-status" data-copy-status role="status" aria-live="polite"></p></section>`;
   const renderLimitGuidance =
-    content.copyMode === "manual"
-      ? "The graph is not reported as fully rendered. Open JSON export to select the complete canonical JSON."
-      : "Open JSON export to retrieve the complete canonical JSON; the graph is not reported as fully rendered.";
+    content.copyMode === 'manual'
+      ? 'The graph is not reported as fully rendered. Open JSON export to select the complete canonical JSON.'
+      : 'Open JSON export to retrieve the complete canonical JSON; the graph is not reported as fully rendered.';
   return {
     artifactId: null,
     html: `<main class="sb-workflow-graph" data-sb-workflow-graph="v1" aria-label="${escapeHtml(title ?? workflowSpec.workflow.title)}">${
@@ -742,12 +714,12 @@ export const renderWorkflowGraph = (content, title, fallbackText) => {
               ? `<nav class="sb-graph-overview" data-flow-overview-list aria-label="Workflow groups">${flows
                   .map((flow, index) => {
                     const relationship = flowRelationship(flow, flows);
-                    return `<button type="button" data-flow-target="${index}"><strong>${escapeHtml(flow.title)}</strong><span>${flow.nodes.length} nodes · ${flow.edges.length} edges</span><span>Entry: ${escapeHtml(flow.entryNodeIds.join(", "))} · Subflows: ${relationship.outgoing.length} · Parents: ${relationship.parents.length}</span></button>`;
+                    return `<button type="button" data-flow-target="${index}"><strong>${escapeHtml(flow.title)}</strong><span>${flow.nodes.length} nodes · ${flow.edges.length} edges</span><span>Entry: ${escapeHtml(flow.entryNodeIds.join(', '))} · Subflows: ${relationship.outgoing.length} · Parents: ${relationship.parents.length}</span></button>`;
                   })
-                  .join("")}</nav>`
-              : ""
-          }${flows.map((flow, index) => renderFlow(flow, index, flows, hasMultipleFlows, jsonExportControl)).join("")}`
-        : `<section class="sb-graph-render-limit" data-render-limit-exceeded role="status"><div class="sb-graph-actions">${jsonExportControl}</div><h2>Graph preview limit exceeded</h2><p>${escapeHtml(fallbackText ?? "The workflow is valid but too large for the interactive preview.")}</p><p>This valid WorkflowSpec contains ${totals.nodes} nodes, ${totals.edges} edges, and ${canonicalBytes} canonical bytes. ${renderLimitGuidance} The preview limit is ${WORKFLOW_GRAPH_RENDER_LIMITS.nodes} nodes, ${WORKFLOW_GRAPH_RENDER_LIMITS.edges} edges, and ${WORKFLOW_GRAPH_RENDER_LIMITS.canonicalBytes} canonical bytes.</p></section>`
+                  .join('')}</nav>`
+              : ''
+          }${flows.map((flow, index) => renderFlow(flow, index, flows, hasMultipleFlows, jsonExportControl)).join('')}`
+        : `<section class="sb-graph-render-limit" data-render-limit-exceeded role="status"><div class="sb-graph-actions">${jsonExportControl}</div><h2>Graph preview limit exceeded</h2><p>${escapeHtml(fallbackText ?? 'The workflow is valid but too large for the interactive preview.')}</p><p>This valid WorkflowSpec contains ${totals.nodes} nodes, ${totals.edges} edges, and ${canonicalBytes} canonical bytes. ${renderLimitGuidance} The preview limit is ${WORKFLOW_GRAPH_RENDER_LIMITS.nodes} nodes, ${WORKFLOW_GRAPH_RENDER_LIMITS.edges} edges, and ${WORKFLOW_GRAPH_RENDER_LIMITS.canonicalBytes} canonical bytes.</p></section>`
     }${exportModal}</main>`,
     css: WORKFLOW_GRAPH_CSS_V19,
     javascript: WORKFLOW_GRAPH_PROGRAM_V2,

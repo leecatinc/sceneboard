@@ -155,6 +155,11 @@ claimed.
 
 ## Conversational edits and semantic review
 
+A legacy `1.0` file may contain valid-but-unreferenced `basis:"explicit"` evidence with an empty
+`sourceRefs` array. Preserve that evidence unchanged when its entity semantics do not change. If an
+entity changes, attach an honest reference for the new semantics; never fabricate a locator,
+retroactively rewrite unrelated evidence, or silently downgrade its basis.
+
 Never rewrite the original source. Start from the prior canonical WorkflowSpec and create a proposed
 new canonical file:
 
