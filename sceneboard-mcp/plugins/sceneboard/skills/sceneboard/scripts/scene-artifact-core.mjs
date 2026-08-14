@@ -1,6 +1,7 @@
 import {
   canonicalizeSceneRecipeJson,
   deriveSceneRecipeNodeId,
+  hasDuplicateJsonMembers,
   stringifyCanonicalSceneRecipeJson,
 } from "./scene-recipe-core.mjs";
 import {
@@ -232,9 +233,9 @@ const parseJson = (bytes, placement) => {
     fail("PAYLOAD_TOO_LARGE", []);
   let value;
   try {
-    value = JSON.parse(
-      new TextDecoder("utf-8", { fatal: true }).decode(buffer),
-    );
+    const decoded = new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+    if (hasDuplicateJsonMembers(decoded)) fail("INVALID_JSON", []);
+    value = JSON.parse(decoded);
   } catch {
     fail("INVALID_JSON", []);
   }
@@ -577,7 +578,10 @@ export const validateSceneArtifactRecipe = (value) => {
     else if (Array.isArray(entry)) entry.forEach(collectText);
     else if (object(entry)) Object.values(entry).forEach(collectText);
   };
-  collectText(value);
+  if (value.template === "workflow-graph") {
+    const { workflowSpec: _workflowSpec, ...artifactContent } = value.content;
+    collectText({ ...value, content: artifactContent });
+  } else collectText(value);
   if (
     userTextScalars.reduce((total, count) => total + count, 0) >
     SCENE_ARTIFACT_LIMITS_V1.json.maxUserTextScalars

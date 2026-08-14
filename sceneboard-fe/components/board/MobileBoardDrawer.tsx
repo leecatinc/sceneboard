@@ -1,10 +1,14 @@
 'use client';
 
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode, RefObject } from 'react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useReducer, useRef } from 'react';
 
 import { useI18n } from '../i18n/I18nProvider';
 import styles from './MobileBoardDrawer.module.css';
+import {
+  mobileBoardDrawerSlotSignatureV1,
+  reduceMobileBoardDrawerV1,
+} from './mobile-board-drawer-state';
 
 export type MobileBoardDrawerSlotsV1 = Readonly<{
   boardIdentity: ReactNode | null;
@@ -29,14 +33,13 @@ export function MobileBoardDrawer({
   backgroundRef: RefObject<HTMLDivElement | null>;
 }) {
   const { t } = useI18n();
-  const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const openingTriggerRef = useRef<HTMLElement | null>(null);
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const slotsRef = useRef<HTMLDivElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const previousRouteRef = useRef(routeKey);
-  const slotAvailability = [
+  const slotSignature = mobileBoardDrawerSlotSignatureV1([
     slots.boardIdentity,
     slots.pageDisplay,
     slots.mediaAuthoring,
@@ -44,10 +47,13 @@ export function MobileBoardDrawer({
     slots.status,
     slots.connections,
     slots.ownerAdmin,
-  ]
-    .map((slot) => (slot === null ? '0' : '1'))
-    .join('');
-  const previousSlotAvailabilityRef = useRef(slotAvailability);
+  ]);
+  const [drawerState, dispatchDrawer] = useReducer(reduceMobileBoardDrawerV1, {
+    open: false,
+    dialogEpoch: 0,
+    slotSignature,
+  });
+  const { open } = drawerState;
 
   const restoreFocus = useCallback(() => {
     const openingTrigger = openingTriggerRef.current;
@@ -60,7 +66,7 @@ export function MobileBoardDrawer({
   }, []);
   const close = useCallback(
     (restore = true) => {
-      setOpen(false);
+      dispatchDrawer({ type: 'close' });
       if (restore) restoreFocus();
     },
     [restoreFocus],
@@ -71,9 +77,8 @@ export function MobileBoardDrawer({
     previousRouteRef.current = routeKey;
   }, [close, open, routeKey]);
   useEffect(() => {
-    if (previousSlotAvailabilityRef.current !== slotAvailability && open) close();
-    previousSlotAvailabilityRef.current = slotAvailability;
-  }, [close, open, slotAvailability]);
+    dispatchDrawer({ type: 'slots-hydrated', slotSignature });
+  }, [slotSignature]);
   useEffect(() => {
     if (!open) return;
     const background = backgroundRef.current;
@@ -97,6 +102,10 @@ export function MobileBoardDrawer({
       document.body.classList.remove('mobile-board-drawer-open');
     };
   }, [backgroundRef, open]);
+  useEffect(() => {
+    if (!open || dialogRef.current?.contains(document.activeElement)) return;
+    closeRef.current?.focus();
+  }, [drawerState.slotSignature, open]);
   useEffect(
     () => () => {
       const openingTrigger = openingTriggerRef.current;
@@ -154,7 +163,7 @@ export function MobileBoardDrawer({
         aria-expanded={open}
         onClick={(event) => {
           openingTriggerRef.current = event.currentTarget;
-          setOpen(true);
+          dispatchDrawer({ type: 'open' });
         }}
       >
         {t('presentation.boardControls')}
@@ -172,6 +181,7 @@ export function MobileBoardDrawer({
             role="dialog"
             aria-modal="true"
             aria-label={t('presentation.boardControls')}
+            data-mobile-drawer-dialog-epoch={drawerState.dialogEpoch}
             onKeyDown={trapAndClose}
           >
             <div className={styles.header}>

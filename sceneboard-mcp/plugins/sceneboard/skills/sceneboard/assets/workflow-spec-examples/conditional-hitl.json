@@ -42,7 +42,7 @@
       "errorPolicy": null,
       "subflowId": null,
       "control": null,
-      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [{ "sourceId": "source_approval", "startLine": null, "endLine": null, "locator": "approval.md" }] }
     },
     {
       "id": "approval_route",
@@ -74,7 +74,7 @@
       "errorPolicy": null,
       "subflowId": null,
       "control": { "interaction": "confirmation", "blocking": true },
-      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [{ "sourceId": "source_approval", "startLine": null, "endLine": null, "locator": "approval.md" }] }
     },
     {
       "id": "approval_end",
@@ -90,7 +90,7 @@
       "errorPolicy": null,
       "subflowId": null,
       "control": null,
-      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [{ "sourceId": "source_approval", "startLine": null, "endLine": null, "locator": "approval.md" }] }
     }
   ],
   "edges": [
@@ -103,7 +103,7 @@
       "condition": null,
       "priority": null,
       "stateKeys": [],
-      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [{ "sourceId": "source_approval", "startLine": null, "endLine": null, "locator": "approval.md" }] }
     },
     {
       "id": "approval_edge_human",
@@ -139,7 +139,7 @@
       "condition": null,
       "priority": null,
       "stateKeys": [],
-      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [{ "sourceId": "source_approval", "startLine": null, "endLine": null, "locator": "approval.md" }] }
     }
   ],
   "subflows": [],

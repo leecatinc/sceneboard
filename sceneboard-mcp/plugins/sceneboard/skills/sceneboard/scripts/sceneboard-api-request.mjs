@@ -3,6 +3,7 @@ import {
   CURSOR_PATTERN,
   GLOBAL_ID_PATTERN,
   IDEMPOTENCY_PATTERN,
+  validTimestamp,
 } from "./sceneboard-api-contract.mjs";
 import { SceneBoardApiError } from "./sceneboard-api-error.mjs";
 import { hasExactKeys, isRecord } from "./sceneboard-api-json.mjs";
@@ -358,7 +359,7 @@ export const protectedSpec = (operation, input, requestId) => {
     if (input.wait !== null) {
       if (
         !hasExactKeys(input.wait, ["afterStateUpdatedAt", "timeoutMs"]) ||
-        typeof input.wait.afterStateUpdatedAt !== "string" ||
+        !validTimestamp(input.wait.afterStateUpdatedAt) ||
         !Number.isSafeInteger(input.wait.timeoutMs) ||
         input.wait.timeoutMs < 0 ||
         input.wait.timeoutMs > 30_000

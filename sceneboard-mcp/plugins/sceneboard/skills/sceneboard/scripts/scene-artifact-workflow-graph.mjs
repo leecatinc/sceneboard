@@ -11,7 +11,11 @@ const escapeHtml = (value) =>
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
 
-const WORKFLOW_GRAPH_RENDER_LIMITS = Object.freeze({ nodes: 32, edges: 64 });
+const WORKFLOW_GRAPH_RENDER_LIMITS = Object.freeze({
+  nodes: 32,
+  edges: 64,
+  canonicalBytes: 32768,
+});
 const WORKFLOW_GRAPH_EDGE_COLOR_COUNT = 6;
 const GRAPH_LAYOUT = Object.freeze({
   nodeWidth: 150,
@@ -139,6 +143,37 @@ const layoutEdges = (flow, layout) => {
     edges.forEach((edge, laneIndex) => {
       const from = layout.positions.get(edge.fromNodeId);
       const to = layout.positions.get(edge.toNodeId);
+      if (edge.fromNodeId === edge.toNodeId) {
+        const laneOffset = 64 + laneIndex * 36;
+        const start = {
+          x: from.x + GRAPH_LAYOUT.nodeWidth + GRAPH_LAYOUT.edgeGap,
+          y: from.y + GRAPH_LAYOUT.nodeHeight * 0.3,
+        };
+        const end = {
+          x: start.x,
+          y: from.y + GRAPH_LAYOUT.nodeHeight * 0.7,
+        };
+        const control = {
+          x: start.x + laneOffset,
+          y: from.y + GRAPH_LAYOUT.nodeHeight / 2,
+        };
+        const midpoint = {
+          x: (start.x + 2 * control.x + end.x) / 4,
+          y: (start.y + 2 * control.y + end.y) / 4,
+        };
+        const label = edgeLabelText(edge);
+        geometries.set(edge.id, {
+          control,
+          end,
+          label,
+          labelWidth: edgeLabelWidth(label),
+          labelX: midpoint.x,
+          labelY: midpoint.y - 15,
+          laneOffset,
+          start,
+        });
+        return;
+      }
       const centerDx = to.x - from.x;
       const centerDy = to.y - from.y;
       const verticalRoute =
@@ -398,6 +433,18 @@ export const WORKFLOW_GRAPH_PROGRAM_V2 = `(()=>{
         const fromId=path.getAttribute('data-from-node-id'),toId=path.getAttribute('data-to-node-id');
         const from=nodes.get(fromId),to=nodes.get(toId);if(!from||!to)return;
         const fromCenter={x:from.left+from.width/2,y:from.top+from.height/2},toCenter={x:to.left+to.width/2,y:to.top+to.height/2};
+        const laneOffset=Number(path.dataset.laneOffset)||0;
+        if(fromId===toId){
+          const gap=8,start={x:from.left+from.width+gap,y:from.top+from.height*.3},end={x:from.left+from.width+gap,y:from.top+from.height*.7},control={x:start.x+laneOffset,y:fromCenter.y};
+          const midpoint={x:(start.x+2*control.x+end.x)/4,y:(start.y+2*control.y+end.y)/4};
+          path.setAttribute('d','M '+Math.round(start.x)+' '+Math.round(start.y)+' Q '+Math.round(control.x)+' '+Math.round(control.y)+' '+Math.round(end.x)+' '+Math.round(end.y));
+          const elementId=path.getAttribute('data-element-id'),label=elementId?canvas.querySelector('[data-edge-label][data-element-id="'+CSS.escape(elementId)+'"]'):null;
+          const labelX=Math.round(midpoint.x),labelY=Math.round(midpoint.y-15),rect=label?.querySelector('rect'),text=label?.querySelector('text');
+          if(label&&rect&&text){const labelWidth=Number(rect.getAttribute('width'));label.dataset.labelX=String(labelX);label.dataset.labelY=String(labelY);rect.setAttribute('x',String(Math.round(labelX-labelWidth/2)));rect.setAttribute('y',String(labelY-12));text.setAttribute('x',String(labelX));text.setAttribute('y',String(labelY))}
+          const hitTarget=elementId?canvas.querySelector('.sb-graph-edge[data-element-id="'+CSS.escape(elementId)+'"]'):null;
+          if(hitTarget){hitTarget.style.left=Math.round(labelX-hitTarget.offsetWidth/2)+'px';hitTarget.style.top=Math.round(labelY-hitTarget.offsetHeight/2)+'px'}
+          return
+        }
         const centerDx=toCenter.x-fromCenter.x,centerDy=toCenter.y-fromCenter.y;
         const verticalRoute=Math.abs(centerDx)<Math.min(from.width,to.width)&&Math.abs(centerDy)>=Math.min(from.height,to.height);
         const horizontalForward=centerDx>=0,verticalForward=centerDy>=0,gap=8;
@@ -405,7 +452,7 @@ export const WORKFLOW_GRAPH_PROGRAM_V2 = `(()=>{
         const end=verticalRoute?{x:toCenter.x,y:verticalForward?to.top-gap:to.top+to.height+gap}:{x:horizontalForward?to.left-gap:to.left+to.width+gap,y:toCenter.y};
         const canonicalFirst=fromId<toId?from:to,canonicalSecond=fromId<toId?to:from;
         const canonicalDx=canonicalSecond.left+canonicalSecond.width/2-(canonicalFirst.left+canonicalFirst.width/2),canonicalDy=canonicalSecond.top+canonicalSecond.height/2-(canonicalFirst.top+canonicalFirst.height/2);
-        const canonicalLength=Math.hypot(canonicalDx,canonicalDy)||1,laneOffset=Number(path.dataset.laneOffset)||0;
+        const canonicalLength=Math.hypot(canonicalDx,canonicalDy)||1;
         const control={x:(start.x+end.x)/2-canonicalDy/canonicalLength*laneOffset,y:(start.y+end.y)/2+canonicalDx/canonicalLength*laneOffset};
         const midpoint={x:(start.x+2*control.x+end.x)/4,y:(start.y+2*control.y+end.y)/4};
         path.setAttribute('d','M '+Math.round(start.x)+' '+Math.round(start.y)+' Q '+Math.round(control.x)+' '+Math.round(control.y)+' '+Math.round(end.x)+' '+Math.round(end.y));
@@ -563,8 +610,8 @@ export const WORKFLOW_GRAPH_PROGRAM_V2 = `(()=>{
     }
     flow.addEventListener('keydown',event=>{
       if(event.key==='Escape'&&!panel.hidden){event.preventDefault();closePanel(panel,backdrop);return}
-      if(event.target.matches('textarea,input,select'))return;
-      if(event.code==='Space'){event.preventDefault();stopInitialFit();spacePan=true;scroll.dataset.panReady='true';return}
+      if(event.target.closest('input,textarea,select,option,[contenteditable]:not([contenteditable="false"]),.sb-graph-inspector'))return;
+      if(event.code==='Space'){if(event.target.closest('button,a,summary,[role]:not([role="none"]):not([role="presentation"])'))return;event.preventDefault();stopInitialFit();spacePan=true;scroll.dataset.panReady='true';return}
       if(event.shiftKey&&event.code==='Digit1'){event.preventDefault();stopInitialFit();fit()}
       else if(event.shiftKey&&event.code==='Digit2'){event.preventDefault();stopInitialFit();focusSelected()}
       else if(event.key==='ArrowLeft'){event.preventDefault();stopInitialFit();panX+=48;renderTransform()}
@@ -648,6 +695,7 @@ const WORKFLOW_GRAPH_CSS_V19 = `${WORKFLOW_GRAPH_CSS_V18}.sb-graph-canvas .sb-gr
 export const renderWorkflowGraph = (content, title, fallbackText) => {
   const workflowSpec = validateWorkflowSpec(content.workflowSpec);
   const canonical = canonicalizeWorkflowSpec(workflowSpec);
+  const canonicalBytes = Buffer.byteLength(canonical, "utf8");
   const canonicalWorkflowSpec = JSON.parse(canonical);
   const flows = [
     {
@@ -671,7 +719,8 @@ export const renderWorkflowGraph = (content, title, fallbackText) => {
   );
   const renderable =
     totals.nodes <= WORKFLOW_GRAPH_RENDER_LIMITS.nodes &&
-    totals.edges <= WORKFLOW_GRAPH_RENDER_LIMITS.edges;
+    totals.edges <= WORKFLOW_GRAPH_RENDER_LIMITS.edges &&
+    canonicalBytes <= WORKFLOW_GRAPH_RENDER_LIMITS.canonicalBytes;
   const capability = content.copyMode === "manual" ? [] : ["clipboard.write"];
   const copyButton =
     content.copyMode === "manual"
@@ -698,7 +747,7 @@ export const renderWorkflowGraph = (content, title, fallbackText) => {
                   .join("")}</nav>`
               : ""
           }${flows.map((flow, index) => renderFlow(flow, index, flows, hasMultipleFlows, jsonExportControl)).join("")}`
-        : `<section class="sb-graph-render-limit" data-render-limit-exceeded role="status"><div class="sb-graph-actions">${jsonExportControl}</div><h2>Graph preview limit exceeded</h2><p>${escapeHtml(fallbackText ?? "The workflow is valid but too large for the interactive preview.")}</p><p>This valid WorkflowSpec contains ${totals.nodes} nodes and ${totals.edges} edges. ${renderLimitGuidance} The preview limit is ${WORKFLOW_GRAPH_RENDER_LIMITS.nodes} nodes and ${WORKFLOW_GRAPH_RENDER_LIMITS.edges} edges.</p></section>`
+        : `<section class="sb-graph-render-limit" data-render-limit-exceeded role="status"><div class="sb-graph-actions">${jsonExportControl}</div><h2>Graph preview limit exceeded</h2><p>${escapeHtml(fallbackText ?? "The workflow is valid but too large for the interactive preview.")}</p><p>This valid WorkflowSpec contains ${totals.nodes} nodes, ${totals.edges} edges, and ${canonicalBytes} canonical bytes. ${renderLimitGuidance} The preview limit is ${WORKFLOW_GRAPH_RENDER_LIMITS.nodes} nodes, ${WORKFLOW_GRAPH_RENDER_LIMITS.edges} edges, and ${WORKFLOW_GRAPH_RENDER_LIMITS.canonicalBytes} canonical bytes.</p></section>`
     }${exportModal}</main>`,
     css: WORKFLOW_GRAPH_CSS_V19,
     javascript: WORKFLOW_GRAPH_PROGRAM_V2,

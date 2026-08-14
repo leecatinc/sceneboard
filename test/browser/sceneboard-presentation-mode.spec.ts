@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { chromium, type Page } from 'playwright';
+import { type Page } from 'playwright';
+import { launchBrowser } from './browser-engine';
 
 const boardUrl = process.env.SCENEBOARD_BROWSER_BOARD_URL;
 const storageState = process.env.SCENEBOARD_BROWSER_STORAGE_STATE;
@@ -30,7 +31,7 @@ test(
   async () => {
     assert.ok(boardUrl);
     assert.ok(storageState);
-    const browser = await chromium.launch({ headless: true });
+    const browser = await launchBrowser();
     try {
       const page = await browser.newPage({
         viewport: { width: 1280, height: 800 },
@@ -72,7 +73,7 @@ test(
   async () => {
     assert.ok(boardUrl);
     assert.ok(storageState);
-    const browser = await chromium.launch({ headless: true });
+    const browser = await launchBrowser();
     try {
       const page = await browser.newPage({
         viewport: { width: 1280, height: 800 },

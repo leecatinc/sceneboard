@@ -89,7 +89,9 @@ test('workflow node and edge controls open accessible details and restore focus'
   await detailPanel.waitFor({ state: 'visible' });
   await page.keyboard.press('Escape');
   assert.equal(await edge.evaluate((element) => document.activeElement === element), true);
-  await page.locator('[data-copy-manual]').click();
+  await page.locator('[data-json-export]').first().click();
+  await page.locator('[data-json-modal]').waitFor({ state: 'visible' });
+  await page.locator('[data-json-select]').click();
   assert.equal(
     await page.locator('[data-workflow-json]').evaluate((element) => element.selectionEnd > 0),
     true,
@@ -113,7 +115,11 @@ test('mobile touch drag pans both graph axes and keeps the inspector usable', as
     element.style.minHeight = '0';
   });
   for (let index = 0; index < 10; index += 1) await page.locator('[data-zoom-in]').first().click();
-  await scroll.evaluate((element) => element.scrollTo({ left: 0, top: 0 }));
+  const canvas = page.locator('.sb-graph-canvas').first();
+  const before = await canvas.evaluate((element) => {
+    const transform = new DOMMatrix(getComputedStyle(element).transform);
+    return { x: transform.m41, y: transform.m42 };
+  });
   const bounds = await scroll.boundingBox();
   assert.notEqual(bounds, null);
   const session = await page.context().newCDPSession(page);
@@ -134,12 +140,12 @@ test('mobile touch drag pans both graph axes and keeps the inspector usable', as
     touchPoints: [{ x: start.x - 140, y: start.y - 120, radiusX: 4, radiusY: 4 }],
   });
   await session.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-  const position = await scroll.evaluate((element) => ({
-    left: element.scrollLeft,
-    top: element.scrollTop,
-  }));
-  assert.ok(position.left > 0, JSON.stringify(position));
-  assert.ok(position.top > 0, JSON.stringify(position));
+  const after = await canvas.evaluate((element) => {
+    const transform = new DOMMatrix(getComputedStyle(element).transform);
+    return { x: transform.m41, y: transform.m42 };
+  });
+  assert.ok(Math.abs(after.x - before.x) > 100, JSON.stringify({ before, after }));
+  assert.ok(Math.abs(after.y - before.y) > 80, JSON.stringify({ before, after }));
   await page
     .locator('[data-workflow-open="workflow-detail-approval_route"]')
     .evaluate((element) => element.click());
@@ -189,13 +195,18 @@ test('host-copy denial, unavailable API, and timeout reveal selectable JSON', as
         };
       }, scenario);
     await page.addScriptTag({ content: hostDraft.source.javascript });
-    await page
-      .locator('[data-copy-host]')
-      .first()
-      .evaluate((element) => element.click());
-    await page.waitForFunction(
-      () => document.querySelector('[data-workflow-json]')?.hidden === false,
-    );
+    await page.locator('[data-json-export]').first().click();
+    await page.locator('[data-json-modal]').waitFor({ state: 'visible' });
+    await page.locator('[data-copy-host]').first().click();
+    await page.waitForFunction(() => {
+      const source = document.querySelector('[data-workflow-json]');
+      return (
+        source instanceof HTMLTextAreaElement &&
+        document.activeElement === source &&
+        source.selectionStart === 0 &&
+        source.selectionEnd === source.value.length
+      );
+    });
     await assertSelectedFallback(
       page,
       scenario === 'unavailable'

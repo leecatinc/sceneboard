@@ -1,0 +1,3774 @@
+{
+  "schema": "hpipe.profile.qa-registry",
+  "version": 3,
+  "registry_id": "sceneboard-fe-browser-v3",
+  "projects": [
+    {
+      "id": "sceneboard-fe",
+      "project_root": "monorepo/sceneboard-fe",
+      "scenario_path": "monorepo/sceneboard-fe/qa",
+      "automation_paths": [
+        "monorepo/e2e/api-key-create-sheet-browser.test.mjs",
+        "monorepo/e2e/landing-graph-engineering.test.mjs",
+        "monorepo/e2e/presentation-pages.test.mjs",
+        "monorepo/e2e/shared-board-revalidation.test.mjs",
+        "monorepo/sceneboard-fe/test/api",
+        "monorepo/sceneboard-fe/test/auth",
+        "monorepo/sceneboard-fe/test/auth/email-verification-client.test.ts",
+        "monorepo/sceneboard-fe/test/i18n/ui-localization.test.ts",
+        "monorepo/sceneboard-fe/test/routes",
+        "monorepo/sceneboard-fe/test/routes/account-api-key-settings.test.ts",
+        "monorepo/sceneboard-fe/test/routes/approved-routes.test.ts",
+        "monorepo/sceneboard-fe/test/routes/board-lifecycle-navigation.test.ts",
+        "monorepo/test/browser",
+        "monorepo/test/browser/sceneboard-public-artifact.spec.ts"
+      ],
+      "frameworks": [
+        "Next.js",
+        "Playwright",
+        "Playwright (Chromium launch observed)",
+        "React",
+        "next.js",
+        "node:test",
+        "playwright"
+      ]
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "SCN-SCB-LANDING-GRAPH-INTERACTION-001",
+      "project_id": "sceneboard-fe",
+      "group_kind": "screen",
+      "group_id": "landing",
+      "entry_point": "/",
+      "origin_issue_ids": [],
+      "origin_screen_ids": ["landing"],
+      "cases": [
+        {
+          "id": "SCB-LANDING-GRAPH-STATIC-001",
+          "title": "Signed-out visitor verifies the static workflow preview against the exported JSON",
+          "preconditions": ["Visitor is signed out.", "The landing route / is available."],
+          "setup": ["Open / at a desktop viewport."],
+          "steps": [
+            "Read the graph nodes and edges and compare their displayed identifiers with the read-only exported workflow JSON.",
+            "Inspect representative graph node and edge labels without activating them.",
+            "Continue to the workflow export panel and compare the canonical identifiers."
+          ],
+          "assertions": [
+            "Every graph node and edge displayed to the visitor has a matching identifier in the exported workflow JSON.",
+            "The static graph exposes no dialog, inspector, or activation semantics.",
+            "Every displayed node and edge retains a matching identifier in the canonical workflow JSON."
+          ],
+          "related_surfaces": ["landing", "graph-engineering-hero", "browser"],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SCB-LANDING-GRAPH-EXPORT-001",
+          "title": "Visitor selects the canonical workflow JSON without granting clipboard authority",
+          "preconditions": ["Visitor is signed out.", "The landing route / is available."],
+          "setup": ["Open / and locate the graph workflow export panel."],
+          "steps": ["Activate the WorkflowSpec JSON selection action."],
+          "assertions": [
+            "The read-only workflow JSON textarea receives focus and its entire value is selected.",
+            "A polite live-status message announces that the selection is ready.",
+            "The visitor can copy or inspect the complete workflow specification through normal browser controls without the page writing to the clipboard or requesting an artifact capability."
+          ],
+          "related_surfaces": ["landing", "graph-engineering-hero", "browser"],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SCB-LANDING-GRAPH-RESPONSIVE-001",
+          "title": "Visitor can use the graph workflow without horizontal clipping across supported narrow viewports",
+          "preconditions": ["Visitor is signed out.", "The landing route / is available."],
+          "setup": [
+            "Test desktop 1440x960, mobile portrait 320x568 with reduced motion, tablet 768x1024, and mobile landscape 568x320 viewports."
+          ],
+          "steps": [
+            "Navigate to the graph preview at each viewport.",
+            "On mobile, inspect the final static graph label and verify it remains inside the graph bounds.",
+            "In landscape, scroll to the workflow export panel."
+          ],
+          "assertions": [
+            "The scroll area, preview, and graph fit the visible viewport and graph edges do not overlap nodes.",
+            "The static graph remains presentational at narrow widths and exposes no focusable node or edge controls.",
+            "At every tested viewport, the visitor can see the graph workflow and its export panel without horizontal clipping."
+          ],
+          "related_surfaces": ["landing", "graph-engineering-hero", "browser"],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        }
+      ]
+    },
+    {
+      "id": "SCN-SCB-LANDING-NAVIGATION-001",
+      "project_id": "sceneboard-fe",
+      "group_kind": "screen",
+      "group_id": "landing",
+      "entry_point": "/",
+      "origin_issue_ids": [],
+      "origin_screen_ids": ["landing"],
+      "cases": [
+        {
+          "id": "SCB-LANDING-ANCHOR-NAVIGATION-001",
+          "title": "Visitor navigates from the product navigation to each named landing section",
+          "preconditions": ["The landing route / is available."],
+          "setup": ["Open / at a viewport where the header navigation is available."],
+          "steps": ["Activate Why, Human control, and Open source from the product navigation."],
+          "assertions": [
+            "Why targets the section with id why, Human control targets decision-workspace, and Open source targets open-source.",
+            "The visitor arrives at the named content section they selected."
+          ],
+          "related_surfaces": ["landing", "browser"],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SCB-LANDING-AUTH-ENTRY-001",
+          "title": "Signed-out visitor reaches account creation and sign-in routes from landing calls to action",
+          "preconditions": ["Visitor is signed out.", "The landing route / is available."],
+          "setup": ["Open / and locate the graph, presentation, and final calls to action."],
+          "steps": ["Follow each Create account link.", "Follow the final Sign in link."],
+          "assertions": [
+            "Every Create account call to action targets /signup and the Sign in call to action targets /login.",
+            "The visitor is taken to the requested account-entry destination."
+          ],
+          "related_surfaces": ["landing", "signup", "login", "browser"],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SCB-LANDING-PRESENTATION-SAMPLE-001",
+          "title": "Visitor opens the locale-appropriate presentation sample from landing",
+          "preconditions": [
+            "The landing route / is available.",
+            "Inference: the presentation-sample navigation helper preserves the link destination for supported activation methods; its implementation is outside the sealed evidence."
+          ],
+          "setup": ["Open / in Korean and in a non-Korean locale."],
+          "steps": [
+            "Activate the presentation sample link using mouse and keyboard without modifier keys.",
+            "Activate it with a modifier key to preserve normal link behavior."
+          ],
+          "assertions": [
+            "The rendered sample href uses /demo/presentation?locale=ko for Korean and /demo/presentation?locale=en otherwise.",
+            "Inference: each supported activation reaches that locale's presentation sample in the browsing context selected by the navigation helper or native link behavior.",
+            "The visitor reaches the presentation sample corresponding to the locale shown on landing."
+          ],
+          "related_surfaces": ["landing", "presentation-demo", "browser"],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SCB-LANDING-OPEN-SOURCE-001",
+          "title": "Visitor can open the published SceneBoard source repository from landing",
+          "preconditions": ["The landing route / is available."],
+          "setup": ["Open / and locate the Open source section."],
+          "steps": ["Activate the View GitHub link from the Open source section."],
+          "assertions": [
+            "The link targets https://github.com/leecatinc/sceneboard and declares a new browsing context.",
+            "The visitor is offered the public SceneBoard repository in a separate tab."
+          ],
+          "related_surfaces": ["landing", "external-github", "browser"],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        }
+      ]
+    },
+    {
+      "id": "SCN-SB-AUTH-LOGIN-CREDENTIALS",
+      "project_id": "sceneboard-fe",
+      "group_kind": "screen",
+      "group_id": "auth-login",
+      "entry_point": "/login",
+      "origin_issue_ids": [],
+      "origin_screen_ids": ["auth-login"],
+      "cases": [
+        {
+          "id": "SB-AUTH-LOGIN-001",
+          "title": "Anonymous user signs in with valid email and password",
+          "preconditions": ["The initial session reconciliation resolves with no session."],
+          "setup": ["Provide credentials accepted by the login session client."],
+          "steps": [
+            "Open /login and wait for reconciliation to finish.",
+            "Enter a syntactically valid email and password.",
+            "Submit the sign-in form."
+          ],
+          "assertions": [
+            "The email and password inputs expose their visible labels and are enabled only after reconciliation completes.",
+            "The primary action shows the signing-in state while the request is pending.",
+            "The browser navigates to /settings/ai-connections after a successful login, giving the user the configured post-login destination."
+          ],
+          "related_surfaces": ["/login", "/settings/ai-connections"],
+          "risk_tags": ["authentication", "security"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SB-AUTH-LOGIN-002",
+          "title": "Existing session bypasses the credential form",
+          "preconditions": [
+            "Initial session reconciliation resolves with a non-null session snapshot."
+          ],
+          "setup": [],
+          "steps": ["Open /login."],
+          "assertions": [
+            "The browser navigates to /settings/ai-connections instead of offering a second sign-in flow."
+          ],
+          "related_surfaces": ["/login", "/settings/ai-connections"],
+          "risk_tags": ["authentication", "security"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SB-AUTH-LOGIN-003",
+          "title": "Credentials cannot be submitted before session reconciliation establishes the state",
+          "preconditions": ["Initial session reconciliation is pending."],
+          "setup": [],
+          "steps": [
+            "Open /login while reconciliation remains pending.",
+            "Attempt to focus or activate the credential and Google sign-in controls.",
+            "Resolve reconciliation with no session."
+          ],
+          "assertions": [
+            "All sign-in controls are disabled while the session state is unknown, so a user cannot start a competing authentication attempt.",
+            "After reconciliation reports no session, the form becomes available for sign-in."
+          ],
+          "related_surfaces": ["/login"],
+          "risk_tags": ["authentication", "security", "concurrency"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SB-AUTH-LOGIN-004",
+          "title": "Browser validation blocks empty or malformed credential submissions",
+          "preconditions": ["Initial session reconciliation resolves with no session."],
+          "setup": [],
+          "steps": [
+            "Leave a required credential empty, then attempt sign-in.",
+            "Enter a malformed email address, then attempt sign-in."
+          ],
+          "assertions": [
+            "The browser keeps the user on /login and does not submit invalid credential input.",
+            "The user can correct the required email and password fields before an authentication request is started."
+          ],
+          "related_surfaces": ["/login"],
+          "risk_tags": ["authentication", "security", "input-validation"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SB-AUTH-LOGIN-005",
+          "title": "Invalid credentials produce an accessible error and allow a corrected retry",
+          "preconditions": ["Initial session reconciliation resolves with no session."],
+          "setup": [
+            "Make the first credential attempt return invalid_credentials and the corrected attempt succeed."
+          ],
+          "steps": [
+            "Submit validly formatted but incorrect credentials.",
+            "Observe the error, correct the credentials, and submit again."
+          ],
+          "assertions": [
+            "The invalid-credentials message is announced through the page alert and the controls become usable again.",
+            "The corrected retry reaches /settings/ai-connections, rather than leaving the user trapped after an authentication error."
+          ],
+          "related_surfaces": ["/login", "/settings/ai-connections"],
+          "risk_tags": ["authentication", "security", "recovery", "accessibility"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SB-AUTH-LOGIN-006",
+          "title": "Unexpected credential login failure is recoverable without exposing a false success state",
+          "preconditions": ["Initial session reconciliation resolves with no session."],
+          "setup": [
+            "Make the credential login result any handled non-success value other than invalid_credentials."
+          ],
+          "steps": [
+            "Submit validly formatted credentials.",
+            "Observe the failure state and attempt a later retry after the service recovers."
+          ],
+          "assertions": [
+            "The page shows the generic login-failed alert and does not navigate to the authenticated destination on failure.",
+            "The controls are re-enabled so the user can retry; a later successful retry reaches /settings/ai-connections."
+          ],
+          "related_surfaces": ["/login", "/settings/ai-connections"],
+          "risk_tags": ["authentication", "security", "error-recovery", "accessibility"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        }
+      ]
+    },
+    {
+      "id": "SCN-SB-AUTH-LOGIN-GOOGLE",
+      "project_id": "sceneboard-fe",
+      "group_kind": "screen",
+      "group_id": "auth-login",
+      "entry_point": "/login",
+      "origin_issue_ids": [],
+      "origin_screen_ids": ["auth-login"],
+      "cases": [
+        {
+          "id": "SB-AUTH-LOGIN-007",
+          "title": "Google sign-in success reaches the same authenticated destination",
+          "preconditions": [
+            "Initial session reconciliation resolves with no session.",
+            "The Google token acquisition resolves and the Google login result is successful."
+          ],
+          "setup": [],
+          "steps": ["Open /login and activate Sign in with Google."],
+          "assertions": [
+            "The Google action is unavailable while sign-in is in progress, preventing a second UI activation during the pending attempt.",
+            "After successful Google login, the browser navigates to /settings/ai-connections."
+          ],
+          "related_surfaces": ["/login", "/settings/ai-connections"],
+          "risk_tags": ["authentication", "security", "concurrency"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SB-AUTH-LOGIN-008",
+          "title": "Google invalid-credential response remains on login with a distinct accessible error",
+          "preconditions": [
+            "Initial session reconciliation resolves with no session.",
+            "Google token acquisition resolves but the Google login result is invalid_credentials."
+          ],
+          "setup": [],
+          "steps": ["Activate Sign in with Google."],
+          "assertions": [
+            "The page remains on /login and announces the Google invalid-credentials message through the alert.",
+            "The sign-in controls are enabled again, allowing the user to choose a recovery action."
+          ],
+          "related_surfaces": ["/login"],
+          "risk_tags": ["authentication", "security", "accessibility", "recovery"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SB-AUTH-LOGIN-009",
+          "title": "Google provider cancellation or non-credential failure is recoverable",
+          "preconditions": ["Initial session reconciliation resolves with no session."],
+          "setup": [
+            "Exercise both a rejected Google token acquisition and a handled non-success Google login result other than invalid_credentials."
+          ],
+          "steps": [
+            "Activate Sign in with Google for each failure condition.",
+            "After either failure, complete a later successful Google or credential login."
+          ],
+          "assertions": [
+            "Each failure announces the generic Google-failed alert and does not navigate to the authenticated destination.",
+            "The controls recover after each failure, and the later successful sign-in reaches /settings/ai-connections."
+          ],
+          "related_surfaces": ["/login", "/settings/ai-connections"],
+          "risk_tags": ["authentication", "security", "error-recovery", "accessibility"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        }
+      ]
+    },
+    {
+      "id": "SCN-SB-AUTH-LOGIN-SESSION-RECOVERY",
+      "project_id": "sceneboard-fe",
+      "group_kind": "screen",
+      "group_id": "auth-login",
+      "entry_point": "/login",
+      "origin_issue_ids": [],
+      "origin_screen_ids": ["auth-login"],
+      "cases": [
+        {
+          "id": "SB-AUTH-LOGIN-010",
+          "title": "Unsupported browser state is announced without enabling authentication controls",
+          "preconditions": ["Initial session reconciliation returns unsupported_browser."],
+          "setup": [],
+          "steps": ["Open /login."],
+          "assertions": [
+            "The page announces the unsupported-browser message through its alert.",
+            "Credential and Google sign-in controls remain disabled, leaving the user with a clear blocked state rather than a usable but unsafe form."
+          ],
+          "related_surfaces": ["/login"],
+          "risk_tags": ["authentication", "security", "accessibility"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SB-AUTH-LOGIN-011",
+          "title": "Reconciliation-required state presents verification help and blocks new sign-in",
+          "preconditions": ["Initial session reconciliation returns reconciliation_required."],
+          "setup": [],
+          "steps": ["Open /login."],
+          "assertions": [
+            "The page announces verification-help text through its alert.",
+            "Credential and Google sign-in controls remain disabled, so the user does not proceed while session reconciliation is required."
+          ],
+          "related_surfaces": ["/login"],
+          "risk_tags": ["authentication", "security", "recovery", "accessibility"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SB-AUTH-LOGIN-012",
+          "title": "Concurrent renewal callers share the successful session recovery",
+          "preconditions": [
+            "A reconciled session exists with a current generation.",
+            "Two callers request session renewal concurrently."
+          ],
+          "setup": [
+            "Use the existing SessionRequestCoordinator renewal test fixture with two concurrent renewSession calls."
+          ],
+          "steps": ["Start both renewal calls before either completes."],
+          "assertions": [
+            "Both callers receive an ok result backed by the renewed session snapshot.",
+            "The test fixture observes one renewal POST under one exclusive acquisition sequence.",
+            "[Inference] A user with concurrent in-app work can remain signed in after renewal instead of receiving divergent login recovery states."
+          ],
+          "related_surfaces": [
+            "lib/auth/session-client.ts",
+            "test/auth/renewal-singleflight.test.ts"
+          ],
+          "risk_tags": ["authentication", "security", "concurrency", "idempotency"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SB-AUTH-LOGIN-013",
+          "title": "Generation drift or lost renewal response blocks stale authenticated work and requires recovery",
+          "preconditions": [
+            "A session generation has been reconciled and an application request or renewal attempt is bound to it."
+          ],
+          "setup": [
+            "Exercise generation drift before a shared dispatch and exercise renewal response loss after its intent is recorded."
+          ],
+          "steps": [
+            "Attempt the bound dispatch after the generation changes.",
+            "Attempt a following request after the renewal response is lost."
+          ],
+          "assertions": [
+            "Each attempt returns reconciliation_required rather than continuing the stale request; the drifted dispatch makes no additional network request.",
+            "[Inference] The caller can show its existing reconciliation-required recovery state instead of presenting data or success under an uncertain session."
+          ],
+          "related_surfaces": [
+            "lib/auth/session-client.ts",
+            "test/auth/renewal-singleflight.test.ts"
+          ],
+          "risk_tags": ["authentication", "security", "data-integrity", "recovery", "concurrency"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        }
+      ]
+    },
+    {
+      "id": "SQA-SB-PUBLIC-SHARE-ACCESS",
+      "project_id": "sceneboard-fe",
+      "group_kind": "screen",
+      "group_id": "public-share",
+      "entry_point": "/s/[shareToken]",
+      "origin_issue_ids": [],
+      "origin_screen_ids": ["public-share"],
+      "cases": [
+        {
+          "id": "QAA-SB-PS-001",
+          "title": "Public visitor sees loading followed by the shared board when bootstrap is ready",
+          "preconditions": [
+            "A valid public share token returns a ready public-share state with at least one document page."
+          ],
+          "setup": ["Open /s/[shareToken] with the bootstrap action available."],
+          "steps": [
+            "Observe the initial public-share screen.",
+            "Allow the ready bootstrap result to resolve."
+          ],
+          "assertions": [
+            "A loading state is exposed while the share is initializing.",
+            "The visitor ultimately sees the shared board reader and its published title instead of an unavailable or password screen."
+          ],
+          "related_surfaces": ["browser", "public-share route", "bootstrap shared-contract"],
+          "risk_tags": ["authorization", "recovery"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAA-SB-PS-002",
+          "title": "Password-protected share denies empty and invalid admission without exposing board content",
+          "preconditions": [
+            "The public share bootstrap returns password-required with a CSRF token."
+          ],
+          "setup": ["Open /s/[shareToken] as an unauthenticated public visitor."],
+          "steps": [
+            "Attempt to submit the password form while its password field is empty.",
+            "Enter an invalid password and submit when the admission action returns password-invalid."
+          ],
+          "assertions": [
+            "The empty-password submission control remains unavailable to the visitor.",
+            "An invalid-password alert is visible and focus remains on the password-entry path.",
+            "The protected board reader and artifact content are not shown after failed admission."
+          ],
+          "related_surfaces": [
+            "browser",
+            "api",
+            "password admission server action",
+            "CSRF-bound public-share state"
+          ],
+          "risk_tags": ["authorization", "security"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAA-SB-PS-003",
+          "title": "Password admission rate limiting gives a clear denied-access outcome",
+          "preconditions": [
+            "The password admission action returns rate-limited with retryAfterSeconds."
+          ],
+          "setup": ["Open a password-protected public share and submit a password request."],
+          "steps": ["Return the rate-limited admission state."],
+          "assertions": [
+            "The visitor sees the rate-limited heading and the supplied retry delay.",
+            "Keyboard focus moves to the rate-limited message rather than leaving the visitor in the dismissed password form.",
+            "No protected board content becomes visible."
+          ],
+          "related_surfaces": ["browser", "api", "password admission server action"],
+          "risk_tags": ["authorization", "security", "abuse-denial"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAA-SB-PS-004",
+          "title": "Retryable revalidation preserves the visible board and recovers after Retry-After",
+          "preconditions": [
+            "The visitor has a ready public-share state.",
+            "The first share-context revalidation returns a retryable response with Retry-After and the next response is ready."
+          ],
+          "setup": ["Open the board and advance past the 30-second early refresh boundary."],
+          "steps": [
+            "Deliver the retryable revalidation response.",
+            "Advance by its retry delay and deliver the next ready response."
+          ],
+          "assertions": [
+            "The already visible published board remains readable during the transient failure.",
+            "After recovery, the visitor still sees the board rather than an unavailable screen."
+          ],
+          "related_surfaces": ["browser", "api", "share-context revalidation", "retry scheduler"],
+          "risk_tags": ["recovery", "security"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAA-SB-PS-005",
+          "title": "Authorization expiry returns the visitor to password re-entry without a transient unavailable page",
+          "preconditions": [
+            "The visitor initially has a ready password-admitted share.",
+            "Revalidation reports unavailable and the next bootstrap state is password-required."
+          ],
+          "setup": ["Open the ready board and advance to its early revalidation."],
+          "steps": [
+            "Return an unavailable share-context response.",
+            "Return password-required from the recovery bootstrap."
+          ],
+          "assertions": [
+            "The visitor is shown the password re-entry form after access expires.",
+            "The protected board is no longer visible.",
+            "The visitor does not remain on a misleading unavailable screen when re-authentication is available."
+          ],
+          "related_surfaces": [
+            "browser",
+            "api",
+            "share-context revalidation",
+            "bootstrap shared-contract",
+            "password admission"
+          ],
+          "risk_tags": ["authorization", "recovery", "security"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAA-SB-PS-006",
+          "title": "Changed access or publication tuple replaces the viewer through recovery instead of mixing share revisions",
+          "preconditions": [
+            "A ready board is visible.",
+            "A revalidation response differs in share, board, revision, publication generation, or access generation."
+          ],
+          "setup": ["Start a background revalidation while the existing board is displayed."],
+          "steps": [
+            "Return the mismatched ready projection and allow the recovery bootstrap to complete."
+          ],
+          "assertions": [
+            "The visitor sees one recovered public-share state, not a mix of the old board and a new authorization or publication generation.",
+            "If recovery cannot obtain a permitted state, the visitor sees the unavailable outcome with focus on its heading."
+          ],
+          "related_surfaces": [
+            "browser",
+            "api",
+            "share-context revalidation",
+            "projection tuple contract",
+            "artifact route key"
+          ],
+          "risk_tags": ["authorization", "security", "data-integrity", "recovery"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAA-SB-PS-007",
+          "title": "Out-of-order revalidation responses cannot replace the current visitor state with stale content",
+          "preconditions": ["A ready board is visible and a revalidation request can be delayed."],
+          "setup": [
+            "Trigger two refresh opportunities, making the first response arrive after the second request has become current."
+          ],
+          "steps": [
+            "Resolve the current request to a valid state.",
+            "Then resolve the aborted or superseded request with a different state."
+          ],
+          "assertions": [
+            "The visitor continues to see the board corresponding to the current request only.",
+            "A late response does not restore stale protected content or redirect the visitor away from the current visible outcome."
+          ],
+          "related_surfaces": [
+            "browser",
+            "api",
+            "abortable revalidation",
+            "public-share viewer identity"
+          ],
+          "risk_tags": ["authorization", "security", "concurrency", "data-integrity"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        }
+      ]
+    },
+    {
+      "id": "SQA-SB-PUBLIC-SHARE-ARTIFACT",
+      "project_id": "sceneboard-fe",
+      "group_kind": "screen",
+      "group_id": "public-share",
+      "entry_point": "/s/[shareToken]",
+      "origin_issue_ids": [],
+      "origin_screen_ids": ["public-share"],
+      "cases": [
+        {
+          "id": "QAA-SB-PS-008",
+          "title": "Unsupported artifact isolation gives an accessible fallback rather than running public artifact content",
+          "preconditions": [
+            "A published page contains an artifact node.",
+            "The browser reports that artifact isolation is unsupported."
+          ],
+          "setup": ["Open the public share in the unsupported browser condition."],
+          "steps": ["Allow artifact support detection to finish."],
+          "assertions": [
+            "The visitor receives an alert-level browser-support fallback.",
+            "The isolated artifact runtime frame is not presented as usable content."
+          ],
+          "related_surfaces": ["browser", "public artifact host", "artifact isolation"],
+          "risk_tags": ["security", "recovery"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAA-SB-PS-009",
+          "title": "Unavailable artifact package does not prevent the public board from giving a clear fallback",
+          "preconditions": [
+            "A ready public share contains an artifact node but its store, runtime origin, or runtime summary is unavailable."
+          ],
+          "setup": ["Open the share and navigate to the page containing the artifact."],
+          "steps": ["Render the artifact node under the unavailable-artifact condition."],
+          "assertions": [
+            "The visitor sees the artifact-unavailable alert in place of the artifact.",
+            "The surrounding shared-board reader remains intelligible rather than presenting a blank or stale artifact frame."
+          ],
+          "related_surfaces": ["browser", "public artifact host", "artifact package store"],
+          "risk_tags": ["security", "recovery"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAA-SB-PS-010",
+          "title": "Public visitor can run the pinned artifact and keep it intact while entering and leaving presentation",
+          "preconditions": [
+            "A valid public-artifact URL serves a ready share with a pinned artifact package."
+          ],
+          "setup": [
+            "Open the public artifact page in a browser where fullscreen permission is denied."
+          ],
+          "steps": [
+            "Wait for the active artifact runtime frame and absence of the preparing fallback.",
+            "Open live presentation and start a new presentation.",
+            "Use pen, pointer, and eraser controls, then exit presentation."
+          ],
+          "assertions": [
+            "The visitor sees the active pinned artifact rather than an execution-disabled or fallback message.",
+            "Presentation becomes active even when native fullscreen is denied.",
+            "The annotation toolbar is visible without overlapping the exit control, and the artifact frame remains the same visible runtime through annotation-tool changes.",
+            "After exit, the page visibly returns to non-presentation mode."
+          ],
+          "related_surfaces": [
+            "browser",
+            "api",
+            "public artifact host",
+            "presentation stage",
+            "annotation controls"
+          ],
+          "risk_tags": ["security", "recovery", "data-integrity"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAA-SB-PS-011",
+          "title": "Access-generation change disposes the prior public artifact route before showing renewed content",
+          "preconditions": [
+            "A ready share has an open public artifact package store.",
+            "Recovery supplies a ready state with a changed access or publication generation."
+          ],
+          "setup": [
+            "Display an artifact in the initial authorized state and trigger the changed-generation recovery."
+          ],
+          "steps": ["Allow recovery to replace the public-share state."],
+          "assertions": [
+            "The visitor never continues to see the old artifact as the renewed share content.",
+            "The visible artifact outcome is either the renewed authorized artifact or its explicit unavailable fallback."
+          ],
+          "related_surfaces": [
+            "browser",
+            "artifact package store",
+            "public-share artifact route key",
+            "access generation"
+          ],
+          "risk_tags": ["authorization", "security", "data-integrity", "recovery"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        }
+      ]
+    },
+    {
+      "id": "SQA-SB-PUBLIC-SHARE-PRESENTATION",
+      "project_id": "sceneboard-fe",
+      "group_kind": "screen",
+      "group_id": "public-share",
+      "entry_point": "/s/[shareToken]",
+      "origin_issue_ids": [],
+      "origin_screen_ids": ["public-share"],
+      "cases": [
+        {
+          "id": "QAA-SB-PS-012",
+          "title": "Live-presentation dialog handles empty sessions, failure, dismissal, and keyboard focus accessibly",
+          "preconditions": ["A public visitor has a ready share and opens presentation controls."],
+          "setup": ["Return no active sessions, then make a refresh request fail."],
+          "steps": [
+            "Open the live-presentation dialog.",
+            "Use Tab and Shift+Tab through its enabled controls.",
+            "Trigger refresh failure, then dismiss with Escape and reopen by clicking the backdrop."
+          ],
+          "assertions": [
+            "The visitor sees the dialog title, start action, and no-active-sessions message.",
+            "Focus stays within the modal while it is open and returns to the previously focused control after dismissal.",
+            "A session-service failure is announced in the dialog without leaving a stuck busy state."
+          ],
+          "related_surfaces": [
+            "browser",
+            "api",
+            "live-presentation dialog",
+            "presentation-session list"
+          ],
+          "risk_tags": ["recovery", "accessibility"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAA-SB-PS-013",
+          "title": "Joining a live presentation makes a viewer follow the current page and blocks viewer editing/navigation",
+          "preconditions": [
+            "The session list contains a live session whose fetched snapshot has role viewer and a current page different from the selected page."
+          ],
+          "setup": ["Open the session dialog on a multi-page ready share."],
+          "steps": [
+            "Join the listed session.",
+            "Attempt page navigation and annotation input while the viewer session is active."
+          ],
+          "assertions": [
+            "The visitor enters presentation and visibly follows the session's current page.",
+            "Viewer navigation is disabled and annotations are read-only, so the visitor cannot alter the presenter-controlled view."
+          ],
+          "related_surfaces": [
+            "browser",
+            "api",
+            "presentation-session get",
+            "viewer role",
+            "page navigation",
+            "annotation layer"
+          ],
+          "risk_tags": ["authorization", "security", "data-integrity"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAA-SB-PS-014",
+          "title": "Presenter start, page change, and exit leave viewers with a coherent presentation outcome",
+          "preconditions": [
+            "A ready multi-page public share can start a presentation session as presenter."
+          ],
+          "setup": ["Open presentation controls from a selected page."],
+          "steps": [
+            "Start a new live presentation.",
+            "Move to another page while presenting.",
+            "Exit presentation."
+          ],
+          "assertions": [
+            "Presentation visibly starts on the selected page.",
+            "The displayed page changes coherently during the presenter session.",
+            "On exit, presentation mode visibly turns off and the presenter is no longer left with a live presentation UI."
+          ],
+          "related_surfaces": [
+            "browser",
+            "api",
+            "presentation-session start",
+            "presentation-session update",
+            "presentation-session end"
+          ],
+          "risk_tags": ["authorization", "recovery", "data-integrity"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAA-SB-PS-015",
+          "title": "Conflicting presenter annotation update recovers once with the latest session version",
+          "preconditions": [
+            "A presenter has a live session and creates annotation strokes on the current page.",
+            "The first update returns HTTP 409 and the latest fetched session still grants presenter role."
+          ],
+          "setup": ["Produce a final annotation change after a concurrent session-version update."],
+          "steps": [
+            "Return a 409 for the initial update.",
+            "Return the latest session snapshot, then accept the retried update using its version."
+          ],
+          "assertions": [
+            "The presenter continues to see the presentation and the intended annotation rather than losing the presentation to a conflict.",
+            "The displayed page and annotation outcome remains coherent after the retry."
+          ],
+          "related_surfaces": [
+            "browser",
+            "api",
+            "presentation-session update",
+            "presentation-session get",
+            "annotation delivery"
+          ],
+          "risk_tags": ["security", "recovery", "concurrency", "data-integrity"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAA-SB-PS-016",
+          "title": "Viewer event-stream recovery follows newer snapshots and exits cleanly when the session is deleted",
+          "preconditions": ["A visitor has joined a live session as viewer."],
+          "setup": [
+            "Provide a newer presentation event, then a stale lower-version event.",
+            "Cause an EventSource error first recoverable by session fetch, then return HTTP 404 for a later recovery fetch."
+          ],
+          "steps": [
+            "Deliver the newer and stale events.",
+            "Disconnect the event stream and resolve the recovery fetches as specified."
+          ],
+          "assertions": [
+            "The viewer visibly follows the newer session page and does not move backward to stale presentation state.",
+            "After a recoverable disconnect, the presentation remains usable while the stream reconnects.",
+            "When the session is gone, presentation visibly exits and the reopened dialog reports that the live session ended."
+          ],
+          "related_surfaces": [
+            "browser",
+            "api",
+            "EventSource presentation events",
+            "presentation-session get",
+            "viewer role"
+          ],
+          "risk_tags": ["authorization", "recovery", "concurrency", "data-integrity"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        }
+      ]
+    },
+    {
+      "id": "SQA-PRESENTATION-DEMO-REDIRECT",
+      "project_id": "sceneboard-fe",
+      "group_kind": "screen",
+      "group_id": "presentation-demo",
+      "entry_point": "/demo/presentation",
+      "origin_issue_ids": [],
+      "origin_screen_ids": ["presentation-demo"],
+      "cases": [
+        {
+          "id": "QAC-PRESENTATION-DEMO-EN-VALID-REDIRECT",
+          "title": "English presentation demo redirects only to its configured valid persistent share URL",
+          "preconditions": [
+            "SCENEBOARD_PRESENTATION_DEMO_URL_EN is a valid HTTPS URL on an allowed SceneBoard origin with an exact persistent share path."
+          ],
+          "setup": [
+            "Use a valid English destination such as an allowed /s/share_<22-character-token>_g1 URL with no credentials, query, or fragment."
+          ],
+          "steps": ["Open /demo/presentation without a locale parameter."],
+          "assertions": [
+            "The visitor is taken to the configured English persistent shared-presentation URL."
+          ],
+          "related_surfaces": ["browser", "/demo/presentation", "persistent share route"],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAC-PRESENTATION-DEMO-KO-DESTINATION-SELECT",
+          "title": "Korean presentation demo chooses the Korean destination and falls back only to the generic Korean-compatible setting",
+          "preconditions": [
+            "A valid generic presentation-demo URL is configured.",
+            "Run one state with a valid SCENEBOARD_PRESENTATION_DEMO_URL_KO and one state without it."
+          ],
+          "setup": [
+            "Configure distinct valid Korean and generic persistent-share URLs for the preference state."
+          ],
+          "steps": [
+            "Open /demo/presentation?locale=ko with the Korean URL configured.",
+            "Open /demo/presentation?locale=ko after omitting the Korean-specific URL."
+          ],
+          "assertions": [
+            "Korean visitors reach the Korean configured presentation when it exists, otherwise the configured generic persistent presentation."
+          ],
+          "related_surfaces": ["browser", "/demo/presentation?locale=ko", "persistent share route"],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAC-PRESENTATION-DEMO-DEFAULT-LANGUAGE-RESOLUTION",
+          "title": "Missing, unsupported, and multi-value locales use the English presentation configuration",
+          "preconditions": [
+            "SCENEBOARD_PRESENTATION_DEMO_URL_EN is a valid allowed persistent-share URL."
+          ],
+          "setup": [
+            "Prepare requests with no locale, an unsupported scalar locale, and a multi-value locale input."
+          ],
+          "steps": ["Open /demo/presentation for each prepared locale state."],
+          "assertions": [
+            "Each visitor reaches the configured English persistent presentation rather than an ambiguous locale-specific destination."
+          ],
+          "related_surfaces": ["browser", "/demo/presentation", "locale query state"],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAC-PRESENTATION-DEMO-MISSING-DESTINATION-404",
+          "title": "Absent or empty locale-resolved destination produces a visible not-found result",
+          "preconditions": [
+            "For English, SCENEBOARD_PRESENTATION_DEMO_URL_EN is absent or empty.",
+            "For Korean, both SCENEBOARD_PRESENTATION_DEMO_URL_KO and SCENEBOARD_PRESENTATION_DEMO_URL are absent or empty."
+          ],
+          "setup": ["Run the English and Korean configuration states independently."],
+          "steps": [
+            "Open /demo/presentation in the English state.",
+            "Open /demo/presentation?locale=ko in the Korean state."
+          ],
+          "assertions": [
+            "The visitor sees the application's not-found outcome and is not sent to a presentation destination that is unavailable."
+          ],
+          "related_surfaces": ["browser", "/demo/presentation", "not-found state"],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAC-PRESENTATION-DEMO-UNSAFE-DESTINATION-DENIED",
+          "title": "Malformed and unsafe configured destinations are denied instead of redirecting the visitor",
+          "preconditions": [
+            "Run destination values that are whitespace-padded, unparsable, non-HTTPS, outside the allowed origins, credential-bearing, query-bearing, fragment-bearing, or not an exact persistent-share path."
+          ],
+          "setup": [
+            "Apply one invalid destination value at a time to the locale-resolved configuration."
+          ],
+          "steps": [
+            "Open the corresponding /demo/presentation route for each invalid configuration."
+          ],
+          "assertions": [
+            "The visitor sees the application's not-found outcome and is never redirected to the malformed or unapproved destination."
+          ],
+          "related_surfaces": ["browser", "/demo/presentation", "configuration URL validation"],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAC-PRESENTATION-DEMO-PERSISTENT-SHARE-BOUNDARY",
+          "title": "Only exact persistent share identifiers and safe generations can become a presentation destination",
+          "preconditions": [
+            "Use allowed-origin HTTPS URLs with a 22-character share token.",
+            "Include generation g1, a positive safe-integer generation, g0, a leading-zero generation, and a generation longer than the accepted 1-to-16 digit form."
+          ],
+          "setup": ["Keep all other URL components free of credentials, query, and fragment."],
+          "steps": ["Open /demo/presentation for each configured destination boundary value."],
+          "assertions": [
+            "Visitors reach only destinations with an accepted persistent share identifier and generation; rejected identifier or generation values result in the visible not-found outcome."
+          ],
+          "related_surfaces": [
+            "browser",
+            "/demo/presentation",
+            "persistent share generation boundary"
+          ],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        }
+      ]
+    },
+    {
+      "id": "SQA-PRESENTATION-SAMPLE-NAVIGATION",
+      "project_id": "sceneboard-fe",
+      "group_kind": "shared-contract",
+      "group_id": "presentation-sample-navigation",
+      "entry_point": "presentation sample navigation helper",
+      "origin_issue_ids": [],
+      "origin_screen_ids": ["presentation-demo"],
+      "cases": [
+        {
+          "id": "QAC-PRESENTATION-SAMPLE-TOUCH-CURRENT-TAB",
+          "title": "An unmodified primary touch activation selects current-tab sample navigation",
+          "preconditions": [
+            "The presentation sample navigation caller supplies isPrimaryClick=true, hasModifierKey=false, and activationSource=touch."
+          ],
+          "setup": ["Invoke the shared navigation decision with the ordinary touch input."],
+          "steps": [
+            "Activate the presentation sample through an unmodified primary touch interaction."
+          ],
+          "assertions": [
+            "Inference: the caller may keep the visitor in the current tab for the ordinary touch presentation-sample journey."
+          ],
+          "related_surfaces": ["library", "presentation sample navigation"],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAC-PRESENTATION-SAMPLE-NON-TOUCH-NO-CURRENT-TAB",
+          "title": "Keyboard, mouse, and modifier-key sample activations do not select the touch current-tab path",
+          "preconditions": [
+            "Cover a keyboard activation, a mouse activation, and a touch activation with a modifier key."
+          ],
+          "setup": ["Invoke the shared navigation decision for each non-ordinary-touch input."],
+          "steps": ["Activate the presentation sample using each prepared interaction."],
+          "assertions": [
+            "Inference: the caller does not force visitors using keyboard, mouse, or modifier-key activation onto the touch-only current-tab navigation path."
+          ],
+          "related_surfaces": ["library", "presentation sample navigation"],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        }
+      ]
+    },
+    {
+      "id": "SCB-FE-GSHELL-001",
+      "project_id": "sceneboard-fe",
+      "group_kind": "screen",
+      "group_id": "global-shell",
+      "entry_point": "Root document shell and framework recovery routes",
+      "origin_issue_ids": [],
+      "origin_screen_ids": ["global-shell"],
+      "cases": [
+        {
+          "id": "SCB-FE-GSHELL-001-C01",
+          "title": "Request locale renders a matching global document language",
+          "preconditions": [
+            "A supported locale preference is available in the request locale cookie or Accept-Language header."
+          ],
+          "setup": ["Use a supported non-default locale such as ja in a browser request."],
+          "steps": [
+            "Open a normal application page through the root layout.",
+            "Allow the initial document and localized global shell to render."
+          ],
+          "assertions": [
+            "The rendered document language matches the resolved request locale.",
+            "[Inference from the included LocalizedSkipLink composition] A keyboard user can reach a skip-link affordance whose visible text matches that locale."
+          ],
+          "related_surfaces": ["browser", "root-layout", "i18n-provider"],
+          "risk_tags": ["recovery"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SCB-FE-GSHELL-001-C02",
+          "title": "Changing locale updates visible localization and the document language",
+          "preconditions": [
+            "A rendered consumer of I18nProvider can request a supported replacement locale."
+          ],
+          "setup": ["Start a page with an initial locale different from the replacement locale."],
+          "steps": [
+            "Trigger the application's locale-change path for a supported locale.",
+            "Observe localized content and the document after the update settles."
+          ],
+          "assertions": [
+            "Visible localized copy is rendered using the newly selected locale.",
+            "The document language changes to the newly selected locale and the locale preference is retained for subsequent requests."
+          ],
+          "related_surfaces": ["browser", "i18n-provider", "locale-cookie"],
+          "risk_tags": ["recovery"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SCB-FE-GSHELL-001-C03",
+          "title": "Missing route presents a localized not-found recovery screen",
+          "preconditions": ["A supported locale is resolved for the request."],
+          "setup": ["Request an unmatched application route under a non-default locale."],
+          "steps": [
+            "Wait for the framework not-found route to render.",
+            "Inspect the user-facing not-found content."
+          ],
+          "assertions": [
+            "The user sees the localized not-found screen rather than an untranslated fallback.",
+            "For Russian, the displayed page-not-found copy is \"Страница не найдена.\"."
+          ],
+          "related_surfaces": ["browser", "not-found-route", "localized-not-found"],
+          "risk_tags": ["recovery"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SCB-FE-GSHELL-001-C04",
+          "title": "Localized global error can recover from a transient failure",
+          "preconditions": [
+            "A recoverable rendering failure reaches the global error boundary.",
+            "The browser has a supported locale cookie."
+          ],
+          "setup": [
+            "Cause one render attempt to fail and arrange for the retried attempt to succeed."
+          ],
+          "steps": [
+            "Open the failing page and wait for the global error screen.",
+            "Activate the localized retry button once.",
+            "Wait for the retry outcome."
+          ],
+          "assertions": [
+            "The user sees the localized \"something went wrong\" heading and localized retry control in the cookie-selected locale.",
+            "[Inference from the boundary reset callback] After the transient fault clears, the user returns to the retried page instead of remaining on an unusable error screen."
+          ],
+          "related_surfaces": ["browser", "global-error-boundary", "retry-recovery"],
+          "risk_tags": ["recovery"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SCB-FE-GSHELL-001-C05",
+          "title": "Global error resolves locale from browser language when no cookie exists",
+          "preconditions": [
+            "The browser has no locale cookie and reports a supported preferred language."
+          ],
+          "setup": [
+            "Configure navigator languages to a supported non-default locale and trigger the global error boundary."
+          ],
+          "steps": [
+            "Wait for client locale resolution after the error page mounts.",
+            "Inspect the error heading, retry control, and document language."
+          ],
+          "assertions": [
+            "The error screen and document language match the locale resolved from browser languages rather than staying at the initial default locale.",
+            "If retry cannot clear the fault, the user remains on an understandable localized error screen with a usable retry control."
+          ],
+          "related_surfaces": ["browser", "global-error-boundary", "navigator-languages"],
+          "risk_tags": ["recovery"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SCB-FE-GSHELL-001-C06",
+          "title": "Representative locale catalog copy remains user-visible and correct",
+          "preconditions": [
+            "A test consumer renders messages through I18nProvider or formatMessage for supported locales."
+          ],
+          "setup": ["Render representative localized interface labels for ko, ja, and de."],
+          "steps": [
+            "Render the landing hero base title in Korean.",
+            "Render the human-control navigation label in Japanese.",
+            "Render the HITL expand label in German."
+          ],
+          "assertions": [
+            "Users see \"Codex가 자유롭게 사용할 수 있는\" for the Korean landing hero base title, \"人によるコントロール\" for Japanese human control, and \"Erweitern\" for German expand."
+          ],
+          "related_surfaces": ["library", "i18n-catalog", "format-message"],
+          "risk_tags": ["recovery"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SCB-FE-GSHELL-001-C07",
+          "title": "Long localized landing headlines remain readable without altered copy",
+          "preconditions": ["The landing page is available in Korean, German, and Russian."],
+          "setup": ["Open the landing page in a narrow browser viewport for each locale."],
+          "steps": [
+            "Inspect the primary hero heading and value-section heading for Korean, German, and Russian.",
+            "Navigate through the headings at the viewport boundary."
+          ],
+          "assertions": [
+            "[Inference from locale-specific heading CSS] Each localized hero heading remains visible and readable without replacing its localized copy.",
+            "The value-section heading does not overflow its constrained readable width."
+          ],
+          "related_surfaces": ["browser", "landing-page", "responsive-localization"],
+          "risk_tags": ["recovery"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SCB-FE-GSHELL-001-C08",
+          "title": "Capability-change announcement is localized and politely announced",
+          "preconditions": [
+            "A board capability-change event can be surfaced to a user in each supported locale."
+          ],
+          "setup": ["Open a board client and trigger a capability-change announcement."],
+          "steps": [
+            "Observe the visible status announcement and its accessibility semantics.",
+            "Repeat for the supported locales named by the localization test."
+          ],
+          "assertions": [
+            "Every affected user sees a non-empty localized capability-change message.",
+            "The announcement is exposed as a polite status update and does not disclose role names, policy labels, or internal board identifiers."
+          ],
+          "related_surfaces": ["browser", "board-client", "live-region", "accessibility"],
+          "risk_tags": ["recovery"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        }
+      ]
+    },
+    {
+      "id": "S-AIC-ACCESS",
+      "project_id": "sceneboard-fe",
+      "group_kind": "screen",
+      "group_id": "ai-connections",
+      "entry_point": "/settings/ai-connections",
+      "origin_issue_ids": [],
+      "origin_screen_ids": ["ai-connections"],
+      "cases": [
+        {
+          "id": "C-AIC-001",
+          "title": "Unauthenticated visitors are sent to sign-in before AI connection settings are shown",
+          "preconditions": ["The visitor has no authenticated route session."],
+          "setup": [],
+          "steps": ["Open /settings/ai-connections."],
+          "assertions": [
+            "The visitor lands on /login and cannot view AI connection, pairing, grant, or API-key content."
+          ],
+          "related_surfaces": ["browser"],
+          "risk_tags": ["authentication", "security"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "C-AIC-002",
+          "title": "An authenticated session loads independent pairing, grant, board, and API-key surfaces",
+          "preconditions": ["An authenticated route session is available."],
+          "setup": ["Provide successful active-pairing, grant, board, and API-key list responses."],
+          "steps": ["Open the AI connections settings screen."],
+          "assertions": [
+            "The user sees the AI-client connection group and the separate API-key group with their returned data, rather than a mixed or missing connection method."
+          ],
+          "related_surfaces": ["browser", "api"],
+          "risk_tags": ["authentication", "authorization"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "C-AIC-003",
+          "title": "API-key list gives a recoverable loading, empty, and refresh-error journey",
+          "preconditions": ["An authenticated session is bound to the API-key view."],
+          "setup": [
+            "Exercise an empty successful list, a failed initial list, and a later successful retry."
+          ],
+          "steps": ["Open the API-key group; choose Retry after the failed load."],
+          "assertions": [
+            "The user sees loading while data is requested, an empty-state message when no keys exist, and after retry sees the current key list instead of a permanently failed screen."
+          ],
+          "related_surfaces": ["browser", "api"],
+          "risk_tags": ["authentication", "security", "recovery"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "C-AIC-004",
+          "title": "A stale or invalidated account session scrubs the API-key view before recovery",
+          "preconditions": [
+            "The API-key list has loaded, optionally with an issued secret dialog open."
+          ],
+          "setup": [
+            "Cause the current session generation to become stale during list loading or through the generation invalidation subscription."
+          ],
+          "steps": ["Wait for the stale-session recovery path to reconcile the session."],
+          "assertions": [
+            "No prior key, guide, or raw secret remains visible; the user is redirected to sign-in if signed out, otherwise is returned to a freshly reconciled settings view or an error state."
+          ],
+          "related_surfaces": ["browser", "api"],
+          "risk_tags": ["authentication", "security", "recovery", "data-integrity"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        }
+      ]
+    },
+    {
+      "id": "S-AIC-API-KEY-ISSUANCE",
+      "project_id": "sceneboard-fe",
+      "group_kind": "screen",
+      "group_id": "ai-connections",
+      "entry_point": "/settings/ai-connections",
+      "origin_issue_ids": [],
+      "origin_screen_ids": ["ai-connections"],
+      "cases": [
+        {
+          "id": "C-AIC-005",
+          "title": "API-key creation starts at minimum read authority and honors chosen scopes and duration",
+          "preconditions": ["The authenticated API-key list is ready."],
+          "setup": [],
+          "steps": [
+            "Open creation; inspect default scopes; choose a non-empty name, valid scopes, and 30, 90, or 365 days; submit."
+          ],
+          "assertions": [
+            "The request reflects only selected scopes and the closed duration, with board:read selected by default rather than all authorities; success gives the issued-key setup dialog."
+          ],
+          "related_surfaces": ["browser", "api"],
+          "risk_tags": ["authorization", "security"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "C-AIC-006",
+          "title": "API-key creation cannot issue a key with no authority",
+          "preconditions": ["The authenticated API-key list is ready."],
+          "setup": [],
+          "steps": ["Choose Deselect all in the scope toolbar."],
+          "assertions": [
+            "The Create API key control is disabled and no issued-key dialog or new list item appears."
+          ],
+          "related_surfaces": ["browser"],
+          "risk_tags": ["authorization", "security", "abuse-denial"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "C-AIC-007",
+          "title": "Optional blank names become usable timestamped names while entered names prevail",
+          "preconditions": ["The authenticated API-key list is ready."],
+          "setup": ["Run once with a whitespace-only name and once with a trimmed entered name."],
+          "steps": ["Submit a valid scoped creation request for each name variant."],
+          "assertions": [
+            "The user sees a stable local timestamp-based name for blank input and the entered trimmed name for non-blank input; neither path presents a required-name validation error."
+          ],
+          "related_surfaces": ["browser", "api"],
+          "risk_tags": ["data-integrity", "security"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "C-AIC-008",
+          "title": "Busy and stale create attempts do not leave an unintended API key or secret visible",
+          "preconditions": ["The API-key list is ready and creation is submitted."],
+          "setup": [
+            "Delay the create response, attempt repeat activation while busy, then return either success under the same generation or stale_attempt."
+          ],
+          "steps": [
+            "Attempt repeat submission while the form is busy; observe recovery after the response."
+          ],
+          "assertions": [
+            "Inference: the busy control prevents a second user-visible issuance attempt; a matching success yields one new key and setup dialog, while a stale response recovers the session with no raw secret retained."
+          ],
+          "related_surfaces": ["browser", "api"],
+          "risk_tags": [
+            "authentication",
+            "authorization",
+            "security",
+            "idempotency",
+            "concurrency",
+            "recovery"
+          ],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "C-AIC-009",
+          "title": "API-key creation remains keyboard-operable and usable at compact widths",
+          "preconditions": ["The API-key creation form is open."],
+          "setup": [],
+          "steps": [
+            "Use keyboard focus and Space/Enter to select scopes; resize to 390px and 320px widths."
+          ],
+          "assertions": [
+            "All scope controls and actions remain operable, interactive buttons meet the rendered 44px target, and the form has no horizontal overflow at 320px."
+          ],
+          "related_surfaces": ["browser"],
+          "risk_tags": ["accessibility", "security"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        }
+      ]
+    },
+    {
+      "id": "S-AIC-API-KEY-SECRET-SETUP",
+      "project_id": "sceneboard-fe",
+      "group_kind": "screen",
+      "group_id": "ai-connections",
+      "entry_point": "/settings/ai-connections",
+      "origin_issue_ids": [],
+      "origin_screen_ids": ["ai-connections"],
+      "cases": [
+        {
+          "id": "C-AIC-010",
+          "title": "A newly issued secret is shown once with a directly usable setup path",
+          "preconditions": ["A create response succeeds under the current session generation."],
+          "setup": ["Use a non-production test key value."],
+          "steps": ["Create a key and review the setup dialog's MCP and Environment tabs."],
+          "assertions": [
+            "The user can copy the newly issued raw key and sees MCP JSON that includes it; both tab controls and panels are labelled and usable."
+          ],
+          "related_surfaces": ["browser", "api"],
+          "risk_tags": ["security", "authentication", "accessibility"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "C-AIC-011",
+          "title": "Closing, navigating away from, or invalidating an issued-secret view prevents later raw-secret exposure",
+          "preconditions": ["A newly issued secret dialog is open."],
+          "setup": [],
+          "steps": [
+            "Attempt to close and reject confirmation, then confirm close; reopen the guide from the list and navigate away or trigger session invalidation."
+          ],
+          "assertions": [
+            "Rejecting confirmation keeps the setup view available, but confirmed close, route change, unmount, or recovery removes the raw secret; reopening an existing key shows only its name and prefix with a secret-free environment reference."
+          ],
+          "related_surfaces": ["browser", "api"],
+          "risk_tags": ["authentication", "security", "recovery", "data-integrity"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "C-AIC-012",
+          "title": "Setup-copy failures are announced without silently retaining or exporting the key",
+          "preconditions": ["A newly issued secret dialog is open and clipboard copying fails."],
+          "setup": ["Use a browser context that rejects clipboard copying."],
+          "steps": ["Activate the raw-secret copy control."],
+          "assertions": [
+            "The user receives an accessible copy-failure alert and can still close the dialog; the screen does not offer a persistence, URL, analytics, or diagnostic export path for the secret."
+          ],
+          "related_surfaces": ["browser"],
+          "risk_tags": ["security", "accessibility"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        }
+      ]
+    },
+    {
+      "id": "S-AIC-API-KEY-MANAGEMENT",
+      "project_id": "sceneboard-fe",
+      "group_kind": "screen",
+      "group_id": "ai-connections",
+      "entry_point": "/settings/ai-connections",
+      "origin_issue_ids": [],
+      "origin_screen_ids": ["ai-connections"],
+      "cases": [
+        {
+          "id": "C-AIC-013",
+          "title": "Pagination retains unique API-key entries and recovers from continuation failure",
+          "preconditions": ["The first page returns a next cursor."],
+          "setup": [
+            "Return overlapping key metadata across pages; make one continuation request fail before retry or refresh succeeds."
+          ],
+          "steps": ["Choose Load more; then use Retry and Refresh after a continuation failure."],
+          "assertions": [
+            "The user sees each API key only once, can recover a failed continuation, and receives a current coherent list after refresh."
+          ],
+          "related_surfaces": ["browser", "api"],
+          "risk_tags": ["data-integrity", "security", "recovery"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "C-AIC-014",
+          "title": "Revoke requires confirmation and reflects only the final mutation outcome",
+          "preconditions": ["At least one API-key metadata item is listed."],
+          "setup": [
+            "Exercise confirmation cancellation, successful revocation, mutation failure, and stale_attempt."
+          ],
+          "steps": [
+            "Choose Revoke, cancel confirmation once, then confirm it; repeat with failure and stale-session outcomes."
+          ],
+          "assertions": [
+            "Cancellation leaves the key available, successful revocation removes only that key, and failure or stale session leaves no misleading success state and offers the applicable error or recovery outcome."
+          ],
+          "related_surfaces": ["browser", "api"],
+          "risk_tags": [
+            "authorization",
+            "security",
+            "idempotency",
+            "concurrency",
+            "recovery",
+            "data-integrity"
+          ],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        }
+      ]
+    },
+    {
+      "id": "S-AIC-PAIRING-AND-GRANTS",
+      "project_id": "sceneboard-fe",
+      "group_kind": "screen",
+      "group_id": "ai-connections",
+      "entry_point": "/settings/ai-connections",
+      "origin_issue_ids": [],
+      "origin_screen_ids": ["ai-connections"],
+      "cases": [
+        {
+          "id": "C-AIC-015",
+          "title": "Creating a pairing code persists only the active code and surfaces a newly pending request",
+          "preconditions": ["The owner is authenticated and no pairing mutation is active."],
+          "setup": [
+            "Return a created pairing, then a pending owner status for the same pairing during a later refresh."
+          ],
+          "steps": [
+            "Choose Create code and allow the visible-page refresh cycle to receive the pending request."
+          ],
+          "assertions": [
+            "The owner sees the created one-time code while valid and the pending request opens for review when it arrives, rather than creating duplicate request cards."
+          ],
+          "related_surfaces": ["browser", "api"],
+          "risk_tags": [
+            "authentication",
+            "authorization",
+            "security",
+            "concurrency",
+            "data-integrity"
+          ],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "C-AIC-016",
+          "title": "Pairing approval cannot grant capabilities above the owner ceiling",
+          "preconditions": ["A matching pending pairing request is selected."],
+          "setup": [
+            "Request scopes and lifecycle permissions that include values outside the connection grant ceiling."
+          ],
+          "steps": [
+            "Open the approval dialog and inspect selectable permissions before submitting."
+          ],
+          "assertions": [
+            "The owner can approve only requested capabilities within the allowed ceiling; out-of-ceiling permissions are neither displayed as grants nor submitted as approval choices."
+          ],
+          "related_surfaces": ["browser", "api"],
+          "risk_tags": ["authorization", "security", "abuse-denial"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "C-AIC-017",
+          "title": "Pairing approval validates scope and board destination before it can affect a board",
+          "preconditions": ["A matching pending pairing request is selected."],
+          "setup": [
+            "Exercise no selected scope, no existing board, create destination without board.write and board.create, empty new-board title, and a valid existing-board destination."
+          ],
+          "steps": [
+            "Try each destination and permission combination; then submit a valid existing-board choice."
+          ],
+          "assertions": [
+            "Invalid selections display validation without approval; the valid choice proceeds with selected board, scopes, lifecycle permissions, and session or persistent lifetime."
+          ],
+          "related_surfaces": ["browser", "api"],
+          "risk_tags": ["authorization", "security", "data-integrity", "abuse-denial"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "C-AIC-018",
+          "title": "Approve, deny, and cancel produce distinct recoverable pairing outcomes",
+          "preconditions": ["A created or matching pending pairing exists."],
+          "setup": [
+            "Return approval with one board ID, approval with another result shape, denial, cancellation, and an API failure."
+          ],
+          "steps": ["Perform each terminal action from the request dialog."],
+          "assertions": [
+            "Approval takes the owner to its board when exactly one destination board is returned or to the boards index otherwise; denial and cancellation remove the local active code/request, while failure does not falsely navigate or approve."
+          ],
+          "related_surfaces": ["browser", "api"],
+          "risk_tags": ["authentication", "authorization", "security", "recovery", "rollback"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "C-AIC-019",
+          "title": "Pairing dialog is accessible and safely dismissible without accidental approval",
+          "preconditions": ["A pairing request dialog is open."],
+          "setup": [],
+          "steps": [
+            "Use the labelled close control, Escape, backdrop click, board search, radio group, and validation paths."
+          ],
+          "assertions": [
+            "The dialog has an accessible title and description, dismissal closes it without approving or cancelling, board search reports no matches when appropriate, and validation errors are announced."
+          ],
+          "related_surfaces": ["browser"],
+          "risk_tags": ["accessibility", "authorization", "security"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "C-AIC-020",
+          "title": "Grant rotation and revocation leave the user with the current authorization state",
+          "preconditions": ["At least one approved client grant is listed."],
+          "setup": ["Exercise successful and failed rotate/revoke responses."],
+          "steps": ["Rotate a grant, dismiss the rotated credential, then revoke a grant."],
+          "assertions": [
+            "A successful rotation presents the replacement credential only for its temporary view, and successful revocation removes the grant and updates visible connection state; failed operations do not claim either outcome."
+          ],
+          "related_surfaces": ["browser", "api"],
+          "risk_tags": ["authorization", "security", "recovery", "data-integrity"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        }
+      ]
+    },
+    {
+      "id": "SQA-SB-BOARDS-INDEX-LISTING-G1",
+      "project_id": "sceneboard-fe",
+      "group_kind": "screen",
+      "group_id": "boards-index",
+      "entry_point": "/boards",
+      "origin_issue_ids": [],
+      "origin_screen_ids": ["boards-index"],
+      "cases": [
+        {
+          "id": "QAA-SCREEN-85845596181B-G1-C01",
+          "title": "Authenticated user sees each listed board's visible lifecycle summary and can open it",
+          "preconditions": [
+            "An authenticated session is available.",
+            "The board list returns at least one active board and one archived board."
+          ],
+          "setup": [
+            "Prepare board summaries with distinct titles, updated timestamps, head revision numbers, and archived states."
+          ],
+          "steps": [
+            "Open /boards.",
+            "Wait for the initial board-list request to resolve.",
+            "Activate an active board card."
+          ],
+          "assertions": [
+            "The loading placeholder is replaced by board cards showing each title, revision, formatted update time, and the active or archived lifecycle label.",
+            "The selected board opens at its encoded /boards/{boardId} URL."
+          ],
+          "related_surfaces": ["browser", "/boards", "board detail route"],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAA-SCREEN-85845596181B-G1-C02",
+          "title": "Authenticated user receives the empty-board outcome with an accessible creation control",
+          "preconditions": [
+            "An authenticated session is available.",
+            "The board list resolves successfully with no boards."
+          ],
+          "setup": ["Return an empty board page with no next cursor."],
+          "steps": [
+            "Open /boards after the initial list completes.",
+            "Navigate to the board-title field and Create control with assistive technology."
+          ],
+          "assertions": [
+            "The page presents the no-boards empty-state message instead of board cards.",
+            "The board-title field has its visible label, is required, and the Create control remains reachable and named for the user."
+          ],
+          "related_surfaces": ["browser", "/boards", "accessibility"],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAA-SCREEN-85845596181B-G1-C03",
+          "title": "User loads the next board page without losing the boards already visible",
+          "preconditions": [
+            "An authenticated session is available.",
+            "The first board-list response has a non-null next cursor."
+          ],
+          "setup": ["Return a first page and a distinct subsequent page for the supplied cursor."],
+          "steps": [
+            "Open /boards and wait for the first page.",
+            "Choose Load more.",
+            "Wait for the cursor request to complete."
+          ],
+          "assertions": [
+            "The control communicates loading and cannot be invoked again while the next page is loading.",
+            "After completion, the user sees the original boards together with the additional boards, rather than a replaced or duplicated first page."
+          ],
+          "related_surfaces": ["browser", "/boards", "pagination"],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAA-SCREEN-85845596181B-G1-C04",
+          "title": "Forbidden board-list response is surfaced as an accessible authorization denial and can be retried",
+          "preconditions": [
+            "An authenticated session is available.",
+            "The initial board-list request returns the FORBIDDEN board error."
+          ],
+          "setup": ["Make the retry list request resolve successfully after the denial."],
+          "steps": ["Open /boards.", "Locate the error alert.", "Choose Retry list."],
+          "assertions": [
+            "The user receives the localized forbidden outcome in an alert rather than a misleading successful board list.",
+            "After retry succeeds, the alert clears and the user sees the returned board-list outcome."
+          ],
+          "related_surfaces": [
+            "browser",
+            "/boards",
+            "authorization",
+            "error recovery",
+            "accessibility"
+          ],
+          "risk_tags": ["authorization"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAA-SCREEN-85845596181B-G1-C05",
+          "title": "List transport, malformed-response, and unsupported-browser failures give a recoverable user-visible outcome",
+          "preconditions": ["An authenticated session is available."],
+          "setup": [
+            "Independently return api failure, corrupt response, and unsupported-browser results from the list request; make a retry resolve successfully."
+          ],
+          "steps": [
+            "Open /boards for each failure result.",
+            "Read the alert and choose Retry list.",
+            "Wait for the retry response."
+          ],
+          "assertions": [
+            "Each failure presents its mapped user-visible error in an alert, including the distinct corrupt-response and unsupported-browser outcomes where supplied.",
+            "A successful retry restores a usable board-list or empty-state outcome."
+          ],
+          "related_surfaces": ["browser", "/boards", "error recovery", "accessibility"],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        }
+      ]
+    },
+    {
+      "id": "SQA-SB-BOARDS-INDEX-CREATION-G1",
+      "project_id": "sceneboard-fe",
+      "group_kind": "screen",
+      "group_id": "boards-index",
+      "entry_point": "/boards",
+      "origin_issue_ids": [],
+      "origin_screen_ids": ["boards-index"],
+      "cases": [
+        {
+          "id": "QAA-SCREEN-85845596181B-G1-C06",
+          "title": "Authenticated user creates a board from a trimmed valid title, including the 200-character boundary",
+          "preconditions": ["An authenticated session with a CSRF token is available."],
+          "setup": [
+            "Prepare a successful create response with a board ID containing characters that require URL encoding.",
+            "Use a title whose trimmed value is exactly 200 characters."
+          ],
+          "steps": [
+            "Open /boards.",
+            "Enter surrounding whitespace and the boundary-length title.",
+            "Submit Create."
+          ],
+          "assertions": [
+            "The field enforces the 200-character limit and is visibly unavailable while creation is pending.",
+            "After a successful create, the user reaches the newly created board at its encoded detail URL."
+          ],
+          "related_surfaces": ["browser", "/boards", "board creation", "data boundary"],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAA-SCREEN-85845596181B-G1-C07",
+          "title": "Creation recovers from a retryable failure without changing the request identity for the same title",
+          "preconditions": ["An authenticated session with a CSRF token is available."],
+          "setup": [
+            "Return a corrupt-response or unsupported-browser create failure on the first submit, then a successful create response when the unchanged title is resubmitted.",
+            "[Inference] The backend honors the unchanged client request identity to avoid a duplicate creation."
+          ],
+          "steps": [
+            "Enter a non-empty title and submit Create.",
+            "Observe the error outcome.",
+            "Submit the unchanged title again."
+          ],
+          "assertions": [
+            "The first failure leaves the user on the boards page with a user-visible error and an enabled creation control.",
+            "The successful retry takes the user to one newly created board rather than exposing a duplicate-creation outcome."
+          ],
+          "related_surfaces": ["browser", "/boards", "board creation", "idempotency", "recovery"],
+          "risk_tags": ["authorization"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAA-SCREEN-85845596181B-G1-C08",
+          "title": "Create authorization or API rejection does not navigate away and permits a corrected retry",
+          "preconditions": ["An authenticated session with a CSRF token is available."],
+          "setup": [
+            "Return a board_error or api_error from creation, then a successful response on a subsequent submit."
+          ],
+          "steps": [
+            "Enter a valid title and submit Create.",
+            "Observe the rejection outcome.",
+            "Submit again after the service accepts the request."
+          ],
+          "assertions": [
+            "The rejected creation keeps the user on /boards with the mapped user-visible error, rather than navigating to an uncreated board.",
+            "After a later successful submission, the user reaches the created board detail page."
+          ],
+          "related_surfaces": ["browser", "/boards", "board creation", "authorization", "recovery"],
+          "risk_tags": ["authorization"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        }
+      ]
+    },
+    {
+      "id": "SQA-SB-BOARDS-INDEX-LIFECYCLE-G1",
+      "project_id": "sceneboard-fe",
+      "group_kind": "screen",
+      "group_id": "boards-index",
+      "entry_point": "/boards",
+      "origin_issue_ids": [],
+      "origin_screen_ids": ["boards-index"],
+      "cases": [
+        {
+          "id": "QAA-SCREEN-85845596181B-G1-C09",
+          "title": "A board created after the /boards polling baseline automatically opens from the list",
+          "preconditions": [
+            "The authenticated user is on visible /boards.",
+            "The initial lifecycle poll establishes a board-ID baseline."
+          ],
+          "setup": ["Return a subsequent successful list response containing one new board."],
+          "steps": ["Remain on /boards until the subsequent lifecycle poll completes."],
+          "assertions": [
+            "The user is taken to the newly detected board's encoded detail URL.",
+            "The initial baseline itself does not unexpectedly move the user away from /boards."
+          ],
+          "related_surfaces": ["browser", "/boards", "board lifecycle navigation", "library"],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAA-SCREEN-85845596181B-G1-C10",
+          "title": "A newly created board automatically opens while the user is on AI connections",
+          "preconditions": [
+            "The authenticated user is on visible /settings/ai-connections.",
+            "The initial lifecycle poll establishes a board-ID baseline."
+          ],
+          "setup": ["Return a later successful list response with one board not in the baseline."],
+          "steps": ["Remain on AI connections until the lifecycle poll detects the new board."],
+          "assertions": [
+            "The user transitions from AI connections to the newly detected board's encoded detail URL."
+          ],
+          "related_surfaces": [
+            "browser",
+            "/settings/ai-connections",
+            "board detail route",
+            "cross-screen transition",
+            "library"
+          ],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAA-SCREEN-85845596181B-G1-C11",
+          "title": "User viewing a board can explicitly switch to a newly detected board",
+          "preconditions": [
+            "The authenticated user is on /boards/{currentBoardId}.",
+            "A polling baseline has been established."
+          ],
+          "setup": [
+            "Return a later board-list response containing a new board with a visible title."
+          ],
+          "steps": ["Wait for the new-board confirmation dialog.", "Choose Switch to new board."],
+          "assertions": [
+            "The confirmation identifies the detected board by title and has explicit switch and keep actions.",
+            "After confirmation, the user reaches the new board's encoded detail URL."
+          ],
+          "related_surfaces": [
+            "browser",
+            "board detail route",
+            "confirmation dialog",
+            "cross-screen transition",
+            "library"
+          ],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAA-SCREEN-85845596181B-G1-C12",
+          "title": "User viewing a board can dismiss new-board detection and keep the current context",
+          "preconditions": [
+            "The authenticated user is on /boards/{currentBoardId}.",
+            "A later lifecycle poll finds another board."
+          ],
+          "setup": [
+            "Return the current board normally and return a board-list response containing one new board."
+          ],
+          "steps": ["Wait for the new-board confirmation dialog.", "Choose Keep current board."],
+          "assertions": [
+            "The dialog closes after dismissal.",
+            "The user remains on the current board detail route rather than being redirected to the new board."
+          ],
+          "related_surfaces": ["browser", "board detail route", "confirmation dialog", "library"],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAA-SCREEN-85845596181B-G1-C13",
+          "title": "Archived or missing current board returns the user to the boards index",
+          "preconditions": ["The authenticated user is on /boards/{boardId}."],
+          "setup": [
+            "Independently return an archived board, BOARD_NOT_FOUND, and API 404 from the current-board read."
+          ],
+          "steps": ["Wait for the lifecycle check for each terminal board state."],
+          "assertions": [
+            "For each explicit archived or not-found outcome, the user is returned to /boards instead of being left on an invalid board detail route."
+          ],
+          "related_surfaces": ["browser", "board detail route", "/boards", "recovery", "library"],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAA-SCREEN-85845596181B-G1-C14",
+          "title": "Transient or ambiguous current-board errors do not evict the user from a still-current board",
+          "preconditions": ["The authenticated user is on /boards/{boardId}."],
+          "setup": [
+            "Independently return API 503, reconciliation_required, and corrupt_response from the current-board read."
+          ],
+          "steps": ["Wait for a lifecycle check for each non-terminal result."],
+          "assertions": [
+            "The user remains on the current board detail route for transient or ambiguous results, avoiding a destructive redirect based on an unconfirmed terminal state."
+          ],
+          "related_surfaces": [
+            "browser",
+            "board detail route",
+            "recovery",
+            "data integrity",
+            "library"
+          ],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAA-SCREEN-85845596181B-G1-C15",
+          "title": "Concurrent external board creations select the newest board with a stable tie break",
+          "preconditions": [
+            "The authenticated user is on visible /boards or AI connections after its baseline is established."
+          ],
+          "setup": [
+            "Return several boards absent from the baseline, including two with equal newest createdAt values and board IDs that establish the documented stable selection order."
+          ],
+          "steps": ["Allow the next lifecycle list poll to complete."],
+          "assertions": [
+            "The user reaches the deterministic newest selected board detail route, preserving a predictable outcome when multiple boards appear in one poll."
+          ],
+          "related_surfaces": [
+            "browser",
+            "/boards",
+            "/settings/ai-connections",
+            "concurrency",
+            "data integrity",
+            "library"
+          ],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAA-SCREEN-85845596181B-G1-C16",
+          "title": "Hidden-tab polling does not interrupt the user and resumes lifecycle detection when visible",
+          "preconditions": [
+            "The authenticated user is on a lifecycle-watched route and a baseline has been established."
+          ],
+          "setup": [
+            "Make a new board appear while document visibility is hidden, then expose the document."
+          ],
+          "steps": ["Hide the browser tab while the board is created.", "Restore tab visibility."],
+          "assertions": [
+            "No lifecycle navigation occurs while the tab is hidden.",
+            "Once visible, the user receives the route's appropriate new-board outcome: automatic detail navigation on creation-auto-open routes or a confirmation dialog on a board detail route."
+          ],
+          "related_surfaces": ["browser", "board lifecycle navigation", "recovery", "library"],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        }
+      ]
+    },
+    {
+      "id": "SQA-SB-BOARDS-INDEX-SHELL-A11Y-G1",
+      "project_id": "sceneboard-fe",
+      "group_kind": "screen",
+      "group_id": "boards-index",
+      "entry_point": "/boards",
+      "origin_issue_ids": [],
+      "origin_screen_ids": ["boards-index"],
+      "cases": [
+        {
+          "id": "QAA-SCREEN-85845596181B-G1-C17",
+          "title": "Boards page shell supplies a named primary navigation and an accessible page name",
+          "preconditions": ["An authenticated session is available."],
+          "setup": ["Render /boards through its authenticated page wrapper and AppShell."],
+          "steps": [
+            "Open /boards.",
+            "Inspect landmarks and navigate with a screen reader or keyboard."
+          ],
+          "assertions": [
+            "The page provides a named primary navigation with Boards and AI connections destinations.",
+            "The main landmark contains the localized boards page name and the board workspace content is reachable without relying on visual-only structure."
+          ],
+          "related_surfaces": ["browser", "/boards", "AppShell", "accessibility"],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        }
+      ]
+    },
+    {
+      "id": "SB-BW-ROUTE-STATE-RECOVERY",
+      "project_id": "sceneboard-fe",
+      "group_kind": "screen",
+      "group_id": "board-workspace",
+      "entry_point": "/boards/{boardId}",
+      "origin_issue_ids": [],
+      "origin_screen_ids": ["board-workspace"],
+      "cases": [
+        {
+          "id": "SB-BW-ROUTE-LOAD-RETRY-001",
+          "title": "Board loading, retryable failure, and successful retry have visible route outcomes",
+          "preconditions": ["A signed-in user can open a board URL."],
+          "setup": [
+            "Arrange a pending board session, then a retryable failure, then a successful retry response."
+          ],
+          "steps": [
+            "Open the board URL.",
+            "Observe the pending route.",
+            "Use Retry after the failure.",
+            "Allow the next request to succeed."
+          ],
+          "assertions": [
+            "The user sees a loading status while the board is pending.",
+            "Failure shows a retry path rather than a usable-looking stale canvas.",
+            "Successful retry shows the board workspace and selected page."
+          ],
+          "related_surfaces": ["board route", "route-state", "BoardStatePanel"],
+          "risk_tags": ["recovery"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SB-BW-ROUTE-CORRUPT-002",
+          "title": "An unresolved or unrenderable selected page fails closed",
+          "preconditions": [
+            "A signed-in user opens a board with no resolvable selected page or a page-render adaptation failure."
+          ],
+          "setup": ["Supply the invalid board response."],
+          "steps": ["Open the board URL."],
+          "assertions": [
+            "The user sees the scene-unavailable outcome.",
+            "The route does not display partial or stale page content as usable."
+          ],
+          "related_surfaces": ["board route", "BoardStatePanel", "page render"],
+          "risk_tags": ["recovery", "data-integrity"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        }
+      ]
+    },
+    {
+      "id": "SB-BW-NAVIGATION-AND-STAGE",
+      "project_id": "sceneboard-fe",
+      "group_kind": "screen",
+      "group_id": "board-workspace",
+      "entry_point": "/boards/{boardId}",
+      "origin_issue_ids": [],
+      "origin_screen_ids": ["board-workspace"],
+      "cases": [
+        {
+          "id": "SB-BW-PAGE-NAV-KEYBOARD-003",
+          "title": "Admitted keyboard navigation changes the page and announces the new position",
+          "preconditions": [
+            "A live board has at least two pages and no text input, artifact capture, HITL interaction, or page-move capture is active."
+          ],
+          "setup": ["Open the first page."],
+          "steps": [
+            "Use an admitted keyboard navigation command.",
+            "Return with the previous-page control or command."
+          ],
+          "assertions": [
+            "Each command visibly shows the adjacent requested page.",
+            "The new page starts at the top and announces its current position."
+          ],
+          "related_surfaces": ["BoardTopBar", "page navigation", "PresentationStage"],
+          "risk_tags": ["accessibility"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SB-BW-STAGE-RESPONSIVE-SCROLL-004",
+          "title": "Desktop and mobile keep one reachable vertical page surface",
+          "preconditions": ["A board page has terminal scene content taller than the viewport."],
+          "setup": ["Open the same board at desktop width and at a width no greater than 760px."],
+          "steps": [
+            "Scroll to final rendered content on both viewports.",
+            "Reach page controls by keyboard."
+          ],
+          "assertions": [
+            "Final scene content is visible and reachable on both viewports.",
+            "The user does not encounter horizontal document overflow or clipped nested scrolling.",
+            "The canvas remains a labeled keyboard-focusable region."
+          ],
+          "related_surfaces": ["ResponsiveBoardChrome", "mobile drawer", "PresentationStage"],
+          "risk_tags": ["accessibility", "recovery"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SB-BW-PAGE-MOVE-GUARD-005",
+          "title": "Page-move gestures preserve interactive controls and recover after cancellation",
+          "preconditions": [
+            "A canvas page is wider than its viewport and page-move mode is available."
+          ],
+          "setup": [
+            "Enable page-move and expose a button, form control, or HITL/artifact capture target."
+          ],
+          "steps": [
+            "Start a pointer gesture on an interactive target.",
+            "Pan non-interactive content horizontally.",
+            "Cancel through capture loss, window blur, or orientation change."
+          ],
+          "assertions": [
+            "Interactive targets remain usable rather than being panned.",
+            "Non-interactive content can pan when enabled.",
+            "Cancellation leaves the page in a usable bounded position."
+          ],
+          "related_surfaces": ["PresentationStage", "page move mode", "HITL", "artifact host"],
+          "risk_tags": ["recovery", "accessibility"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        }
+      ]
+    },
+    {
+      "id": "SB-BW-HISTORY-RECOVERY-A11Y",
+      "project_id": "sceneboard-fe",
+      "group_kind": "screen",
+      "group_id": "board-workspace",
+      "entry_point": "/boards/{boardId}",
+      "origin_issue_ids": [],
+      "origin_screen_ids": ["board-workspace"],
+      "cases": [
+        {
+          "id": "SB-BW-HISTORY-SELECT-LATEST-006",
+          "title": "An authorized user selects retained history and returns to latest accessibly",
+          "preconditions": [
+            "The user has board.history.read and the board has retained revisions."
+          ],
+          "setup": ["Open desktop history combobox and mobile history sidebar."],
+          "steps": [
+            "Open with Enter, Space, or arrow key.",
+            "Choose a retained revision with listbox keyboard controls.",
+            "Choose Latest."
+          ],
+          "assertions": [
+            "The selected revision is visibly marked and displayed.",
+            "Latest returns the user to the live board.",
+            "Expanded and active-option states are exposed to assistive technology."
+          ],
+          "related_surfaces": ["HistoryControls", "BoardTopBar", "mobile drawer"],
+          "risk_tags": ["authorization", "recovery", "accessibility"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SB-BW-HISTORY-EMPTY-PAGINATION-007",
+          "title": "History communicates loading, empty, and additional-page states",
+          "preconditions": ["The user has board.history.read."],
+          "setup": ["Prepare loading, empty-ready, and next-cursor history responses."],
+          "steps": [
+            "Open history during loading.",
+            "Observe empty retained history.",
+            "Choose Load more or press PageDown when a next cursor exists."
+          ],
+          "assertions": [
+            "The user is told history is loading.",
+            "An empty retained list does not hide Latest.",
+            "Additional revisions become available without making prior choices unavailable."
+          ],
+          "related_surfaces": ["HistoryControls"],
+          "risk_tags": ["recovery", "accessibility"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SB-BW-HISTORY-ERROR-RETRY-008",
+          "title": "History failure and unavailable selection provide a recoverable visible result",
+          "preconditions": ["The user has board.history.read."],
+          "setup": [
+            "Make history fail then retry successfully; separately make a selected retained revision unavailable."
+          ],
+          "steps": [
+            "Open history and cause failure.",
+            "Choose Retry.",
+            "Attempt the unavailable selection and return to Latest."
+          ],
+          "assertions": [
+            "The user sees unavailable history with Retry.",
+            "Retry restores usable history or Latest.",
+            "The user receives an unavailable-selection message instead of silently viewing stale history and retains usable focus."
+          ],
+          "related_surfaces": ["HistoryControls", "board route"],
+          "risk_tags": ["recovery", "data-integrity", "accessibility"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        }
+      ]
+    },
+    {
+      "id": "SB-BW-CAPABILITY-AUTHORIZATION",
+      "project_id": "sceneboard-fe",
+      "group_kind": "screen",
+      "group_id": "board-workspace",
+      "entry_point": "/boards/{boardId}",
+      "origin_issue_ids": [],
+      "origin_screen_ids": ["board-workspace"],
+      "cases": [
+        {
+          "id": "SB-BW-VIEWER-LEAST-PRIVILEGE-009",
+          "title": "A viewer sees only current board reading and cannot reach privileged workflows",
+          "preconditions": ["The user receives only board.read capability."],
+          "setup": ["Open the board at desktop and mobile widths."],
+          "steps": [
+            "Inspect identity, revision controls, utility rail, and drawer.",
+            "Attempt ordinary keyboard navigation to restricted actions."
+          ],
+          "assertions": [
+            "Current board content is visible.",
+            "Edit, history, connection, presentation, export, sharing, membership, analytics, archive, and deletion controls are not offered.",
+            "Keyboard navigation does not reveal a usable restricted action."
+          ],
+          "related_surfaces": [
+            "ResponsiveBoardChrome",
+            "BoardUtilityRail",
+            "mobile drawer",
+            "board capabilities"
+          ],
+          "risk_tags": ["authorization", "abuse"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SB-BW-EDITOR-BOUNDED-CAPABILITIES-010",
+          "title": "An editor gets literal granted workflows but no owner workflows",
+          "preconditions": [
+            "The user has evidence-backed editor capabilities including board.write, history, media, HITL, artifact control, and own-connection management, but no owner administration capabilities."
+          ],
+          "setup": ["Open the board as editor."],
+          "steps": [
+            "Use rename, history, and connection entry points.",
+            "Inspect owner administration and presentation controls."
+          ],
+          "assertions": [
+            "Granted edit, history, and own-connection workflows are available.",
+            "Sharing, membership, analytics, export, archive, deletion, and presentation controls are not offered.",
+            "Visible outcomes follow literal capabilities, not an inferred role name."
+          ],
+          "related_surfaces": [
+            "BoardIdentitySlot",
+            "HistoryControls",
+            "BoardConnectionsSlot",
+            "OwnerAdminControls"
+          ],
+          "risk_tags": ["authorization", "abuse"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SB-BW-OWNER-ADMIN-COMPLETENESS-011",
+          "title": "A fully authorized owner can reach administration workflows and dismiss board controls safely",
+          "preconditions": [
+            "The user has the evidence-backed owner capabilities and board.archive lifecycle permission."
+          ],
+          "setup": ["Open owner actions from desktop rail and mobile drawer."],
+          "steps": [
+            "Reach sharing, membership, analytics, export, settings, and archive.",
+            "Open board controls and dismiss with close, Escape, and backdrop pointer."
+          ],
+          "assertions": [
+            "Every owner workflow is reachable.",
+            "Board controls expose expanded state and a labeled dialog.",
+            "Each dismissal returns the user to a usable board."
+          ],
+          "related_surfaces": ["OwnerAdminControls", "BoardUtilityRail", "mobile drawer"],
+          "risk_tags": ["authorization", "accessibility"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SB-BW-CAPABILITY-REVOCATION-RECOVERY-012",
+          "title": "Loss of a capability closes privileged UI, exits unsafe state, and restores focus",
+          "preconditions": [
+            "An owner or editor has an open privileged workflow when its server-provided capability epoch removes that permission."
+          ],
+          "setup": [
+            "Open history, owner controls, or presentation controls before the reduced capability state arrives."
+          ],
+          "steps": [
+            "Deliver the reduced capability state.",
+            "Try to continue with the retained prior control."
+          ],
+          "assertions": [
+            "The privileged surface closes and is no longer offered.",
+            "History loss returns the user to current live content and presentation-management loss exits presentation.",
+            "A capabilities-changed announcement occurs and focus reaches a connected drawer trigger or page canvas."
+          ],
+          "related_surfaces": [
+            "board capabilities",
+            "HistoryControls",
+            "OwnerAdminControls",
+            "presentation mode"
+          ],
+          "risk_tags": ["authorization", "recovery", "abuse"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        }
+      ]
+    },
+    {
+      "id": "SB-BW-ARCHIVE-AND-RECOVERY",
+      "project_id": "sceneboard-fe",
+      "group_kind": "screen",
+      "group_id": "board-workspace",
+      "entry_point": "/boards/{boardId}",
+      "origin_issue_ids": [],
+      "origin_screen_ids": ["board-workspace"],
+      "cases": [
+        {
+          "id": "SB-BW-ARCHIVE-CONFIRM-IDEMPOTENT-013",
+          "title": "Confirmed archive redirects only after one successful archive outcome",
+          "preconditions": ["The user has full owner administration capabilities."],
+          "setup": ["Arrange an archive response that can be delayed, aborted, or succeed."],
+          "steps": [
+            "Cancel archive confirmation.",
+            "Submit it once and rapidly repeat submission while pending.",
+            "Allow the request to succeed."
+          ],
+          "assertions": [
+            "Cancellation leaves the usable existing board.",
+            "The board list is not shown before success.",
+            "After success, the user is redirected to /boards once and cannot continue using archived board owner controls."
+          ],
+          "related_surfaces": [
+            "OwnerAdminControls",
+            "BoardArchiveControl",
+            "board route",
+            "/boards"
+          ],
+          "risk_tags": ["authorization", "recovery", "idempotency", "data-integrity"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SB-BW-ARCHIVE-ABORT-RECOVERY-014",
+          "title": "Aborted or failed archive preserves a safe recoverable board state",
+          "preconditions": ["The owner opened archive confirmation."],
+          "setup": ["Abort the in-flight archive request or return failure."],
+          "steps": [
+            "Submit archive and trigger the failure.",
+            "Dismiss the failed flow and continue interacting."
+          ],
+          "assertions": [
+            "The user remains on the existing board rather than being redirected as if archive succeeded.",
+            "The owner can continue from a usable board state."
+          ],
+          "related_surfaces": ["BoardArchiveControl", "OwnerAdminControls"],
+          "risk_tags": ["authorization", "recovery", "data-integrity"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        }
+      ]
+    },
+    {
+      "id": "SB-BW-LIVE-PRESENTATION",
+      "project_id": "sceneboard-fe",
+      "group_kind": "screen",
+      "group_id": "board-workspace",
+      "entry_point": "/boards/{boardId}",
+      "origin_issue_ids": [],
+      "origin_screen_ids": ["board-workspace"],
+      "cases": [
+        {
+          "id": "SB-BW-PRESENTATION-FULLSCREEN-FALLBACK-015",
+          "title": "An authorized owner starts or joins presentation and recovers when fullscreen is denied",
+          "preconditions": [
+            "The owner has share.manage and a board revision with a selected page."
+          ],
+          "setup": [
+            "Make session listing available and make requestFullscreen reject with NotAllowedError."
+          ],
+          "steps": [
+            "Choose Present, then select an existing session or start one.",
+            "Navigate the presentation top bar by keyboard.",
+            "Press Escape or choose Exit presentation."
+          ],
+          "assertions": [
+            "The user enters a focused presentation view with one presentation top bar despite fullscreen denial.",
+            "A keyboard-reachable control remains in the viewport.",
+            "Exit returns to ordinary top bar with usable focus."
+          ],
+          "related_surfaces": [
+            "PresentationModeControls",
+            "PublicPresentationSessionDialog",
+            "presentation top bar",
+            "PresentationStage"
+          ],
+          "risk_tags": ["authorization", "recovery", "accessibility"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SB-BW-PRESENTATION-VIEWER-SYNC-016",
+          "title": "A viewer follows newer presentation state but cannot navigate independently",
+          "preconditions": ["A live presentation exists and the joining user is a viewer."],
+          "setup": ["Join as viewer, then advance presenter to another page."],
+          "steps": [
+            "Try viewer page navigation.",
+            "Deliver a newer session event.",
+            "Inference from evidence: interrupt the stream and let the recovery fetch return the latest state."
+          ],
+          "assertions": [
+            "Viewer navigation is disabled.",
+            "The viewer visibly follows the presenter page.",
+            "After the inferred interruption, the viewer converges on the latest page and does not regress to an older one."
+          ],
+          "related_surfaces": [
+            "presentation session events",
+            "PresentationStage",
+            "page navigation"
+          ],
+          "risk_tags": ["authorization", "recovery", "concurrency", "data-integrity"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SB-BW-PRESENTATION-ANNOTATION-CONFLICT-017",
+          "title": "Rapid presenter updates converge on the newest shared annotation and page",
+          "preconditions": ["A presenter and viewer share a live presentation."],
+          "setup": [
+            "Make one presentation update return 409, then accept the retry after refreshed version retrieval."
+          ],
+          "steps": [
+            "Make rapid annotation and page updates.",
+            "Deliver the conflict and refreshed session.",
+            "Observe the settled viewer state."
+          ],
+          "assertions": [
+            "The presenter remains in a usable session after conflict.",
+            "The viewer sees the newest page and final annotations rather than an older conflicting version."
+          ],
+          "related_surfaces": [
+            "owner presentation API",
+            "PresentationAnnotationLayer",
+            "presentation session events"
+          ],
+          "risk_tags": ["recovery", "concurrency", "data-integrity"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        }
+      ]
+    },
+    {
+      "id": "SB-BW-HITL-DECISION-WORKSPACE",
+      "project_id": "sceneboard-fe",
+      "group_kind": "screen",
+      "group_id": "board-workspace",
+      "entry_point": "/boards/{boardId}",
+      "origin_issue_ids": [],
+      "origin_screen_ids": ["board-workspace"],
+      "cases": [
+        {
+          "id": "SB-BW-HITL-UNPLACED-EXPAND-018",
+          "title": "Open unplaced HITL decisions are discoverable and escape collapses expanded view",
+          "preconditions": [
+            "A live board has open HITL requests not placed in the rendered scene."
+          ],
+          "setup": ["Open a board whose decision-workspace policy prefers expanded view."],
+          "steps": [
+            "Locate the decision workspace.",
+            "Toggle expanded view.",
+            "Press Escape while expanded."
+          ],
+          "assertions": [
+            "Every unplaced open decision is visible in the named workspace.",
+            "The toggle exposes pressed state.",
+            "Escape returns to standard view without losing decision review access."
+          ],
+          "related_surfaces": ["HitlDecisionWorkspace", "HitlBlock", "PresentationStage"],
+          "risk_tags": ["recovery", "accessibility"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SB-BW-HITL-HISTORY-READONLY-019",
+          "title": "Historical and non-writing views do not complete live HITL decisions",
+          "preconditions": ["The user is viewing history or lacks board.write."],
+          "setup": ["Open a board containing HITL content."],
+          "steps": ["Locate the HITL block and attempt normal decision interaction."],
+          "assertions": [
+            "The user can review displayed interaction context.",
+            "The user-visible HITL control remains non-live and does not complete a live decision from this view."
+          ],
+          "related_surfaces": ["HitlBlock", "HistoryControls", "board capabilities"],
+          "risk_tags": ["authorization", "data-integrity"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        }
+      ]
+    },
+    {
+      "id": "QAS-SCENEBOARD-CODEX-INTEGRATION-001",
+      "project_id": "sceneboard-fe",
+      "group_kind": "screen",
+      "group_id": "codex-integration",
+      "entry_point": "/integrations/codex",
+      "origin_issue_ids": [],
+      "origin_screen_ids": ["codex-integration"],
+      "cases": [
+        {
+          "id": "QAC-SCENEBOARD-CODEX-001",
+          "title": "Public Codex installation page presents the onboarding entry point and reaches installation instructions",
+          "preconditions": ["Open the public /integrations/codex route."],
+          "setup": [],
+          "steps": [
+            "Load /integrations/codex.",
+            "Activate the hero action that links to the installation section."
+          ],
+          "assertions": [
+            "The document title is 'Install SceneBoard for Codex'.",
+            "The page visibly presents its localized Codex onboarding title and description, a launch-status notice, and the numbered installation sections.",
+            "The action moves the user to the visible installation section rather than leaving them at an unrelated route."
+          ],
+          "related_surfaces": ["/integrations/codex", "public-web"],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAC-SCENEBOARD-CODEX-002",
+          "title": "Codex plugin archive download produces the advertised archive for the user",
+          "preconditions": [
+            "Open the public /integrations/codex route in a browser that permits downloads."
+          ],
+          "setup": [],
+          "steps": ["Select the archive-download action in the hero."],
+          "assertions": [
+            "The browser starts a download from /downloads/sceneboard-codex-plugin.zip with the suggested filename sceneboard-codex-plugin.zip.",
+            "The downloaded file is a ZIP archive, giving the user a usable plugin archive rather than an error document."
+          ],
+          "related_surfaces": [
+            "/integrations/codex",
+            "/downloads/sceneboard-codex-plugin.zip",
+            "public-web"
+          ],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAC-SCENEBOARD-CODEX-003",
+          "title": "Origin-aware install-guide URL is copied with temporary user feedback",
+          "preconditions": [
+            "Open /integrations/codex in a browser with clipboard write permission."
+          ],
+          "setup": [],
+          "steps": [
+            "Wait for the client page to finish hydrating.",
+            "Use the copy control beside the install-guide URL."
+          ],
+          "assertions": [
+            "The displayed guide URL is the value resolved for the current browser origin after hydration.",
+            "The copied clipboard value equals the guide URL displayed to the user.",
+            "The control visibly changes to the localized copied confirmation and returns to its localized copy label after approximately two seconds."
+          ],
+          "related_surfaces": ["/integrations/codex", "clipboard", "public-web"],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAC-SCENEBOARD-CODEX-004",
+          "title": "Install, update, and removal instructions expose the required Codex commands for copying",
+          "preconditions": [
+            "Open /integrations/codex in a browser with clipboard write permission."
+          ],
+          "setup": [],
+          "steps": [
+            "Review the command block in installation step 02.",
+            "Review the update and removal command blocks in maintenance step 05.",
+            "Copy each command block."
+          ],
+          "assertions": [
+            "The installation block visibly contains 'codex plugin marketplace add leecatinc/sceneboard' followed by 'codex plugin add sceneboard@sceneboard'.",
+            "The maintenance blocks visibly contain the marketplace upgrade plus plugin-add command and 'codex plugin remove sceneboard@sceneboard'.",
+            "Each copy action places its complete displayed command block on the clipboard and gives the user copied feedback."
+          ],
+          "related_surfaces": ["/integrations/codex", "clipboard", "public-web"],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAC-SCENEBOARD-CODEX-005",
+          "title": "Clipboard denial does not show a false success and a later retry recovers",
+          "preconditions": [
+            "Open /integrations/codex with control over the browser clipboard permission."
+          ],
+          "setup": [],
+          "steps": [
+            "Deny clipboard write permission and select a copy control.",
+            "Grant clipboard write permission and select the same copy control again."
+          ],
+          "assertions": [
+            "After the denied attempt, the control remains at its localized copy label instead of reporting copied success.",
+            "After permission is restored, the retry copies the displayed value and visibly reports copied success."
+          ],
+          "related_surfaces": ["/integrations/codex", "clipboard", "public-web"],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAC-SCENEBOARD-CODEX-006",
+          "title": "Codex configuration priorities and authorization entry point are visible to the installer",
+          "preconditions": ["Open the public /integrations/codex route."],
+          "setup": [],
+          "steps": [
+            "Review configuration step 03.",
+            "Activate the authorization action in step 04."
+          ],
+          "assertions": [
+            "The configuration priority list visibly presents the project .mcp.json override, the Codex configuration path, and https://sceneboard.dev as the production default in that order.",
+            "The authorization action directs the browser to /settings/ai-connections, giving the installer the configured connection-management entry point."
+          ],
+          "related_surfaces": ["/integrations/codex", "/settings/ai-connections", "public-web"],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAC-SCENEBOARD-CODEX-007",
+          "title": "Brand, sign-in, and language controls navigate the public installer without concealing primary navigation",
+          "preconditions": ["Open the public /integrations/codex route."],
+          "setup": [],
+          "steps": [
+            "Activate the brand link.",
+            "Return to /integrations/codex and activate the sign-in link.",
+            "Return again and operate the language selector."
+          ],
+          "assertions": [
+            "The brand link takes the user to /boards and the sign-in link takes the user to /login.",
+            "The primary navigation remains available while the language selector is operable, so the user retains access to navigation and localized installer content."
+          ],
+          "related_surfaces": ["/integrations/codex", "/boards", "/login", "public-web"],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAC-SCENEBOARD-CODEX-008",
+          "title": "Codex onboarding has an accessible main landmark and usable primary navigation",
+          "preconditions": [
+            "Open /integrations/codex with an accessibility tree or assistive technology."
+          ],
+          "setup": [],
+          "steps": [
+            "Navigate by landmarks and headings.",
+            "Inspect the primary navigation and the decorative logo card in the accessibility tree."
+          ],
+          "assertions": [
+            "Assistive technology exposes a primary navigation landmark with its localized label and a main landmark containing the page's localized level-one title and installation sections.",
+            "The decorative logo card is omitted from the accessibility tree, while actionable links and copy controls remain reachable by their visible localized names."
+          ],
+          "related_surfaces": ["/integrations/codex", "accessibility", "public-web"],
+          "risk_tags": [],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        }
+      ]
+    },
+    {
+      "id": "SQA-SCENEBOARD-FE-EXPORT-RENDER-V1",
+      "project_id": "sceneboard-fe",
+      "group_kind": "screen",
+      "group_id": "export-render",
+      "entry_point": "/internal/export-render/{sessionId}",
+      "origin_issue_ids": [],
+      "origin_screen_ids": ["export-render"],
+      "cases": [
+        {
+          "id": "QAA-SCREEN-EXPORT-RENDER-001",
+          "title": "Valid authorized export session renders the first presentation page after resources are ready",
+          "preconditions": [
+            "A session ID has exactly 22 URL-safe base64url characters.",
+            "The export API and artifact runtime origins are exact HTTP loopback origins.",
+            "The projection response is HTTP 200 with application/vnd.sceneboard.export-projection+json and a valid V1 document."
+          ],
+          "setup": [
+            "Provide a one-or-more-page projection with a matching format descriptor and session-scoped resource URLs.",
+            "Provide the CSP-authorized Korean and Latin Noto Sans KR font resources required for readiness."
+          ],
+          "steps": [
+            "Open the internal export-render route with the valid session ID.",
+            "Wait until the first page's fonts and export-ready content have settled."
+          ],
+          "assertions": [
+            "The first presentation page is visibly rendered at the projection's declared dimensions rather than remaining an empty busy region.",
+            "The rendered export does not rely on browser storage or cookies."
+          ],
+          "related_surfaces": [
+            "export-render route",
+            "export projection endpoint",
+            "artifact runtime frame"
+          ],
+          "risk_tags": ["authorization", "security"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAA-SCREEN-EXPORT-RENDER-002",
+          "title": "Authorized renderer selects a requested in-range page and rejects an out-of-range selection",
+          "preconditions": [
+            "A valid authorized export session has loaded a projection containing at least two pages.",
+            "The renderer readiness bridge is available only after projection validation succeeds."
+          ],
+          "setup": [
+            "Use a projection with visibly distinct first and second pages and all required resources."
+          ],
+          "steps": [
+            "Request rendering of the second page through the export renderer bridge.",
+            "Request rendering with a negative index and an index equal to the page count."
+          ],
+          "assertions": [
+            "The requested in-range presentation page becomes visibly rendered and ready before the request resolves successfully.",
+            "Invalid page selections do not replace the visible authorized page with unintended content."
+          ],
+          "related_surfaces": ["export renderer bridge", "export-render route"],
+          "risk_tags": ["authorization", "security"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAA-SCREEN-EXPORT-RENDER-003",
+          "title": "Invalid session identifiers and non-loopback configuration do not expose an export render surface",
+          "preconditions": [
+            "The route accepts only a 22-character URL-safe session ID.",
+            "Configured API and artifact runtime origins must be origin-only HTTP loopback URLs without a path, query, or fragment."
+          ],
+          "setup": [
+            "Prepare malformed session IDs and configuration candidates using localhost, HTTPS, non-loopback hosts, paths, queries, and fragments."
+          ],
+          "steps": [
+            "Request the route with each malformed session ID.",
+            "Request a syntactically valid route under each invalid origin configuration."
+          ],
+          "assertions": [
+            "An invalid session route presents no export content.",
+            "A configuration that could send the renderer to a non-loopback or rewritten origin presents no usable export render surface."
+          ],
+          "related_surfaces": ["export-render route", "loopback origin configuration"],
+          "risk_tags": ["authorization", "security"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAA-SCREEN-EXPORT-RENDER-004",
+          "title": "Malformed, oversized, redirected, or contract-mismatched projections never render supplied content",
+          "preconditions": [
+            "Projection fetches use no-store caching and redirect:error.",
+            "Accepted projection bytes must be between 1 and 1048576 bytes and decode as UTF-8 JSON.",
+            "The projection, format descriptor, resources, usage identities, SHA-256 values, media types, and session-scoped resource URLs are all strictly validated."
+          ],
+          "setup": [
+            "Prepare one otherwise valid response for each failure boundary: empty body, 1048577-byte body, wrong media type, redirect, malformed JSON, wrong document/format, and an invalid resource identity or URL."
+          ],
+          "steps": ["Open the authorized render route for each invalid projection response."],
+          "assertions": [
+            "No board page or attacker-supplied resource becomes visible for any rejected projection.",
+            "The page does not convert an invalid projection into a partially rendered export."
+          ],
+          "related_surfaces": [
+            "export projection endpoint",
+            "export-render route",
+            "session-scoped resource endpoint"
+          ],
+          "risk_tags": ["authorization", "security", "data-integrity", "abuse-denial"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAA-SCREEN-EXPORT-RENDER-005",
+          "title": "Export document policy confines an authorized renderer to approved loopback endpoints",
+          "preconditions": [
+            "The internal renderer is served with its dedicated document policy and a valid nonce.",
+            "The requester reaches the internal route as a loopback peer carrying its export bearer."
+          ],
+          "setup": [
+            "Attempt frame, connection, worker, and stylesheet injection from non-approved origins while rendering a valid session."
+          ],
+          "steps": [
+            "Open the authorized renderer and attempt the disallowed resource loads.",
+            "Attempt the same route without its bearer or from a non-loopback peer."
+          ],
+          "assertions": [
+            "The authorized export page remains visible only within its intended renderer and does not display injected remote, worker, or framed content.",
+            "Unauthorized requests do not show export content."
+          ],
+          "related_surfaces": [
+            "export-render middleware",
+            "content security policy",
+            "export bearer boundary"
+          ],
+          "risk_tags": ["authorization", "security", "abuse-denial"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAA-SCREEN-EXPORT-RENDER-006",
+          "title": "Revision-pinned PDF and PPTX exports publish only complete downloadable files",
+          "preconditions": [
+            "An owner export request supplies a board ID, exact revision ID, CSRF token, and either pdf or pptx format.",
+            "The export response has the matching success content type, a safe attachment filename, matching content length, no-store/private cache controls, and nosniff."
+          ],
+          "setup": ["Prepare complete PDF and PPTX byte responses for the same named revision."],
+          "steps": [
+            "Request a PDF export and a PPTX export for the pinned revision.",
+            "Publish each admitted result through the download publisher."
+          ],
+          "assertions": [
+            "For each requested format, the user receives one downloadable file with the safe revision-specific filename and matching document type.",
+            "Each temporary download URL is revoked after the download is triggered."
+          ],
+          "related_surfaces": ["board export API client", "browser download publication"],
+          "risk_tags": ["authorization", "security", "data-integrity"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAA-SCREEN-EXPORT-RENDER-007",
+          "title": "Failed, cancelled, redirected, partial, and contradictory export responses never become downloads",
+          "preconditions": [
+            "The export client has a 120-second deadline and accepts caller cancellation.",
+            "The failure contract defines retryability for server failure codes."
+          ],
+          "setup": [
+            "Prepare a timeout, caller cancellation, redirected response, opaque redirect, wrong content length, mismatched bytes, unsafe filename, malformed error, and contradictory retryability response."
+          ],
+          "steps": [
+            "Start an export under each failure condition.",
+            "For a retryable server failure, perform a later fresh export attempt with a complete valid response."
+          ],
+          "assertions": [
+            "No failed, cancelled, redirected, partial, or contradictory response produces a downloadable file.",
+            "Inference: after a retryable failure, a later complete response can provide the requested download without treating the failed response as a file."
+          ],
+          "related_surfaces": ["board export API client", "browser download publication"],
+          "risk_tags": ["authorization", "security", "recovery", "abuse-denial", "data-integrity"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "QAA-SCREEN-EXPORT-RENDER-008",
+          "title": "Concurrent revision-pinned export requests keep each user's downloadable result isolated",
+          "preconditions": [
+            "Inference: concurrent export initiation is a relevant high-risk boundary because the client carries a board ID and a revision ID in every request.",
+            "Two valid requests use the same board with different revision IDs and formats."
+          ],
+          "setup": [
+            "Arrange complete valid responses whose names, bytes, and content types visibly distinguish the two requested revisions."
+          ],
+          "steps": [
+            "Start both export requests before either response settles.",
+            "Allow the responses to settle in reverse order."
+          ],
+          "assertions": [
+            "Inference: each user receives only the complete file matching that user's requested revision and format, with no cross-request file substitution.",
+            "No response is published twice as a download."
+          ],
+          "related_surfaces": ["board export API client", "browser download publication"],
+          "risk_tags": [
+            "authorization",
+            "security",
+            "concurrency",
+            "idempotency",
+            "data-integrity"
+          ],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        }
+      ]
+    },
+    {
+      "id": "SQA-SCENEBOARD-FE-AUTH-SIGNUP-JOURNEY-01",
+      "project_id": "sceneboard-fe",
+      "group_kind": "screen",
+      "group_id": "auth-signup",
+      "entry_point": "/signup",
+      "origin_issue_ids": [],
+      "origin_screen_ids": ["auth-signup"],
+      "cases": [
+        {
+          "id": "SQA-SCENEBOARD-FE-AUTH-SIGNUP-001",
+          "title": "Anonymous visitor completes email verification and creates an account",
+          "preconditions": [
+            "The session reconciliation result is anonymous.",
+            "A disposable email address can receive the six-digit verification code."
+          ],
+          "setup": ["Open /signup with no existing authenticated session."],
+          "steps": [
+            "Enter a valid email address and request a verification code.",
+            "Enter the received six-digit code and submit verification.",
+            "Enter a password of at least 10 characters and submit account creation."
+          ],
+          "assertions": [
+            "The page announces that the email is verified before password entry is available.",
+            "The user is redirected to /settings/ai-connections after successful account creation."
+          ],
+          "related_surfaces": ["browser", "library"],
+          "risk_tags": ["authentication", "security"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SQA-SCENEBOARD-FE-AUTH-SIGNUP-002",
+          "title": "Existing authenticated session bypasses signup and reaches AI connection settings",
+          "preconditions": ["Session reconciliation returns an existing authenticated session."],
+          "setup": ["Navigate directly to /signup while authenticated."],
+          "steps": ["Wait for initial session reconciliation."],
+          "assertions": [
+            "The user is redirected to /settings/ai-connections instead of being able to create another account."
+          ],
+          "related_surfaces": ["browser"],
+          "risk_tags": ["authentication", "security"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SQA-SCENEBOARD-FE-AUTH-SIGNUP-003",
+          "title": "Code sending resists rapid repeat activation and exposes the resend cooldown",
+          "preconditions": ["The visitor is anonymous and the email field contains a value."],
+          "setup": ["Open /signup."],
+          "steps": [
+            "Activate Send code repeatedly while the first request is pending, then observe the completed state.",
+            "Attempt to activate resend before the displayed cooldown has elapsed."
+          ],
+          "assertions": [
+            "The user sees one code-entry step and a disabled resend control with the countdown instead of repeated sends.",
+            "The control becomes available only after the displayed resend delay reaches zero."
+          ],
+          "related_surfaces": ["browser", "library"],
+          "risk_tags": ["authentication", "security"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SQA-SCENEBOARD-FE-AUTH-SIGNUP-004",
+          "title": "Invalid six-digit verification code keeps the visitor in a recoverable verification state",
+          "preconditions": ["A verification code has been sent for the entered email address."],
+          "setup": ["Open the code-entry step on /signup."],
+          "steps": ["Submit an invalid six-digit code."],
+          "assertions": [
+            "An invalid-verification-code alert is visible.",
+            "The code-entry step remains available so the visitor can try another code."
+          ],
+          "related_surfaces": ["browser", "library"],
+          "risk_tags": ["authentication", "security"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SQA-SCENEBOARD-FE-AUTH-SIGNUP-005",
+          "title": "Rate-limited verification request exposes retry timing without trusting API error text",
+          "preconditions": [
+            "The visitor is anonymous and a verification request receives RATE_LIMITED with a retry-after value."
+          ],
+          "setup": ["Enter an email address on /signup."],
+          "steps": ["Request a verification code while the rate limit response is returned."],
+          "assertions": [
+            "The user sees the localized rate-limit outcome with the retry delay.",
+            "The raw API error message is not shown to the user."
+          ],
+          "related_surfaces": ["browser", "library"],
+          "risk_tags": ["authentication", "security"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SQA-SCENEBOARD-FE-AUTH-SIGNUP-006",
+          "title": "Malformed verification API payload fails safely in the signup journey",
+          "preconditions": [
+            "Inference: the client maps a rejected exact-shape verification payload to its ordinary failure result.",
+            "The verification response omits a required field, has an unexpected field, or uses non-positive timing values."
+          ],
+          "setup": ["Open the relevant signup code-request or verification step."],
+          "steps": ["Cause the malformed verification response to be received."],
+          "assertions": [
+            "The user sees the generic verification-failed outcome rather than advancing to password entry or seeing malformed response content."
+          ],
+          "related_surfaces": ["browser", "library"],
+          "risk_tags": ["authentication", "security"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SQA-SCENEBOARD-FE-AUTH-SIGNUP-007",
+          "title": "Expired verification ticket returns the visitor to the email-verification recovery path",
+          "preconditions": [
+            "The visitor has verified an email and reached password entry.",
+            "The signup request returns verification_required."
+          ],
+          "setup": ["Enter a password on the verified-email step."],
+          "steps": ["Submit account creation after the verification ticket is no longer accepted."],
+          "assertions": [
+            "The password-entry step is removed and the user sees the expired-verification message.",
+            "The user can request a new verification code for the retained email address."
+          ],
+          "related_surfaces": ["browser"],
+          "risk_tags": ["authentication", "security"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SQA-SCENEBOARD-FE-AUTH-SIGNUP-008",
+          "title": "Email already in use remains a visible signup outcome",
+          "preconditions": [
+            "The visitor has a valid verification ticket for an email already associated with an account."
+          ],
+          "setup": ["Reach the password-entry step on /signup."],
+          "steps": ["Submit a password to create the account."],
+          "assertions": [
+            "The user remains on signup and sees the email-in-use alert rather than a success redirect."
+          ],
+          "related_surfaces": ["browser"],
+          "risk_tags": ["authentication", "security"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SQA-SCENEBOARD-FE-AUTH-SIGNUP-009",
+          "title": "Signup preserves native field constraints and exposes state changes accessibly",
+          "preconditions": ["The visitor is anonymous."],
+          "setup": ["Open /signup using keyboard and assistive technology."],
+          "steps": [
+            "Navigate to the email, verification-code, and password steps.",
+            "Attempt to submit a password shorter than 10 characters after successful verification."
+          ],
+          "assertions": [
+            "Each visible input has its associated label and the verification code accepts exactly six numeric characters.",
+            "The verified-email status and error outcomes are announced, and native validation prevents account creation with the short password."
+          ],
+          "related_surfaces": ["browser"],
+          "risk_tags": ["authentication", "security"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        },
+        {
+          "id": "SQA-SCENEBOARD-FE-AUTH-SIGNUP-010",
+          "title": "Session reconciliation failure blocks unsafe signup submission with a visible error",
+          "preconditions": ["Session reconciliation returns an error."],
+          "setup": ["Navigate to /signup."],
+          "steps": ["Wait for session reconciliation to fail."],
+          "assertions": [
+            "The user sees the session-failed alert and the signup controls remain disabled instead of submitting without a resolved session state."
+          ],
+          "related_surfaces": ["browser"],
+          "risk_tags": ["authentication", "security"],
+          "approval_kinds": [],
+          "origin_kind": "generated",
+          "execution_policy": "on_impact",
+          "automation_status": "generated_unverified",
+          "verification_state": "generated_unverified",
+          "last_verified_digest": null,
+          "adapters": []
+        }
+      ]
+    }
+  ],
+  "source_digest": "39614da7079deec4d23a82b53d0145189cb9272b49a1c8321aa45fec6e716735",
+  "updated": "2026-08-14T01:48:49Z"
+}

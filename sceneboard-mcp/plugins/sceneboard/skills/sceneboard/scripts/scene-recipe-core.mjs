@@ -60,7 +60,7 @@ const failPlain = (error) => {
 
 // Reject duplicate JSON object members before JSON.parse. Strings and escapes are
 // decoded by JSON.parse; this scanner tracks only structural object key positions.
-const hasDuplicateMembers = (text) => {
+export const hasDuplicateJsonMembers = (text) => {
   const stack = [];
   let index = 0;
   let expectingKey = false;
@@ -205,7 +205,7 @@ export const parseSceneRecipeJson = (bytes) => {
   } catch {
     throw new SceneRecipeError("INVALID_JSON", []);
   }
-  if (hasDuplicateMembers(text)) throw new SceneRecipeError("INVALID_JSON", []);
+  if (hasDuplicateJsonMembers(text)) throw new SceneRecipeError("INVALID_JSON", []);
   let parsed;
   try {
     parsed = JSON.parse(text);

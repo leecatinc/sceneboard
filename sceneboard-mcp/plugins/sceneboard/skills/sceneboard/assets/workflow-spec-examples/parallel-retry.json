@@ -42,7 +42,7 @@
       "errorPolicy": null,
       "subflowId": null,
       "control": null,
-      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [{ "sourceId": "source_skill", "startLine": null, "endLine": null, "locator": "SKILL.md" }] }
     },
     {
       "id": "research_parallel",
@@ -61,7 +61,7 @@
         "mode": "all",
         "branchEdgeIds": ["research_edge_primary", "research_edge_secondary"]
       },
-      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [{ "sourceId": "source_skill", "startLine": null, "endLine": null, "locator": "SKILL.md" }] }
     },
     {
       "id": "research_primary",
@@ -83,7 +83,7 @@
       "errorPolicy": null,
       "subflowId": null,
       "control": null,
-      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [{ "sourceId": "source_skill", "startLine": null, "endLine": null, "locator": "SKILL.md" }] }
     },
     {
       "id": "research_secondary",
@@ -99,7 +99,7 @@
       "errorPolicy": null,
       "subflowId": "subflow_review",
       "control": null,
-      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [{ "sourceId": "source_skill", "startLine": null, "endLine": null, "locator": "SKILL.md" }] }
     },
     {
       "id": "research_join",
@@ -121,7 +121,7 @@
           "research_edge_secondary_join"
         ]
       },
-      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [{ "sourceId": "source_skill", "startLine": null, "endLine": null, "locator": "SKILL.md" }] }
     },
     {
       "id": "research_end",
@@ -137,7 +137,7 @@
       "errorPolicy": null,
       "subflowId": null,
       "control": null,
-      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [{ "sourceId": "source_skill", "startLine": null, "endLine": null, "locator": "SKILL.md" }] }
     }
   ],
   "edges": [
@@ -150,7 +150,7 @@
       "condition": null,
       "priority": null,
       "stateKeys": [],
-      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [{ "sourceId": "source_skill", "startLine": null, "endLine": null, "locator": "SKILL.md" }] }
     },
     {
       "id": "research_edge_primary",
@@ -161,7 +161,7 @@
       "condition": null,
       "priority": null,
       "stateKeys": [],
-      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [{ "sourceId": "source_skill", "startLine": null, "endLine": null, "locator": "SKILL.md" }] }
     },
     {
       "id": "research_edge_secondary",
@@ -172,7 +172,7 @@
       "condition": null,
       "priority": null,
       "stateKeys": [],
-      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [{ "sourceId": "source_skill", "startLine": null, "endLine": null, "locator": "SKILL.md" }] }
     },
     {
       "id": "research_edge_primary_join",
@@ -183,7 +183,7 @@
       "condition": null,
       "priority": null,
       "stateKeys": [],
-      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [{ "sourceId": "source_skill", "startLine": null, "endLine": null, "locator": "SKILL.md" }] }
     },
     {
       "id": "research_edge_secondary_join",
@@ -194,7 +194,7 @@
       "condition": null,
       "priority": null,
       "stateKeys": [],
-      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [{ "sourceId": "source_skill", "startLine": null, "endLine": null, "locator": "SKILL.md" }] }
     },
     {
       "id": "research_edge_end",
@@ -205,7 +205,7 @@
       "condition": null,
       "priority": null,
       "stateKeys": [],
-      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [{ "sourceId": "source_skill", "startLine": null, "endLine": null, "locator": "SKILL.md" }] }
     }
   ],
   "subflows": [
@@ -229,7 +229,7 @@
           "errorPolicy": null,
           "subflowId": null,
           "control": null,
-          "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+          "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [{ "sourceId": "source_skill", "startLine": null, "endLine": null, "locator": "SKILL.md" }] }
         },
         {
           "id": "review_end",
@@ -245,7 +245,7 @@
           "errorPolicy": null,
           "subflowId": null,
           "control": null,
-          "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+          "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [{ "sourceId": "source_skill", "startLine": null, "endLine": null, "locator": "SKILL.md" }] }
         }
       ],
       "edges": [
@@ -258,10 +258,10 @@
           "condition": null,
           "priority": null,
           "stateKeys": [],
-          "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+          "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [{ "sourceId": "source_skill", "startLine": null, "endLine": null, "locator": "SKILL.md" }] }
         }
       ],
-      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [] }
+      "evidence": { "basis": "explicit", "confidence": 1, "sourceRefs": [{ "sourceId": "source_skill", "startLine": null, "endLine": null, "locator": "SKILL.md" }] }
     }
   ],
   "unresolvedQuestions": [],

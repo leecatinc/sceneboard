@@ -226,7 +226,6 @@
   padding: 5px 9px;
   color: #bff8ef;
   font: 700 10px/1.2 inherit;
-  cursor: pointer;
 }
 
 .startReviewEdge {
@@ -241,53 +240,9 @@
 
 .primaryAction:focus-visible,
 .secondaryAction:focus-visible,
-.node:focus-visible,
-.edge:focus-visible,
-.detailDialog button:focus-visible,
 .exportPanel textarea:focus-visible {
   outline: 3px solid #7cf3df;
   outline-offset: 3px;
-}
-
-.detailDialog {
-  z-index: 5;
-  width: min(360px, calc(100% - 32px));
-  margin: auto;
-  border: 1px solid rgba(76, 224, 201, 0.78);
-  border-radius: 16px;
-  background: #071f25;
-  padding: 22px;
-  color: #fff;
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.48);
-}
-
-.detailDialog::backdrop {
-  background: rgba(2, 12, 16, 0.58);
-}
-
-.detailDialog h2,
-.detailDialog p {
-  margin: 0 0 12px;
-}
-
-.detailDialog button {
-  min-height: 44px;
-  border: 1px solid #4ce0c9;
-  border-radius: 8px;
-  background: #0c464a;
-  padding: 8px 12px;
-  color: #fff;
-  font: inherit;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.detailKind {
-  color: #78cfc2;
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
 }
 
 @media (max-width: 980px) {
@@ -358,12 +313,6 @@
   }
   .node small {
     display: none;
-  }
-  .detailDialog {
-    width: calc(100% - 16px);
-    max-width: none;
-    margin: auto 8px 8px;
-    border-radius: 18px 18px 12px 12px;
   }
 }
 

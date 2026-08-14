@@ -36,7 +36,7 @@
     "preflight:auth-origins": "node scripts/verify-auth-origin-topology.mjs",
     "typecheck:contracts": "tsc -b ./tsconfig.json",
     "test:contracts": "npm run test --workspace @sceneboard/board-schema",
-    "test:browser:c10": "npm run build:runtime --workspace @sceneboard/artifact-runtime && node --test e2e/*.test.mjs",
+    "test:browser:c10": "npm run build:runtime --workspace @sceneboard/artifact-runtime && node --test --test-concurrency=1 e2e/*.test.mjs",
     "test:browser:live": "node scripts/run-live-browser-tests.mjs",
     "verify:contracts": "node scripts/verify-contract-manifest.mjs",
     "verify:presentation-contracts": "node scripts/verify-presentation-contract-manifest.mjs",

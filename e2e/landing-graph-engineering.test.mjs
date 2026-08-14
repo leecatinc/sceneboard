@@ -41,7 +41,9 @@ const readLandingGraphGeometry = (page) =>
     const graphBox = graph.getBoundingClientRect();
     const previewBox = graph.parentElement.getBoundingClientRect();
     const scrollArea = graph.closest('main')?.parentElement;
-    const controlBoxes = [...graph.querySelectorAll('button')].map((control) => {
+    const controlBoxes = [
+      ...graph.querySelectorAll('[data-landing-workflow-node], [data-landing-workflow-edge]'),
+    ].map((control) => {
       const box = control.getBoundingClientRect();
       return { left: box.left, right: box.right, top: box.top, bottom: box.bottom };
     });
@@ -83,7 +85,7 @@ const readLandingGraphGeometry = (page) =>
   });
 
 test(
-  'signed-out landing exposes accessible graph review with no clipboard authority',
+  'signed-out landing exposes a static graph preview with no clipboard authority',
   { timeout: 45_000 },
   async () => {
     const port = await ephemeralPort();
@@ -187,7 +189,19 @@ test(
       assert.notEqual(navigation, null);
       const contentSecurityPolicy = navigation.headers()['content-security-policy'];
       assert.match(contentSecurityPolicy, /default-src 'self'/u);
-      assert.match(contentSecurityPolicy, /script-src 'self' 'unsafe-inline' 'unsafe-eval'/u);
+      const scriptSourceDirective = contentSecurityPolicy
+        .split(';')
+        .map((directive) => directive.trim())
+        .find((directive) => directive.startsWith('script-src '));
+      assert.ok(scriptSourceDirective, contentSecurityPolicy);
+      assert.deepEqual(scriptSourceDirective.split(/\s+/u), [
+        'script-src',
+        "'self'",
+        "'unsafe-inline'",
+        'http://127.0.0.2:39002',
+        "'unsafe-eval'",
+        'https://apis.google.com',
+      ]);
 
       assert.deepEqual(
         await page
@@ -200,8 +214,8 @@ test(
       assert.equal(await page.locator('[role="tablist"]').count(), 0);
 
       const graph = page.locator('[data-landing-workflow-graph="v1"]');
-      assert.equal(await graph.getAttribute('data-landing-workflow-interaction'), 'details');
-      assert.equal(await graph.getByRole('button').count(), 5);
+      assert.equal(await graph.getAttribute('data-landing-workflow-interaction'), 'static');
+      assert.equal(await graph.getByRole('button').count(), 0);
       const exportedWorkflowSpec = JSON.parse(
         await page.locator('[data-landing-workflow-export] textarea').inputValue(),
       );
@@ -223,42 +237,22 @@ test(
       );
       assert.equal(await page.locator('dialog').count(), 0, JSON.stringify({ browserErrors }));
       const review = page.locator('[data-landing-workflow-node="node_review"]');
-      await review.press('Enter');
-      const dialog = page.getByRole('dialog');
-      await dialog.waitFor({ state: 'visible' });
-      assert.match(await dialog.innerText(), /node_review/u);
-      assert.equal(await dialog.evaluate((element) => element.matches(':modal')), true);
-      await page.keyboard.press('Tab');
-      assert.equal(
-        await dialog.evaluate((element) => element.contains(document.activeElement)),
-        true,
-      );
-      await page.keyboard.press('Shift+Tab');
-      assert.equal(
-        await dialog.evaluate((element) => element.contains(document.activeElement)),
-        true,
-      );
-      await dialog.press('Escape');
-      await dialog.waitFor({ state: 'detached' });
-      await page.waitForFunction(
-        () => document.activeElement?.getAttribute('data-landing-workflow-node') === 'node_review',
-      );
-      assert.equal(await review.evaluate((element) => document.activeElement === element), true);
+      await review.click();
       const reviewEdge = page.locator('[data-landing-workflow-edge="edge_start_review"]');
-      await reviewEdge.press('Space');
-      const edgeDialog = page.getByRole('dialog');
-      await edgeDialog.waitFor({ state: 'visible' });
-      await edgeDialog.getByText('edge_start_review', { exact: true }).waitFor();
-      assert.match(await edgeDialog.innerText(), /edge_start_review/u);
-      await page.getByRole('button', { name: 'Close details' }).click();
-      await edgeDialog.waitFor({ state: 'detached' });
-      await page.waitForFunction(
-        () =>
-          document.activeElement?.getAttribute('data-landing-workflow-edge') ===
-          'edge_start_review',
-      );
+      await reviewEdge.click();
+      assert.equal(await page.locator('dialog').count(), 0, JSON.stringify({ browserErrors }));
       assert.equal(
-        await reviewEdge.evaluate((element) => document.activeElement === element),
+        await graph
+          .locator('[data-landing-workflow-node], [data-landing-workflow-edge]')
+          .evaluateAll((elements) =>
+            elements.every(
+              (element) =>
+                element.tagName === 'DIV' &&
+                element.getAttribute('role') === null &&
+                element.getAttribute('tabindex') === null &&
+                element.getAttribute('aria-haspopup') === null,
+            ),
+          ),
         true,
       );
 
@@ -330,40 +324,8 @@ test(
       const lastGraphControl = mobile
         .locator('[data-landing-workflow-node], [data-landing-workflow-edge]')
         .last();
-      await lastGraphControl.press('Enter');
-      const mobileDialog = mobile.getByRole('dialog');
-      await mobileDialog.waitFor({ state: 'visible' });
-      await mobile.getByRole('button', { name: /Close details/u }).click();
-      await mobileDialog.waitFor({ state: 'detached' });
-      await mobile.waitForFunction(
-        (element) => document.activeElement === element,
-        await lastGraphControl.elementHandle(),
-      );
-      assert.equal(
-        await lastGraphControl.evaluate((element) => document.activeElement === element),
-        true,
-      );
-      const postFocusGeometry = await mobile
-        .locator('[data-landing-workflow-graph="v1"]')
-        .evaluate((graph) => {
-          const preview = graph.parentElement;
-          const graphBox = graph.getBoundingClientRect();
-          const focusedBox = document.activeElement?.getBoundingClientRect();
-          return {
-            previewScrollLeft: preview?.scrollLeft ?? -1,
-            graph: { left: graphBox.left, right: graphBox.right },
-            focused:
-              focusedBox === undefined ? null : { left: focusedBox.left, right: focusedBox.right },
-          };
-        });
-      assert.equal(postFocusGeometry.previewScrollLeft, 0, JSON.stringify(postFocusGeometry));
-      assert.equal(
-        postFocusGeometry.focused !== null &&
-          postFocusGeometry.focused.left >= postFocusGeometry.graph.left &&
-          postFocusGeometry.focused.right <= postFocusGeometry.graph.right,
-        true,
-        JSON.stringify(postFocusGeometry),
-      );
+      await lastGraphControl.click();
+      assert.equal(await mobile.locator('dialog').count(), 0);
       if (screenshotDirectory !== undefined)
         await mobile.screenshot({
           path: `${screenshotDirectory}/landing-mobile.png`,

@@ -29,6 +29,8 @@ logs/
 .certification-fixtures/
 test-results/
 playwright-report/
+sceneboard-fe/qa/authoring-registry.json
+sceneboard-fe/qa/test-account-ledger.json
 **/.sceneboard-current
 **/.sceneboard-leases/
 **/.sceneboard-releases/

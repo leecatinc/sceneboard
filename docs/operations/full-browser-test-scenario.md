@@ -34,6 +34,9 @@ The development server is the default target.
 ```text
 SCENEBOARD_BASE_URL=https://sceneboard.leecat.co.kr
 SCENEBOARD_ARTIFACT_URL=https://sceneboard-artifact.leecat.co.kr
+SCENEBOARD_BROWSER_BOARD_URL=https://sceneboard.leecat.co.kr/boards/<attempt-owned-board-id>
+SCENEBOARD_BROWSER_PUBLIC_ARTIFACT_URL=https://sceneboard.leecat.co.kr/s/<attempt-owned-share-token>
+SCENEBOARD_BROWSER_STORAGE_STATE=/workspace/.tmp/agent/browser-use/sceneboard-full-browser/storage-state.json
 SCENEBOARD_OUTPUT_DIR=/workspace/.tmp/agent/browser-use/sceneboard-full-browser
 ```
 
@@ -42,12 +45,21 @@ For production verification, change only the URLs:
 ```text
 SCENEBOARD_BASE_URL=https://sceneboard.dev
 SCENEBOARD_ARTIFACT_URL=https://artifact.sceneboard.dev
+SCENEBOARD_BROWSER_BOARD_URL=https://sceneboard.dev/boards/<attempt-owned-board-id>
+SCENEBOARD_BROWSER_PUBLIC_ARTIFACT_URL=https://sceneboard.dev/s/<attempt-owned-share-token>
+SCENEBOARD_BROWSER_STORAGE_STATE=/workspace/.tmp/agent/browser-use/sceneboard-full-browser/storage-state.json
 ```
 
-Never store a password, session cookie, CSRF token, or connection credential in
-the scenario, logs, screenshots, or HTML. Routine regression uses a reusable
-dedicated QA account; signup verification alone uses a unique test email for
-each run.
+Never store a password, session cookie, CSRF token, connection credential, raw
+share token, or token-bearing share URL in the scenario, logs, screenshots, or
+HTML. Sanitize every captured share path to `/s/<redacted-share-token>` before
+retaining evidence. Routine regression uses a reusable dedicated QA account;
+signup verification alone uses a unique test email for each run.
+
+`sceneboard-fe/qa/registry.json` is a 134-case generated authoring inventory. Its cases remain
+`generated_unverified` with no adapters until an exact harness mapping is persisted; do not report
+that inventory as an executable browser matrix. Executed evidence comes from the named `e2e/` and
+`test/browser/` suites and must be reported separately with their actual per-engine counts.
 
 ## 3. Verdict criteria
 
@@ -66,8 +78,8 @@ each run.
 - A HITL answer is stored but not delivered to the caller.
 - A scene or artifact is stored while the browser remains on a safe-stop page.
 - Scenes, revisions, or connection state from different boards are mixed.
-- A credential, cookie, or token appears in the DOM, console, network URL, or
-  artifact runtime.
+- A credential, cookie, raw share token, or unsanitized `/s/<token>` path appears
+  in retained evidence, the DOM, console, network URL, or artifact runtime.
 
 ### BLOCKED
 
@@ -78,7 +90,8 @@ each run.
 
 ## 4. Shared safety rules
 
-1. Use headless Chromium by default.
+1. Use headless Chromium by default, then repeat live release journeys in
+   Firefox and WebKit.
 2. Before sending real email, changing a password, revoking a connection, or
    deleting a board, confirm that the case explicitly authorizes that exact
    test data.
@@ -99,27 +112,29 @@ each run.
 | ------ | ------------------------------------------------- | --------------------------------------------------------- |
 | PRE-01 | Request app root and artifact `/healthz`/`runner` | App 200, artifact health 200, runner 200                  |
 | PRE-02 | Inspect PM2 or deployment state                   | Next, Nest, MCP, and artifact runtime are healthy         |
-| PRE-03 | Run browser environment doctor                    | Playwright and Chromium can run                           |
+| PRE-03 | Run browser environment doctor                    | Playwright, Chromium, Firefox, and WebKit can run         |
 | PRE-04 | Create a fresh browser context                    | No prior cookies, localStorage, or sessionStorage         |
 | PRE-05 | Install console/pageerror/requestfailed capture   | Error evidence can be captured without sensitive data     |
 | PRE-06 | Create a test run ID                              | Accounts, connections, boards, and keys cannot cross runs |
+| PRE-07 | Prepare Chromium, Firefox, and WebKit runs        | All engines use the same share, revision, and artifact    |
+| PRE-08 | Prepare current Chrome and macOS Safari checks    | Actual browser versions and macOS version are recorded    |
 
 ## 6. Phase A — Public pages and localization
 
-| ID     | Action                                                       | Expected result                                                      |
-| ------ | ------------------------------------------------------------ | -------------------------------------------------------------------- |
-| PUB-01 | Open `/` while signed out                                    | Public landing renders without authentication or broken requests     |
-| PUB-02 | Open `/login`, `/signup`, and `/integrations/codex` directly | Each returns 200 with no broken bundle request                       |
-| PUB-03 | Open a fresh context whose browser language is Korean        | Korean is selected when no preference is stored                      |
-| PUB-04 | Select all ten supported locales                             | Primary navigation and forms change to the selected locale           |
-| PUB-05 | Select Korean, reload, and open a new tab                    | Stored language overrides browser language                           |
-| PUB-06 | Remove stored language and test regional locale tags         | `pt-BR`, `zh-CN`, and `zh-TW` map to the correct supported locale    |
-| PUB-07 | Use the Codex install-page copy button and ZIP link          | Copy state appears; ZIP is HTTP 200 and nonempty                     |
-| PUB-08 | Inspect installation ZIP contents                            | Plugin manifest, MCP launcher, skill, API fallback, and demo exist   |
-| PUB-09 | Operate every landing workflow node and edge by keyboard     | Details dialog opens, traps focus, closes, and restores the opener   |
-| PUB-10 | Select the landing workflow JSON                             | Full canonical JSON is selected without clipboard authority          |
-| PUB-11 | Repeat landing checks at 320x568 and 568x320                 | Header, graph controls, labels, JSON, and terminal CTA remain usable |
-| PUB-12 | Enable reduced motion on the landing                         | Graph motion is disabled while every control remains operable        |
+| ID     | Action                                                       | Expected result                                                     |
+| ------ | ------------------------------------------------------------ | ------------------------------------------------------------------- |
+| PUB-01 | Open `/` while signed out                                    | Public landing renders without authentication or broken requests    |
+| PUB-02 | Open `/login`, `/signup`, and `/integrations/codex` directly | Each returns 200 with no broken bundle request                      |
+| PUB-03 | Open a fresh context whose browser language is Korean        | Korean is selected when no preference is stored                     |
+| PUB-04 | Select all ten supported locales                             | Primary navigation and forms change to the selected locale          |
+| PUB-05 | Select Korean, reload, and open a new tab                    | Stored language overrides browser language                          |
+| PUB-06 | Remove stored language and test regional locale tags         | `pt-BR`, `zh-CN`, and `zh-TW` map to the correct supported locale   |
+| PUB-07 | Use the Codex install-page copy button and ZIP link          | Copy state appears; ZIP is HTTP 200 and nonempty                    |
+| PUB-08 | Inspect installation ZIP contents                            | Plugin manifest, MCP launcher, skill, API fallback, and demo exist  |
+| PUB-09 | Inspect every landing workflow node and edge                 | Static labels match the canonical JSON without activation semantics |
+| PUB-10 | Select the landing workflow JSON                             | Full canonical JSON is selected without clipboard authority         |
+| PUB-11 | Repeat landing checks at 320x568 and 568x320                 | Header, graph labels, JSON, and terminal CTA remain usable          |
+| PUB-12 | Enable reduced motion on the landing                         | Graph motion is disabled while the static preview remains readable  |
 
 ## 7. Phase B — Signup, email verification, and login
 
@@ -298,6 +313,39 @@ inline-card rendering.
 | ART-19 | Use an invalid artifact identifier     | Safe fallback; no credential or payload exposure                |
 | ART-20 | Request an unapproved capability       | `CAPABILITY_DENIED`; no automatic approval                      |
 
+### 14.1 Shared-board longevity and cross-browser artifact recovery
+
+Run this family against one active public share and one password-protected
+share pinned to the same artifact-bearing revision. Automated coverage uses
+Playwright Chromium, Firefox, and WebKit. A release check also repeats the visible
+outcomes in current Google Chrome and macOS Safari because Playwright WebKit is
+engine coverage, not a claim that the exact installed Safari build ran.
+
+Do not use internal bridge state as the final assertion. A case passes only
+when the pinned board content and artifact are visibly usable or, for an
+intentional lifecycle denial, the correct viewer state is visibly shown.
+
+| ID       | Action                                                                   | Expected user-visible result                                                               |
+| -------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| SHARE-01 | Open the public URL in fresh Chromium, Firefox, and WebKit contexts      | Board title, pinned page, and styled artifact appear; the content region is not blank      |
+| SHARE-02 | Repeat `SHARE-01` in current Chrome and macOS Safari                     | The same pinned content is visible and interactive in both installed browsers              |
+| SHARE-03 | Submit a wrong password, then the correct password                       | Wrong input reveals nothing; correct input opens the exact pinned board                    |
+| SHARE-04 | Keep the visible share open through the 30-second context revalidation   | Board and artifact remain visible without switching to the unavailable screen              |
+| SHARE-05 | Return a retryable 503 once during revalidation, then recover            | Existing content stays visible and the renewed context continues the same board            |
+| SHARE-06 | Keep the tab open beyond the 55-second hard context deadline             | The viewer transparently bootstraps a fresh context and keeps the same pinned content      |
+| SHARE-07 | Background the tab past the deadline, then make it visible and online    | Resume recovers the share without a permanent blank or unavailable screen                  |
+| SHARE-08 | Expire password authorization while the board is open                    | Password entry returns; re-entry restores the same pinned board and artifact               |
+| SHARE-09 | Advance the owner board after publication                                | Viewer stays on the published immutable revision until the share is explicitly updated     |
+| SHARE-10 | Inspect the WebKit opaque `srcdoc` fallback under the share CSP          | Artifact HTML, package CSS, and responsive sizing render; no isolated-render error appears |
+| SHARE-11 | Capture console, page, and runtime requests during `SHARE-01`–`SHARE-10` | Visible outcomes stay correct with zero unexpected errors and no credential leakage        |
+| SHARE-12 | Revoke or rotate the share, then reload                                  | Viewer intentionally shows the unavailable state and no pinned content remains             |
+
+For `SHARE-10` and `SHARE-11`, also retain diagnostic evidence that the outer
+document is opaque, `runner.ready` completes, runtime asset URLs resolve from
+the runner script origin despite `base-uri 'none'`, nonce-authorized styles are
+applied, and runtime requests contain no cookie, Authorization, or Referer.
+These diagnostics explain a failure but do not replace the visible assertions.
+
 ## 15. Phase J — Revision time travel
 
 | ID      | Action                                    | Expected result                                                  |
@@ -377,10 +425,11 @@ browser-full/
   05-scene-live
   06-hitl
   07-artifacts
-  08-history
-  09-responsive-accessibility
-  10-errors-security
-  11-cleanup
+  08-shared-board-cross-browser
+  09-history
+  10-responsive-accessibility
+  11-errors-security
+  12-cleanup
 ```
 
 The repository owns three distinct evidence classes and must report them
@@ -398,16 +447,18 @@ evidence for focus, layout, rendering, or user interaction.
 
 ### 19.1 Current browser automation coverage and open gates
 
-| Journey                                        | Current executable evidence                                      | Status / remaining requirement                                                        |
-| ---------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| Public landing graph and workflow JSON         | `e2e/landing-graph-engineering.test.mjs`                         | Automated at desktop, portrait, landscape, keyboard, CSP, and motion                  |
-| API-key create-sheet scope selection           | `e2e/api-key-create-sheet-browser.test.mjs`                      | Automated component seam; live create/use/reload/revoke remains                       |
-| Artifact host capability and clipboard         | `e2e/artifact-host-behavior.test.mjs`, clipboard/authority tests | Automated host seam; real board hydration/revocation remains                          |
-| Workflow artifact rendering                    | `e2e/workflow-graph-artifact.test.mjs`                           | Automated generated runtime; real board composition remains                           |
-| Board page/mobile/presentation/public artifact | `test/browser/*.spec.ts`                                         | Live-fixture suite; release must supply isolated URLs and authenticated storage state |
-| Pairing to exact board plus live update        | API certification and manual scenario only                       | Open P0 browser journey                                                               |
-| History, reconnect, HITL, error recovery       | Contract tests and manual scenario only                          | Open P1 integrated browser journey                                                    |
-| Shared password viewer and token canary        | Static/API contracts plus live public-artifact spec              | Open P1 wrong-password to pinned-revision browser journey                             |
+| Journey                                        | Current executable evidence                                      | Status / remaining requirement                                                                    |
+| ---------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Public landing graph and workflow JSON         | `e2e/landing-graph-engineering.test.mjs`                         | Automated at desktop, portrait, landscape, keyboard, CSP, and motion                              |
+| API-key create-sheet scope selection           | `e2e/api-key-create-sheet-browser.test.mjs`                      | Automated component seam; live create/use/reload/revoke remains                                   |
+| Artifact host capability and clipboard         | `e2e/artifact-host-behavior.test.mjs`, clipboard/authority tests | Automated host seam; real board hydration/revocation remains                                      |
+| Workflow artifact rendering                    | `e2e/workflow-graph-artifact.test.mjs`                           | Automated generated runtime; real board composition remains                                       |
+| Board page/mobile/presentation/public artifact | `test/browser/*.spec.ts`                                         | Live-fixture suite; release must supply isolated URLs and authenticated storage state             |
+| Shared-viewer context renewal                  | `e2e/shared-board-revalidation.test.mjs`                         | Automated retryable 503 and password re-entry; add a live 55-second dwell run                     |
+| Safari/WebKit isolated artifact fallback       | `e2e/artifact-host-behavior.test.mjs`                            | Automated WebKit opaque `srcdoc`, nonce style, and visible artifact; actual Safari remains manual |
+| Pairing to exact board plus live update        | API certification and manual scenario only                       | Open P0 browser journey                                                                           |
+| History, reconnect, HITL, error recovery       | Contract tests and manual scenario only                          | Open P1 integrated browser journey                                                                |
+| Shared password viewer and token canary        | Static/API contracts plus live public-artifact spec              | `SHARE-03`, `SHARE-08`, and `SHARE-12` remain live-browser release gates                          |
 
 Each suite records the following JSON:
 
@@ -474,6 +525,9 @@ The final report must include:
 - whether any prior-board contamination occurred;
 - terminal state and response delivery for every HITL type;
 - immutable-ready and browser-active state for every artifact;
+- Chromium, Firefox, and Playwright WebKit outcomes for `SHARE-01`–`SHARE-12`, plus a distinct
+  `NOT RUN`/manual result for installed macOS Safari when it was not executed;
+- whether the share stayed visible across 30-second renewal and 55-second recovery;
 - revision creation, history navigation, and restoration outcomes;
 - console, page, and request error summary;
 - security-leak scan result;

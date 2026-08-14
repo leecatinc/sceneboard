@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { chromium } from 'playwright';
+import { launchBrowser } from './browser-engine';
 
 const publicArtifactUrl = process.env.SCENEBOARD_BROWSER_PUBLIC_ARTIFACT_URL;
 
@@ -9,7 +9,7 @@ test(
   { skip: publicArtifactUrl === undefined },
   async () => {
     assert.ok(publicArtifactUrl);
-    const browser = await chromium.launch({ headless: true });
+    const browser = await launchBrowser();
     try {
       const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
       await page.addInitScript(() => {
@@ -121,18 +121,18 @@ test(
       await annotationToolbar.getByRole('button', { name: /redo|다시 실행/iu }).click();
       assert.equal(await stroke.count(), 1);
       await annotationToolbar.getByRole('button', { name: /pointer|포인터/iu }).click();
+      const artifactUserSelect = () =>
+        artifactFrame.evaluate(() => {
+          const style = getComputedStyle(document.documentElement);
+          return (
+            style.userSelect ||
+            (style as CSSStyleDeclaration & { webkitUserSelect?: string }).webkitUserSelect
+          );
+        });
       const selectionDeadline = Date.now() + 5_000;
-      while (
-        (await artifactFrame.evaluate(
-          () => getComputedStyle(document.documentElement).userSelect,
-        )) !== 'none' &&
-        Date.now() < selectionDeadline
-      )
+      while ((await artifactUserSelect()) !== 'none' && Date.now() < selectionDeadline)
         await page.waitForTimeout(50);
-      assert.equal(
-        await artifactFrame.evaluate(() => getComputedStyle(document.documentElement).userSelect),
-        'none',
-      );
+      assert.equal(await artifactUserSelect(), 'none');
       if (pageCount > 1) {
         const artifactNext = artifactFrame.locator('button').last();
         await artifactNext.click();

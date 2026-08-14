@@ -1,0 +1,124 @@
+{
+  "schemaVersion": 1,
+  "mode": "explicit-high-severity-dispositions",
+  "entries": [
+    {
+      "id": "GHSA-2v37-7h3g-55p8",
+      "package": "nanoid",
+      "disposition": "EXISTING_NON_MEDIA_SCOPE",
+      "nodes": ["node_modules/nanoid"],
+      "reason": "The affected frontend dependency is outside native media ingestion and export encoding."
+    },
+    {
+      "id": "GHSA-5p2g-fcmc-qvqq",
+      "package": "image-size",
+      "disposition": "PPTX_UNUSED_TRANSITIVE_DEPENDENCY",
+      "nodes": ["node_modules/image-size"],
+      "reason": "PptxGenJS 4.0.1 declares image-size but its shipped Node bundle contains no executable image-size import; SceneBoard supplies bounded signature-checked PNG data with explicit dimensions."
+    },
+    {
+      "id": "GHSA-6g55-p6wh-862q",
+      "package": "postcss",
+      "disposition": "EXISTING_NON_MEDIA_SCOPE",
+      "nodes": ["node_modules/postcss"],
+      "reason": "The affected frontend CSS processing dependency is outside native media ingestion and export encoding."
+    },
+    {
+      "id": "GHSA-7p8r-x3mc-p8w7",
+      "package": "fast-uri",
+      "disposition": "EXISTING_NON_MEDIA_SCOPE",
+      "nodes": ["node_modules/fast-uri"],
+      "reason": "The affected schema URI dependency is outside native media ingestion and export encoding."
+    },
+    {
+      "id": "GHSA-89xv-2m56-2m9x",
+      "package": "next",
+      "disposition": "EXISTING_NON_MEDIA_SCOPE",
+      "nodes": ["node_modules/next"],
+      "reason": "The affected frontend framework path is outside the backend native media conversion boundary certified here."
+    },
+    {
+      "id": "GHSA-f88m-g3jw-g9cj",
+      "package": "sharp",
+      "disposition": "TRANSITIVE_FRONTEND_ONLY_BACKEND_PIN_SAFE",
+      "nodes": ["node_modules/sharp"],
+      "reason": "The advisory node is the root frontend transitive sharp; the certified backend uses its separately pinned 0.35.3 installation."
+    },
+    {
+      "id": "GHSA-m99w-x7hq-7vfj",
+      "package": "next",
+      "disposition": "EXISTING_NON_MEDIA_SCOPE",
+      "nodes": ["node_modules/next"],
+      "reason": "The affected frontend framework path is outside the backend native media conversion boundary certified here."
+    },
+    {
+      "id": "GHSA-mwp4-54f8-5fhr",
+      "package": "ip-address",
+      "disposition": "EXISTING_NON_MEDIA_SCOPE",
+      "nodes": ["node_modules/ip-address"],
+      "reason": "The affected network address dependency is outside native media ingestion and export encoding."
+    },
+    {
+      "id": "GHSA-p9j2-gv94-2wf4",
+      "package": "next",
+      "disposition": "EXISTING_NON_MEDIA_SCOPE",
+      "nodes": ["node_modules/next"],
+      "reason": "The affected frontend framework path is outside the backend native media conversion boundary certified here."
+    },
+    {
+      "id": "GHSA-r28c-9q8g-f849",
+      "package": "postcss",
+      "disposition": "EXISTING_NON_MEDIA_SCOPE",
+      "nodes": ["node_modules/postcss"],
+      "reason": "The affected frontend CSS processing dependency is outside native media ingestion and export encoding."
+    },
+    {
+      "id": "GHSA-r5fr-rjxr-66jc",
+      "package": "lodash-es",
+      "disposition": "EXISTING_NON_MEDIA_SCOPE",
+      "nodes": [
+        "node_modules/@chevrotain/cst-dts-gen/node_modules/lodash-es",
+        "node_modules/@chevrotain/gast/node_modules/lodash-es",
+        "node_modules/chevrotain/node_modules/lodash-es"
+      ],
+      "reason": "The affected parser tooling dependency is outside native media ingestion and export encoding."
+    },
+    {
+      "id": "GHSA-v2hh-gcrm-f6hx",
+      "package": "fast-uri",
+      "disposition": "EXISTING_NON_MEDIA_SCOPE",
+      "nodes": ["node_modules/fast-uri"],
+      "reason": "The affected schema URI dependency is outside native media ingestion and export encoding."
+    },
+    {
+      "id": "GHSA-w3rx-r6r6-pgpr",
+      "package": "image-size",
+      "disposition": "PPTX_UNUSED_TRANSITIVE_DEPENDENCY",
+      "nodes": ["node_modules/image-size"],
+      "reason": "PptxGenJS 4.0.1 declares image-size but its shipped Node bundle contains no executable image-size import; SceneBoard supplies bounded signature-checked PNG data with explicit dimensions."
+    }
+  ],
+  "transitiveEntries": [
+    {
+      "via": "image-size",
+      "package": "pptxgenjs",
+      "disposition": "PPTX_UNUSED_TRANSITIVE_DEPENDENCY",
+      "nodes": ["node_modules/pptxgenjs"],
+      "reason": "The reviewed dependency edge is the sole PptxGenJS 4.0.1 image-size edge and remains subject to the runtime-import check."
+    },
+    {
+      "via": "postcss",
+      "package": "next",
+      "disposition": "EXISTING_NON_MEDIA_SCOPE",
+      "nodes": ["node_modules/next"],
+      "reason": "The reviewed inherited postcss advisory reaches only the root frontend Next.js installation."
+    },
+    {
+      "via": "sharp",
+      "package": "next",
+      "disposition": "TRANSITIVE_FRONTEND_ONLY_BACKEND_PIN_SAFE",
+      "nodes": ["node_modules/next"],
+      "reason": "The reviewed inherited sharp advisory reaches only the root frontend Next.js installation; the backend installation is separately pinned."
+    }
+  ]
+}

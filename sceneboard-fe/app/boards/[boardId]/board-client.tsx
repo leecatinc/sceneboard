@@ -1433,7 +1433,7 @@ export function BoardClient({ boardId }: { boardId: string }) {
     >
       <ResponsiveBoardChrome
         slots={chromeSlots}
-        routeKey={`${boardId}:${visibleSnapshot.revision.revisionId}`}
+        routeKey={boardId}
         presentationActive={presentationActive}
         presentationTopBar={presentationTopBar}
         notice={navigationNotice}

@@ -2,8 +2,29 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
+import {
+  mobileBoardDrawerSlotSignatureV1,
+  reduceMobileBoardDrawerV1,
+} from '../../components/board/mobile-board-drawer-state';
+
 const source = (relative: string) =>
   readFileSync(new URL(`../../${relative}`, import.meta.url), 'utf8');
+
+test('slot hydration keeps the same open dialog epoch deterministically', () => {
+  const empty = mobileBoardDrawerSlotSignatureV1([null, null, null]);
+  const hydrated = mobileBoardDrawerSlotSignatureV1([null, 'history', 'connections']);
+  const opened = reduceMobileBoardDrawerV1(
+    { open: false, dialogEpoch: 0, slotSignature: empty },
+    { type: 'open' },
+  );
+  const afterHydration = reduceMobileBoardDrawerV1(opened, {
+    type: 'slots-hydrated',
+    slotSignature: hydrated,
+  });
+  assert.equal(afterHydration.open, true);
+  assert.equal(afterHydration.dialogEpoch, opened.dialogEpoch);
+  assert.equal(afterHydration.slotSignature, hydrated);
+});
 
 test('mobile drawer exports the exact future-owned slot contract and one responsive mount owner', () => {
   const drawer = source('components/board/MobileBoardDrawer.tsx');
@@ -28,6 +49,7 @@ test('mobile drawer exports the exact future-owned slot contract and one respons
 
 test('drawer owns modal focus, inert, body lock, route close, backdrop, and restore fallbacks', () => {
   const drawer = source('components/board/MobileBoardDrawer.tsx');
+  const board = source('app/boards/[boardId]/board-client.tsx');
   assert.match(drawer, /role="dialog"/u);
   assert.match(drawer, /aria-modal="true"/u);
   assert.match(drawer, /background\.inert = true/u);
@@ -38,6 +60,23 @@ test('drawer owns modal focus, inert, body lock, route close, backdrop, and rest
   assert.match(drawer, /previousRouteRef\.current !== routeKey/u);
   assert.match(drawer, /openingTrigger\?\.isConnected/u);
   assert.match(drawer, /\[data-page-heading\]/u);
+  assert.match(drawer, /dialogRef\.current\?\.contains\(document\.activeElement\)/u);
+  assert.match(drawer, /closeRef\.current\?\.focus\(\)/u);
+  assert.match(drawer, /const slotSignature = mobileBoardDrawerSlotSignatureV1\(\[/u);
+  assert.match(drawer, /dispatchDrawer\(\{ type: 'slots-hydrated', slotSignature \}\)/u);
+  assert.match(drawer, /data-mobile-drawer-dialog-epoch=\{drawerState\.dialogEpoch\}/u);
+  assert.match(
+    drawer,
+    /useEffect\(\(\) => \{\s*if \(!open \|\| dialogRef\.current\?\.contains\(document\.activeElement\)\) return;\s*closeRef\.current\?\.focus\(\);\s*\}, \[drawerState\.slotSignature, open\]\)/u,
+  );
+  assert.match(
+    board,
+    /<ResponsiveBoardChrome[\s\S]*?routeKey=\{boardId\}[\s\S]*?presentationActive=/u,
+  );
+  assert.doesNotMatch(
+    board,
+    /routeKey=\{`\$\{boardId\}:\$\{visibleSnapshot\.revision\.revisionId\}`\}/u,
+  );
 });
 
 test('viewport, bottom controls, safe area, and mutually exclusive scroll owners are explicit', () => {

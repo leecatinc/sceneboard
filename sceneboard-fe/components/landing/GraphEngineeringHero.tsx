@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 
 import { useI18n } from '../i18n/I18nProvider';
 import workflowSpec from './graph-engineering-sample.json';
@@ -21,39 +21,11 @@ const previewEdges = [...workflowSpec.edges].sort(
 );
 const nodeClasses = [styles.startNode, styles.reviewNode, styles.endNode] as const;
 const edgeClasses = [styles.startReviewEdge, styles.reviewEndEdge] as const;
-type GraphDetail = Readonly<{ id: string; title: string; kind: 'node' | 'edge' }>;
 
 export function GraphEngineeringHero() {
   const { locale, t } = useI18n();
   const jsonRef = useRef<HTMLTextAreaElement>(null);
-  const detailDialogRef = useRef<HTMLDialogElement>(null);
-  const detailCloseRef = useRef<HTMLButtonElement>(null);
-  const detailOpenerRef = useRef<HTMLButtonElement>(null);
   const [selectionStatus, setSelectionStatus] = useState('');
-  const [detail, setDetail] = useState<GraphDetail | null>(null);
-
-  useEffect(() => {
-    if (detail === null) return;
-    const dialog = detailDialogRef.current;
-    if (dialog !== null && !dialog.open) dialog.showModal();
-    detailCloseRef.current?.focus();
-  }, [detail]);
-
-  const openDetail = (next: GraphDetail, opener: HTMLButtonElement) => {
-    detailOpenerRef.current = opener;
-    setDetail(next);
-  };
-
-  const finishDetailClose = () => {
-    setDetail(null);
-    requestAnimationFrame(() => detailOpenerRef.current?.focus());
-  };
-
-  const closeDetail = () => {
-    const dialog = detailDialogRef.current;
-    if (dialog?.open) dialog.close();
-    else finishDetailClose();
-  };
 
   const selectWorkflowSpec = () => {
     jsonRef.current?.focus();
@@ -114,86 +86,36 @@ export function GraphEngineeringHero() {
         <div
           className={styles.graph}
           data-landing-workflow-graph="v1"
-          data-landing-workflow-interaction="details"
+          data-landing-workflow-interaction="static"
         >
           <svg viewBox="0 0 800 420" aria-hidden="true">
             <path d="M172 210 H332" />
             <path d="M468 210 H660" />
           </svg>
           {previewNodes.map((node, index) => (
-            <button
+            <div
               key={node.id}
-              type="button"
               className={`${styles.node} ${nodeClasses[index]}`}
               data-landing-workflow-node={node.id}
-              aria-haspopup="dialog"
-              onClick={(event) =>
-                openDetail({ id: node.id, title: node.label, kind: 'node' }, event.currentTarget)
-              }
             >
               <small>{node.id}</small>
               <strong>{node.label}</strong>
-            </button>
+            </div>
           ))}
           {previewEdges.map((edge, index) => {
             const title =
               edge.label ??
               `${previewNodeLabels.get(edge.fromNodeId) ?? edge.fromNodeId} → ${previewNodeLabels.get(edge.toNodeId) ?? edge.toNodeId}`;
             return (
-              <button
+              <div
                 key={edge.id}
-                type="button"
                 className={`${styles.edge} ${edgeClasses[index]}`}
                 data-landing-workflow-edge={edge.id}
-                aria-haspopup="dialog"
-                onClick={(event) =>
-                  openDetail({ id: edge.id, title, kind: 'edge' }, event.currentTarget)
-                }
               >
                 {title}
-              </button>
+              </div>
             );
           })}
-          {detail === null ? null : (
-            <dialog
-              ref={detailDialogRef}
-              className={styles.detailDialog}
-              aria-labelledby="landing-workflow-detail-title"
-              onClose={finishDetailClose}
-              onKeyDown={(event) => {
-                if (event.key !== 'Tab') return;
-                const focusable = [
-                  ...event.currentTarget.querySelectorAll<HTMLElement>(
-                    'a[href], button:not([disabled]), input, select, textarea, [tabindex]:not([tabindex="-1"])',
-                  ),
-                ];
-                const first = focusable.at(0);
-                const last = focusable.at(-1);
-                if (
-                  first === undefined ||
-                  last === undefined ||
-                  (event.shiftKey && document.activeElement === first) ||
-                  (!event.shiftKey && document.activeElement === last)
-                ) {
-                  event.preventDefault();
-                  (event.shiftKey ? last : first)?.focus();
-                }
-              }}
-            >
-              <p className={styles.detailKind}>
-                {t(
-                  detail.kind === 'node'
-                    ? 'graphLanding.nodeDialogTitle'
-                    : 'graphLanding.edgeDialogTitle',
-                )}
-              </p>
-              <h2 id="landing-workflow-detail-title">{detail.title}</h2>
-              <p>{detail.id}</p>
-              <button ref={detailCloseRef} type="button" onClick={closeDetail}>
-                {t('graphLanding.closeDetail')}
-              </button>
-            </dialog>
-          )}
         </div>
       </div>
     </section>
