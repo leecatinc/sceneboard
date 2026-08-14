@@ -12,7 +12,7 @@ test('public route keeps the raw route secret inside the server entry and bound 
   assert.match(page, /bootstrapSharedBoard\.bind\(null, shareToken\)/u);
   assert.match(page, /submitSharedBoardPassword\.bind\(null, shareToken\)/u);
   assert.doesNotMatch(page, /await bootstrapSharedBoard\(shareToken\)/u);
-  assert.match(client, /useEffect\(\(\) => \{[\s\S]*?bootstrapAction\(\)/u);
+  assert.match(client, /const reboot = useCallback\([\s\S]*?bootstrapAction\(\)/u);
   assert.match(client, /initialBootstrapStartedRef\.current/u);
   assert.match(client, /if \(initialBootstrapStartedRef\.current\) return/u);
   assert.match(client, /aria-busy="true"/u);
@@ -99,7 +99,13 @@ test('capability loss and hard expiry clear authority before bootstrap recovery'
   assert.match(client, /requestAbortRef\.current\?\.abort\(\)/u);
   assert.match(client, /document\.exitFullscreen/u);
   assert.match(client, /document\.visibilityState === 'visible'/u);
-  assert.match(client, /const recover = useCallback\([\s\S]*?invalidate\(\);[\s\S]*?reboot\(\)/u);
+  assert.match(
+    client,
+    /const recover = useCallback\([\s\S]*?bootstrapInFlightRef\.current !== null[\s\S]*?invalidate\(\);[\s\S]*?reboot\(\)/u,
+  );
   assert.match(client, /state\.state === 'unavailable'[\s\S]*?recover\(\)/u);
-  assert.match(client, /const hardTimer = setTimeout\(recover,/u);
+  assert.match(
+    client,
+    /const hardTimer = setTimeout\(\s*recover,\s*Math\.max\(0, deadlines\.hardExpiryAt - performance\.now\(\)\)/u,
+  );
 });

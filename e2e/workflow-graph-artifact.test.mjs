@@ -158,6 +158,64 @@ test('mobile touch drag pans both graph axes and keeps the inspector usable', as
   await browserContext.close();
 });
 
+test('invalid hidden-node measurements preserve geometry and tab resume repairs stale SVG coordinates', async (context) => {
+  const browser = await chromium.launch({ headless: true });
+  context.after(() => browser.close());
+  const page = await browser.newPage();
+  await page.setContent(`<style>${draft.source.css}</style>${draft.source.html}`);
+  await page.addScriptTag({ content: draft.source.javascript });
+  const readGeometry = () =>
+    page.evaluate(() => ({
+      paths: [...document.querySelectorAll('.sb-graph-path')].map((path) => path.getAttribute('d')),
+      labels: [...document.querySelectorAll('[data-edge-label]')].map((label) => ({
+        x: label.getAttribute('data-label-x'),
+        y: label.getAttribute('data-label-y'),
+        transform: label.getAttribute('transform'),
+      })),
+    }));
+  await page.waitForFunction(() =>
+    [...document.querySelectorAll('.sb-graph-node')].every(
+      (node) => node.offsetWidth > 0 && node.offsetHeight > 0,
+    ),
+  );
+  const valid = await readGeometry();
+  await page.evaluate(() => {
+    document
+      .querySelectorAll('.sb-graph-node')
+      .forEach((node) => node.style.setProperty('display', 'none'));
+    document.querySelector('[data-fit]')?.click();
+  });
+  assert.deepEqual(await readGeometry(), valid);
+  await page.evaluate(() => {
+    document
+      .querySelectorAll('.sb-graph-node')
+      .forEach((node) => node.style.removeProperty('display'));
+    document
+      .querySelectorAll('.sb-graph-path')
+      .forEach((path) => path.setAttribute('d', 'M 0 0 Q 0 0 0 0'));
+    document.querySelectorAll('[data-edge-label]').forEach((label) => {
+      label.setAttribute('data-label-x', '0');
+      label.setAttribute('data-label-y', '0');
+      label.setAttribute('transform', 'translate(0 0)');
+    });
+    window.dispatchEvent(new PageTransitionEvent('pageshow'));
+  });
+  await page.waitForFunction(
+    (expected) =>
+      JSON.stringify({
+        paths: [...document.querySelectorAll('.sb-graph-path')].map((path) =>
+          path.getAttribute('d'),
+        ),
+        labels: [...document.querySelectorAll('[data-edge-label]')].map((label) => ({
+          x: label.getAttribute('data-label-x'),
+          y: label.getAttribute('data-label-y'),
+          transform: label.getAttribute('transform'),
+        })),
+      }) === JSON.stringify(expected),
+    valid,
+  );
+});
+
 test('host-copy denial, unavailable API, and timeout reveal selectable JSON', async (context) => {
   const browser = await chromium.launch({ headless: true });
   context.after(() => browser.close());

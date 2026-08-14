@@ -64,15 +64,21 @@ const fixtureOutput = buildResult.outputFiles[0];
 assert.ok(fixtureOutput);
 const fixtureSource = new TextDecoder().decode(fixtureOutput.contents);
 
-const documentFor = (bootstrapStates) => `<!doctype html><html><body><div id="root"></div><script>
+const documentFor = (
+  bootstrapStates,
+  recoveryBootstrapDelayMs,
+) => `<!doctype html><html><body><div id="root"></div><script>
 window.process = { env: { NODE_ENV: 'production' } };
-window.__sharedBoardFixture = ${JSON.stringify({ bootstrapStates }).replaceAll('<', '\\u003c')};
+window.__sharedBoardFixture = ${JSON.stringify({ bootstrapStates, recoveryBootstrapDelayMs }).replaceAll('<', '\\u003c')};
 </script><script src="/fixture.js"></script></body></html>`;
 
-const fulfillDocument = async (route, bootstrapStates) => {
+const fulfillDocument = async (route, bootstrapStates, recoveryBootstrapDelayMs) => {
   const url = new URL(route.request().url());
   if (url.pathname === '/')
-    return route.fulfill({ contentType: 'text/html', body: documentFor(bootstrapStates) });
+    return route.fulfill({
+      contentType: 'text/html',
+      body: documentFor(bootstrapStates, recoveryBootstrapDelayMs),
+    });
   if (url.pathname === '/fixture.js')
     return route.fulfill({ contentType: 'application/javascript', body: fixtureSource });
   return false;
@@ -193,4 +199,88 @@ test('shared viewer bootstraps into password re-entry after authorization expiry
   });
   assert.doesNotMatch(await page.locator('body').innerText(), /shared board is unavailable/iu);
   assert.deepEqual(unexpectedErrors(errors, 404), []);
+});
+
+test('shared viewer performs one bootstrap when hard expiry and tab resume coincide', async (context) => {
+  const browser = await chromium.launch({ headless: true });
+  context.after(() => browser.close());
+  const browserContext = await browser.newContext();
+  await browserContext.route('**/*', async (route) => {
+    if (
+      (await fulfillDocument(route, [ready(contextId('A')), ready(contextId('B'))], 1_000)) !==
+      false
+    )
+      return;
+    return route.fulfill({ status: 204, body: '' });
+  });
+  const page = await browserContext.newPage();
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('console', (message) => {
+    if (message.type() === 'error') errors.push(message.text());
+  });
+  await page.clock.install();
+  await page.goto(APP_ORIGIN, { waitUntil: 'load' });
+  await waitForBoard(page, errors);
+  await page.evaluate(() => {
+    window.__sharedBoardHarness?.visibility('hidden');
+    setTimeout(() => window.__sharedBoardHarness?.visibility('visible'), 55_000);
+  });
+  await page.clock.fastForward(55_000);
+  await page.waitForFunction(
+    () => window.__sharedBoardHarness?.snapshot().bootstrapCalls === 2,
+    undefined,
+    { timeout: 5_000 },
+  );
+  await page.clock.fastForward(1_000);
+  await waitForBoard(page, errors);
+  assert.deepEqual(await page.evaluate(() => window.__sharedBoardHarness?.snapshot()), {
+    bootstrapCalls: 2,
+    text: await page.locator('body').textContent(),
+  });
+  assert.doesNotMatch(await page.locator('body').innerText(), /shared board is unavailable/iu);
+  assert.deepEqual(errors, []);
+});
+
+test('shared viewer clears hidden authority at hard expiry before recovery settles', async (context) => {
+  const browser = await chromium.launch({ headless: true });
+  context.after(() => browser.close());
+  const browserContext = await browser.newContext();
+  await browserContext.route('**/*', async (route) => {
+    if (
+      (await fulfillDocument(route, [ready(contextId('A')), ready(contextId('B'))], 10_000)) !==
+      false
+    )
+      return;
+    return route.fulfill({ status: 204, body: '' });
+  });
+  const page = await browserContext.newPage();
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  page.on('console', (message) => {
+    if (message.type() === 'error') errors.push(message.text());
+  });
+  await page.clock.install();
+  await page.goto(APP_ORIGIN, { waitUntil: 'load' });
+  await waitForBoard(page, errors);
+  await page.evaluate(() => window.__sharedBoardHarness?.visibility('hidden'));
+  await page.clock.fastForward(56_000);
+  await page
+    .waitForFunction(
+      () => window.__sharedBoardHarness?.snapshot().bootstrapCalls === 2,
+      undefined,
+      { timeout: 5_000 },
+    )
+    .catch(async () =>
+      assert.fail(
+        JSON.stringify({
+          errors,
+          snapshot: await page.evaluate(() => window.__sharedBoardHarness?.snapshot()),
+        }),
+      ),
+    );
+  assert.equal(await page.locator('[aria-busy="true"]').count(), 1);
+  await page.clock.fastForward(10_000);
+  await waitForBoard(page, errors);
+  assert.deepEqual(errors, []);
 });

@@ -112,6 +112,7 @@ export function SharedBoardClient({
   const stateRef = useRef(accepted);
   const requestEpochRef = useRef(0);
   const initialBootstrapStartedRef = useRef(false);
+  const bootstrapInFlightRef = useRef<Promise<void> | null>(null);
   const routeEpochRef = useRef(crypto.randomUUID());
   const requestAbortRef = useRef<AbortController | null>(null);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -201,10 +202,12 @@ export function SharedBoardClient({
     [focusState],
   );
 
-  const reboot = useCallback(() => {
+  const reboot = useCallback((): Promise<void> => {
+    const active = bootstrapInFlightRef.current;
+    if (active !== null) return active;
     const requestStartedAt = performance.now();
     const epoch = ++requestEpochRef.current;
-    void bootstrapAction()
+    const request = bootstrapAction()
       .then((state) => {
         if (requestEpochRef.current !== epoch) return;
         setInitializing(false);
@@ -214,32 +217,26 @@ export function SharedBoardClient({
         if (requestEpochRef.current !== epoch) return;
         setInitializing(false);
         invalidate();
+      })
+      .finally(() => {
+        if (bootstrapInFlightRef.current === request) bootstrapInFlightRef.current = null;
       });
+    bootstrapInFlightRef.current = request;
+    return request;
   }, [acceptBootstrap, bootstrapAction, invalidate]);
 
   const recover = useCallback(() => {
+    if (bootstrapInFlightRef.current !== null) return;
     invalidate();
     setInitializing(true);
-    reboot();
+    void reboot();
   }, [invalidate, reboot]);
 
   useEffect(() => {
     if (initialBootstrapStartedRef.current) return;
     initialBootstrapStartedRef.current = true;
-    const requestStartedAt = performance.now();
-    const epoch = ++requestEpochRef.current;
-    void bootstrapAction()
-      .then((state) => {
-        if (requestEpochRef.current !== epoch) return;
-        setInitializing(false);
-        acceptBootstrap(state, requestStartedAt);
-      })
-      .catch(() => {
-        if (requestEpochRef.current !== epoch) return;
-        setInitializing(false);
-        invalidate();
-      });
-  }, [acceptBootstrap, bootstrapAction, invalidate]);
+    void reboot();
+  }, [reboot]);
 
   const revalidate = useCallback(() => {
     const current = stateRef.current;

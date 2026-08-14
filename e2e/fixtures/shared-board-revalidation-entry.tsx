@@ -9,9 +9,11 @@ declare global {
   interface Window {
     __sharedBoardFixture: Readonly<{
       bootstrapStates: readonly SharedBoardActionState[];
+      recoveryBootstrapDelayMs?: number;
     }>;
     __sharedBoardHarness?: Readonly<{
       snapshot(): Readonly<{ bootstrapCalls: number; text: string }>;
+      visibility(state: DocumentVisibilityState): void;
     }>;
   }
 }
@@ -23,8 +25,18 @@ let bootstrapCalls = 0;
 const bootstrapAction = async (): Promise<SharedBoardActionState> => {
   const index = Math.min(bootstrapCalls, window.__sharedBoardFixture.bootstrapStates.length - 1);
   bootstrapCalls += 1;
+  if (index > 0 && window.__sharedBoardFixture.recoveryBootstrapDelayMs !== undefined)
+    await new Promise((resolve) =>
+      setTimeout(resolve, window.__sharedBoardFixture.recoveryBootstrapDelayMs),
+    );
   return window.__sharedBoardFixture.bootstrapStates[index] ?? { state: 'unavailable' };
 };
+
+let visibilityState: DocumentVisibilityState = 'visible';
+Object.defineProperty(document, 'visibilityState', {
+  configurable: true,
+  get: () => visibilityState,
+});
 
 createRoot(rootElement).render(
   <I18nProvider initialLocale="en">
@@ -37,4 +49,8 @@ createRoot(rootElement).render(
 
 window.__sharedBoardHarness = Object.freeze({
   snapshot: () => ({ bootstrapCalls, text: document.body.textContent ?? '' }),
+  visibility(state) {
+    visibilityState = state;
+    document.dispatchEvent(new Event('visibilitychange'));
+  },
 });

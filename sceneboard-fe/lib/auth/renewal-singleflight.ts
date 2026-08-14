@@ -339,6 +339,7 @@ export class SessionRequestCoordinator implements BoardStreamDispatchPortV1 {
     }
     let active = true;
     let notified = false;
+    let pendingInspection: Promise<void> | null = null;
     const invalidate = () => {
       if (!active || notified) return;
       notified = true;
@@ -352,15 +353,26 @@ export class SessionRequestCoordinator implements BoardStreamDispatchPortV1 {
       )
         invalidate();
     };
-    const unsubscribe = this.dependencies.subscribeGenerationHints?.(() => {
-      if (active) inspect();
-    });
-    this.localGenerationListeners.add(inspect);
-    queueMicrotask(inspect);
+    const inspectAfterExclusive = () => {
+      if (!active || notified || pendingInspection !== null) return;
+      const pending = this.withLock('shared', async () => {
+        if (active && !notified) inspect();
+      })
+        .catch(invalidate)
+        .finally(() => {
+          if (pendingInspection === pending) pendingInspection = null;
+        });
+      pendingInspection = pending;
+    };
+    const unsubscribe = this.dependencies.subscribeGenerationHints?.(inspectAfterExclusive);
+    this.localGenerationListeners.add(inspectAfterExclusive);
+    // Serialize the initial bind check too: an exclusive reconciliation may
+    // already be publishing its transient intent before this subscriber mounts.
+    queueMicrotask(inspectAfterExclusive);
     return () => {
       active = false;
       unsubscribe?.();
-      this.localGenerationListeners.delete(inspect);
+      this.localGenerationListeners.delete(inspectAfterExclusive);
     };
   }
 
