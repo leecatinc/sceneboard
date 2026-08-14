@@ -402,8 +402,18 @@ export const WORKFLOW_GRAPH_PROGRAM_V2 = `(()=>{
     const width=Number(box.dataset.baseWidth),height=Number(box.dataset.baseHeight);
     const graphPadding=48;
     const overlapArea=(left,right)=>Math.max(0,Math.min(left.right,right.right)-Math.max(left.left,right.left))*Math.max(0,Math.min(left.bottom,right.bottom)-Math.max(left.top,right.top));
+    const readNodeGeometry=()=>{
+      const entries=[...canvas.querySelectorAll('.sb-graph-node')].map(node=>{
+        const left=node.offsetLeft,top=node.offsetTop,width=node.offsetWidth,height=node.offsetHeight;
+        const expectedLeft=Number.parseFloat(node.style.left),expectedTop=Number.parseFloat(node.style.top);
+        const valid=getComputedStyle(node).position==='absolute'&&[left,top,width,height,expectedLeft,expectedTop].every(Number.isFinite)&&width>0&&height>0&&Math.abs(left-expectedLeft)<=1&&Math.abs(top-expectedTop)<=1;
+        return {id:node.getAttribute('data-element-id'),left,top,width,height,valid}
+      });
+      if(entries.length===0||entries.some(entry=>!entry.id||!entry.valid))return null;
+      return new Map(entries.map(({id,left,top,width,height})=>[id,{left,top,width,height}]))
+    };
     const positionEdgePaths=()=>{
-      const nodes=new Map([...canvas.querySelectorAll('.sb-graph-node')].map(node=>[node.getAttribute('data-element-id'),{left:node.offsetLeft,top:node.offsetTop,width:node.offsetWidth,height:node.offsetHeight}]));
+      const nodes=readNodeGeometry();if(!nodes)return false;
       canvas.querySelectorAll('.sb-graph-path[data-from-node-id][data-to-node-id]').forEach(path=>{
         const fromId=path.getAttribute('data-from-node-id'),toId=path.getAttribute('data-to-node-id');
         const from=nodes.get(fromId),to=nodes.get(toId);if(!from||!to)return;
@@ -437,11 +447,13 @@ export const WORKFLOW_GRAPH_PROGRAM_V2 = `(()=>{
         if(label&&rect&&text){const labelWidth=Number(rect.getAttribute('width'));label.dataset.labelX=String(labelX);label.dataset.labelY=String(labelY);rect.setAttribute('x',String(Math.round(labelX-labelWidth/2)));rect.setAttribute('y',String(labelY-12));text.setAttribute('x',String(labelX));text.setAttribute('y',String(labelY))}
         const hitTarget=elementId?canvas.querySelector('.sb-graph-edge[data-element-id="'+CSS.escape(elementId)+'"]'):null;
         if(hitTarget){hitTarget.style.left=Math.round(labelX-hitTarget.offsetWidth/2)+'px';hitTarget.style.top=Math.round(labelY-hitTarget.offsetHeight/2)+'px'}
-      })
+      });
+      return true
     };
     const positionEdgeLabels=()=>{
       const nodeGap=8,labelGap=6;
-      const nodes=[...canvas.querySelectorAll('.sb-graph-node')].map(node=>({left:node.offsetLeft,top:node.offsetTop,right:node.offsetLeft+node.offsetWidth,bottom:node.offsetTop+node.offsetHeight}));
+      const geometry=readNodeGeometry();if(!geometry)return false;
+      const nodes=[...geometry.values()].map(node=>({left:node.left,top:node.top,right:node.left+node.width,bottom:node.top+node.height}));
       const placed=[];
       canvas.querySelectorAll('[data-edge-label]').forEach(label=>{
         const rect=label.querySelector('rect');
@@ -466,8 +478,10 @@ export const WORKFLOW_GRAPH_PROGRAM_V2 = `(()=>{
         const hitTarget=elementId?canvas.querySelector('.sb-graph-edge[data-element-id="'+CSS.escape(elementId)+'"]'):null;
         if(hitTarget)hitTarget.style.top=Math.round(bestY-hitTarget.offsetHeight/2)+'px';
         placed.push({left:anchorX-halfWidth,top:bestY-halfHeight,right:anchorX+halfWidth,bottom:bestY+halfHeight})
-      })
+      });
+      return true
     };
+    const positionGraphGeometry=()=>positionEdgePaths()&&positionEdgeLabels();
     const measureGraphBounds=()=>{
       let left=Infinity,top=Infinity,right=-Infinity,bottom=-Infinity;
       const include=(nextLeft,nextTop,nextRight,nextBottom)=>{
@@ -500,16 +514,29 @@ export const WORKFLOW_GRAPH_PROGRAM_V2 = `(()=>{
     };
     const focusSelected=()=>{if(!selected)return;panX=scroll.clientWidth/2-(selected.offsetLeft+selected.offsetWidth/2)*scale;panY=scroll.clientHeight/2-(selected.offsetTop+selected.offsetHeight/2)*scale;renderTransform()};
     const fit=()=>{
-      positionEdgePaths();positionEdgeLabels();
+      if(!positionGraphGeometry())return false;
       const bounds=measureGraphBounds();
       const availableWidth=Math.max(1,scroll.clientWidth-graphPadding*2),availableHeight=Math.max(1,scroll.clientHeight-graphPadding*2);
       const widthScale=availableWidth/bounds.width,heightScale=availableHeight/bounds.height;
       scale=Math.min(2,Math.max(.1,Math.min(widthScale,heightScale)));
       panX=(scroll.clientWidth-bounds.width*scale)/2-bounds.left*scale;
       panY=(scroll.clientHeight-bounds.height*scale)/2-bounds.top*scale;
-      renderTransform()
+      renderTransform();return true
     };
     let initialFitActive=false,initialFitFrame=0,initialFitTimeout=0,initialFitObserver=null;
+    let geometryFrame=0,settledGeometryFrame=0;
+    const scheduleGeometryRepair=()=>{
+      if(flow.hidden)return;
+      cancelAnimationFrame(geometryFrame);cancelAnimationFrame(settledGeometryFrame);
+      geometryFrame=requestAnimationFrame(()=>{
+        geometryFrame=0;
+        settledGeometryFrame=requestAnimationFrame(()=>{
+          settledGeometryFrame=0;
+          if(flow.hidden)return;
+          if(positionGraphGeometry()&&initialFitActive)scheduleInitialFit()
+        })
+      })
+    };
     const scheduleInitialFit=()=>{
       if(!initialFitActive||flow.hidden)return;
       cancelAnimationFrame(initialFitFrame);
@@ -528,9 +555,14 @@ export const WORKFLOW_GRAPH_PROGRAM_V2 = `(()=>{
       initialFitActive=true;
       if(typeof ResizeObserver!=='undefined'){initialFitObserver=new ResizeObserver(scheduleInitialFit);initialFitObserver.observe(scroll)}
       window.addEventListener('resize',scheduleInitialFit);
-      document.fonts?.ready?.then(()=>{positionEdgePaths();positionEdgeLabels();scheduleInitialFit()});
+      document.fonts?.ready?.then(scheduleGeometryRepair);
       scheduleInitialFit();initialFitTimeout=setTimeout(stopInitialFit,5000)
     };
+    if(typeof ResizeObserver!=='undefined'){
+      const geometryObserver=new ResizeObserver(scheduleGeometryRepair);
+      geometryObserver.observe(canvas);
+      canvas.querySelectorAll('.sb-graph-node').forEach(node=>geometryObserver.observe(node))
+    }
     flow.querySelector('[data-zoom-out]').addEventListener('click',()=>{stopInitialFit();apply(scale-.1)});
     flow.querySelector('[data-zoom-in]').addEventListener('click',()=>{stopInitialFit();apply(scale+.1)});
     flow.querySelector('[data-reset-zoom]').addEventListener('click',()=>{stopInitialFit();apply(1)});
@@ -605,13 +637,17 @@ export const WORKFLOW_GRAPH_PROGRAM_V2 = `(()=>{
     controllers.set(index,{
       fit,
       startInitialFit,
+      resume:scheduleGeometryRepair,
       snapshot(){viewState.set(key,{scale,panX,panY,selectedId:selected?.getAttribute('data-element-id')??null,panelOpen:!panel.hidden})},
-      restore(){positionEdgePaths();positionEdgeLabels();const saved=viewState.get(key);if(!saved){startInitialFit();return}stopInitialFit();scale=saved.scale;panX=saved.panX;panY=saved.panY;renderTransform();requestAnimationFrame(()=>{if(saved.selectedId){selected=flow.querySelector('[data-element-id="'+CSS.escape(saved.selectedId)+'"]');if(saved.panelOpen&&selected)openDetail(selected)}})}
+      restore(){positionGraphGeometry();scheduleGeometryRepair();const saved=viewState.get(key);if(!saved){startInitialFit();return}stopInitialFit();scale=saved.scale;panX=saved.panX;panY=saved.panY;renderTransform();requestAnimationFrame(()=>{if(saved.selectedId){selected=flow.querySelector('[data-element-id="'+CSS.escape(saved.selectedId)+'"]');if(saved.panelOpen&&selected)openDetail(selected)}})}
     });
-    positionEdgePaths();positionEdgeLabels();apply(1)
+    positionGraphGeometry();apply(1);scheduleGeometryRepair()
   });
+  const resumeGeometry=()=>{if(document.visibilityState==='visible'&&currentFlow!==null)controllers.get(currentFlow)?.resume()};
+  document.addEventListener('visibilitychange',resumeGeometry);
+  window.addEventListener('pageshow',resumeGeometry);
   if(overview)showOverview();
-  else controllers.get('0')?.startInitialFit();
+  else{currentFlow='0';controllers.get('0')?.startInitialFit()}
   hostCopy.forEach(button=>button.addEventListener('click',()=>{
     const api=window.SceneBoardArtifact;
     if(!api||!api.userAction||!api.requestCapability||!api.onHostMessage){selectJson('Clipboard copy is unavailable. Canonical JSON selected.');return}
