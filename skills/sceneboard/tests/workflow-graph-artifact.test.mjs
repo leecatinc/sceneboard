@@ -167,7 +167,7 @@ test('workflow graph renders the closed WorkflowSpec v1 contract deterministical
     /\.sb-graph-edge-label rect\{fill:(?:rgba\([^}]+|#[0-9a-f]{8})/u,
   );
   assert.match(first.source.javascript, /const positionEdgeLabels=/u);
-  assert.match(first.source.javascript, /node\.offsetTop\+node\.offsetHeight/u);
+  assert.match(first.source.javascript, /node\.top\+node\.height/u);
   assert.match(first.source.javascript, /nodeCollision\*1000\+labelCollision\*100/u);
   assert.match(
     first.source.javascript,
@@ -175,7 +175,16 @@ test('workflow graph renders the closed WorkflowSpec v1 contract deterministical
   );
   assert.match(
     first.source.javascript,
-    /document\.fonts\?\.ready\?\.then\(\(\)=>\{positionEdgePaths\(\);positionEdgeLabels\(\);scheduleInitialFit\(\)\}\)/u,
+    /document\.fonts\?\.ready\?\.then\(scheduleGeometryRepair\)/u,
+  );
+  assert.match(first.source.javascript, /const readNodeGeometry=/u);
+  assert.match(first.source.javascript, /getComputedStyle\(node\)\.position==='absolute'/u);
+  assert.match(first.source.javascript, /width>0&&height>0/u);
+  assert.match(first.source.javascript, /const positionGraphGeometry=/u);
+  assert.match(first.source.javascript, /window\.addEventListener\('pageshow',resumeGeometry\)/u);
+  assert.match(
+    first.source.javascript,
+    /document\.addEventListener\('visibilitychange',resumeGeometry\)/u,
   );
   assert.match(first.source.javascript, /const positionEdgePaths=/u);
   assert.match(first.source.javascript, /from\.height\+gap/u);
