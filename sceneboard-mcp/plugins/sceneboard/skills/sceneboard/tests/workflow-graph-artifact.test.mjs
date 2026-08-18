@@ -181,6 +181,31 @@ test('workflow graph renders the closed WorkflowSpec v1 contract deterministical
   assert.match(first.source.javascript, /getComputedStyle\(node\)\.position==='absolute'/u);
   assert.match(first.source.javascript, /width>0&&height>0/u);
   assert.match(first.source.javascript, /const positionGraphGeometry=/u);
+  assert.match(
+    first.source.javascript,
+    /const nodes=readNodeGeometry\(\);if\(!nodes\)return false/u,
+  );
+  assert.match(
+    first.source.javascript,
+    /const geometry=readNodeGeometry\(\);if\(!geometry\)return false/u,
+  );
+  assert.match(
+    first.source.javascript,
+    /const fit=\(\)=>\{\s*if\(!positionGraphGeometry\(\)\)return false/u,
+  );
+  assert.match(
+    first.source.javascript,
+    /geometryFrame=requestAnimationFrame\(\(\)=>\{\s*geometryFrame=0;\s*settledGeometryFrame=requestAnimationFrame\(\(\)=>\{/u,
+  );
+  assert.match(first.source.javascript, /resume:scheduleGeometryRepair/u);
+  assert.match(
+    first.source.javascript,
+    /const resumeGeometry=\(\)=>\{if\(document\.visibilityState==='visible'&&currentFlow!==null\)controllers\.get\(currentFlow\)\?\.resume\(\)\}/u,
+  );
+  assert.match(
+    first.source.javascript,
+    /else\{currentFlow='0';controllers\.get\('0'\)\?\.startInitialFit\(\)\}/u,
+  );
   assert.match(first.source.javascript, /window\.addEventListener\('pageshow',resumeGeometry\)/u);
   assert.match(
     first.source.javascript,
