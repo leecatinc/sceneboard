@@ -202,7 +202,7 @@ export const parseSceneRecipeJson = (bytes) => {
   } catch {
     throw new SceneRecipeError('INVALID_JSON', []);
   }
-  if (hasDuplicateJsonMembers(text)) throw new SceneRecipeError('INVALID_JSON', []);
+  if (hasDuplicateJsonMembers(text)) throw new SceneRecipeError("INVALID_JSON", []);
   let parsed;
   try {
     parsed = JSON.parse(text);

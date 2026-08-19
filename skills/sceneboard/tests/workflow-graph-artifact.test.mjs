@@ -7,8 +7,8 @@ import {
   compileSceneArtifactDraft,
   parseSceneArtifactRecipeJson,
   validateSceneArtifactTemplateDescriptor,
-} from '../scripts/scene-artifact-core.mjs';
-import { canonicalizeWorkflowSpec } from '../scripts/workflow-spec-core.mjs';
+} from "../scripts/scene-artifact-core.mjs";
+import { canonicalizeWorkflowSpec } from "../scripts/workflow-spec-core.mjs";
 
 const root = resolve(import.meta.dirname, '..');
 const workflowSpec = JSON.parse(
@@ -168,7 +168,10 @@ test('workflow graph renders the closed WorkflowSpec v1 contract deterministical
   );
   assert.match(first.source.javascript, /const positionEdgeLabels=/u);
   assert.match(first.source.javascript, /node\.top\+node\.height/u);
-  assert.match(first.source.javascript, /nodeCollision\*1000\+labelCollision\*100/u);
+  assert.match(
+    first.source.javascript,
+    /nodeCollision\*1000\+labelCollision\*100/u,
+  );
   assert.match(
     first.source.javascript,
     /hitTarget\.style\.top=Math\.round\(bestY-hitTarget\.offsetHeight\/2\)/u,
@@ -221,14 +224,12 @@ test('workflow graph renders the closed WorkflowSpec v1 contract deterministical
   assert.match(first.source.javascript, /event\.key!=='Tab'/u);
   assert.match(
     first.source.javascript,
-    /event\.target\.closest\('input,textarea,select,option,\[contenteditable\]:not\(\[contenteditable="false"\]\),\.sb-graph-inspector'\)/u,
+    /event\.target\.closest\('button,a,input,textarea,select,option,summary,\[contenteditable\]:not\(\[contenteditable="false"\]\),\[role\]:not\(\[role="none"\]\):not\(\[role="presentation"\]\)'\)/u,
   );
   assert.match(
     first.source.javascript,
-    /if\(event\.code==='Space'\)\{if\(event\.target\.closest\('button,a,summary,/u,
+    /if\(event\.code==='Space'\)\{if\(!event\.target\.closest\('\.sb-graph-scroll'\)\)return;/u,
   );
-  assert.doesNotMatch(first.source.javascript, /!event\.target\.closest\('\.sb-graph-scroll'\)/u);
-  assert.doesNotMatch(first.source.javascript, /if\(event\.target\.closest\('button,a,input,/u);
   assert.doesNotMatch(
     first.source.html + first.source.css + first.source.javascript,
     /https?:\/\//u,
@@ -309,74 +310,74 @@ test('valid specs beyond the 32-node preview envelope retain canonical source', 
   assert.doesNotMatch(compiled.source.html, /data-workflow-flow=/u);
 });
 
-test('canonical byte limits select interactive rendering without rejecting valid export', () => {
+test("canonical byte limits select interactive rendering without rejecting valid export", () => {
   const padded = (minimumBytes) => {
     const value = structuredClone(workflowSpec);
     let index = 0;
-    while (Buffer.byteLength(canonicalizeWorkflowSpec(value), 'utf8') < minimumBytes) {
+    while (
+      Buffer.byteLength(canonicalizeWorkflowSpec(value), "utf8") < minimumBytes
+    ) {
       const target = value.nodes[index % value.nodes.length];
-      target.instructions.push(`instruction-${index}-${'x'.repeat(700)}`);
+      target.instructions.push(`instruction-${index}-${"x".repeat(700)}`);
       index += 1;
     }
     return value;
   };
   const below = padded(31_500);
   const above = padded(33_000);
-  assert.ok(Buffer.byteLength(canonicalizeWorkflowSpec(below), 'utf8') <= 32_768);
-  assert.ok(Buffer.byteLength(canonicalizeWorkflowSpec(above), 'utf8') > 32_768);
-  const rendered = compileSceneArtifactDraft(recipe('manual', below), descriptor);
-  const exported = compileSceneArtifactDraft(recipe('manual', above), descriptor);
+  assert.ok(Buffer.byteLength(canonicalizeWorkflowSpec(below), "utf8") <= 32_768);
+  assert.ok(Buffer.byteLength(canonicalizeWorkflowSpec(above), "utf8") > 32_768);
+  const rendered = compileSceneArtifactDraft(recipe("manual", below), descriptor);
+  const exported = compileSceneArtifactDraft(recipe("manual", above), descriptor);
   assert.doesNotMatch(rendered.source.html, /data-render-limit-exceeded/u);
   assert.match(exported.source.html, /data-render-limit-exceeded/u);
   assert.match(exported.source.html, /32768 canonical bytes/u);
   assert.match(exported.source.html, /data-workflow-json/u);
 });
 
-test('parallel self-retry edges receive distinct deterministic loop geometry', () => {
+test("parallel self-retry edges receive distinct deterministic loop geometry", () => {
   const selfRetry = structuredClone(workflowSpec);
-  const human = selfRetry.nodes.find(({ kind }) => kind === 'human');
+  const human = selfRetry.nodes.find(({ kind }) => kind === "human");
   const evidence = structuredClone(selfRetry.edges[0].evidence);
   selfRetry.edges.push(
     {
-      id: 'approval_retry_first',
-      kind: 'retry',
+      id: "approval_retry_first",
+      kind: "retry",
       fromNodeId: human.id,
       toNodeId: human.id,
-      label: 'retry one',
+      label: "retry one",
       condition: null,
       priority: null,
       stateKeys: [],
       evidence,
     },
     {
-      id: 'approval_retry_second',
-      kind: 'retry',
+      id: "approval_retry_second",
+      kind: "retry",
       fromNodeId: human.id,
       toNodeId: human.id,
-      label: 'retry two',
+      label: "retry two",
       condition: null,
       priority: null,
       stateKeys: [],
       evidence,
     },
   );
-  const compiled = compileSceneArtifactDraft(recipe('manual', selfRetry), descriptor);
-  const paths = [
-    ...compiled.source.html.matchAll(
-      /data-element-id="approval_retry_(?:first|second)"[^>]*data-lane-offset="(\d+)" d="([^"]+)"/gu,
-    ),
-  ];
-  assert.equal(paths.length, 2);
-  assert.deepEqual(
-    paths.map((match) => Number(match[1])),
-    [64, 100],
+  const compiled = compileSceneArtifactDraft(
+    recipe("manual", selfRetry),
+    descriptor,
   );
+  const paths = [...compiled.source.html.matchAll(
+    /data-element-id="approval_retry_(?:first|second)"[^>]*data-lane-offset="(\d+)" d="([^"]+)"/gu,
+  )];
+  assert.equal(paths.length, 2);
+  assert.deepEqual(paths.map((match) => Number(match[1])), [64, 100]);
   assert.notEqual(paths[0][2], paths[1][2]);
   assert.match(compiled.source.javascript, /if\(fromId===toId\)/u);
 });
 
-test('artifact parser rejects duplicate members inside embedded WorkflowSpec', () => {
-  const canonical = JSON.stringify(recipe('manual'));
+test("artifact parser rejects duplicate members inside embedded WorkflowSpec", () => {
+  const canonical = JSON.stringify(recipe("manual"));
   const duplicated = canonical.replace(
     '"summary":"Request human approval when required."',
     '"summary":"Request human approval when required.","summary":"duplicate"',
@@ -384,10 +385,10 @@ test('artifact parser rejects duplicate members inside embedded WorkflowSpec', (
   assert.throws(() => parseSceneArtifactRecipeJson(Buffer.from(duplicated)));
 });
 
-test('all host variants request clipboard only and manual mode requests nothing', () => {
-  const manual = compileSceneArtifactDraft(recipe('manual'), descriptor);
-  const clipboard = compileSceneArtifactDraft(recipe('clipboard'), descriptor);
-  const exported = compileSceneArtifactDraft(recipe('export'), descriptor);
+test("all host variants request clipboard only and manual mode requests nothing", () => {
+  const manual = compileSceneArtifactDraft(recipe("manual"), descriptor);
+  const clipboard = compileSceneArtifactDraft(recipe("clipboard"), descriptor);
+  const exported = compileSceneArtifactDraft(recipe("export"), descriptor);
   assert.deepEqual(manual.source.requestedCapabilities, []);
   assert.deepEqual(clipboard.source.requestedCapabilities, ['clipboard.write']);
   assert.deepEqual(exported.source.requestedCapabilities, ['clipboard.write']);

@@ -99,42 +99,6 @@ const sameIdentity = (left, right) =>
 const temporaryName = (suffix) =>
   `.${process.pid}-${randomBytes(16).toString('hex')}.workflow-spec.${suffix}`;
 
-const inheritedFileMode = async (parent) => {
-  const probe = resolve(parent, temporaryName('mode'));
-  let handle;
-  try {
-    handle = await open(
-      probe,
-      constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | (constants.O_NOFOLLOW ?? 0),
-      0o666,
-    );
-    return (await handle.stat()).mode & 0o7777;
-  } catch {
-    ioFail('OUTPUT_TEMP_CREATE_FAILED', '/output');
-  } finally {
-    await handle?.close().catch(() => undefined);
-    await rm(probe, { force: true }).catch(() => undefined);
-  }
-};
-
-const preserveExistingMetadata = async (handle, existing) => {
-  try {
-    const temporary = await handle.stat();
-    if (temporary.uid !== existing.uid || temporary.gid !== existing.gid)
-      await handle.chown(existing.uid, existing.gid);
-    await handle.chmod(existing.mode & 0o0777);
-  } catch {
-    ioFail('OUTPUT_SYNC_FAILED', '/output');
-  }
-  const applied = await handle.stat().catch(() => ioFail('OUTPUT_SYNC_FAILED', '/output'));
-  if (
-    applied.uid !== existing.uid ||
-    applied.gid !== existing.gid ||
-    (applied.mode & 0o0777) !== (existing.mode & 0o0777)
-  )
-    ioFail('OUTPUT_SYNC_FAILED', '/output');
-};
-
 const writeAtomic = async (path, value, input) => {
   const absolute = resolve(path);
   if (absolute === input.absolute) ioFail('OUTPUT_ALIAS_INPUT', '/output');
@@ -160,21 +124,7 @@ const writeAtomic = async (path, value, input) => {
   }
   if (existing?.isSymbolicLink()) ioFail('OUTPUT_SYMLINK', '/output');
   if (existing !== null && !existing.isFile()) ioFail('OUTPUT_NOT_REGULAR', '/output');
-  if (existing !== null && (existing.mode & 0o077) !== 0) ioFail('OUTPUT_ACL_UNSAFE', '/output');
   if (sameIdentity(existing, input.status)) ioFail('OUTPUT_ALIAS_INPUT', '/output');
-  const outputMode = existing === null ? await inheritedFileMode(parent) : null;
-  let existingHandle;
-  if (existing !== null) {
-    try {
-      existingHandle = await open(absolute, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
-      const openedExisting = await existingHandle.stat();
-      if (!openedExisting.isFile() || !sameIdentity(existing, openedExisting))
-        ioFail('OUTPUT_CHANGED', '/output');
-    } catch (error) {
-      if (error instanceof WorkflowSpecIoError) throw error;
-      ioFail('OUTPUT_CHANGED', '/output');
-    }
-  }
   const temporary = resolve(parent, temporaryName('tmp'));
   let handle;
   let committed = false;
@@ -182,8 +132,10 @@ const writeAtomic = async (path, value, input) => {
     try {
       handle = await open(
         temporary,
-        constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | (constants.O_NOFOLLOW ?? 0),
-        0o600,
+        constants.O_WRONLY |
+          constants.O_CREAT |
+          constants.O_EXCL |
+          (constants.O_NOFOLLOW ?? 0),
       );
     } catch {
       ioFail('OUTPUT_TEMP_CREATE_FAILED', '/output');
@@ -195,9 +147,6 @@ const writeAtomic = async (path, value, input) => {
     }
     try {
       await handle.sync();
-      if (existing === null) await handle.chmod(outputMode);
-      else await preserveExistingMetadata(handle, existing);
-      await handle.sync();
       await handle.close();
       handle = undefined;
     } catch {
@@ -208,12 +157,34 @@ const writeAtomic = async (path, value, input) => {
       (existing === null) !== (current === null) ||
       (existing !== null && !sameIdentity(existing, current))
     )
-      ioFail('OUTPUT_CHANGED', '/output');
-    try {
-      await rename(temporary, absolute);
-      committed = true;
-    } catch {
-      ioFail('OUTPUT_RENAME_FAILED', '/output');
+      ioFail("OUTPUT_CHANGED", "/output");
+    if (existing === null) {
+      try {
+        await rename(temporary, absolute);
+        committed = true;
+      } catch {
+        ioFail("OUTPUT_RENAME_FAILED", "/output");
+      }
+    } else {
+      let outputHandle;
+      try {
+        outputHandle = await open(
+          absolute,
+          constants.O_WRONLY | (constants.O_NOFOLLOW ?? 0),
+        );
+        if (!sameIdentity(existing, await outputHandle.stat()))
+          ioFail("OUTPUT_CHANGED", "/output");
+        await outputHandle.truncate(0);
+        await outputHandle.writeFile(value, "utf8");
+        await outputHandle.sync();
+        committed = true;
+      } catch (error) {
+        if (error instanceof WorkflowSpecIoError) throw error;
+        ioFail("OUTPUT_WRITE_FAILED", "/output");
+      } finally {
+        await outputHandle?.close().catch(() => undefined);
+      }
+      await rm(temporary, { force: true }).catch(() => undefined);
     }
     let parentHandle;
     try {
@@ -226,7 +197,6 @@ const writeAtomic = async (path, value, input) => {
     }
   } finally {
     await handle?.close().catch(() => undefined);
-    await existingHandle?.close().catch(() => undefined);
     if (!committed) await rm(temporary, { force: true }).catch(() => undefined);
   }
 };

@@ -236,8 +236,8 @@ const parseJson = (bytes, placement) => {
   if (buffer.length > SCENE_ARTIFACT_LIMITS_V1.json.maxBytes) fail('PAYLOAD_TOO_LARGE', []);
   let value;
   try {
-    const decoded = new TextDecoder('utf-8', { fatal: true }).decode(buffer);
-    if (hasDuplicateJsonMembers(decoded)) fail('INVALID_JSON', []);
+    const decoded = new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+    if (hasDuplicateJsonMembers(decoded)) fail("INVALID_JSON", []);
     value = JSON.parse(decoded);
   } catch {
     fail('INVALID_JSON', []);
@@ -558,7 +558,7 @@ export const validateSceneArtifactRecipe = (value) => {
     else if (Array.isArray(entry)) entry.forEach(collectText);
     else if (object(entry)) Object.values(entry).forEach(collectText);
   };
-  if (value.template === 'workflow-graph') {
+  if (value.template === "workflow-graph") {
     const { workflowSpec: _workflowSpec, ...artifactContent } = value.content;
     collectText({ ...value, content: artifactContent });
   } else collectText(value);
