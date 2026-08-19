@@ -1,10 +1,8 @@
 import { createHash } from 'node:crypto';
+import { constants } from 'node:fs';
 import {
-  chmod,
-  cp,
   lstat,
   mkdir,
-  mkdtemp,
   open,
   readFile,
   readdir,
@@ -27,7 +25,6 @@ const privateMirrorRoot = resolve(
   '../lc-skills/marketplace/private/lc-skills/skills/sceneboard',
 );
 const stateRoot = resolve(repositoryRoot, '.sceneboard-skill-sync');
-const temporaryRoot = resolve('/workspace/.tmp/agent');
 const lockPath = resolve(stateRoot, 'publication.lock');
 const journalPath = resolve(stateRoot, 'publication.json');
 const checkOnly = process.argv.includes('--check');
@@ -101,42 +98,49 @@ const assertEqualInventory = async (expected, targetRoot, label) => {
   }
 };
 
-const normalizeFileModes = async (root) => {
-  const visit = async (directory) => {
-    for (const entry of await readdir(directory, { withFileTypes: true })) {
-      const absolute = join(directory, entry.name);
-      if (entry.isDirectory()) await visit(absolute);
-      else if (entry.isFile()) await chmod(absolute, skillFileMode);
-      else throw new Error(`unsupported SceneBoard skill entry: ${absolute}`);
-    }
-  };
-  await visit(root);
-};
+const sameIdentity = (left, right) =>
+  left.dev === right.dev && left.ino === right.ino && left.nlink === right.nlink;
 
-const replaceTree = async (targetRoot, source, digest) => {
-  const parent = dirname(targetRoot);
-  await mkdir(parent, { recursive: true });
-  await mkdir(temporaryRoot, { recursive: true });
-  const stagingContainer = await mkdtemp(resolve(temporaryRoot, '.sceneboard-stage-'));
-  const stagingRoot = resolve(stagingContainer, 'sceneboard');
-  try {
-    await cp(source, stagingRoot, { recursive: true, force: false, errorOnExist: true });
-    await normalizeFileModes(stagingRoot);
-    await assertEqualInventory(await collectFiles(source), stagingRoot, 'staged SceneBoard skill');
-    const backupRoot = `${targetRoot}.backup-${digest}`;
-    await rm(backupRoot, { recursive: true, force: true });
-    if ((await pathStatus(targetRoot)) !== null) await rename(targetRoot, backupRoot);
-    try {
-      await rename(stagingRoot, targetRoot);
-      await rm(backupRoot, { recursive: true, force: true });
-    } catch (error) {
-      await rm(targetRoot, { recursive: true, force: true });
-      if ((await pathStatus(backupRoot)) !== null) await rename(backupRoot, targetRoot);
-      throw error;
-    }
-  } finally {
-    await rm(stagingContainer, { recursive: true, force: true });
+const sameMetadata = (left, right) =>
+  left.uid === right.uid && left.gid === right.gid && left.mode === right.mode;
+
+export const updateProjection = async (targetRoot, source, label) => {
+  const target = await collectFiles(targetRoot);
+  if (target.size !== source.size || [...source.keys()].some((path) => !target.has(path)))
+    throw new Error(`${label} inventory change requires explicit reconciliation`);
+
+  const updates = [];
+  for (const [path, file] of source) {
+    const current = target.get(path);
+    if (file.mode !== skillFileMode || current.mode !== file.mode)
+      throw new Error(`${label} metadata drift requires explicit reconciliation: ${path}`);
+    if (current.bytes.equals(file.bytes)) continue;
+    const absolute = resolve(targetRoot, path);
+    const before = await lstat(absolute);
+    if (before.isSymbolicLink() || !before.isFile() || before.nlink !== 1)
+      throw new Error(`${label} target is unsafe: ${path}`);
+    updates.push({ absolute, before, bytes: file.bytes, path });
   }
+
+  for (const update of updates) {
+    let handle;
+    try {
+      handle = await open(update.absolute, constants.O_WRONLY | (constants.O_NOFOLLOW ?? 0));
+      const opened = await handle.stat();
+      if (!sameIdentity(update.before, opened) || !sameMetadata(update.before, opened))
+        throw new Error(`${label} target changed before publication: ${update.path}`);
+      await handle.truncate(0);
+      await handle.writeFile(update.bytes);
+      await handle.sync();
+      const published = await handle.stat();
+      if (!sameIdentity(update.before, published) || !sameMetadata(update.before, published))
+        throw new Error(`${label} target metadata changed during publication: ${update.path}`);
+    } finally {
+      await handle?.close().catch(() => undefined);
+    }
+  }
+
+  await assertEqualInventory(source, targetRoot, label);
 };
 
 const withLock = async (operation) => {
@@ -197,9 +201,9 @@ const writeJournal = async (digest, phase) => {
 
 const publishProjections = async (source, digest) => {
   await writeJournal(digest, 'plugin');
-  await replaceTree(pluginRoot, sourceRoot, digest);
+  await updateProjection(pluginRoot, source, 'plugin SceneBoard skill');
   await writeJournal(digest, 'mirror');
-  await replaceTree(privateMirrorRoot, sourceRoot, digest);
+  await updateProjection(privateMirrorRoot, source, 'private deployment mirror');
   await writeJournal(digest, 'verify');
   await assertEqualInventory(source, pluginRoot, 'plugin SceneBoard skill');
   await assertEqualInventory(source, privateMirrorRoot, 'private deployment mirror');
@@ -219,25 +223,7 @@ const main = async () => {
   }
 
   if (adoptPlugin) {
-    await withLock(async () => {
-      const plugin = await collectFiles(pluginRoot);
-      const source = await collectFiles(sourceRoot);
-      const mergedRoot = await mkdtemp(resolve(dirname(sourceRoot), '.sceneboard-adopt-'));
-      await cp(pluginRoot, mergedRoot, { recursive: true, force: false, errorOnExist: true });
-      for (const [path] of source) {
-        if (plugin.has(path)) continue;
-        const from = resolve(sourceRoot, path);
-        const to = resolve(mergedRoot, path);
-        await mkdir(dirname(to), { recursive: true });
-        await cp(from, to, { force: false, errorOnExist: true });
-      }
-      const merged = await collectFiles(mergedRoot);
-      const digest = digestInventory(merged);
-      await replaceTree(sourceRoot, mergedRoot, digest);
-      await rm(mergedRoot, { recursive: true, force: true });
-      console.log(JSON.stringify({ status: 'ADOPTED', digest, fileCount: merged.size }));
-    });
-    return;
+    throw new Error('--adopt-plugin requires explicit ownership reconciliation');
   }
 
   await withLock(async () => {

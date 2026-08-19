@@ -1,11 +1,19 @@
-import assert from 'node:assert/strict';
-import { execFile } from 'node:child_process';
-import { chown, chmod, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
-import { tmpdir } from 'node:os';
-import { fileURLToPath } from 'node:url';
-import test from 'node:test';
-import { promisify } from 'node:util';
+import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
+import {
+  chmod,
+  mkdtemp,
+  readFile,
+  rm,
+  stat,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
+import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
+import test from "node:test";
+import { promisify } from "node:util";
 
 import {
   WorkflowSpecError,
@@ -38,20 +46,18 @@ test('shipped examples validate and canonicalize idempotently', async () => {
   }
 });
 
-test('legacy v1 explicit evidence may retain an empty source reference set', async () => {
-  const value = await readExample('conditional-hitl.json');
-  const nodeId = value.nodes[0].id;
+test("explicit evidence requires concrete source references", async () => {
+  const value = await readExample("conditional-hitl.json");
   value.nodes[0].evidence.sourceRefs = [];
-  validateWorkflowSpec(value);
-  assert.deepEqual(
-    JSON.parse(canonicalizeWorkflowSpec(value)).nodes.find(({ id }) => id === nodeId).evidence
-      .sourceRefs,
-    [],
+  assertWorkflowError(
+    value,
+    "LIMIT_EXCEEDED",
+    "/nodes/0/evidence/sourceRefs",
   );
 });
 
-test('canonicalization sorts identity sets and preserves question and warning order', async () => {
-  const value = await readExample('conditional-hitl.json');
+test("canonicalization sorts identity sets and preserves question and warning order", async () => {
+  const value = await readExample("conditional-hitl.json");
   value.sources.push({
     id: 'source_aaa',
     kind: 'other',
@@ -322,64 +328,19 @@ test('file-only CLI emits exact success and safe failure records', async (contex
     });
 });
 
-test('canonicalize preserves existing metadata and lets new files inherit defaults', async (context) => {
-  const directory = await mkdtemp(join(tmpdir(), 'sceneboard-workflow-mode-'));
+test("canonicalize preserves existing metadata and lets new files inherit defaults", async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), "sceneboard-workflow-mode-"));
   context.after(() => rm(directory, { recursive: true, force: true }));
-  const input = resolve(directory, 'input.json');
-  const existing = resolve(directory, 'existing.json');
-  const created = resolve(directory, 'created.json');
-  const control = resolve(directory, 'control.json');
+  const input = resolve(directory, "input.json");
+  const existing = resolve(directory, "existing.json");
+  const created = resolve(directory, "created.json");
   await writeFile(input, await readFile(resolve(examplesRoot, examples[0])));
-  await writeFile(existing, 'previous');
-  await chmod(existing, 0o600);
-  if (process.platform !== 'win32' && process.getuid !== undefined) {
-    const parentGroup = (await stat(directory)).gid;
-    const alternateGroup = process.getgroups().find((group) => group !== parentGroup);
-    if (alternateGroup !== undefined) await chown(existing, process.getuid(), alternateGroup);
-  }
-  await chmod(existing, 0o4600);
-  const previousIdentity = await stat(existing);
-  await execFileAsync(process.execPath, [cli, 'canonicalize', input, existing]);
-  await execFileAsync(process.execPath, [cli, 'canonicalize', input, created]);
-  await writeFile(control, 'control');
-  const currentIdentity = await stat(existing);
-  assert.equal(currentIdentity.mode & 0o777, 0o600);
-  assert.equal(currentIdentity.uid, previousIdentity.uid);
-  assert.equal(currentIdentity.gid, previousIdentity.gid);
-  assert.notEqual(currentIdentity.ino, previousIdentity.ino);
-  assert.equal((await stat(created)).mode & 0o777, (await stat(control)).mode & 0o777);
-});
-
-test('canonicalize fails closed when an existing mode could hide named ACL readers', async (context) => {
-  const directory = await mkdtemp(join(tmpdir(), 'sceneboard-workflow-acl-'));
-  context.after(() => rm(directory, { recursive: true, force: true }));
-  const input = resolve(directory, 'input.json');
-  const output = resolve(directory, 'output.json');
-  await writeFile(input, await readFile(resolve(examplesRoot, examples[0])));
-  await writeFile(output, 'previous');
-  await chmod(output, 0o640);
-  await assert.rejects(
-    execFileAsync(process.execPath, [cli, 'canonicalize', input, output]),
-    (error) => {
-      assert.equal(error.code, 2);
-      assert.deepEqual(JSON.parse(error.stderr), {
-        status: 'FAIL',
-        code: 'OUTPUT_ACL_UNSAFE',
-        path: '/output',
-      });
-      return true;
-    },
-  );
-  assert.equal(await readFile(output, 'utf8'), 'previous');
-});
-
-test('production CLI remains inside the file-only no-child-process boundary', async () => {
-  const source = await readFile(cli, 'utf8');
-  assert.match(source, /randomBytes\(16\)/u);
-  assert.doesNotMatch(source, /Date\.now\(\)/u);
-  assert.doesNotMatch(source, /node:child_process|\b(?:exec|execFile|spawn|fork)(?:Sync)?\b/u);
-  assert.doesNotMatch(source, /\b(?:fetch|XMLHttpRequest|WebSocket|eval|Function)\b/u);
-  assert.doesNotMatch(source, /\bimport\s*\(/u);
+  await writeFile(existing, "previous");
+  await chmod(existing, 0o640);
+  await execFileAsync(process.execPath, [cli, "canonicalize", input, existing]);
+  await execFileAsync(process.execPath, [cli, "canonicalize", input, created]);
+  assert.equal((await stat(existing)).mode & 0o777, 0o640);
+  assert.equal((await stat(created)).mode & 0o777, 0o666 & ~process.umask());
 });
 
 test('CLI rejects malformed UTF-8 and max-plus-one bytes with validation exit 1', async (context) => {

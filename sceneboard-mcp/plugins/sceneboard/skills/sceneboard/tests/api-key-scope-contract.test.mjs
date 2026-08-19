@@ -13,10 +13,10 @@ import {
   NODE_TYPES,
   OPERATION_TYPES,
   SESSION_LIFECYCLE_PERMISSIONS,
-} from '../scripts/sceneboard-api-contract.mjs';
-import { parseConnection } from '../scripts/sceneboard-api-public.mjs';
-import { protectedSpec } from '../scripts/sceneboard-api-request.mjs';
-import { projectBoardEnvelope } from '../scripts/sceneboard-api-response.mjs';
+} from "../scripts/sceneboard-api-contract.mjs";
+import { parseConnection } from "../scripts/sceneboard-api-public.mjs";
+import { protectedSpec } from "../scripts/sceneboard-api-request.mjs";
+import { projectBoardEnvelope } from "../scripts/sceneboard-api-response.mjs";
 
 const expandedScopes = [
   'artifact:control',
@@ -62,25 +62,29 @@ test('accepts an API-key connection with the complete owner scope catalog', () =
   assert.deepEqual(connection?.credential.scopes, expandedScopes);
 });
 
-const requestId = 'request_1';
+const requestId = "request_1";
 
-test('interaction status wait accepts only canonical timestamps', () => {
+test("interaction status wait accepts only canonical timestamps", () => {
   const input = {
-    boardId: 'board_1',
-    hitlRequestId: 'hitl_1',
+    boardId: "board_1",
+    hitlRequestId: "hitl_1",
     wait: {
-      afterStateUpdatedAt: '2026-08-13T00:00:00.000Z',
+      afterStateUpdatedAt: "2026-08-13T00:00:00.000Z",
       timeoutMs: 30_000,
     },
   };
   assert.match(
-    protectedSpec('board_interaction_status', input, requestId).path,
+    protectedSpec("board_interaction_status", input, requestId).path,
     /afterStateUpdatedAt=2026-08-13T00%3A00%3A00\.000Z/u,
   );
-  for (const invalid of ['2026-08-13', '2026-08-13T00:00:00Z', '2026-02-30T00:00:00.000Z'])
+  for (const invalid of [
+    "2026-08-13",
+    "2026-08-13T00:00:00Z",
+    "2026-02-30T00:00:00.000Z",
+  ])
     assert.throws(() =>
       protectedSpec(
-        'board_interaction_status',
+        "board_interaction_status",
         {
           ...input,
           wait: { ...input.wait, afterStateUpdatedAt: invalid },

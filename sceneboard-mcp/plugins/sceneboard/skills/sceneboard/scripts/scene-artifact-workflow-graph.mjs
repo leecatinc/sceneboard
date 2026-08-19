@@ -617,8 +617,8 @@ export const WORKFLOW_GRAPH_PROGRAM_V2 = `(()=>{
     }
     flow.addEventListener('keydown',event=>{
       if(event.key==='Escape'&&!panel.hidden){event.preventDefault();closePanel(panel,backdrop);return}
-      if(event.target.closest('input,textarea,select,option,[contenteditable]:not([contenteditable="false"]),.sb-graph-inspector'))return;
-      if(event.code==='Space'){if(event.target.closest('button,a,summary,[role]:not([role="none"]):not([role="presentation"])'))return;event.preventDefault();stopInitialFit();spacePan=true;scroll.dataset.panReady='true';return}
+      if(event.target.closest('button,a,input,textarea,select,option,summary,[contenteditable]:not([contenteditable="false"]),[role]:not([role="none"]):not([role="presentation"])'))return;
+      if(event.code==='Space'){if(!event.target.closest('.sb-graph-scroll'))return;event.preventDefault();stopInitialFit();spacePan=true;scroll.dataset.panReady='true';return}
       if(event.shiftKey&&event.code==='Digit1'){event.preventDefault();stopInitialFit();fit()}
       else if(event.shiftKey&&event.code==='Digit2'){event.preventDefault();stopInitialFit();focusSelected()}
       else if(event.key==='ArrowLeft'){event.preventDefault();stopInitialFit();panX+=48;renderTransform()}
@@ -706,7 +706,7 @@ const WORKFLOW_GRAPH_CSS_V19 = `${WORKFLOW_GRAPH_CSS_V18}.sb-graph-canvas .sb-gr
 export const renderWorkflowGraph = (content, title, fallbackText) => {
   const workflowSpec = validateWorkflowSpec(content.workflowSpec);
   const canonical = canonicalizeWorkflowSpec(workflowSpec);
-  const canonicalBytes = Buffer.byteLength(canonical, 'utf8');
+  const canonicalBytes = Buffer.byteLength(canonical, "utf8");
   const canonicalWorkflowSpec = JSON.parse(canonical);
   const flows = [
     {
@@ -732,7 +732,7 @@ export const renderWorkflowGraph = (content, title, fallbackText) => {
     totals.nodes <= WORKFLOW_GRAPH_RENDER_LIMITS.nodes &&
     totals.edges <= WORKFLOW_GRAPH_RENDER_LIMITS.edges &&
     canonicalBytes <= WORKFLOW_GRAPH_RENDER_LIMITS.canonicalBytes;
-  const capability = content.copyMode === 'manual' ? [] : ['clipboard.write'];
+  const capability = content.copyMode === "manual" ? [] : ["clipboard.write"];
   const copyButton =
     content.copyMode === 'manual' ? '' : '<button type="button" data-copy-host>Copy JSON</button>';
   const jsonExportControl = '<button type="button" data-json-export>JSON export</button>';
@@ -752,10 +752,10 @@ export const renderWorkflowGraph = (content, title, fallbackText) => {
                     const relationship = flowRelationship(flow, flows);
                     return `<button type="button" data-flow-target="${index}"><strong>${escapeHtml(flow.title)}</strong><span>${flow.nodes.length} nodes · ${flow.edges.length} edges</span><span>Entry: ${escapeHtml(flow.entryNodeIds.join(', '))} · Subflows: ${relationship.outgoing.length} · Parents: ${relationship.parents.length}</span></button>`;
                   })
-                  .join('')}</nav>`
-              : ''
-          }${flows.map((flow, index) => renderFlow(flow, index, flows, hasMultipleFlows, jsonExportControl)).join('')}`
-        : `<section class="sb-graph-render-limit" data-render-limit-exceeded role="status"><div class="sb-graph-actions">${jsonExportControl}</div><h2>Graph preview limit exceeded</h2><p>${escapeHtml(fallbackText ?? 'The workflow is valid but too large for the interactive preview.')}</p><p>This valid WorkflowSpec contains ${totals.nodes} nodes, ${totals.edges} edges, and ${canonicalBytes} canonical bytes. ${renderLimitGuidance} The preview limit is ${WORKFLOW_GRAPH_RENDER_LIMITS.nodes} nodes, ${WORKFLOW_GRAPH_RENDER_LIMITS.edges} edges, and ${WORKFLOW_GRAPH_RENDER_LIMITS.canonicalBytes} canonical bytes.</p></section>`
+                  .join("")}</nav>`
+              : ""
+          }${flows.map((flow, index) => renderFlow(flow, index, flows, hasMultipleFlows, jsonExportControl)).join("")}`
+        : `<section class="sb-graph-render-limit" data-render-limit-exceeded role="status"><div class="sb-graph-actions">${jsonExportControl}</div><h2>Graph preview limit exceeded</h2><p>${escapeHtml(fallbackText ?? "The workflow is valid but too large for the interactive preview.")}</p><p>This valid WorkflowSpec contains ${totals.nodes} nodes, ${totals.edges} edges, and ${canonicalBytes} canonical bytes. ${renderLimitGuidance} The preview limit is ${WORKFLOW_GRAPH_RENDER_LIMITS.nodes} nodes, ${WORKFLOW_GRAPH_RENDER_LIMITS.edges} edges, and ${WORKFLOW_GRAPH_RENDER_LIMITS.canonicalBytes} canonical bytes.</p></section>`
     }${exportModal}</main>`,
     css: WORKFLOW_GRAPH_CSS_V19,
     javascript: WORKFLOW_GRAPH_PROGRAM_V2,

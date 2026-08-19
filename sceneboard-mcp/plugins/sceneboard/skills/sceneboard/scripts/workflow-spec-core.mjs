@@ -201,7 +201,7 @@ const validateEvidence = (value, sourceIds, path) => {
     fail('INVALID_VALUE', pointer(path, 'confidence'));
   const refs = array(
     value.sourceRefs,
-    0,
+    value.basis === "explicit" ? 1 : 0,
     WORKFLOW_SPEC_LIMITS_V1.sourceRefs,
     pointer(path, 'sourceRefs'),
   );
