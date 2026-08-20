@@ -201,6 +201,14 @@ test('workflow graph renders the closed WorkflowSpec v1 contract deterministical
   );
 });
 
+test('workflow graph renders immutable v1 explicit evidence without source references', () => {
+  const legacy = structuredClone(workflowSpec);
+  legacy.nodes[0].evidence.sourceRefs = [];
+  const compiled = compileSceneArtifactDraft(recipe('manual', legacy), descriptor);
+  assert.match(compiled.source.html, /data-sb-workflow-graph="v1"/u);
+  assert.match(compiled.source.html, /<h4>Evidence<\/h4><p><strong>explicit<\/strong><\/p>/u);
+});
+
 test('workflow graph rendering is invariant to valid node and edge input order', () => {
   const reordered = structuredClone(workflowSpec);
   reordered.nodes.reverse();
