@@ -22,6 +22,10 @@ import {
   parseWorkflowSpec,
   validateWorkflowSpec,
 } from '../scripts/workflow-spec-core.mjs';
+import {
+  ExistingOutputWriteError,
+  replaceExistingContent,
+} from '../scripts/workflow-spec.mjs';
 
 const execFileAsync = promisify(execFile);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -46,14 +50,91 @@ test('shipped examples validate and canonicalize idempotently', async () => {
   }
 });
 
-test("explicit evidence requires concrete source references", async () => {
+test("legacy explicit evidence may retain an empty source-reference set", async () => {
   const value = await readExample("conditional-hitl.json");
   value.nodes[0].evidence.sourceRefs = [];
-  assertWorkflowError(
-    value,
-    "LIMIT_EXCEEDED",
-    "/nodes/0/evidence/sourceRefs",
+  validateWorkflowSpec(value);
+  const canonical = canonicalizeWorkflowSpec(value);
+  const node = JSON.parse(canonical).nodes.find(({ id }) => id === value.nodes[0].id);
+  assert.deepEqual(node.evidence.sourceRefs, []);
+});
+
+test('existing-output replacement restores prior bytes after a sync failure', async () => {
+  class MemoryHandle {
+    constructor(bytes) {
+      this.bytes = Buffer.from(bytes);
+      this.syncCalls = 0;
+    }
+
+    async truncate(size) {
+      this.bytes = this.bytes.subarray(0, size);
+    }
+
+    async write(bytes, offset, length, position) {
+      const required = position + length;
+      if (required > this.bytes.length) {
+        const expanded = Buffer.alloc(required);
+        this.bytes.copy(expanded);
+        this.bytes = expanded;
+      }
+      Buffer.from(bytes).copy(this.bytes, position, offset, offset + length);
+      return { bytesWritten: length };
+    }
+
+    async sync() {
+      this.syncCalls += 1;
+      if (this.syncCalls === 1) throw new Error('injected sync failure');
+    }
+  }
+
+  const previous = Buffer.from('previous canonical bytes');
+  const handle = new MemoryHandle(previous);
+  await assert.rejects(
+    replaceExistingContent(handle, Buffer.from('replacement'), previous),
+    (error) =>
+      error instanceof ExistingOutputWriteError &&
+      error.code === 'OUTPUT_SYNC_FAILED',
   );
+  assert.deepEqual(handle.bytes, previous);
+});
+
+test('existing-output replacement restores prior bytes when path identity changes', async () => {
+  class MemoryHandle {
+    constructor(bytes) {
+      this.bytes = Buffer.from(bytes);
+    }
+
+    async truncate(size) {
+      this.bytes = this.bytes.subarray(0, size);
+    }
+
+    async write(bytes, offset, length, position) {
+      const required = position + length;
+      if (required > this.bytes.length) {
+        const expanded = Buffer.alloc(required);
+        this.bytes.copy(expanded);
+        this.bytes = expanded;
+      }
+      Buffer.from(bytes).copy(this.bytes, position, offset, offset + length);
+      return { bytesWritten: length };
+    }
+
+    async sync() {}
+  }
+
+  const previous = Buffer.from('previous canonical bytes');
+  const handle = new MemoryHandle(previous);
+  await assert.rejects(
+    replaceExistingContent(
+      handle,
+      Buffer.from('replacement'),
+      previous,
+      async () => false,
+    ),
+    (error) =>
+      error instanceof ExistingOutputWriteError && error.code === 'OUTPUT_CHANGED',
+  );
+  assert.deepEqual(handle.bytes, previous);
 });
 
 test("canonicalization sorts identity sets and preserves question and warning order", async () => {
@@ -341,6 +422,70 @@ test("canonicalize preserves existing metadata and lets new files inherit defaul
   await execFileAsync(process.execPath, [cli, "canonicalize", input, created]);
   assert.equal((await stat(existing)).mode & 0o777, 0o640);
   assert.equal((await stat(created)).mode & 0o777, 0o666 & ~process.umask());
+});
+
+test('canonicalize refuses an existing output that cannot be durably recovered', async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), 'sceneboard-workflow-recovery-'));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  const input = resolve(directory, 'input.json');
+  const output = resolve(directory, 'output.json');
+  await writeFile(input, await readFile(resolve(examplesRoot, examples[0])));
+  const previous = 'x'.repeat(49_153);
+  await writeFile(output, previous);
+
+  await assert.rejects(
+    execFileAsync(process.execPath, [cli, 'canonicalize', input, output]),
+    (error) => {
+      assert.equal(error.code, 2);
+      assert.deepEqual(JSON.parse(error.stderr), {
+        status: 'FAIL',
+        code: 'OUTPUT_RECOVERY_UNSAFE',
+        path: '/output',
+      });
+      return true;
+    },
+  );
+  assert.equal(await readFile(output, 'utf8'), previous);
+});
+
+test('canonicalize preserves and repeatedly refuses a pending recovery', async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), 'sceneboard-workflow-pending-recovery-'));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  const input = resolve(directory, 'input.json');
+  const output = resolve(directory, 'output.json');
+  const recovery = resolve(directory, '.output.json.workflow-spec.recovery');
+  const recoveryBytes = Buffer.from('exact durable recovery bytes');
+  await writeFile(input, await readFile(resolve(examplesRoot, examples[0])));
+  await writeFile(output, 'damaged output');
+  await writeFile(recovery, recoveryBytes);
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await assert.rejects(
+      execFileAsync(process.execPath, [cli, 'canonicalize', input, output]),
+      (error) => {
+        assert.equal(error.code, 2);
+        assert.deepEqual(JSON.parse(error.stderr), {
+          status: 'FAIL',
+          code: 'OUTPUT_RECOVERY_REQUIRED',
+          path: '/output',
+        });
+        return true;
+      },
+    );
+    assert.deepEqual(await readFile(recovery), recoveryBytes);
+    assert.equal(await readFile(output, 'utf8'), 'damaged output');
+  }
+
+  await rm(output);
+  await assert.rejects(
+    execFileAsync(process.execPath, [cli, 'canonicalize', input, output]),
+    (error) => {
+      assert.equal(error.code, 2);
+      assert.equal(JSON.parse(error.stderr).code, 'OUTPUT_RECOVERY_REQUIRED');
+      return true;
+    },
+  );
+  assert.deepEqual(await readFile(recovery), recoveryBytes);
 });
 
 test('CLI rejects malformed UTF-8 and max-plus-one bytes with validation exit 1', async (context) => {

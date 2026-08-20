@@ -44,7 +44,7 @@ artifact source caps without adding a second runtime format.
 | `HumanControl`     | `interaction:"info"                                                                                                                                                                                                                                                       | "choice"                                                                                                                                                                      | "form"                                                                     | "confirmation"`; `blocking:boolean`                                                                                           |
 | `Edge`             | `id:Id`; `kind:EdgeKind`; `fromNodeId:Id`; `toNodeId:Id`; `label:Label                                                                                                                                                                                                    | null`; `condition:Condition                                                                                                                                                   | null`; `priority:integer 0..1000                                           | null`; `stateKeys:StateKey[0..32]`unique set;`evidence:Evidence`                                                              |
 | `Condition`        | `text:LongText`; `language:"natural"                                                                                                                                                                                                                                      | "cel"                                                                                                                                                                         | "javascript"                                                               | "python"                                                                                                                      | "other"                                                          | "unknown"`; inert text only |
-| `Evidence`         | `basis:"explicit"                                                                                                                                                                                                                                                         | "inferred"                                                                                                                                                                    | "unknown"`; `confidence:finite number 0..1`; `sourceRefs:SourceRef[0..16]`; explicit basis requires at least one source ref |
+| `Evidence`         | `basis:"explicit"                                                                                                                                                                                                                                                         | "inferred"                                                                                                                                                                    | "unknown"`; `confidence:finite number 0..1`; `sourceRefs:SourceRef[0..16]`; attach concrete references when available      |
 | `SourceRef`        | `sourceId:Id`; `startLine:integer 1..10000000                                                                                                                                                                                                                             | null`; `endLine:integer 1..10000000                                                                                                                                           | null`; `locator:LongText                                                   | null`; line values are both null or both integers with `endLine>=startLine`                                                   |
 | `ElementRef`       | `kind:"node"                                                                                                                                                                                                                                                              | "edge"                                                                                                                                                                        | "subflow"`; `id:Id`                                                        |
 | `Question`         | `id:Id`; `prompt:LongText`; `relatedElements:ElementRef[1..32]` unique by `(kind,id)`; `evidence:Evidence`                                                                                                                                                                |
@@ -110,7 +110,8 @@ errors exit 2, use path `"/input"`, `"/output"`, or `""`, and use exactly:
 
 `USAGE_ERROR|INPUT_NOT_FOUND|INPUT_SYMLINK|INPUT_NOT_REGULAR|INPUT_READ_FAILED|OUTPUT_ALIAS_INPUT|
 OUTPUT_PARENT_INVALID|OUTPUT_SYMLINK|OUTPUT_NOT_REGULAR|OUTPUT_CHANGED|OUTPUT_TEMP_CREATE_FAILED|
-OUTPUT_ACL_UNSAFE|OUTPUT_WRITE_FAILED|OUTPUT_SYNC_FAILED|OUTPUT_RENAME_FAILED`.
+OUTPUT_RECOVERY_UNSAFE|OUTPUT_RECOVERY_REQUIRED|OUTPUT_WRITE_FAILED|OUTPUT_SYNC_FAILED|
+OUTPUT_RENAME_FAILED`.
 
 | exit-2 code                 | exact path  | exact trigger                                                                       |
 | --------------------------- | ----------- | ----------------------------------------------------------------------------------- |
@@ -125,22 +126,23 @@ OUTPUT_ACL_UNSAFE|OUTPUT_WRITE_FAILED|OUTPUT_SYNC_FAILED|OUTPUT_RENAME_FAILED`.
 | `OUTPUT_NOT_REGULAR`        | `"/output"` | existing output is not a regular file                                               |
 | `OUTPUT_CHANGED`            | `"/output"` | pre-rename existence/device/inode differs from recorded state                       |
 | `OUTPUT_TEMP_CREATE_FAILED` | `"/output"` | adjacent exclusive no-follow temp creation fails                                    |
-| `OUTPUT_ACL_UNSAFE`         | `"/output"` | existing group/other mode may represent ACL readers that cannot be preserved safely |
-| `OUTPUT_WRITE_FAILED`       | `"/output"` | temp write or close fails before commit                                             |
-| `OUTPUT_SYNC_FAILED`        | `"/output"` | temp fsync/metadata preservation fails pre-commit or parent fsync fails post-commit |
+| `OUTPUT_RECOVERY_UNSAFE`    | `"/output"` | existing output exceeds the v1 byte bound and cannot be backed up safely             |
+| `OUTPUT_RECOVERY_REQUIRED`  | `"/output"` | an earlier recovery is pending or rollback failed with its durable recovery file kept |
+| `OUTPUT_WRITE_FAILED`       | `"/output"` | staged/recovery write fails, or an in-place write fails and prior bytes are restored |
+| `OUTPUT_SYNC_FAILED`        | `"/output"` | staged/recovery fsync fails, an in-place fsync fails and prior bytes are restored, or parent fsync fails post-commit |
 | `OUTPUT_RENAME_FAILED`      | `"/output"` | atomic temp-to-output rename fails                                                  |
 
 The record never includes input values, source text, absolute paths, OS messages or stack traces.
 Input is opened no-follow, stat-verified regular, bounded before parse, decoded fatally and scanned
 for duplicate members. Canonicalize resolves/stats the parent directory, rejects an input/output
 lexical or device/inode alias, lstat-checks the output as absent or regular non-symlink, records its
-device/inode, creates an adjacent cryptographically randomized mode-0600 `O_EXCL|O_NOFOLLOW` temp,
-writes/fsyncs it, and for an existing owner-only target restores its recorded uid, gid and ordinary
-permission bits before rechecking that the output is still absent or the same device/inode and
-atomically renaming. Existing targets with any group/other permission bits fail closed because those
-bits may be the effective mask for named ACL readers, which this dependency-free file-only CLI cannot
-inspect or preserve. Setuid, setgid and sticky bits are never restored. Rename is the
-commit point and never follows the final entry. Every pre-commit failure unlinks temp and preserves
-the prior target; a post-rename parent-fsync failure returns `OUTPUT_SYNC_FAILED` with the committed
-new file intact. Each table row fixture asserts the exact code/path pair; every alias/race case and
-max/max+1 boundary has a fixture.
+device/inode, creates an adjacent cryptographically randomized `O_EXCL|O_NOFOLLOW` staged file using the process umask,
+writes/fsyncs it, and rechecks that the output is still absent or the same device/inode. A new output
+inherits the process umask and uses atomic rename as its commit point. An existing output is bounded to
+the v1 byte limit, copied into the adjacent owner-only deterministic recovery file
+`.<output-name>.workflow-spec.recovery`, fsynced, and then updated in place so its inode, uid, gid, mode,
+and ACL metadata remain unchanged. A caught truncate/write/fsync failure restores and fsyncs the prior
+bytes before returning the original failure code. If restoration itself fails, the CLI returns
+`OUTPUT_RECOVERY_REQUIRED` and retains the exact recovery file; a later invocation refuses to modify
+the output until that file is resolved. Pre-commit failures remove ordinary temporary files, while a
+post-commit parent-fsync failure returns `OUTPUT_SYNC_FAILED` with the committed output intact.
