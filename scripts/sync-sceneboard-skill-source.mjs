@@ -29,7 +29,7 @@ const lockPath = resolve(stateRoot, 'publication.lock');
 const journalPath = resolve(stateRoot, 'publication.json');
 const checkOnly = process.argv.includes('--check');
 const adoptPlugin = process.argv.includes('--adopt-plugin');
-const skillFileMode = 0o644;
+const skillFileMode = 0o660;
 
 const pathStatus = (path) =>
   lstat(path).catch((error) => {

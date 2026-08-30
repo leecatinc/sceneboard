@@ -22,7 +22,7 @@ test('skill publisher closes symlink, secret and escaped-authority paths', () =>
     /workspaceRoot,\s*'\.\.\/lc-skills\/marketplace\/private\/lc-skills\/skills\/sceneboard'/u,
   );
   assert.doesNotMatch(source, /\.AI\/skills\/sceneboard/u);
-  assert.match(source, /const skillFileMode = 0o644/u);
+  assert.match(source, /const skillFileMode = 0o660/u);
   assert.match(source, /constants\.O_NOFOLLOW/u);
   assert.match(source, /inventory change requires explicit reconciliation/u);
   assert.match(source, /sameIdentity/u);
@@ -45,8 +45,8 @@ test('skill publisher updates existing bytes without replacing metadata', async 
   const projectionFile = resolve(projection, 'SKILL.md');
   await writeFile(authorityFile, 'new bytes\n');
   await writeFile(projectionFile, 'old bytes\n');
-  await chmod(authorityFile, 0o644);
-  await chmod(projectionFile, 0o644);
+  await chmod(authorityFile, 0o660);
+  await chmod(projectionFile, 0o660);
   const before = await stat(projectionFile);
 
   await updateProjection(projection, await collectFiles(authority), 'test projection');
