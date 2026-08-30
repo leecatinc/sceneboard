@@ -11,6 +11,9 @@ const skillRoot = resolve(import.meta.dirname, '../../skills/sceneboard');
 const workflowSpec = JSON.parse(
   await readFile(resolve(skillRoot, 'assets/workflow-spec-examples/conditional-hitl.json'), 'utf8'),
 );
+const groupedWorkflowSpec = JSON.parse(
+  await readFile(resolve(skillRoot, 'assets/workflow-spec-examples/parallel-retry.json'), 'utf8'),
+);
 const descriptor = JSON.parse(
   await readFile(resolve(skillRoot, 'assets/artifact-templates/workflow-graph.json'), 'utf8'),
 );
@@ -42,6 +45,20 @@ const hostDraft = compileSceneArtifactDraft(
   },
   descriptor,
 );
+const groupedDraft = compileSceneArtifactDraft(
+  {
+    artifactRecipeVersion: 1,
+    template: 'workflow-graph',
+    placementKey: 'parallel-retry-workflow',
+    title: 'Parallel retry workflow',
+    fallbackText: 'Inspect workflow details.',
+    theme: 'dark',
+    size: { width: 1280, height: 800 },
+    motion: 'none',
+    content: { workflowSpec: groupedWorkflowSpec, copyMode: 'manual' },
+  },
+  descriptor,
+);
 
 const assertSelectedFallback = async (page, message) => {
   const source = page.locator('[data-workflow-json]');
@@ -69,6 +86,55 @@ const assertSelectedFallback = async (page, message) => {
   );
   assert.match(await page.locator('[data-copy-status]').textContent(), message);
 };
+
+test('multi-flow overview stays compact and opens flows with click and Enter', async (context) => {
+  const browser = await chromium.launch({ headless: true });
+  context.after(() => browser.close());
+  const browserContext = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const page = await browserContext.newPage();
+  await page.setContent(`<style>${groupedDraft.source.css}</style>${groupedDraft.source.html}`);
+  await page.addScriptTag({ content: groupedDraft.source.javascript });
+
+  const overview = page.locator('[data-flow-overview-list]');
+  const cards = overview.locator(':scope > [data-flow-target]');
+  const expectedGroups = 1 + groupedWorkflowSpec.subflows.length;
+  assert.equal(await cards.count(), expectedGroups);
+  for (const viewport of [
+    { width: 1280, height: 800 },
+    { width: 1600, height: 900 },
+  ]) {
+    await page.setViewportSize(viewport);
+    const cardBoxes = await cards.evaluateAll((elements) =>
+      elements.map((element) => element.getBoundingClientRect().toJSON()),
+    );
+    assert.equal(cardBoxes.length, expectedGroups);
+    for (const box of cardBoxes)
+      assert.ok(box.height < viewport.height / 2, JSON.stringify({ viewport, box }));
+  }
+
+  await cards.nth(0).click();
+  assert.equal(await overview.isHidden(), true);
+  assert.equal(await page.locator('[data-workflow-flow="0"]').isVisible(), true);
+  await page.locator('[data-workflow-flow="0"] [data-flow-overview]').click();
+  assert.equal(await overview.isVisible(), true);
+  assert.equal(
+    await cards.nth(0).evaluate((element) => document.activeElement === element),
+    true,
+  );
+
+  await cards.nth(1).focus();
+  await cards.nth(1).press('Enter');
+  assert.equal(await overview.isHidden(), true);
+  assert.equal(await page.locator('[data-workflow-flow="1"]').isVisible(), true);
+  await page.locator('[data-workflow-flow="1"] [data-flow-overview]').click();
+  await page.setViewportSize({ width: 360, height: 640 });
+  const narrowBoxes = await cards.evaluateAll((elements) =>
+    elements.map((element) => element.getBoundingClientRect().toJSON()),
+  );
+  assert.ok(narrowBoxes.every((box) => box.height < 200), JSON.stringify(narrowBoxes));
+  assert.ok(narrowBoxes.slice(1).every((box, index) => box.y > narrowBoxes[index].y));
+  await browserContext.close();
+});
 
 test('workflow node and edge controls open accessible details and restore focus', async (context) => {
   const browser = await chromium.launch({ headless: true });

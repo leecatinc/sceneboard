@@ -675,7 +675,7 @@ const WORKFLOW_GRAPH_CSS_V4 = `${WORKFLOW_GRAPH_CSS_V3}.sb-graph-scroll{cursor:d
 
 const WORKFLOW_GRAPH_CSS_V5 = `${WORKFLOW_GRAPH_CSS_V4}.sb-graph-action-status{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}`;
 
-const WORKFLOW_GRAPH_CSS_V6 = `${WORKFLOW_GRAPH_CSS_V5}.sb-workflow-graph{height:100vh;min-height:0;padding:0;overflow:hidden}.sb-graph-flow{display:flex;flex-direction:column;height:100vh;min-height:0;margin:0;padding:0;border:0;border-radius:0}.sb-graph-flow[hidden]{display:none}.sb-graph-flow>header{flex:0 0 auto;padding:18px 20px 0}.sb-graph-workspace{flex:1;min-height:0}.sb-graph-stage-wrap,.sb-graph-scroll{height:100%;min-height:0}.sb-graph-scroll{border-radius:0}.sb-graph-overview{height:100vh;max-width:none;margin:0;padding:20px;overflow:auto}`;
+const WORKFLOW_GRAPH_CSS_V6 = `${WORKFLOW_GRAPH_CSS_V5}.sb-workflow-graph{height:100vh;min-height:0;padding:0;overflow:hidden}.sb-graph-flow{display:flex;flex-direction:column;height:100vh;min-height:0;margin:0;padding:0;border:0;border-radius:0}.sb-graph-flow[hidden]{display:none}.sb-graph-flow>header{flex:0 0 auto;padding:18px 20px 0}.sb-graph-workspace{flex:1;min-height:0}.sb-graph-stage-wrap,.sb-graph-scroll{height:100%;min-height:0}.sb-graph-scroll{border-radius:0}.sb-graph-overview{height:100vh;max-width:none;margin:0;padding:20px;overflow:auto;align-content:start;grid-auto-rows:max-content}`;
 
 const WORKFLOW_GRAPH_CSS_V7 = `${WORKFLOW_GRAPH_CSS_V6}.sb-graph-scroll{background-color:#07151f;background-image:linear-gradient(#ffffff08 1px,transparent 1px),linear-gradient(90deg,#ffffff08 1px,transparent 1px);background-size:24px 24px}.sb-graph-canvas{background-image:none}`;
 
