@@ -2,7 +2,8 @@
 import { randomBytes } from 'node:crypto';
 import { constants } from 'node:fs';
 import { lstat, open, realpath, rename, rm } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
+import { basename, dirname, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { TextDecoder } from 'node:util';
 
 import {
@@ -23,6 +24,55 @@ class WorkflowSpecIoError extends Error {
 
 const ioFail = (code, path) => {
   throw new WorkflowSpecIoError(code, path);
+};
+
+export class ExistingOutputWriteError extends Error {
+  constructor(code) {
+    super(code);
+    this.name = 'ExistingOutputWriteError';
+    this.code = code;
+  }
+}
+
+const writeAll = async (handle, bytes) => {
+  let offset = 0;
+  while (offset < bytes.length) {
+    const { bytesWritten } = await handle.write(
+      bytes,
+      offset,
+      bytes.length - offset,
+      offset,
+    );
+    if (!Number.isInteger(bytesWritten) || bytesWritten <= 0)
+      throw new Error('short output write');
+    offset += bytesWritten;
+  }
+};
+
+export const replaceExistingContent = async (
+  handle,
+  nextBytes,
+  previousBytes,
+  verifyCurrent = async () => true,
+) => {
+  let failureCode = 'OUTPUT_WRITE_FAILED';
+  try {
+    await handle.truncate(0);
+    await writeAll(handle, nextBytes);
+    failureCode = 'OUTPUT_SYNC_FAILED';
+    await handle.sync();
+    failureCode = 'OUTPUT_CHANGED';
+    if (!(await verifyCurrent())) throw new Error('output path identity changed');
+  } catch {
+    try {
+      await handle.truncate(0);
+      await writeAll(handle, previousBytes);
+      await handle.sync();
+    } catch {
+      throw new ExistingOutputWriteError('OUTPUT_RECOVERY_REQUIRED');
+    }
+    throw new ExistingOutputWriteError(failureCode);
+  }
 };
 const statusOrNull = (path) =>
   lstat(path).catch((error) => {
@@ -117,22 +167,14 @@ const inheritedFileMode = async (parent) => {
   }
 };
 
-const preserveExistingMetadata = async (handle, existing) => {
+const syncDirectory = async (path) => {
+  let handle;
   try {
-    const temporary = await handle.stat();
-    if (temporary.uid !== existing.uid || temporary.gid !== existing.gid)
-      await handle.chown(existing.uid, existing.gid);
-    await handle.chmod(existing.mode & 0o0777);
-  } catch {
-    ioFail('OUTPUT_SYNC_FAILED', '/output');
+    handle = await open(path, constants.O_RDONLY);
+    await handle.sync();
+  } finally {
+    await handle?.close().catch(() => undefined);
   }
-  const applied = await handle.stat().catch(() => ioFail('OUTPUT_SYNC_FAILED', '/output'));
-  if (
-    applied.uid !== existing.uid ||
-    applied.gid !== existing.gid ||
-    (applied.mode & 0o0777) !== (existing.mode & 0o0777)
-  )
-    ioFail('OUTPUT_SYNC_FAILED', '/output');
 };
 
 const writeAtomic = async (path, value, input) => {
@@ -175,6 +217,12 @@ const writeAtomic = async (path, value, input) => {
       ioFail('OUTPUT_CHANGED', '/output');
     }
   }
+  const recovery = resolve(
+    parent,
+    `.${basename(absolute)}.workflow-spec.recovery`,
+  );
+  if (await statusOrNull(recovery).catch(() => ioFail('OUTPUT_RECOVERY_REQUIRED', '/output')))
+    ioFail('OUTPUT_RECOVERY_REQUIRED', '/output');
   const temporary = resolve(parent, temporaryName('tmp'));
   let handle;
   let committed = false;
@@ -196,7 +244,6 @@ const writeAtomic = async (path, value, input) => {
     try {
       await handle.sync();
       if (existing === null) await handle.chmod(outputMode);
-      else await preserveExistingMetadata(handle, existing);
       await handle.sync();
       await handle.close();
       handle = undefined;
@@ -209,20 +256,102 @@ const writeAtomic = async (path, value, input) => {
       (existing !== null && !sameIdentity(existing, current))
     )
       ioFail('OUTPUT_CHANGED', '/output');
-    try {
-      await rename(temporary, absolute);
-      committed = true;
-    } catch {
-      ioFail('OUTPUT_RENAME_FAILED', '/output');
+    if (existing === null) {
+      try {
+        await rename(temporary, absolute);
+        committed = true;
+      } catch {
+        ioFail('OUTPUT_RENAME_FAILED', '/output');
+      }
+    } else {
+      let outputHandle;
+      let recoveryHandle;
+      let createdRecovery = false;
+      let preserveRecovery = false;
+      try {
+        outputHandle = await open(
+          absolute,
+          constants.O_RDWR | (constants.O_NOFOLLOW ?? 0),
+        );
+        const opened = await outputHandle.stat();
+        if (!sameIdentity(existing, opened))
+          ioFail('OUTPUT_CHANGED', '/output');
+        if (opened.size > WORKFLOW_SPEC_LIMITS_V1.inputBytes)
+          ioFail('OUTPUT_RECOVERY_UNSAFE', '/output');
+        const previousBytes = await outputHandle.readFile();
+        const afterRead = await outputHandle.stat();
+        if (
+          !sameIdentity(existing, afterRead) ||
+          afterRead.size !== opened.size ||
+          afterRead.mtimeMs !== opened.mtimeMs
+        )
+          ioFail('OUTPUT_CHANGED', '/output');
+        try {
+          recoveryHandle = await open(
+            recovery,
+            constants.O_WRONLY |
+              constants.O_CREAT |
+              constants.O_EXCL |
+              (constants.O_NOFOLLOW ?? 0),
+            0o600,
+          );
+          createdRecovery = true;
+        } catch {
+          ioFail('OUTPUT_TEMP_CREATE_FAILED', '/output');
+        }
+        try {
+          await recoveryHandle.writeFile(previousBytes);
+        } catch {
+          ioFail('OUTPUT_WRITE_FAILED', '/output');
+        }
+        try {
+          await recoveryHandle.sync();
+          await recoveryHandle.close();
+          recoveryHandle = undefined;
+        } catch {
+          ioFail('OUTPUT_SYNC_FAILED', '/output');
+        }
+        try {
+          await syncDirectory(parent);
+        } catch {
+          ioFail('OUTPUT_SYNC_FAILED', '/output');
+        }
+        const beforeReplace = await statusOrNull(absolute).catch(() => null);
+        if (!sameIdentity(existing, beforeReplace))
+          ioFail('OUTPUT_CHANGED', '/output');
+        try {
+          await replaceExistingContent(
+            outputHandle,
+            Buffer.from(value, 'utf8'),
+            previousBytes,
+            async () => {
+              const afterReplace = await statusOrNull(absolute).catch(() => null);
+              return sameIdentity(existing, afterReplace);
+            },
+          );
+        } catch (error) {
+          if (error instanceof ExistingOutputWriteError) {
+            preserveRecovery = error.code === 'OUTPUT_RECOVERY_REQUIRED';
+            ioFail(error.code, '/output');
+          }
+          throw error;
+        }
+        committed = true;
+      } catch (error) {
+        if (error instanceof WorkflowSpecIoError) throw error;
+        ioFail('OUTPUT_WRITE_FAILED', '/output');
+      } finally {
+        await recoveryHandle?.close().catch(() => undefined);
+        await outputHandle?.close().catch(() => undefined);
+        if (createdRecovery && !preserveRecovery)
+          await rm(recovery, { force: true }).catch(() => undefined);
+      }
+      await rm(temporary, { force: true }).catch(() => undefined);
     }
-    let parentHandle;
     try {
-      parentHandle = await open(parent, constants.O_RDONLY);
-      await parentHandle.sync();
+      await syncDirectory(parent);
     } catch {
       ioFail('OUTPUT_SYNC_FAILED', '/output');
-    } finally {
-      await parentHandle?.close().catch(() => undefined);
     }
   } finally {
     await handle?.close().catch(() => undefined);
@@ -246,10 +375,11 @@ const main = async () => {
   process.stdout.write(`${JSON.stringify({ status: 'PASS' })}\n`);
 };
 
-main().catch((error) => {
-  const known = error instanceof WorkflowSpecError || error instanceof WorkflowSpecIoError;
-  const code = known ? error.code : 'INPUT_READ_FAILED';
-  const path = known ? error.path : '/input';
-  process.stderr.write(`${JSON.stringify({ status: 'FAIL', code, path })}\n`);
-  process.exitCode = error instanceof WorkflowSpecError ? 1 : 2;
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href)
+  main().catch((error) => {
+    const known = error instanceof WorkflowSpecError || error instanceof WorkflowSpecIoError;
+    const code = known ? error.code : 'INPUT_READ_FAILED';
+    const path = known ? error.path : '/input';
+    process.stderr.write(`${JSON.stringify({ status: 'FAIL', code, path })}\n`);
+    process.exitCode = error instanceof WorkflowSpecError ? 1 : 2;
+  });

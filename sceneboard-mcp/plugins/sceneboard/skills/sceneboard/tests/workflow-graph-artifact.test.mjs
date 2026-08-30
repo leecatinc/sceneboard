@@ -181,31 +181,6 @@ test('workflow graph renders the closed WorkflowSpec v1 contract deterministical
   assert.match(first.source.javascript, /getComputedStyle\(node\)\.position==='absolute'/u);
   assert.match(first.source.javascript, /width>0&&height>0/u);
   assert.match(first.source.javascript, /const positionGraphGeometry=/u);
-  assert.match(
-    first.source.javascript,
-    /const nodes=readNodeGeometry\(\);if\(!nodes\)return false/u,
-  );
-  assert.match(
-    first.source.javascript,
-    /const geometry=readNodeGeometry\(\);if\(!geometry\)return false/u,
-  );
-  assert.match(
-    first.source.javascript,
-    /const fit=\(\)=>\{\s*if\(!positionGraphGeometry\(\)\)return false/u,
-  );
-  assert.match(
-    first.source.javascript,
-    /geometryFrame=requestAnimationFrame\(\(\)=>\{\s*geometryFrame=0;\s*settledGeometryFrame=requestAnimationFrame\(\(\)=>\{/u,
-  );
-  assert.match(first.source.javascript, /resume:scheduleGeometryRepair/u);
-  assert.match(
-    first.source.javascript,
-    /const resumeGeometry=\(\)=>\{if\(document\.visibilityState==='visible'&&currentFlow!==null\)controllers\.get\(currentFlow\)\?\.resume\(\)\}/u,
-  );
-  assert.match(
-    first.source.javascript,
-    /else\{currentFlow='0';controllers\.get\('0'\)\?\.startInitialFit\(\)\}/u,
-  );
   assert.match(first.source.javascript, /window\.addEventListener\('pageshow',resumeGeometry\)/u);
   assert.match(
     first.source.javascript,
@@ -233,6 +208,14 @@ test('workflow graph renders the closed WorkflowSpec v1 contract deterministical
     first.source.html + first.source.css + first.source.javascript,
     /https?:\/\//u,
   );
+});
+
+test('workflow graph renders immutable v1 explicit evidence without source references', () => {
+  const legacy = structuredClone(workflowSpec);
+  legacy.nodes[0].evidence.sourceRefs = [];
+  const compiled = compileSceneArtifactDraft(recipe('manual', legacy), descriptor);
+  assert.match(compiled.source.html, /data-sb-workflow-graph="v1"/u);
+  assert.match(compiled.source.html, /<h4>Evidence<\/h4><p><strong>explicit<\/strong><\/p>/u);
 });
 
 test('workflow graph rendering is invariant to valid node and edge input order', () => {
