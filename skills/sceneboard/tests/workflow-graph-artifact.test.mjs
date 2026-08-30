@@ -275,8 +275,15 @@ test('root and subflows render as drill-down groups', async () => {
   );
   const grouped = compileSceneArtifactDraft(recipe('manual', groupedSpec), descriptor);
   const expectedGroups = 1 + groupedSpec.subflows.length;
+  const overview =
+    grouped.source.html.match(/<nav class="sb-graph-overview"[\s\S]*?<\/nav>/u)?.[0] ?? '';
   assert.equal(grouped.source.html.match(/data-workflow-flow=/gu)?.length, expectedGroups);
+  assert.equal(overview.match(/data-flow-target=/gu)?.length, expectedGroups);
   assert.match(grouped.source.html, /aria-label="Workflow groups"/u);
+  assert.match(
+    grouped.source.css,
+    /\.sb-graph-overview\{height:100vh;max-width:none;margin:0;padding:20px;overflow:auto;align-content:start;grid-auto-rows:max-content\}/u,
+  );
   assert.match(grouped.source.html, /aria-label="Breadcrumb"/u);
   assert.match(grouped.source.html, /data-parent-flow=/u);
   assert.match(grouped.source.html, /data-entry-port/u);
